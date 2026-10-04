@@ -4,22 +4,20 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
 func TestInit(t *testing.T) {
 	s := enginecfg.NewStore("claude")
-	if got := s.Get(); got != "claude" {
-		t.Errorf("Init: expected claude, got %s", got)
-	}
+	assert.Equal(t, "claude", s.Get())
 }
 
 func TestSet(t *testing.T) {
 	s := enginecfg.NewStore("claude")
 	s.Set("codex")
-	if got := s.Get(); got != "codex" {
-		t.Errorf("Set: expected codex, got %s", got)
-	}
+	assert.Equal(t, "codex", s.Get())
 }
 
 func TestConcurrentAccess(t *testing.T) {

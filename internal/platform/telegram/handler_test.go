@@ -2,13 +2,14 @@ package telegram
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTelegramPlatformID(t *testing.T) {
 	p := &TelegramPlatform{}
-	if p.ID() != "telegram" {
-		t.Errorf("ID() = %q, want %q", p.ID(), "telegram")
-	}
+	assert.Equal(t, "telegram", p.ID())
 }
 
 func TestBuildSessionKey(t *testing.T) {
@@ -24,10 +25,7 @@ func TestBuildSessionKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := buildSessionKey(tt.chatID, tt.senderID)
-			if got != tt.want {
-				t.Errorf("buildSessionKey(%d, %d) = %q, want %q",
-					tt.chatID, tt.senderID, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -45,9 +43,7 @@ func TestEscapeHTML(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			got := escapeHTML(tt.input)
-			if got != tt.want {
-				t.Errorf("escapeHTML(%q) = %q, want %q", tt.input, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -55,29 +51,19 @@ func TestEscapeHTML(t *testing.T) {
 func TestParseRaw(t *testing.T) {
 	raw := `{"update_id":100,"message":{"message_id":42,"chat":{"id":-9876},"date":1700000000}}`
 	chatID, msgID, err := parseRaw(raw)
-	if err != nil {
-		t.Fatalf("parseRaw error: %v", err)
-	}
-	if chatID != -9876 {
-		t.Errorf("chatID = %d, want -9876", chatID)
-	}
-	if msgID != 42 {
-		t.Errorf("msgID = %d, want 42", msgID)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, -9876, chatID)
+	assert.Equal(t, 42, msgID)
 }
 
 func TestParseRaw_InvalidJSON(t *testing.T) {
 	_, _, err := parseRaw("not json")
-	if err == nil {
-		t.Error("expected error for invalid JSON, got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestBuildPlatformMessageID(t *testing.T) {
 	got := buildPlatformMessageID(100, 42)
-	if got != "100:42" {
-		t.Errorf("buildPlatformMessageID(100, 42) = %q, want %q", got, "100:42")
-	}
+	assert.Equal(t, "100:42", got)
 }
 
 func TestMediaTypeFromTelegram(t *testing.T) {
@@ -96,10 +82,7 @@ func TestMediaTypeFromTelegram(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.msgType, func(t *testing.T) {
 			got := mediaTypeFromTelegram(tt.msgType)
-			if got != tt.want {
-				t.Errorf("mediaTypeFromTelegram(%q) = %q, want %q",
-					tt.msgType, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

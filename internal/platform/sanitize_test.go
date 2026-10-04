@@ -1,6 +1,10 @@
 package platform
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestSanitizeFileName(t *testing.T) {
 	tests := []struct {
@@ -24,9 +28,7 @@ func TestSanitizeFileName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := SanitizeFileName(tt.input)
-			if got != tt.want {
-				t.Errorf("SanitizeFileName(%q) = %q, want %q", tt.input, got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

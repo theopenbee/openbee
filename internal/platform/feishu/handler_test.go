@@ -1,10 +1,11 @@
 package feishu
 
 import (
-	"strings"
 	"testing"
 
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseMediaKeys(t *testing.T) {
@@ -56,15 +57,9 @@ func TestParseMediaKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			img, file, name := parseMediaKeys(tt.content, tt.msgType)
-			if img != tt.wantImage {
-				t.Errorf("imageKey = %q, want %q", img, tt.wantImage)
-			}
-			if file != tt.wantFile {
-				t.Errorf("fileKey = %q, want %q", file, tt.wantFile)
-			}
-			if name != tt.wantName {
-				t.Errorf("fileName = %q, want %q", name, tt.wantName)
-			}
+			assert.Equal(t, tt.wantImage, img)
+			assert.Equal(t, tt.wantFile, file)
+			assert.Equal(t, tt.wantName, name)
 		})
 	}
 }
@@ -83,9 +78,8 @@ func TestResourceType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.msgType, func(t *testing.T) {
-			if got := resourceType(tt.msgType); got != tt.want {
-				t.Errorf("resourceType(%q) = %q, want %q", tt.msgType, got, tt.want)
-			}
+			got := resourceType(tt.msgType)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -104,9 +98,8 @@ func TestMediaTypeForMsgType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.msgType, func(t *testing.T) {
-			if got := mediaTypeForMsgType(tt.msgType); got != tt.want {
-				t.Errorf("mediaTypeForMsgType(%q) = %q, want %q", tt.msgType, got, tt.want)
-			}
+			got := mediaTypeForMsgType(tt.msgType)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -126,9 +119,8 @@ func TestFileCategory(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := fileCategory(tt.path); got != tt.want {
-				t.Errorf("fileCategory(%q) = %q, want %q", tt.path, got, tt.want)
-			}
+			got := fileCategory(tt.path)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -149,9 +141,8 @@ func TestFeishuFileType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			if got := feishuFileType(tt.path); got != tt.want {
-				t.Errorf("feishuFileType(%q) = %q, want %q", tt.path, got, tt.want)
-			}
+			got := feishuFileType(tt.path)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -168,9 +159,8 @@ func TestFeishuMediaMsgType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.fileType, func(t *testing.T) {
-			if got := feishuMediaMsgType(tt.fileType); got != tt.want {
-				t.Errorf("feishuMediaMsgType(%q) = %q, want %q", tt.fileType, got, tt.want)
-			}
+			got := feishuMediaMsgType(tt.fileType)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -244,9 +234,7 @@ func TestResolveMentions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := resolveMentions(tt.text, tt.mentions, tt.botName)
-			if got != tt.want {
-				t.Errorf("resolveMentions() = %q, want %q", got, tt.want)
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -272,9 +260,7 @@ func TestUploadAndSendFile_ContentByType(t *testing.T) {
 				contentMap = map[string]string{"file_key": "test_key"}
 			}
 			_, hasFileName := contentMap["file_name"]
-			if hasFileName != tt.wantFileName {
-				t.Errorf("msgType %q: hasFileName = %v, want %v", tt.msgType, hasFileName, tt.wantFileName)
-			}
+			assert.Equal(t, tt.wantFileName, hasFileName)
 		})
 	}
 }
@@ -283,29 +269,15 @@ func TestExtractContext_ValidFeishuRaw(t *testing.T) {
 	// Minimal Feishu P2MessageReceiveV1 JSON with the fields we extract.
 	raw := `{"schema":"2.0","header":{"event_id":"evt1","event_type":"im.message.receive_v1"},"event":{"sender":{"sender_id":{"open_id":"ou_abc","union_id":"on_abc"},"sender_type":"user","tenant_key":"tk1"},"message":{"message_id":"om_1","chat_id":"oc_xyz","chat_type":"group","message_type":"text"}}}`
 	got := ExtractContext(raw)
-	if got == "" {
-		t.Fatal("expected non-empty context")
-	}
-	if !strings.Contains(got, `"sender"`) {
-		t.Errorf("expected sender namespace in context, got: %q", got)
-	}
-	if !strings.Contains(got, `"message"`) {
-		t.Errorf("expected message namespace in context, got: %q", got)
-	}
-	if !strings.Contains(got, "ou_abc") {
-		t.Errorf("expected open_id value in context, got: %q", got)
-	}
-	if !strings.Contains(got, `"sender_type"`) {
-		t.Errorf("expected sender_type in context, got: %q", got)
-	}
-	if !strings.Contains(got, `"message_type"`) {
-		t.Errorf("expected message_type in context, got: %q", got)
-	}
+	require.NotEmpty(t, got)
+	assert.Contains(t, got, `"sender"`)
+	assert.Contains(t, got, `"message"`)
+	assert.Contains(t, got, "ou_abc")
+	assert.Contains(t, got, `"sender_type"`)
+	assert.Contains(t, got, `"message_type"`)
 }
 
 func TestExtractContext_InvalidRaw(t *testing.T) {
 	got := ExtractContext("not-json")
-	if got != "" {
-		t.Errorf("expected empty string for invalid raw, got %q", got)
-	}
+	assert.Empty(t, got)
 }

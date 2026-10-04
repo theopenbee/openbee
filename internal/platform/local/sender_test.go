@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
@@ -20,19 +23,13 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 		ReplyTo: platform.InboundMessage{SessionKey: "local:sess-1"},
 		Content: "Reply content",
 	}
-	if err := sender.Send(context.Background(), msg); err != nil {
-		t.Fatalf("Send: %v", err)
-	}
+	require.NoError(t, sender.Send(context.Background(), msg))
 
 	select {
 	case data := <-ch:
 		var payload map[string]any
-		if err := json.Unmarshal([]byte(data), &payload); err != nil {
-			t.Fatalf("broadcast data is not valid JSON: %v", err)
-		}
-		if payload["content"] != "Reply content" {
-			t.Errorf("broadcast content mismatch: %v", payload)
-		}
+		require.NoError(t, json.Unmarshal([]byte(data), &payload))
+		assert.Equal(t, "Reply content", payload["content"])
 	default:
 		t.Fatal("expected SSE broadcast but channel was empty")
 	}
@@ -51,9 +48,7 @@ func TestLocalSender_Send_UsesReplyToSessionKey(t *testing.T) {
 		ReplyTo:    platform.InboundMessage{SessionKey: "local:correct-session"},
 		Content:    "test",
 	}
-	if err := sender.Send(context.Background(), msg); err != nil {
-		t.Fatalf("Send: %v", err)
-	}
+	require.NoError(t, sender.Send(context.Background(), msg))
 
 	select {
 	case <-ch:

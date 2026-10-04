@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthStore_AuthorizeAndCheck(t *testing.T) {
@@ -14,18 +17,12 @@ func TestAuthStore_AuthorizeAndCheck(t *testing.T) {
 		filePath: filepath.Join(dir, "authorized_users.json"),
 	}
 
-	if s.IsAuthorized("123") {
-		t.Error("user should not be authorized initially")
-	}
+	assert.False(t, s.IsAuthorized("123"), "user should not be authorized initially")
 
 	s.Authorize("123")
 
-	if !s.IsAuthorized("123") {
-		t.Error("user should be authorized after Authorize()")
-	}
-	if s.IsAuthorized("456") {
-		t.Error("other user should not be authorized")
-	}
+	assert.True(t, s.IsAuthorized("123"), "user should be authorized after Authorize()")
+	assert.False(t, s.IsAuthorized("456"), "other user should not be authorized")
 }
 
 func TestAuthStore_Persistence(t *testing.T) {
@@ -47,12 +44,9 @@ func TestAuthStore_Persistence(t *testing.T) {
 	}
 	s2.load()
 
-	if !s2.IsAuthorized("111") || !s2.IsAuthorized("222") {
-		t.Error("persisted users should be loadable")
-	}
-	if s2.IsAuthorized("333") {
-		t.Error("non-persisted user should not be authorized")
-	}
+	assert.True(t, s2.IsAuthorized("111"), "persisted users should be loadable")
+	assert.True(t, s2.IsAuthorized("222"), "persisted users should be loadable")
+	assert.False(t, s2.IsAuthorized("333"), "non-persisted user should not be authorized")
 }
 
 func TestAuthStore_FileFormat(t *testing.T) {
@@ -66,17 +60,11 @@ func TestAuthStore_FileFormat(t *testing.T) {
 	s.Authorize("42")
 
 	data, err := os.ReadFile(fp)
-	if err != nil {
-		t.Fatalf("read file: %v", err)
-	}
+	require.NoError(t, err)
 
 	var ids []string
-	if err := json.Unmarshal(data, &ids); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if len(ids) != 1 || ids[0] != "42" {
-		t.Errorf("file content = %v, want [\"42\"]", ids)
-	}
+	require.NoError(t, json.Unmarshal(data, &ids))
+	assert.Equal(t, []string{"42"}, ids)
 }
 
 func TestAuthStore_LoadMissingFile(t *testing.T) {
@@ -85,7 +73,5 @@ func TestAuthStore_LoadMissingFile(t *testing.T) {
 		filePath: filepath.Join(t.TempDir(), "nonexistent.json"),
 	}
 	s.load() // should not panic
-	if s.IsAuthorized("any") {
-		t.Error("empty store should authorize no one")
-	}
+	assert.False(t, s.IsAuthorized("any"), "empty store should authorize no one")
 }
