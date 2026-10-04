@@ -5,26 +5,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
-func newTaskStoreForTest(t *testing.T) (*TaskStore, func()) {
+func newTaskStoreForTest(t *testing.T) *TaskStore {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	// Insert prerequisite rows matching the actual schema (raw, platform_msg_id required)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages
-        (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-        VALUES ('m1','feishu:c:u','feishu','hi','','',1,1,1)`)
-	return NewTaskStore(db), func() { db.Close() }
+	return NewTaskStore(newTestDB(t, seedWorkerSQL("w1"), seedMessageSQL("m1", "feishu:c:u")))
+}
+
+func newTaskStoreWithTwoSessions(t *testing.T) *TaskStore {
+	t.Helper()
+	return NewTaskStore(newTestDB(t, seedWorkerSQL("w1"),
+		seedMessageSQL("m1", "session-A"), seedMessageSQL("m2", "session-B")))
+}
+
+// newTaskStoreWithTwoWorkers sets up: w1 and w2 workers; m1 (session-A) and m2 (session-B) messages.
+func newTaskStoreWithTwoWorkers(t *testing.T) *TaskStore {
+	t.Helper()
+	return NewTaskStore(newTestDB(t, seedWorkerSQL("w1"), seedWorkerSQL("w2"),
+		seedMessageSQL("m1", "session-A"), seedMessageSQL("m2", "session-B")))
 }
 
 func TestTaskStore_Create_And_Get(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
 	task := model.Task{
@@ -38,793 +44,382 @@ func TestTaskStore_Create_And_Get(t *testing.T) {
 	}
 
 	id, err := ts.Create(context.Background(), task)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if id == "" {
-		t.Fatal("expected non-empty task ID")
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
 
 	got, err := ts.GetByID(context.Background(), id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Instruction != "do it" {
-		t.Errorf("instruction: want %q got %q", "do it", got.Instruction)
-	}
-	if got.Type != model.TaskTypeImmediate {
-		t.Errorf("type: want immediate got %q", got.Type)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "do it", got.Instruction)
+	assert.Equal(t, model.TaskTypeImmediate, got.Type)
 }
 
 func TestTaskStore_ClaimDueTasks_ImmediateOnly(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{})
 
 	tasks, err := ts.ClaimDueTasks(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("ClaimDueTasks: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected 1 due task, got %d", len(tasks))
-	}
-	if tasks[0].Status != model.TaskStatusRunning {
-		t.Errorf("claimed task should have status running, got %q", tasks[0].Status)
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, model.TaskStatusRunning, tasks[0].Status)
 }
 
 func TestTaskStore_ClaimDueTasks_Idempotent(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{})
 
 	tasks1, _ := ts.ClaimDueTasks(context.Background(), now, nil)
 	tasks2, _ := ts.ClaimDueTasks(context.Background(), now, nil)
-	if len(tasks1) != 1 {
-		t.Errorf("first claim: want 1, got %d", len(tasks1))
-	}
-	if len(tasks2) != 0 {
-		t.Errorf("second claim should be empty (already running), got %d", len(tasks2))
-	}
+	assert.Len(t, tasks1, 1, "first claim")
+	assert.Empty(t, tasks2, "second claim should be empty (already running)")
 }
 
 func TestTaskStore_DeleteByMessageIDs(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
-	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{})
 
 	err := ts.DeletePendingByMessageIDs(context.Background(), []string{"m1"})
-	if err != nil {
-		t.Fatalf("DeletePendingByMessageIDs: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify no pending tasks remain
-	tasks, _ := ts.ClaimDueTasks(context.Background(), now, nil)
-	if len(tasks) != 0 {
-		t.Errorf("expected 0 tasks after delete, got %d", len(tasks))
-	}
+	tasks, _ := ts.ClaimDueTasks(context.Background(), time.Now().UnixMilli(), nil)
+	assert.Empty(t, tasks)
 }
 
 func TestTaskStore_List_ByMessageIDFilter(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
-	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Type: model.TaskTypeCountdown})
 
 	tasks, err := ts.List(context.Background(), TaskFilter{MessageID: "m1"})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(tasks) != 2 {
-		t.Errorf("expected 2 tasks, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
 }
 
-func TestTaskStore_UpdateStatus_SetsCompleted(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	now := time.Now().UnixMilli()
-	id, err := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := ts.UpdateStatus(context.Background(), id, model.TaskStatusCompleted); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
-
-	got, err := ts.GetByID(context.Background(), id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Status != model.TaskStatusCompleted {
-		t.Errorf("status: want completed, got %q", got.Status)
-	}
-}
-
-func TestTaskStore_UpdateStatus_SetsFailed(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	now := time.Now().UnixMilli()
-	id, err := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := ts.UpdateStatus(context.Background(), id, model.TaskStatusFailed); err != nil {
-		t.Fatalf("UpdateStatus: %v", err)
-	}
-
-	got, _ := ts.GetByID(context.Background(), id)
-	if got.Status != model.TaskStatusFailed {
-		t.Errorf("status: want failed, got %q", got.Status)
-	}
-}
-
-func TestTaskStore_UpdateStatusIfRunning_SkipsWhenNotRunning(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	now := time.Now().UnixMilli()
-	id, err := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	changed, err := ts.UpdateStatusIfRunning(context.Background(), id, model.TaskStatusCompleted)
-	if err != nil {
-		t.Fatalf("UpdateStatusIfRunning: %v", err)
-	}
-	if changed {
-		t.Fatal("expected no-op when current status is pending")
-	}
-	got, _ := ts.GetByID(context.Background(), id)
-	if got.Status != model.TaskStatusPending {
-		t.Errorf("status mutated: got %q", got.Status)
-	}
-}
-
-func TestTaskStore_UpdateStatusIfRunning_Transitions(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	now := time.Now().UnixMilli()
-	id, err := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	changed, err := ts.UpdateStatusIfRunning(context.Background(), id, model.TaskStatusFailed)
-	if err != nil {
-		t.Fatalf("UpdateStatusIfRunning: %v", err)
-	}
-	if !changed {
-		t.Fatal("expected transition from running")
-	}
-	got, _ := ts.GetByID(context.Background(), id)
-	if got.Status != model.TaskStatusFailed {
-		t.Errorf("status not updated: %q", got.Status)
-	}
-}
-
-func newTaskStoreWithTwoSessions(t *testing.T) (*TaskStore, func()) {
-	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages
-		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		VALUES ('m1','session-A','feishu','hi','','',1,1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages
-		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		VALUES ('m2','session-B','feishu','bye','','',1,1,1)`)
-	return NewTaskStore(db), func() { db.Close() }
-}
-
-// newTaskStoreWithTwoWorkers sets up: w1 and w2 workers; m1 (session-A) and m2 (session-B) messages.
-func newTaskStoreWithTwoWorkers(t *testing.T) (*TaskStore, func()) {
-	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W1','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','W2','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages
-		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		VALUES ('m1','session-A','feishu','hi','','',1,1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages
-		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		VALUES ('m2','session-B','feishu','bye','','',1,1,1)`)
-	return NewTaskStore(db), func() { db.Close() }
-}
-
-func TestTaskStore_List_ByWorkerID(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoWorkers(t)
-	defer cleanup()
+func TestTaskStore_UpdateStatus(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	// w1 has tasks in session-A and session-B; w2 has a task in session-A
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "w1-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "w1-sessB", Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-
-	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1"})
-	if err != nil {
-		t.Fatalf("List by worker_id: %v", err)
+	cases := []struct {
+		name        string
+		from        string
+		ifRunning   bool // exercise UpdateStatusIfRunning instead of UpdateStatus
+		to          string
+		wantChanged bool
+		want        string
+	}{
+		{"SetsCompleted", model.TaskStatusRunning, false, model.TaskStatusCompleted, true, model.TaskStatusCompleted},
+		{"SetsFailed", model.TaskStatusRunning, false, model.TaskStatusFailed, true, model.TaskStatusFailed},
+		{"IfRunning_SkipsWhenNotRunning", model.TaskStatusPending, true, model.TaskStatusCompleted, false, model.TaskStatusPending},
+		{"IfRunning_Transitions", model.TaskStatusRunning, true, model.TaskStatusFailed, true, model.TaskStatusFailed},
 	}
-	if len(tasks) != 2 {
-		t.Errorf("expected 2 tasks for w1 across sessions, got %d", len(tasks))
-	}
-	for _, task := range tasks {
-		if task.WorkerID != "w1" {
-			t.Errorf("expected all tasks to belong to w1, got worker_id=%q", task.WorkerID)
-		}
-	}
-}
-
-func TestTaskStore_List_ByWorkerIDAndSessionKey(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoWorkers(t)
-	defer cleanup()
-	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "w1-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "w1-sessB", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-sessA", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-
-	// w1 + session-A: should return only the 1 task that is both w1 AND in session-A
-	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1", SessionKey: "session-A"})
-	if err != nil {
-		t.Fatalf("List by worker_id+session_key: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Errorf("expected 1 task for w1 in session-A, got %d", len(tasks))
-	}
-	if len(tasks) == 1 && tasks[0].Instruction != "w1-sessA" {
-		t.Errorf("expected instruction 'w1-sessA', got %q", tasks[0].Instruction)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTaskStoreForTest(t)
+			id := seedTask(t, ts, model.Task{Status: tc.from})
+			if tc.ifRunning {
+				changed, err := ts.UpdateStatusIfRunning(ctx, id, tc.to)
+				require.NoError(t, err)
+				require.Equal(t, tc.wantChanged, changed)
+			} else {
+				require.NoError(t, ts.UpdateStatus(ctx, id, tc.to))
+			}
+			got, err := ts.GetByID(ctx, id)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.Status)
+		})
 	}
 }
 
-func TestTaskStore_List_ByWorkerIDAndStatus(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoWorkers(t)
-	defer cleanup()
+func TestTaskStore_List_ByWorker(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w1", Instruction: "pending", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m2", WorkerID: "w1", Instruction: "completed", Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted, CreatedAt: now, UpdatedAt: now})
-	ts.Create(ctx, model.Task{MessageID: "m1", WorkerID: "w2", Instruction: "w2-pending", Type: model.TaskTypeImmediate, Status: model.TaskStatusPending, CreatedAt: now, UpdatedAt: now})
-
-	tasks, err := ts.List(ctx, TaskFilter{WorkerID: "w1", Status: "pending"})
-	if err != nil {
-		t.Fatalf("List by worker_id+status: %v", err)
+	cases := []struct {
+		name             string
+		seed             func(t *testing.T, ts *TaskStore)
+		filter           TaskFilter
+		wantInstructions []string
+	}{
+		{
+			name: "ByWorkerID",
+			seed: func(t *testing.T, ts *TaskStore) {
+				// w1 has tasks in session-A and session-B; w2 has a task in session-A
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m1", Instruction: "w1-sessA"})
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m2", Instruction: "w1-sessB", Status: model.TaskStatusCompleted})
+				seedTask(t, ts, model.Task{WorkerID: "w2", MessageID: "m1", Instruction: "w2-sessA"})
+			},
+			filter:           TaskFilter{WorkerID: "w1"},
+			wantInstructions: []string{"w1-sessA", "w1-sessB"},
+		},
+		{
+			name: "ByWorkerIDAndSessionKey",
+			seed: func(t *testing.T, ts *TaskStore) {
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m1", Instruction: "w1-sessA"})
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m2", Instruction: "w1-sessB"})
+				seedTask(t, ts, model.Task{WorkerID: "w2", MessageID: "m1", Instruction: "w2-sessA"})
+			},
+			// w1 + session-A: should return only the 1 task that is both w1 AND in session-A
+			filter:           TaskFilter{WorkerID: "w1", SessionKey: "session-A"},
+			wantInstructions: []string{"w1-sessA"},
+		},
+		{
+			name: "ByWorkerIDAndStatus",
+			seed: func(t *testing.T, ts *TaskStore) {
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m1", Instruction: "pending"})
+				seedTask(t, ts, model.Task{WorkerID: "w1", MessageID: "m2", Instruction: "completed", Status: model.TaskStatusCompleted})
+				seedTask(t, ts, model.Task{WorkerID: "w2", MessageID: "m1", Instruction: "w2-pending"})
+			},
+			filter:           TaskFilter{WorkerID: "w1", Status: "pending"},
+			wantInstructions: []string{"pending"},
+		},
 	}
-	if len(tasks) != 1 {
-		t.Errorf("expected 1 pending task for w1, got %d", len(tasks))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTaskStoreWithTwoWorkers(t)
+			tc.seed(t, ts)
+
+			tasks, err := ts.List(ctx, tc.filter)
+			require.NoError(t, err)
+			instructions := make([]string, len(tasks))
+			for i, task := range tasks {
+				instructions[i] = task.Instruction
+				assert.Equal(t, "w1", task.WorkerID, "expected all tasks to belong to w1")
+			}
+			assert.ElementsMatch(t, tc.wantInstructions, instructions)
+		})
 	}
 }
 
 func TestTaskStore_ListBySessionKey(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoSessions(t)
-	defer cleanup()
+	ts := newTaskStoreWithTwoSessions(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	// Create tasks in session-A: one pending, one running
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Status: model.TaskStatusRunning})
 	// Create task in session-B
-	ts.Create(ctx, model.Task{
-		MessageID: "m2", WorkerID: "w1", Instruction: "c",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{MessageID: "m2", Instruction: "c"})
 
 	// List all tasks for session-A
 	tasks, err := ts.List(ctx, TaskFilter{SessionKey: "session-A"})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(tasks) != 2 {
-		t.Errorf("expected 2 tasks for session-A, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
 
 	// List only pending tasks for session-A
 	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending"})
-	if err != nil {
-		t.Fatalf("List (pending): %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Errorf("expected 1 pending task for session-A, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 1)
 
 	// List with comma-separated status
 	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending,running"})
-	if err != nil {
-		t.Fatalf("List (pending,running): %v", err)
-	}
-	if len(tasks) != 2 {
-		t.Errorf("expected 2 tasks for session-A with pending,running, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
 
 	// List for session-B
 	tasks, err = ts.List(ctx, TaskFilter{SessionKey: "session-B"})
-	if err != nil {
-		t.Fatalf("List session-B: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Errorf("expected 1 task for session-B, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 1)
 }
 
 func TestTaskStore_List_MessageIDFilter_CommaSeparatedStatus(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "c",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Status: model.TaskStatusRunning})
+	seedTask(t, ts, model.Task{Instruction: "c", Status: model.TaskStatusCompleted})
 
 	tasks, err := ts.List(ctx, TaskFilter{MessageID: "m1", Status: "pending,running"})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(tasks) != 2 {
-		t.Errorf("expected 2 tasks (pending+running), got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	assert.Len(t, tasks, 2)
 }
 
 func TestTaskStore_CancelBySessionKey(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoSessions(t)
-	defer cleanup()
+	ts := newTaskStoreWithTwoSessions(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	// Create tasks in session-A: pending + running + completed
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "c",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Status: model.TaskStatusRunning})
+	seedTask(t, ts, model.Task{Instruction: "c", Status: model.TaskStatusCompleted})
 	// Task in session-B (should not be affected)
-	ts.Create(ctx, model.Task{
-		MessageID: "m2", WorkerID: "w1", Instruction: "d",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{MessageID: "m2", Instruction: "d"})
 
 	n, err := ts.Cancel(ctx, CancelFilter{SessionKey: "session-A"})
-	if err != nil {
-		t.Fatalf("Cancel: %v", err)
-	}
-	if n != 2 {
-		t.Errorf("expected 2 cancelled (pending+running), got %d", n)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n, "expected 2 cancelled (pending+running)")
 
 	// Verify: session-A completed task untouched
 	tasksA, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "completed"})
-	if len(tasksA) != 1 {
-		t.Errorf("completed task should be untouched, got %d", len(tasksA))
-	}
+	assert.Len(t, tasksA, 1, "completed task should be untouched")
 
 	// Verify: session-A cancelled tasks
 	cancelledA, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "cancelled"})
-	if len(cancelledA) != 2 {
-		t.Errorf("expected 2 cancelled tasks, got %d", len(cancelledA))
-	}
+	assert.Len(t, cancelledA, 2)
 
 	// Verify: session-B unaffected
 	tasksB, _ := ts.List(ctx, TaskFilter{SessionKey: "session-B", Status: "pending"})
-	if len(tasksB) != 1 {
-		t.Errorf("session-B task should be unaffected, got %d", len(tasksB))
-	}
+	assert.Len(t, tasksB, 1, "session-B task should be unaffected")
 }
 
 func TestTaskStore_ListBySessionAndWorker(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoSessions(t)
-	defer cleanup()
+	ts := newTaskStoreWithTwoSessions(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	// session-A: w1 (pending+running), w2 (running)
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w2", Instruction: "c",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Status: model.TaskStatusRunning})
+	seedTask(t, ts, model.Task{WorkerID: "w2", Instruction: "c", Status: model.TaskStatusRunning})
 	// session-B: w1 running (should be excluded)
-	ts.Create(ctx, model.Task{
-		MessageID: "m2", WorkerID: "w1", Instruction: "d",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{MessageID: "m2", Instruction: "d", Status: model.TaskStatusRunning})
 
 	tasks, err := ts.List(ctx, TaskFilter{
 		SessionKey: "session-A", WorkerID: "w1",
 		Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate,
 	})
-	if err != nil {
-		t.Fatalf("List session+worker: %v", err)
-	}
-	if len(tasks) != 1 || tasks[0].Instruction != "b" {
-		t.Errorf("expected only session-A/w1 running task 'b', got %+v", tasks)
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, "b", tasks[0].Instruction)
 
 	all, err := ts.List(ctx, TaskFilter{SessionKey: "session-A", WorkerID: "w1"})
-	if err != nil {
-		t.Fatalf("List session+worker (all): %v", err)
-	}
-	if len(all) != 2 {
-		t.Errorf("expected 2 tasks for session-A/w1, got %d", len(all))
-	}
+	require.NoError(t, err)
+	assert.Len(t, all, 2)
 }
 
 func TestTaskStore_CancelBySessionAndWorker(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoSessions(t)
-	defer cleanup()
+	ts := newTaskStoreWithTwoSessions(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	// session-A/w1: pending + running + completed
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "a",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "b",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "c",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "a"})
+	seedTask(t, ts, model.Task{Instruction: "b", Status: model.TaskStatusRunning})
+	seedTask(t, ts, model.Task{Instruction: "c", Status: model.TaskStatusCompleted})
 	// session-A/w2 running: must survive
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w2", Instruction: "other-worker",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{WorkerID: "w2", Instruction: "other-worker", Status: model.TaskStatusRunning})
 	// session-B/w1 running: must survive
-	ts.Create(ctx, model.Task{
-		MessageID: "m2", WorkerID: "w1", Instruction: "other-session",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{MessageID: "m2", Instruction: "other-session", Status: model.TaskStatusRunning})
 
 	n, err := ts.Cancel(ctx, CancelFilter{
 		SessionKey: "session-A", WorkerID: "w1", Type: model.TaskTypeImmediate,
 	})
-	if err != nil {
-		t.Fatalf("Cancel session+worker: %v", err)
-	}
-	if n != 2 {
-		t.Errorf("expected 2 cancelled (pending+running for session-A/w1), got %d", n)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n, "expected 2 cancelled (pending+running for session-A/w1)")
 
 	// session-A/w2 untouched
 	w2, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", WorkerID: "w2", Status: model.TaskStatusRunning})
-	if len(w2) != 1 {
-		t.Errorf("session-A/w2 running task should be untouched, got %d", len(w2))
-	}
+	assert.Len(t, w2, 1, "session-A/w2 running task should be untouched")
 	// session-B/w1 untouched
 	sb, _ := ts.List(ctx, TaskFilter{SessionKey: "session-B", WorkerID: "w1", Status: model.TaskStatusRunning})
-	if len(sb) != 1 {
-		t.Errorf("session-B/w1 running task should be untouched, got %d", len(sb))
-	}
+	assert.Len(t, sb, 1, "session-B/w1 running task should be untouched")
 }
 
 func TestTaskStore_CancelBySessionKey_ImmediateOnly(t *testing.T) {
-	ts, cleanup := newTaskStoreWithTwoSessions(t)
-	defer cleanup()
+	ts := newTaskStoreWithTwoSessions(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	// immediate pending + running → should be cancelled
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "imm-pending",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "imm-running",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "imm-pending"})
+	seedTask(t, ts, model.Task{Instruction: "imm-running", Status: model.TaskStatusRunning})
 	// countdown pending → should survive
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "countdown-pending",
-		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "countdown-pending", Type: model.TaskTypeCountdown})
 	// scheduled pending → should survive
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "scheduled-pending",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "scheduled-pending", Type: model.TaskTypeScheduled})
 
 	n, err := ts.Cancel(ctx, CancelFilter{SessionKey: "session-A", Type: model.TaskTypeImmediate})
-	if err != nil {
-		t.Fatalf("Cancel: %v", err)
-	}
-	if n != 2 {
-		t.Errorf("expected 2 cancelled (immediate only), got %d", n)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n, "expected 2 cancelled (immediate only)")
 
 	// countdown and scheduled tasks must still be pending
 	surviving, _ := ts.List(ctx, TaskFilter{SessionKey: "session-A", Status: "pending"})
-	if len(surviving) != 2 {
-		t.Errorf("expected 2 surviving pending tasks (countdown+scheduled), got %d", len(surviving))
-	}
+	assert.Len(t, surviving, 2, "expected 2 surviving pending tasks (countdown+scheduled)")
 }
 
 func TestTaskStore_ResetRunningToPending(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
-	now := time.Now().UnixMilli()
-	id, _ := ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	id := seedTask(t, ts, model.Task{Status: model.TaskStatusRunning})
 
 	n, err := ts.ResetRunningToPending(context.Background())
-	if err != nil {
-		t.Fatalf("ResetRunningToPending: %v", err)
-	}
-	if n != 1 {
-		t.Errorf("expected 1 reset, got %d", n)
-	}
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
 
 	got, _ := ts.GetByID(context.Background(), id)
-	if got.Status != model.TaskStatusPending {
-		t.Errorf("expected pending, got %q", got.Status)
+	assert.Equal(t, model.TaskStatusPending, got.Status)
+}
+
+func TestTaskStore_FailTask(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name       string
+		seed       model.Task
+		wantStatus string
+	}{
+		{"RegularTask_MarksAsFailed", model.Task{Instruction: "x", Status: model.TaskStatusRunning}, model.TaskStatusFailed},
+		{"ScheduledTask_WithCron_ResetsToPending", model.Task{Instruction: "x", Type: model.TaskTypeScheduled, CronExpr: "* * * * *", Status: model.TaskStatusRunning}, model.TaskStatusPending},
+		{"ScheduledTask_NoCron_MarksAsFailed", model.Task{Instruction: "x", Type: model.TaskTypeScheduled, Status: model.TaskStatusRunning}, model.TaskStatusFailed},
+		{"ScheduledTask_Cancelled_NoChange", model.Task{Instruction: "x", Type: model.TaskTypeScheduled, CronExpr: "* * * * *", Status: model.TaskStatusCancelled}, model.TaskStatusCancelled},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTaskStoreForTest(t)
+			id := seedTask(t, ts, tc.seed)
+
+			require.NoError(t, ts.FailTask(ctx, id))
+
+			got, err := ts.GetByID(ctx, id)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantStatus, got.Status)
+		})
 	}
 }
 
-func TestTaskStore_FailTask_RegularTask_MarksAsFailed(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
+func TestTaskStore_Count(t *testing.T) {
 	ctx := context.Background()
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "x",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-
-	if err := ts.FailTask(ctx, id); err != nil {
-		t.Fatalf("FailTask: %v", err)
+	cases := []struct {
+		name  string
+		seed  func(t *testing.T, ts *TaskStore)
+		count func(*TaskStore) (int, error)
+		want  int
+	}{
+		{
+			name: "PendingByWorkerID",
+			seed: func(t *testing.T, ts *TaskStore) {
+				seedTask(t, ts, model.Task{Instruction: "do something"})
+				// Also create a completed task (should not count)
+				seedTask(t, ts, model.Task{Instruction: "done", Status: model.TaskStatusCompleted})
+			},
+			count: func(ts *TaskStore) (int, error) { return ts.CountPendingByWorkerID(ctx, "w1") },
+			want:  1,
+		},
+		{
+			name: "AllByStatus",
+			seed: func(t *testing.T, ts *TaskStore) {
+				seedTask(t, ts, model.Task{Instruction: "task1"})
+				seedTask(t, ts, model.Task{Instruction: "task2"})
+			},
+			count: func(ts *TaskStore) (int, error) {
+				counts, err := ts.CountAllByStatus(ctx)
+				return counts[model.TaskStatusPending], err
+			},
+			want: 2,
+		},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTaskStoreForTest(t)
+			tc.seed(t, ts)
 
-	got, _ := ts.GetByID(ctx, id)
-	if got.Status != model.TaskStatusFailed {
-		t.Errorf("expected status=failed, got %q", got.Status)
-	}
-}
-
-func TestTaskStore_FailTask_ScheduledTask_WithCron_ResetsToPending(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "x",
-		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
-		Status:    model.TaskStatusRunning,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-
-	if err := ts.FailTask(ctx, id); err != nil {
-		t.Fatalf("FailTask: %v", err)
-	}
-
-	got, _ := ts.GetByID(ctx, id)
-	if got.Status != model.TaskStatusPending {
-		t.Errorf("expected status=pending (reset for next run), got %q", got.Status)
-	}
-}
-
-func TestTaskStore_FailTask_ScheduledTask_NoCron_MarksAsFailed(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "x",
-		Type: model.TaskTypeScheduled, CronExpr: "",
-		Status:    model.TaskStatusRunning,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-
-	if err := ts.FailTask(ctx, id); err != nil {
-		t.Fatalf("FailTask: %v", err)
-	}
-
-	got, _ := ts.GetByID(ctx, id)
-	if got.Status != model.TaskStatusFailed {
-		t.Errorf("expected status=failed (no cron), got %q", got.Status)
-	}
-}
-
-func TestTaskStore_FailTask_ScheduledTask_Cancelled_NoChange(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	id, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "x",
-		Type: model.TaskTypeScheduled, CronExpr: "* * * * *",
-		Status:    model.TaskStatusCancelled,
-		CreatedAt: 1, UpdatedAt: 1,
-	})
-
-	// FailTask on a cancelled scheduled task should not error
-	if err := ts.FailTask(ctx, id); err != nil {
-		t.Fatalf("FailTask on cancelled task: %v", err)
-	}
-
-	got, _ := ts.GetByID(ctx, id)
-	if got.Status != model.TaskStatusCancelled {
-		t.Errorf("expected status=cancelled (preserved), got %q", got.Status)
-	}
-}
-
-func TestTaskStore_CountPendingByWorkerID(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "do something",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	// Also create a completed task (should not count)
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "done",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	})
-
-	count, err := ts.CountPendingByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Errorf("expected 1 pending task, got %d", count)
-	}
-}
-
-func TestTaskStore_CountAllByStatus(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	now := time.Now().UnixMilli()
-
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "task1",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "task2",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
-
-	counts, err := ts.CountAllByStatus(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if counts["pending"] != 2 {
-		t.Errorf("expected 2 pending, got %d", counts["pending"])
+			got, err := tc.count(ts)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 
 func TestTaskStore_PeekDueScheduledTasks_ReturnsDueOnly(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
 	pastRun := now - 1000
@@ -832,408 +427,172 @@ func TestTaskStore_PeekDueScheduledTasks_ReturnsDueOnly(t *testing.T) {
 	expr := "0 * * * *"
 
 	// Due: next_run_at in the past
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "due",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CronExpr: expr, NextRunAt: &pastRun,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "due", Type: model.TaskTypeScheduled, CronExpr: expr, NextRunAt: &pastRun})
 	// Not due: next_run_at in the future
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "future",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CronExpr: expr, NextRunAt: &futureRun,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "future", Type: model.TaskTypeScheduled, CronExpr: expr, NextRunAt: &futureRun})
 	// Due: next_run_at IS NULL
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "null-run-at",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CronExpr:  expr,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "null-run-at", Type: model.TaskTypeScheduled, CronExpr: expr})
 
 	tasks, err := ts.PeekDueScheduledTasks(context.Background(), now)
-	if err != nil {
-		t.Fatalf("PeekDueScheduledTasks: %v", err)
-	}
-	if len(tasks) != 2 {
-		t.Fatalf("expected 2 due scheduled tasks, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 2)
 	for _, task := range tasks {
-		if task.CronExpr != expr {
-			t.Errorf("expected cron_expr %q, got %q", expr, task.CronExpr)
-		}
+		assert.Equal(t, expr, task.CronExpr)
 	}
 }
 
 func TestTaskStore_ClaimDueTasks_ScheduledUsesProvidedNextRunAt(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
 	pastRun := now - 1000
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "recurring",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CronExpr: "0 * * * *", NextRunAt: &pastRun,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "recurring", Type: model.TaskTypeScheduled, CronExpr: "0 * * * *", NextRunAt: &pastRun})
 
 	// Peek to get the task ID
 	peeked, err := ts.PeekDueScheduledTasks(context.Background(), now)
-	if err != nil || len(peeked) != 1 {
-		t.Fatalf("peek: %v, got %d tasks", err, len(peeked))
-	}
+	require.NoError(t, err)
+	require.Len(t, peeked, 1)
 	taskID := peeked[0].ID
 	realNext := now + 3600_000 // 1h from now
 
 	tasks, err := ts.ClaimDueTasks(context.Background(), now, map[string]int64{taskID: realNext})
-	if err != nil {
-		t.Fatalf("ClaimDueTasks: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected 1 claimed task, got %d", len(tasks))
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
 
 	// next_run_at should be the provided value, NOT +24h
 	got, err := ts.GetByID(context.Background(), taskID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.NextRunAt == nil || *got.NextRunAt != realNext {
-		t.Errorf("expected next_run_at=%d, got %v", realNext, got.NextRunAt)
+	require.NoError(t, err)
+	if assert.NotNil(t, got.NextRunAt) {
+		assert.Equal(t, realNext, *got.NextRunAt)
 	}
 	// status should still be pending (scheduled tasks stay pending)
-	if got.Status != model.TaskStatusPending {
-		t.Errorf("scheduled task should remain pending, got %q", got.Status)
-	}
+	assert.Equal(t, model.TaskStatusPending, got.Status)
 }
 
 func TestTaskStore_ClaimDueTasks_ImmediateUnaffectedByScheduledMap(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
+	ts := newTaskStoreForTest(t)
 
 	now := time.Now().UnixMilli()
-	ts.Create(context.Background(), model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "now",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "now"})
 
 	tasks, err := ts.ClaimDueTasks(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("ClaimDueTasks: %v", err)
-	}
-	if len(tasks) != 1 || tasks[0].Status != model.TaskStatusRunning {
-		t.Fatalf("expected 1 running immediate task, got %+v", tasks)
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	require.Equal(t, model.TaskStatusRunning, tasks[0].Status)
 }
 
 func TestTaskStore_CountTasks(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
+	ts := newTaskStoreForTest(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	for i := 0; i < 3; i++ {
-		ts.Create(ctx, model.Task{
-			MessageID: "m1", WorkerID: "w1", Instruction: "task",
-			Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-			CreatedAt: now, UpdatedAt: now,
-		})
+		seedTask(t, ts, model.Task{Instruction: "task", Type: model.TaskTypeScheduled})
 	}
-	ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "countdown",
-		Type: model.TaskTypeCountdown, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{Instruction: "countdown", Type: model.TaskTypeCountdown})
 
 	count, err := ts.CountTasks(ctx, TaskFilter{Type: "scheduled"})
-	if err != nil {
-		t.Fatalf("CountTasks: %v", err)
-	}
-	if count != 3 {
-		t.Errorf("want 3, got %d", count)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 3, count)
 
 	count, err = ts.CountTasks(ctx, TaskFilter{Type: "scheduled,countdown"})
-	if err != nil {
-		t.Fatalf("CountTasks: %v", err)
-	}
-	if count != 4 {
-		t.Errorf("want 4, got %d", count)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 4, count)
 }
 
 func TestTaskStore_List_Pagination(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
+	ts := newTaskStoreForTest(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
 	for i := 0; i < 5; i++ {
-		ts.Create(ctx, model.Task{
-			MessageID: "m1", WorkerID: "w1", Instruction: "task",
-			Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-			CreatedAt: now, UpdatedAt: now,
-		})
+		seedTask(t, ts, model.Task{Instruction: "task", Type: model.TaskTypeScheduled})
 	}
 
 	page1, err := ts.List(ctx, TaskFilter{Type: "scheduled", Limit: 2, Offset: 0})
-	if err != nil {
-		t.Fatalf("List page1: %v", err)
-	}
-	if len(page1) != 2 {
-		t.Errorf("want 2, got %d", len(page1))
-	}
+	require.NoError(t, err)
+	assert.Len(t, page1, 2)
 
 	page2, err := ts.List(ctx, TaskFilter{Type: "scheduled", Limit: 2, Offset: 2})
-	if err != nil {
-		t.Fatalf("List page2: %v", err)
-	}
-	if len(page2) != 2 {
-		t.Errorf("want 2, got %d", len(page2))
-	}
+	require.NoError(t, err)
+	assert.Len(t, page2, 2)
 }
 
-func TestTaskStore_CompleteTask_Regular(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
+func TestTaskStore_CompleteTask(t *testing.T) {
 	ctx := context.Background()
-	id, err := ts.Create(ctx, model.Task{
-		MessageID:   "m1",
-		WorkerID:    "w1",
-		Instruction: "do it",
-		Type:        model.TaskTypeImmediate,
-		Status:      model.TaskStatusRunning,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	cases := []struct {
+		name       string
+		seed       model.Task
+		wantStatus string
+	}{
+		{"Regular", model.Task{Instruction: "do it", Status: model.TaskStatusRunning}, model.TaskStatusCompleted},
+		// Scheduled tasks reset to pending for the next cron run.
+		{"Scheduled", model.Task{Instruction: "do it", Type: model.TaskTypeScheduled, Status: model.TaskStatusRunning, CronExpr: "0 * * * *"}, model.TaskStatusPending},
+		{"Scheduled_NoCron_MarksAsCompleted", model.Task{Instruction: "do it", Type: model.TaskTypeScheduled, Status: model.TaskStatusRunning}, model.TaskStatusCompleted},
+		{"Scheduled_Cancelled_NoChange", model.Task{Instruction: "do it", Type: model.TaskTypeScheduled, Status: model.TaskStatusCancelled, CronExpr: "0 * * * *"}, model.TaskStatusCancelled},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTaskStoreForTest(t)
+			id := seedTask(t, ts, tc.seed)
 
-	if err := ts.CompleteTask(ctx, id); err != nil {
-		t.Fatalf("CompleteTask: %v", err)
-	}
+			require.NoError(t, ts.CompleteTask(ctx, id))
 
-	got, err := ts.GetByID(ctx, id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Status != model.TaskStatusCompleted {
-		t.Errorf("want status %q got %q", model.TaskStatusCompleted, got.Status)
-	}
-}
-
-func TestTaskStore_CompleteTask_Scheduled(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	cronExpr := "0 * * * *"
-	id, err := ts.Create(ctx, model.Task{
-		MessageID:   "m1",
-		WorkerID:    "w1",
-		Instruction: "do it",
-		Type:        model.TaskTypeScheduled,
-		Status:      model.TaskStatusRunning,
-		CronExpr:    cronExpr,
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := ts.CompleteTask(ctx, id); err != nil {
-		t.Fatalf("CompleteTask: %v", err)
-	}
-
-	got, err := ts.GetByID(ctx, id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	// Scheduled tasks reset to pending for the next cron run.
-	if got.Status != model.TaskStatusPending {
-		t.Errorf("want status %q got %q", model.TaskStatusPending, got.Status)
-	}
-}
-
-func TestTaskStore_CompleteTask_Scheduled_NoCron_MarksAsCompleted(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	id, err := ts.Create(ctx, model.Task{
-		MessageID:   "m1",
-		WorkerID:    "w1",
-		Instruction: "do it",
-		Type:        model.TaskTypeScheduled,
-		Status:      model.TaskStatusRunning,
-		// CronExpr intentionally empty
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := ts.CompleteTask(ctx, id); err != nil {
-		t.Fatalf("CompleteTask: %v", err)
-	}
-
-	got, err := ts.GetByID(ctx, id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Status != model.TaskStatusCompleted {
-		t.Errorf("want status %q got %q", model.TaskStatusCompleted, got.Status)
-	}
-}
-
-func TestTaskStore_CompleteTask_Scheduled_Cancelled_NoChange(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	id, err := ts.Create(ctx, model.Task{
-		MessageID:   "m1",
-		WorkerID:    "w1",
-		Instruction: "do it",
-		Type:        model.TaskTypeScheduled,
-		Status:      model.TaskStatusCancelled,
-		CronExpr:    "0 * * * *",
-	})
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if err := ts.CompleteTask(ctx, id); err != nil {
-		t.Fatalf("CompleteTask: %v", err)
-	}
-
-	got, err := ts.GetByID(ctx, id)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Status != model.TaskStatusCancelled {
-		t.Errorf("want status %q got %q", model.TaskStatusCancelled, got.Status)
+			got, err := ts.GetByID(ctx, id)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantStatus, got.Status)
+		})
 	}
 }
 
 func TestTaskStore_List_ByTaskID(t *testing.T) {
-	ts, cleanup := newTaskStoreForTest(t)
-	defer cleanup()
-
+	ts := newTaskStoreForTest(t)
 	ctx := context.Background()
-	now := time.Now().UnixMilli()
 
-	id1, err := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "target",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	})
-	if err != nil {
-		t.Fatalf("Create target: %v", err)
-	}
-	if _, err := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "other",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		t.Fatalf("Create other: %v", err)
-	}
+	id1 := seedTask(t, ts, model.Task{Instruction: "target", Status: model.TaskStatusCompleted})
+	seedTask(t, ts, model.Task{Instruction: "other", Status: model.TaskStatusCompleted})
 
 	tasks, err := ts.List(ctx, TaskFilter{TaskID: id1})
-	if err != nil {
-		t.Fatalf("List by task_id: %v", err)
-	}
-	if len(tasks) != 1 {
-		t.Fatalf("expected 1 task, got %d", len(tasks))
-	}
-	if tasks[0].ID != id1 || tasks[0].Instruction != "target" {
-		t.Fatalf("unexpected task: %+v", tasks[0])
-	}
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	require.Equal(t, id1, tasks[0].ID)
+	require.Equal(t, "target", tasks[0].Instruction)
 
 	total, err := ts.CountTasks(ctx, TaskFilter{TaskID: id1})
-	if err != nil {
-		t.Fatalf("CountTasks by task_id: %v", err)
-	}
-	if total != 1 {
-		t.Fatalf("expected total 1, got %d", total)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
 }
 
 func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	defer db.Close()
-
 	// Two workers, two messages
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','alice','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w2','bob','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m1','s','feishu','hi','','',1,1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m2','s2','feishu','hi','','',1,1,1)`)
-
+	db := newTestDB(t, seedWorkerSQL("w1"), seedWorkerSQL("w2"), seedMessageSQL("m1", "s"), seedMessageSQL("m2", "s2"))
 	ts := NewTaskStore(db)
 	ctx := context.Background()
 
 	// no tasks → false
 	active, err := ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
-	}
-	if active {
-		t.Error("expected false with no tasks")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false with no tasks")
 
 	// create pending immediate task for w1
-	now := time.Now().UnixMilli()
-	id1, _ := ts.Create(ctx, model.Task{
-		MessageID: "m1", WorkerID: "w1", Instruction: "go",
-		Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	id1 := seedTask(t, ts, model.Task{})
 
 	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
-	}
-	if !active {
-		t.Error("expected true for w1 with pending immediate task")
-	}
+	require.NoError(t, err)
+	assert.True(t, active, "expected true for w1 with pending immediate task")
 
 	// w2 must not be affected by w1's task
 	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w2")
-	if err != nil {
-		t.Fatalf("HasActiveImmediateTasksByWorkerID w2: %v", err)
-	}
-	if active {
-		t.Error("w2 should not be affected by w1's task")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "w2 should not be affected by w1's task")
 
 	// complete w1's task → false
 	_ = ts.UpdateStatus(ctx, id1, model.TaskStatusCompleted)
 	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
-	}
-	if active {
-		t.Error("expected false after completing w1 task")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "expected false after completing w1 task")
 
 	// scheduled task for w1 must NOT count
-	_, _ = ts.Create(ctx, model.Task{
-		MessageID: "m2", WorkerID: "w1", Instruction: "cron",
-		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
-		CreatedAt: now, UpdatedAt: now,
-	})
+	seedTask(t, ts, model.Task{MessageID: "m2", Instruction: "cron", Type: model.TaskTypeScheduled})
 	active, err = ts.HasActiveImmediateTasksByWorkerID(ctx, "w1")
-	if err != nil {
-		t.Fatalf("HasActiveImmediateTasksByWorkerID: %v", err)
-	}
-	if active {
-		t.Error("scheduled task must not affect HasActiveImmediateTasksByWorkerID")
-	}
+	require.NoError(t, err)
+	assert.False(t, active, "scheduled task must not affect HasActiveImmediateTasksByWorkerID")
 }

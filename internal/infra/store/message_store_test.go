@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMessageStore_CreateBatch(t *testing.T) {
@@ -29,39 +32,25 @@ func TestMessageStore_CreateBatch(t *testing.T) {
 	}
 
 	inserted, err := s.CreateBatch(ctx, msgs)
-	if err != nil {
-		t.Fatalf("CreateBatch error: %v", err)
-	}
-	if inserted != 2 {
-		t.Fatalf("expected 2 rows inserted, got %d", inserted)
-	}
+	require.NoError(t, err)
+	require.EqualValues(t, 2, inserted)
 
 	// Verify merged row
 	var status, mergedInto string
-	if err := s.db.QueryRowContext(ctx,
+	err = s.db.QueryRowContext(ctx,
 		`SELECT status, merged_into FROM bee_platform_messages WHERE id = ?`, mergedID,
-	).Scan(&status, &mergedInto); err != nil {
-		t.Fatalf("scan merged row: %v", err)
-	}
-	if status != "merged" {
-		t.Errorf("merged row: want status=merged, got %q", status)
-	}
-	if mergedInto != primaryID {
-		t.Errorf("merged row: want merged_into=%q, got %q", primaryID, mergedInto)
-	}
+	).Scan(&status, &mergedInto)
+	require.NoError(t, err)
+	assert.Equal(t, "merged", status)
+	assert.Equal(t, primaryID, mergedInto)
 
 	// Verify primary row
-	if err := s.db.QueryRowContext(ctx,
+	err = s.db.QueryRowContext(ctx,
 		`SELECT status, merged_into FROM bee_platform_messages WHERE id = ?`, primaryID,
-	).Scan(&status, &mergedInto); err != nil {
-		t.Fatalf("scan primary row: %v", err)
-	}
-	if status != "received" {
-		t.Errorf("primary row: want status=received, got %q", status)
-	}
-	if mergedInto != "" {
-		t.Errorf("primary row: want merged_into empty, got %q", mergedInto)
-	}
+	).Scan(&status, &mergedInto)
+	require.NoError(t, err)
+	assert.Equal(t, "received", status)
+	assert.Empty(t, mergedInto)
 }
 
 func TestMessageStore_CreateBatch_DuplicateIgnored(t *testing.T) {
@@ -76,22 +65,14 @@ func TestMessageStore_CreateBatch_DuplicateIgnored(t *testing.T) {
 
 	// First insert: should succeed
 	inserted, err := s.CreateBatch(ctx, []BatchMsg{msg})
-	if err != nil {
-		t.Fatalf("first CreateBatch error: %v", err)
-	}
-	if inserted != 1 {
-		t.Fatalf("expected 1 row inserted, got %d", inserted)
-	}
+	require.NoError(t, err)
+	require.EqualValues(t, 1, inserted)
 
 	// Second insert with same platform_msg_id: INSERT OR IGNORE should skip it
 	msg.ID = "id-2" // different row ID but same platform_msg_id
 	inserted, err = s.CreateBatch(ctx, []BatchMsg{msg})
-	if err != nil {
-		t.Fatalf("second CreateBatch error: %v", err)
-	}
-	if inserted != 0 {
-		t.Fatalf("expected 0 rows inserted (duplicate ignored), got %d", inserted)
-	}
+	require.NoError(t, err)
+	require.EqualValues(t, 0, inserted, "duplicate ignored")
 }
 
 func TestMessageStore_CreateBatch_Empty(t *testing.T) {
@@ -99,39 +80,26 @@ func TestMessageStore_CreateBatch_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	inserted, err := s.CreateBatch(ctx, nil)
-	if err != nil {
-		t.Fatalf("CreateBatch(nil) error: %v", err)
-	}
-	if inserted != 0 {
-		t.Fatalf("expected 0 rows inserted for empty batch, got %d", inserted)
-	}
+	require.NoError(t, err)
+	require.EqualValues(t, 0, inserted)
 }
 
 func setupMessageStore(t *testing.T) *MessageStore {
 	t.Helper()
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatalf("InitDB: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return NewMessageStore(db)
+	return NewMessageStore(newTestDB(t))
 }
 
 func TestMessageStore_Create(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	if _, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello world", `{"text":"hello world"}`, "", 0); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
+	_, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello world", `{"text":"hello world"}`, "", 0)
+	require.NoError(t, err)
 
 	var raw string
-	if err := s.db.QueryRowContext(ctx, `SELECT raw FROM bee_platform_messages WHERE id = ?`, "msg-1").Scan(&raw); err != nil {
-		t.Fatalf("query raw: %v", err)
-	}
-	if raw != `{"text":"hello world"}` {
-		t.Errorf("raw: got %q, want %q", raw, `{"text":"hello world"}`)
-	}
+	err = s.db.QueryRowContext(ctx, `SELECT raw FROM bee_platform_messages WHERE id = ?`, "msg-1").Scan(&raw)
+	require.NoError(t, err)
+	assert.Equal(t, `{"text":"hello world"}`, raw)
 }
 
 func TestMessageStore_UpdateStatusBatch(t *testing.T) {
@@ -141,33 +109,24 @@ func TestMessageStore_UpdateStatusBatch(t *testing.T) {
 	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "a", "", "", 0) //nolint
 	s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "b", "", "", 0) //nolint
 
-	if err := s.UpdateStatusBatch(ctx, []string{"msg-1", "msg-2"}, "debouncing"); err != nil {
-		t.Fatalf("UpdateStatusBatch: %v", err)
-	}
+	err := s.UpdateStatusBatch(ctx, []string{"msg-1", "msg-2"}, "debouncing")
+	require.NoError(t, err)
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT status FROM bee_platform_messages WHERE id IN (?, ?) ORDER BY id`,
 		"msg-1", "msg-2",
 	)
-	if err != nil {
-		t.Fatalf("query statuses: %v", err)
-	}
+	require.NoError(t, err)
 	defer rows.Close()
 
 	var statuses []string
 	for rows.Next() {
 		var status string
-		if err := rows.Scan(&status); err != nil {
-			t.Fatalf("scan status: %v", err)
-		}
+		require.NoError(t, rows.Scan(&status))
 		statuses = append(statuses, status)
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows err: %v", err)
-	}
-	if len(statuses) != 2 || statuses[0] != "debouncing" || statuses[1] != "debouncing" {
-		t.Fatalf("unexpected statuses: %v", statuses)
-	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []string{"debouncing", "debouncing"}, statuses)
 }
 
 func TestMessageStore_FetchMergedContent(t *testing.T) {
@@ -195,59 +154,32 @@ func TestMessageStore_FetchMergedContent(t *testing.T) {
 		},
 	}
 
-	if _, err := s.CreateBatch(ctx, msgs); err != nil {
-		t.Fatalf("CreateBatch: %v", err)
-	}
+	_, err := s.CreateBatch(ctx, msgs)
+	require.NoError(t, err)
 
 	contents, err := s.FetchMergedContent(ctx, primaryID)
-	if err != nil {
-		t.Fatalf("FetchMergedContent: %v", err)
-	}
-	if len(contents) != 2 {
-		t.Fatalf("expected 2 merged contents, got %d", len(contents))
-	}
-	if contents[0] != "image content" {
-		t.Errorf("contents[0]: want %q, got %q", "image content", contents[0])
-	}
-	if contents[1] != "second merged" {
-		t.Errorf("contents[1]: want %q, got %q", "second merged", contents[1])
-	}
+	require.NoError(t, err)
+	require.Len(t, contents, 2)
+	assert.Equal(t, "image content", contents[0])
+	assert.Equal(t, "second merged", contents[1])
 
 	// No merged content for a message without merges
 	contents, err = s.FetchMergedContent(ctx, "nonexistent")
-	if err != nil {
-		t.Fatalf("FetchMergedContent(nonexistent): %v", err)
-	}
-	if len(contents) != 0 {
-		t.Errorf("expected 0 merged contents for nonexistent, got %d", len(contents))
-	}
-}
-
-func TestMessageStore_Create_Dedup_FirstInsertReturnsTrue(t *testing.T) {
-	s := setupMessageStore(t)
-	ctx := context.Background()
-
-	inserted, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if !inserted {
-		t.Error("first insert: want inserted=true, got false")
-	}
+	require.NoError(t, err)
+	assert.Empty(t, contents)
 }
 
 func TestMessageStore_Create_Dedup_DuplicatePlatformMsgID(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0) //nolint
-	inserted, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
-	if err != nil {
-		t.Fatalf("duplicate Create: %v", err)
-	}
-	if inserted {
-		t.Error("duplicate insert: want inserted=false, got true")
-	}
+	inserted, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	require.NoError(t, err)
+	assert.True(t, inserted, "first insert")
+
+	inserted, err = s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	require.NoError(t, err)
+	assert.False(t, inserted, "duplicate insert")
 }
 
 func TestMessageStore_Create_Dedup_EmptyPlatformMsgIDNotDeduped(t *testing.T) {
@@ -255,13 +187,12 @@ func TestMessageStore_Create_Dedup_EmptyPlatformMsgIDNotDeduped(t *testing.T) {
 	ctx := context.Background()
 
 	inserted1, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
-	if err != nil || !inserted1 {
-		t.Fatalf("first empty-id insert: err=%v inserted=%v", err, inserted1)
-	}
+	require.NoError(t, err)
+	require.True(t, inserted1)
+
 	inserted2, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
-	if err != nil || !inserted2 {
-		t.Fatalf("second empty-id insert: err=%v inserted=%v", err, inserted2)
-	}
+	require.NoError(t, err)
+	require.True(t, inserted2)
 }
 
 func TestMessageStore_Create_ReceivedAtMillisecondPrecision(t *testing.T) {
@@ -274,12 +205,8 @@ func TestMessageStore_Create_ReceivedAtMillisecondPrecision(t *testing.T) {
 	err := s.db.QueryRowContext(ctx,
 		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-ms",
 	).Scan(&receivedAt)
-	if err != nil {
-		t.Fatalf("scan received_at: %v", err)
-	}
-	if receivedAt <= 0 {
-		t.Errorf("received_at %d: want positive Unix millisecond timestamp", receivedAt)
-	}
+	require.NoError(t, err)
+	assert.Positive(t, receivedAt, "want positive Unix millisecond timestamp")
 }
 
 func TestMessageStore_Create_ReceivedAt_FromMessageTime(t *testing.T) {
@@ -288,22 +215,15 @@ func TestMessageStore_Create_ReceivedAt_FromMessageTime(t *testing.T) {
 
 	const wantTime int64 = 1609073151345 // fixed past timestamp
 	inserted, err := s.Create(ctx, "msg-ts", "feishu:chat1:userA", "feishu", "hello", "", "", wantTime)
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	if !inserted {
-		t.Fatal("expected inserted=true")
-	}
+	require.NoError(t, err)
+	require.True(t, inserted)
 
 	var receivedAt int64
-	if err := s.db.QueryRowContext(ctx,
+	err = s.db.QueryRowContext(ctx,
 		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-ts",
-	).Scan(&receivedAt); err != nil {
-		t.Fatalf("scan received_at: %v", err)
-	}
-	if receivedAt != wantTime {
-		t.Errorf("received_at: got %d, want %d", receivedAt, wantTime)
-	}
+	).Scan(&receivedAt)
+	require.NoError(t, err)
+	assert.Equal(t, wantTime, receivedAt)
 }
 
 func TestMessageStore_Create_ReceivedAt_FallbackToServerTime(t *testing.T) {
@@ -315,14 +235,12 @@ func TestMessageStore_Create_ReceivedAt_FallbackToServerTime(t *testing.T) {
 	after := time.Now().UnixMilli()
 
 	var receivedAt int64
-	if err := s.db.QueryRowContext(ctx,
+	err := s.db.QueryRowContext(ctx,
 		`SELECT received_at FROM bee_platform_messages WHERE id = ?`, "msg-zero",
-	).Scan(&receivedAt); err != nil {
-		t.Fatalf("scan received_at: %v", err)
-	}
-	if receivedAt < before || receivedAt > after {
-		t.Errorf("received_at %d: want value between %d and %d (server time range)", receivedAt, before, after)
-	}
+	).Scan(&receivedAt)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, receivedAt, before)
+	assert.LessOrEqual(t, receivedAt, after)
 }
 
 func TestMessageStore_GetByID_ReturnsStoredFields(t *testing.T) {
@@ -332,18 +250,10 @@ func TestMessageStore_GetByID_ReturnsStoredFields(t *testing.T) {
 	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", `{"raw":"data"}`, "", 0) //nolint
 
 	got, err := s.GetByID(ctx, "msg-1")
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Platform != "feishu" {
-		t.Errorf("Platform: want feishu, got %q", got.Platform)
-	}
-	if got.SessionKey != "feishu:chat1:userA" {
-		t.Errorf("SessionKey: want feishu:chat1:userA, got %q", got.SessionKey)
-	}
-	if got.Raw != `{"raw":"data"}` {
-		t.Errorf("Raw: want %q, got %q", `{"raw":"data"}`, got.Raw)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "feishu", got.Platform)
+	assert.Equal(t, "feishu:chat1:userA", got.SessionKey)
+	assert.Equal(t, `{"raw":"data"}`, got.Raw)
 }
 
 func TestMessageStore_GetByID_NotFound(t *testing.T) {
@@ -351,17 +261,11 @@ func TestMessageStore_GetByID_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := s.GetByID(ctx, "nonexistent")
-	if err == nil {
-		t.Error("expected error for missing message, got nil")
-	}
+	assert.Error(t, err)
 }
 
 func TestMessageStore_ClaimBatch_SkipsFeedingSession(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	db := newTestDB(t)
 	s := NewMessageStore(db)
 	ctx := context.Background()
 
@@ -373,20 +277,12 @@ func TestMessageStore_ClaimBatch_SkipsFeedingSession(t *testing.T) {
               VALUES ('m2', 'sk1', 'feishu', 'msg2', 'received', ?, ?, ?)`, now+1, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 0 {
-		t.Errorf("expected 0 messages (session already feeding), got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, msgs, "expected 0 messages (session already feeding)")
 }
 
 func TestMessageStore_ClaimBatch_OnePerSession(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	db := newTestDB(t)
 	s := NewMessageStore(db)
 	ctx := context.Background()
 
@@ -400,30 +296,18 @@ func TestMessageStore_ClaimBatch_OnePerSession(t *testing.T) {
               VALUES ('m3', 'sk2', 'feishu', 'other', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 2 {
-		t.Fatalf("expected 2 messages (one per session), got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
 	ids := map[string]bool{}
 	for _, m := range msgs {
 		ids[m.ID] = true
 	}
-	if !ids["m1"] {
-		t.Error("expected m1 (earliest for sk1) to be claimed, not m2")
-	}
-	if !ids["m3"] {
-		t.Error("expected m3 (sk2) to be claimed")
-	}
+	assert.True(t, ids["m1"], "expected m1 (earliest for sk1) to be claimed, not m2")
+	assert.True(t, ids["m3"], "expected m3 (sk2) to be claimed")
 }
 
 func TestMessageStore_ClaimBatch_RespectsLimit(t *testing.T) {
-	db, err := InitDB(t.TempDir() + "/test.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	db := newTestDB(t)
 	s := NewMessageStore(db)
 	ctx := context.Background()
 
@@ -436,12 +320,8 @@ func TestMessageStore_ClaimBatch_RespectsLimit(t *testing.T) {
 	}
 
 	msgs, err := s.ClaimBatch(ctx, 3)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 3 {
-		t.Errorf("expected 3 messages (limit), got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	assert.Len(t, msgs, 3)
 }
 
 func TestMessageStore_MarkFailed(t *testing.T) {
@@ -449,17 +329,13 @@ func TestMessageStore_MarkFailed(t *testing.T) {
 	ctx := context.Background()
 
 	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
-	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")              //nolint
+	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")             //nolint
 
-	if err := s.MarkFailed(ctx, []string{"m1"}); err != nil {
-		t.Fatalf("MarkFailed: %v", err)
-	}
+	require.NoError(t, s.MarkFailed(ctx, []string{"m1"}))
 
 	var status string
 	s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = 'm1'`).Scan(&status) //nolint
-	if status != "failed" {
-		t.Errorf("expected status=failed, got %q", status)
-	}
+	assert.Equal(t, "failed", status)
 }
 
 func TestMessageStore_ClaimBatch_StalesLateArrivingMessage(t *testing.T) {
@@ -473,22 +349,15 @@ func TestMessageStore_ClaimBatch_StalesLateArrivingMessage(t *testing.T) {
 	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 0 {
-		t.Errorf("expected 0 claimed messages (msgA is stale), got %d", len(msgs))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, msgs, "expected 0 claimed messages (msgA is stale)")
 
 	var status string
-	if err := s.db.QueryRowContext(ctx,
+	err = s.db.QueryRowContext(ctx,
 		`SELECT status FROM bee_platform_messages WHERE id = 'msgA'`,
-	).Scan(&status); err != nil {
-		t.Fatalf("scan msgA status: %v", err)
-	}
-	if status != MsgStatusStale {
-		t.Errorf("msgA: want status=%q, got %q", MsgStatusStale, status)
-	}
+	).Scan(&status)
+	require.NoError(t, err)
+	assert.Equal(t, MsgStatusStale, status)
 }
 
 func TestMessageStore_ClaimBatch_DoesNotStaleMessageWithNoNewerProcessed(t *testing.T) {
@@ -500,15 +369,9 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageWithNoNewerProcessed(t *test
 	          VALUES ('msgA', 'sk1', 'feishu', 'hello', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 1 {
-		t.Fatalf("expected 1 claimed message, got %d", len(msgs))
-	}
-	if msgs[0].ID != "msgA" {
-		t.Errorf("expected msgA to be claimed, got %q", msgs[0].ID)
-	}
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "msgA", msgs[0].ID)
 }
 
 func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testing.T) {
@@ -523,15 +386,9 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testin
 	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'received', ?, ?, ?)`, now+1000, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimBatch: %v", err)
-	}
-	if len(msgs) != 1 {
-		t.Fatalf("expected 1 claimed message, got %d", len(msgs))
-	}
-	if msgs[0].ID != "msgB" {
-		t.Errorf("expected msgB to be claimed, got %q", msgs[0].ID)
-	}
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "msgB", msgs[0].ID)
 }
 
 func TestMessageStore_FailReceived(t *testing.T) {
@@ -543,9 +400,7 @@ func TestMessageStore_FailReceived(t *testing.T) {
 			`INSERT INTO bee_platform_messages (id, session_key, platform, content, raw, received_at, status, created_at, updated_at)
              VALUES (?, ?, 'test', 'x', '', 0, ?, 0, 0)`,
 			id, sessionKey, status)
-		if err != nil {
-			t.Fatalf("insert %s: %v", id, err)
-		}
+		require.NoError(t, err)
 	}
 	insert("msg-a1", "sessionA", MsgStatusReceived)
 	insert("msg-a2", "sessionA", MsgStatusReceived)
@@ -553,31 +408,21 @@ func TestMessageStore_FailReceived(t *testing.T) {
 	insert("msg-a3", "sessionA", MsgStatusFeeding)
 
 	ids, err := s.FailReceived(ctx, "sessionA")
-	if err != nil {
-		t.Fatalf("FailReceived: %v", err)
-	}
-
-	if len(ids) != 2 {
-		t.Fatalf("expected 2 IDs, got %d: %v", len(ids), ids)
-	}
+	require.NoError(t, err)
+	require.Len(t, ids, 2)
 	got := map[string]bool{ids[0]: true, ids[1]: true}
-	if !got["msg-a1"] || !got["msg-a2"] {
-		t.Errorf("expected msg-a1 and msg-a2, got %v", ids)
-	}
+	assert.True(t, got["msg-a1"], "expected msg-a1 in %v", ids)
+	assert.True(t, got["msg-a2"], "expected msg-a2 in %v", ids)
 
 	for _, id := range []string{"msg-a1", "msg-a2"} {
 		var status string
-		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status)
-		if status != MsgStatusFailed {
-			t.Errorf("%s: want status=failed, got %q", id, status)
-		}
+		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status) //nolint
+		assert.Equal(t, MsgStatusFailed, status, "id=%s", id)
 	}
 
 	for id, want := range map[string]string{"msg-b1": MsgStatusReceived, "msg-a3": MsgStatusFeeding} {
 		var status string
-		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status)
-		if status != want {
-			t.Errorf("%s: want status=%s, got %q", id, want, status)
-		}
+		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status) //nolint
+		assert.Equal(t, want, status, "id=%s", id)
 	}
 }
