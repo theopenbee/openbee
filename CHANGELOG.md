@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Removed
+- Remove the `--cn` and `--cdn-url` flags from `openbee upgrade`; upgrades now always download from GitHub Releases. The mainland China CDN (`dl.theopenbee.cn`) has been discontinued.
+
 ### Fixed
 - Fix `openbee ctl` failing with `unauthorized` for the remainder of a long-running worker execution. The worker token is minted once at process launch, so a TTL shorter than the execution left every subsequent call rejected; the default `bee.rpc.token_ttl` is now 48h instead of 2h.
 

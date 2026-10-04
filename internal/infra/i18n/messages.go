@@ -136,8 +136,6 @@ type FlagMessages struct {
 	RestorePassword   string `yaml:"restore_password"`
 	RestoreForce      string `yaml:"restore_force"`
 	UpgradeCheck      string `yaml:"upgrade_check"`
-	UpgradeCDNURL     string `yaml:"upgrade_cdn_url"`
-	UpgradeCN         string `yaml:"upgrade_cn"`
 	ServiceConfig     string `yaml:"service_config"`
 	ServiceWorkingDir string `yaml:"service_working_dir"`
 	ServiceNoStart    string `yaml:"service_no_start"`
@@ -228,7 +226,6 @@ type UpgradeOutput struct {
 	Verified        string `yaml:"verified"`
 	BinaryAt        string `yaml:"binary_at"` // contains %s
 	Success         string `yaml:"success"`   // contains %s
-	UsingCDN        string `yaml:"using_cdn"` // contains %s
 }
 
 // BackupOutput maps to backup command runtime output.

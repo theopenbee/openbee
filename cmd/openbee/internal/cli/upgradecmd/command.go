@@ -23,7 +23,6 @@ import (
 const (
 	githubAPILatest      = "https://api.github.com/repos/theopenbee/openbee/releases/latest"
 	githubRelBase        = "https://github.com/theopenbee/openbee/releases/download"
-	defaultCDNBaseURL    = "https://dl.theopenbee.cn"
 	upgradeBinaryName    = "openbee"
 	upgradeBinaryNameWin = "openbee.exe"
 )
@@ -34,43 +33,26 @@ type githubRelease struct {
 	TagName string `json:"tag_name"`
 }
 
-func resolveCDNURL(cdnURL string, useCN bool) string {
-	if cdnURL == "" && useCN {
-		return defaultCDNBaseURL
-	}
-	return cdnURL
-}
-
 // NewCommand returns the "upgrade" cobra command. currentVersion is injected at build time.
 func NewCommand(currentVersion string) *cobra.Command {
-	var (
-		checkOnly bool
-		cdnURL    string
-		useCN     bool
-	)
+	var checkOnly bool
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: i18n.M.Cmd.Upgrade.Short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpgrade(currentVersion, checkOnly, resolveCDNURL(cdnURL, useCN))
+			return runUpgrade(currentVersion, checkOnly)
 		},
 	}
 	cmd.Flags().BoolVar(&checkOnly, "check", false, i18n.M.Flag.UpgradeCheck)
-	cmd.Flags().StringVar(&cdnURL, "cdn-url", "", i18n.M.Flag.UpgradeCDNURL)
-	cmd.Flags().BoolVar(&useCN, "cn", false, i18n.M.Flag.UpgradeCN)
 	return cmd
 }
 
-func runUpgrade(current string, checkOnly bool, cdnURL string) error {
+func runUpgrade(current string, checkOnly bool) error {
 	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
-
-	if cdnURL != "" {
-		fmt.Printf(i18n.M.Output.Upgrade.UsingCDN+"\n", cdnURL)
-	}
 
 	fmt.Println(i18n.M.Output.Upgrade.Checking)
 
-	latest, err := fetchLatestVersion(cdnURL)
+	latest, err := fetchLatestVersion()
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
@@ -89,14 +71,10 @@ func runUpgrade(current string, checkOnly bool, cdnURL string) error {
 		return nil
 	}
 
-	return doUpgrade(latest, cdnURL)
+	return doUpgrade(latest)
 }
 
-func fetchLatestVersion(cdnURL string) (string, error) {
-	if cdnURL != "" {
-		return utils.FetchPlainTextVersion(cdnURL + "/releases/latest.txt")
-	}
-
+func fetchLatestVersion() (string, error) {
 	resp, err := utils.APIClient.Get(githubAPILatest)
 	if err != nil {
 		return "", err
@@ -150,16 +128,11 @@ func parseSemver(v string) []int {
 	return nums
 }
 
-func doUpgrade(newVersion string, cdnURL string) error {
+func doUpgrade(newVersion string) error {
 	versionNum := strings.TrimPrefix(newVersion, "v")
 	archiveName := fmt.Sprintf("%s-%s-%s-%s.tar.gz", upgradeBinaryName, versionNum, runtime.GOOS, runtime.GOARCH)
 
-	var relBase string
-	if cdnURL != "" {
-		relBase = fmt.Sprintf("%s/releases/%s", cdnURL, newVersion)
-	} else {
-		relBase = fmt.Sprintf("%s/%s", githubRelBase, newVersion)
-	}
+	relBase := fmt.Sprintf("%s/%s", githubRelBase, newVersion)
 	archiveURL := fmt.Sprintf("%s/%s", relBase, archiveName)
 	checksumURL := fmt.Sprintf("%s/checksums.txt", relBase)
 

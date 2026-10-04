@@ -139,8 +139,6 @@ flag:
   restore_password: "用于解密备份文件的密码"
   restore_force: "覆盖已有数据"
   upgrade_check: "仅检查更新，不执行升级"
-  upgrade_cdn_url: "指定大陆 CDN 根地址（默认：https://dl.theopenbee.cn）"
-  upgrade_cn: "使用大陆 CDN 渠道下载（等同于 --cdn-url https://dl.theopenbee.cn）"
   service_config: "openbee 配置文件路径（默认 ~/.openbee/config.yaml）"
   service_working_dir: "服务运行时的工作目录（默认 ~/.openbee）"
   service_no_start: "仅注册自启动，不立即启动"
@@ -170,7 +168,6 @@ output:
     verified: "SHA256 验证通过。"
     binary_at: "正在升级二进制文件：%s"
     success: "openbee 已成功升级至 %s。"
-    using_cdn: "正在使用 CDN 渠道：%s"
   backup:
     created: "备份已创建：%s"
   restore:

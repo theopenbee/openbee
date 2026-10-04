@@ -139,8 +139,6 @@ flag:
   restore_password: "password to decrypt the backup archive"
   restore_force: "overwrite existing data"
   upgrade_check: "check for updates only, do not upgrade"
-  upgrade_cdn_url: "CDN base URL for mainland China downloads (default: https://dl.theopenbee.cn)"
-  upgrade_cn: "use mainland China CDN for downloads (shorthand for --cdn-url https://dl.theopenbee.cn)"
   service_config: "Path to openbee config file (defaults to ~/.openbee/config.yaml)"
   service_working_dir: "Working directory the service runs in (defaults to ~/.openbee)"
   service_no_start: "Only register autostart, do not start the service"
@@ -170,7 +168,6 @@ output:
     verified: "SHA256 verified."
     binary_at: "Upgrading binary at: %s"
     success: "Successfully upgraded openbee to %s."
-    using_cdn: "Using CDN: %s"
   backup:
     created: "Backup created: %s"
   restore:
