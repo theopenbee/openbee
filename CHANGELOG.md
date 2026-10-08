@@ -3,19 +3,19 @@
 ## [Unreleased]
 
 ### Added
-- `openbee upgrade` authenticates GitHub API requests with `GITHUB_TOKEN` when it is set, and reports rate limiting (with the reset time) instead of a bare HTTP 403.
+- `openbee upgrade` supports `GITHUB_TOKEN` and reports rate limits.
 
 ### Changed
-- `openbee upgrade` now aborts when `checksums.txt` cannot be downloaded, instead of installing a binary without SHA256 verification.
+- `openbee upgrade` aborts when `checksums.txt` is unavailable.
 
 ### Removed
-- Remove the `--cn` and `--cdn-url` flags from `openbee upgrade`; upgrades now always download from GitHub Releases. The mainland China CDN (`dl.theopenbee.cn`) has been discontinued.
-- Remove the mainland China install script `install.zh.sh`; the Chinese README now uses the GitHub `install.sh`.
+- Remove `--cn` and `--cdn-url` flags from `openbee upgrade`.
+- Remove the mainland China install script `install.zh.sh`.
 
 ### Fixed
-- Fix `openbee ctl` failing with `unauthorized` for the remainder of a long-running worker execution. The worker token is minted once at process launch, so a TTL shorter than the execution left every subsequent call rejected; the default `bee.rpc.token_ttl` is now 48h instead of 2h.
-- Fix `openbee upgrade` on Windows: it now downloads the `.zip` release asset and moves the running `openbee.exe` aside (kept as `openbee.exe.old`, or `openbee.exe.old-<n>` while an old process still holds that file, until a later upgrade removes it) before installing the new one. Windows installs on v0.0.42 or earlier still run the old upgrade code, so update them manually once, using the same channel they were installed with: `npm install -g @theopenbee/cli@latest`, `scoop update openbee`, or download the zip from GitHub Releases.
-- Fix `openbee upgrade` rejecting `checksums.txt` entries in `sha256sum -b` (`*name`) format or with uppercase hex digits, rejecting a download of exactly 512 MiB, and turning a `V1.2.3` tag into `vV1.2.3`.
+- Fix `openbee ctl` token expiry; default `bee.rpc.token_ttl` now 48h.
+- Fix `openbee upgrade` on Windows; upgrade v0.0.42 and earlier manually.
+- Fix `openbee upgrade` checksum, size-limit, and tag edge cases.
 
 ## [0.0.42] - 2026-07-01
 
