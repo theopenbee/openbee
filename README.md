@@ -2,8 +2,6 @@
 
 # OpenBee — Build smarter AI teams.
 
----
-
 **OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
 
 To learn more about the project, visit [docs.theopenbee.com](https://docs.theopenbee.com).
@@ -17,8 +15,6 @@ To learn more about the project, visit [docs.theopenbee.com](https://docs.theope
 <sub><a href="README.zh.md">中文</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
 ## 📸 Screenshots
-
----
 
 <img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 

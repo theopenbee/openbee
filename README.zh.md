@@ -2,8 +2,6 @@
 
 # OpenBee — Build smarter AI teams.
 
----
-
 **OpenBee** 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。
 
 了解更多请访问 [docs.theopenbee.com](https://docs.theopenbee.com)。
@@ -17,8 +15,6 @@
 <sub><a href="README.md">English</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 文档</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
 ## 📸 产品截图
-
----
 
 <img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
