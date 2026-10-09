@@ -23,4 +23,4 @@ Prefer **English** for all text in code — identifiers, strings, log and error 
 
 ## Changelog
 
-Each `CHANGELOG.md` entry must be **at most 10 words**.
+Each `CHANGELOG.md` entry must be **at most 10 words** and written in **English**.
