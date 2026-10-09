@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.43] - 2026-10-08
 
 ### Added
 - `openbee upgrade` supports `GITHUB_TOKEN` and reports rate limits.
