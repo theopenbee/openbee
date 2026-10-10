@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.44] - 2026-10-09
 
 ### Changed
 - Make the web chat page mobile-first.
