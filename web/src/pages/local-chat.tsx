@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react"
@@ -37,11 +36,13 @@ import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage, Worker } from "@/lib/types"
-import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
+import { basename, cn, getFileCategory, isImage, isImeComposing } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { isSameDay, normalizeBeeContent } from "@/lib/format"
+import { isSameDay } from "@/lib/format"
+import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { hasPermission, Perm } from "@/lib/permissions"
 import { MentionTextarea } from "@/components/mention-textarea"
 
@@ -51,6 +52,8 @@ const EMPTY_WORKERS: Worker[] = []
 // module-level reference so Streamdown's memoization isn't defeated by a new
 // object on every render.
 const STREAMDOWN_PLUGINS = { code }
+
+const TOUCH_PHONE_QUERY = "(pointer: coarse) and (max-width: 767px)"
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"
@@ -173,10 +176,6 @@ const MessageBubble = memo(function MessageBubble({
   const isUser = message.role === "user"
   const hasContent = message.content.trim().length > 0
   const hasMedia = Boolean(message.media_paths && message.media_paths.length > 0)
-  const normalizedContent = useMemo(
-    () => normalizeBeeContent(message.content),
-    [message.content]
-  )
 
   return (
     <div
@@ -238,7 +237,9 @@ const MessageBubble = memo(function MessageBubble({
                   hasMedia && "mt-2"
                 )}
               >
-                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizedContent}</Streamdown>
+                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS} remarkPlugins={CHAT_REMARK_PLUGINS}>
+                  {message.content}
+                </Streamdown>
               </div>
             </CollapsibleContent>
           )}
@@ -249,7 +250,7 @@ const MessageBubble = memo(function MessageBubble({
             value={message.content}
             className={cn(
               "-mx-2 p-2 pointer-fine:absolute pointer-fine:top-1 pointer-fine:m-0 pointer-fine:p-0 pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100",
-              isUser ? "hidden pointer-fine:block pointer-fine:-left-7" : "pointer-fine:-right-7"
+              isUser ? "pointer-fine:-left-7" : "pointer-fine:-right-7"
             )}
           />
         )}
@@ -330,6 +331,7 @@ export function LocalChat() {
       suppressScrollRef.current = false
       return
     }
+    if (!stickToBottomRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [localMessages, isProcessing])
 
@@ -345,6 +347,7 @@ export function LocalChat() {
       ts: Date.now(),
     }
 
+    stickToBottomRef.current = true
     setLocalMessages((prev) => [...prev, userMessage])
     setInput("")
     setPendingMediaPaths([])
@@ -412,13 +415,13 @@ export function LocalChat() {
     await uploadFiles(files)
   }, [uploadFiles])
 
+  const isTouchPhone = useMediaQuery(TOUCH_PHONE_QUERY)
+
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey) return
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
-    if (window.matchMedia("(pointer: coarse)").matches) return
+    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event) || isTouchPhone) return
     event.preventDefault()
     void handleSend()
-  }, [handleSend])
+  }, [handleSend, isTouchPhone])
 
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
@@ -546,9 +549,11 @@ export function LocalChat() {
               </div>
 
               <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
-                <span className="hidden text-xs text-muted-foreground sm:pointer-fine:inline">
-                  {t("localChat.composerHint")}
-                </span>
+                {!isTouchPhone && (
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {t("localChat.composerHint")}
+                  </span>
+                )}
 
                 <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
                   <input

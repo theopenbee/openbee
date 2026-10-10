@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
-import { cn } from "@/lib/utils"
+import { cn, isImeComposing } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
 
 type MentionWorker = Pick<Worker, "id" | "name">
@@ -100,7 +100,7 @@ export function MentionTextarea({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (mentionState && filteredWorkers.length > 0) {
+      if (mentionState && filteredWorkers.length > 0 && !isImeComposing(e)) {
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault()
           const delta = e.key === "ArrowDown" ? 1 : -1

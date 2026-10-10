@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { extractMessageContent, formatTotalDuration, normalizeBeeContent } from "../format"
+import { extractMessageContent, formatTotalDuration } from "../format"
 
 describe("extractMessageContent", () => {
   it("returns input unchanged when no known format is detected", () => {
@@ -62,32 +62,5 @@ describe("formatTotalDuration", () => {
   it("formats day-range durations as d h", () => {
     expect(formatTotalDuration(86_400_000)).toBe("1d 0h")
     expect(formatTotalDuration(97_200_000)).toBe("1d 3h")
-  })
-})
-
-describe("normalizeBeeContent", () => {
-  it("turns single newlines into paragraph breaks", () => {
-    expect(normalizeBeeContent("first\nsecond")).toBe("first\n\nsecond")
-  })
-
-  it("keeps existing blank lines unchanged", () => {
-    expect(normalizeBeeContent("first\n\nsecond")).toBe("first\n\nsecond")
-  })
-
-  it("leaves fenced code blocks untouched", () => {
-    const input = "```ts\nconst a = 1\nconst b = 2\n```"
-    expect(normalizeBeeContent(input)).toBe(input)
-  })
-
-  it("keeps table rows on consecutive lines", () => {
-    const table = "| Page | Status |\n| --- | --- |\n| Chat | Done |"
-    expect(normalizeBeeContent(table)).toBe(table)
-  })
-
-  it("separates a table from surrounding text", () => {
-    const input = "Summary:\n| Page | Status |\n| --- | --- |\n| Chat | Done |\nThanks"
-    expect(normalizeBeeContent(input)).toBe(
-      "Summary:\n\n| Page | Status |\n| --- | --- |\n| Chat | Done |\n\nThanks"
-    )
   })
 })

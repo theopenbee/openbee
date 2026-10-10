@@ -5,7 +5,7 @@ import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Tra
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
-import { useDepartments } from "@/hooks/use-departments"
+import { useDepartments, useFlatDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
@@ -42,18 +42,8 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
-import type { DepartmentTree } from "@/lib/types"
 
 type DeleteStep = 1 | 2
-
-function findDepartmentName(nodes: DepartmentTree[], id: string): string | undefined {
-  for (const node of nodes) {
-    if (node.id === id) return node.name
-    const found = findDepartmentName(node.children, id)
-    if (found) return found
-  }
-  return undefined
-}
 
 // One row action in the worker dropdown. Read actions (View) are always present;
 // write actions (Copy, Delete) are appended only when the user holds
@@ -73,9 +63,12 @@ export function Workers() {
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
   const { data: departments = [] } = useDepartments()
-  const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
+  const flatDepartments = useFlatDepartments()
+  const selectedDept = flatDepartments.find(({ dept }) => dept.id === selectedDeptId)?.dept
+  const activeDeptId = selectedDeptId === UNGROUPED_FILTER || selectedDept ? selectedDeptId : null
+  const deptFilter = activeDeptId === UNGROUPED_FILTER ? undefined : (activeDeptId ?? undefined)
   const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
-  const displayedWorkers = selectedDeptId === UNGROUPED_FILTER
+  const displayedWorkers = activeDeptId === UNGROUPED_FILTER
     ? workers.filter((w) => !w.departments || w.departments.length === 0)
     : workers
   const deleteWorker = useDeleteWorker()
@@ -95,11 +88,9 @@ export function Workers() {
   const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
   const filterLabel =
-    selectedDeptId === null
-      ? t("departments.allWorkers")
-      : selectedDeptId === UNGROUPED_FILTER
-        ? t("departments.ungrouped")
-        : (findDepartmentName(departments, selectedDeptId) ?? t("departments.allWorkers"))
+    activeDeptId === UNGROUPED_FILTER
+      ? t("departments.ungrouped")
+      : (selectedDept?.name ?? t("departments.allWorkers"))
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || !isDeleteNameConfirmed) return
@@ -131,7 +122,7 @@ export function Workers() {
           <div className="min-h-0 flex-1">
             <DepartmentTreeSidebar
               departments={departments}
-              selectedId={selectedDeptId}
+              selectedId={activeDeptId}
               onSelect={setSelectedDeptId}
             />
           </div>
@@ -171,7 +162,7 @@ export function Workers() {
                 <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
                   <DepartmentTreeSidebar
                     departments={departments}
-                    selectedId={selectedDeptId}
+                    selectedId={activeDeptId}
                     onSelect={(id) => {
                       setSelectedDeptId(id)
                       setFilterSheetOpen(false)
@@ -193,10 +184,10 @@ export function Workers() {
         <SkeletonTable rows={6} columns={4} />
       ) : displayedWorkers.length === 0 && !error ? (
         <EmptyState
-          title={selectedDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
-          description={selectedDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
+          title={activeDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
+          description={activeDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            selectedDeptId === null && canWrite ? (
+            activeDeptId === null && canWrite ? (
               <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }

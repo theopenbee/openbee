@@ -28,12 +28,12 @@ const navSecondary = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { toggleSidebar, setOpenMobile } = useSidebar()
-  const { pathname } = useLocation()
+  const { key: locationKey } = useLocation()
   const { data: me } = useMe()
 
   React.useEffect(() => {
     setOpenMobile(false)
-  }, [pathname, setOpenMobile])
+  }, [locationKey, setOpenMobile])
 
   // The shared NAV (lib/nav) is the single source of truth — also used by the
   // home resolver. Here we translate each entry's titleKey and apply gating:

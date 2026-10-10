@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
   Building2,
   CalendarIcon,
   Clock,
   Copy,
-  Hash,
   LayoutDashboard,
   ListTodo,
   Logs,
@@ -19,7 +18,6 @@ import {
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
 import { DetailSection } from "@/components/detail-primitives"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
 import { WorkerAvatar, initials, presenceColor } from "@/components/worker-avatar"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
@@ -28,10 +26,11 @@ import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TaskList } from "@/components/task-list"
+import { SessionGroupRow } from "@/components/session-group-row"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatRelative, formatEngineLabel, groupExecutionsBySession, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatEngineLabel, groupExecutionsBySession } from "@/lib/format"
 import type { EnvScope } from "@/lib/types"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -41,6 +40,7 @@ import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
 import { Can, ForbiddenBoundary } from "@/components/guard"
 import { Perm, hasPermission } from "@/lib/permissions"
 import { useMe } from "@/hooks/use-me"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import {
   Table,
   TableBody,
@@ -70,6 +70,8 @@ const SECTIONS = [
 ] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon; perm?: string }>
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
+
+const DESKTOP_QUERY = "(min-width: 1024px)"
 
 const revealTab = (el: HTMLButtonElement | null) => {
   el?.scrollIntoView({ block: "nearest", inline: "nearest" })
@@ -187,9 +189,45 @@ function RecordRow({ label, children }: { label: string; children: ReactNode }) 
   )
 }
 
-export function WorkerDetail() {
+function WorkerActions({
+  workerId,
+  compact,
+  onEdit,
+}: {
+  workerId: string
+  compact: boolean
+  onEdit: () => void
+}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const actions = [
+    { key: "edit", icon: Pencil, label: t("common.edit"), onClick: onEdit },
+    { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${workerId}`) },
+  ]
+
+  return (
+    <Can perm={Perm.ContactsWrite}>
+      <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-2")}>
+        {actions.map(({ key, icon: Icon, label, onClick }) => (
+          <Button
+            key={key}
+            variant={compact ? "ghost" : "outline"}
+            size={compact ? "icon-lg" : "sm"}
+            onClick={onClick}
+            aria-label={compact ? label : undefined}
+          >
+            <Icon className="size-4" />
+            {!compact && label}
+          </Button>
+        ))}
+      </div>
+    </Can>
+  )
+}
+
+export function WorkerDetail() {
+  const { t } = useTranslation()
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
   const { data: me } = useMe()
@@ -301,6 +339,14 @@ export function WorkerDetail() {
     },
   ]
 
+  const workerActions = (
+    <WorkerActions
+      workerId={worker.id}
+      compact={!isDesktop}
+      onEdit={() => setEditInfoSheetOpen(true)}
+    />
+  )
+
   return (
     <FadeIn className="h-full">
       <div className="flex h-full flex-col lg:flex-row">
@@ -311,28 +357,9 @@ export function WorkerDetail() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
             </div>
-            <Can perm={Perm.ContactsWrite}>
-              <div className="flex shrink-0 items-center gap-1 lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon-lg"
-                  onClick={() => setEditInfoSheetOpen(true)}
-                  aria-label={t("common.edit")}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-lg"
-                  onClick={() => navigate(`/workers/create?copy=${worker.id}`)}
-                  aria-label={t("common.copy")}
-                >
-                  <Copy />
-                </Button>
-              </div>
-            </Can>
+            {!isDesktop && workerActions}
           </div>
-          <nav className="overflow-x-auto px-2 pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:overflow-auto lg:p-2 lg:[mask-image:none]">
+          <nav className="scroll-pe-6 overflow-x-auto px-2 pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:overflow-auto lg:p-2 lg:[mask-image:none]">
             <ul className="flex w-max gap-1 pr-6 lg:block lg:w-auto lg:space-y-1 lg:pr-0">
               {visibleSections.map((section) => {
                 const isActive = section.key === activeSection
@@ -365,18 +392,7 @@ export function WorkerDetail() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="hidden h-16 items-center justify-between gap-4 border-b px-6 lg:flex">
             <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
-            <Can perm={Perm.ContactsWrite}>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEditInfoSheetOpen(true)}>
-                  <Pencil className="size-4" />
-                  {t("common.edit")}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
-                  <Copy className="size-4" />
-                  {t("common.copy")}
-                </Button>
-              </div>
-            </Can>
+            {isDesktop && workerActions}
           </div>
 
           <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">
@@ -489,56 +505,13 @@ export function WorkerDetail() {
                 </div>
               ) : (
                 <div className="divide-y divide-border/70">
-                  {sessionGroups.map((group) => {
-                    const latest = group[0]
-                    const oldest = group[group.length - 1]
-                    const isRunning = latest.status === "running"
-                    const intent = extractMessageContent(oldest.trigger_input)
-                    const shortId = latest.session_id.slice(0, 8)
-
-                    return (
-                      <div
-                        key={latest.session_id}
-                        className={cn(
-                          "group relative flex items-center gap-4 px-5 py-4 transition-colors hover:bg-primary/5 sm:px-6",
-                          isRunning && "bg-status-working/[0.04]"
-                        )}
-                      >
-                        {/* Whole-row click target; the copy chip below is raised above it. */}
-                        <Link
-                          to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
-                          aria-label={intent || t("sessions.noTriggerContent")}
-                          className="absolute inset-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        />
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {intent || t("sessions.noTriggerContent")}
-                          </p>
-
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span
-                              className="inline-flex items-center gap-1"
-                              title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
-                            >
-                              <Clock className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
-                              {formatRelative(oldest.started_at, t)}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Hash className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
-                              <span className="font-mono">{shortId}</span>
-                              <CopyButton
-                                value={latest.session_id}
-                                className="relative z-10 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100"
-                              />
-                            </span>
-                          </div>
-                        </div>
-
-                        <StatusBadge status={latest.status} />
-                      </div>
-                    )
-                  })}
+                  {sessionGroups.map((group) => (
+                    <SessionGroupRow
+                      key={group[0].session_id}
+                      group={group}
+                      tokenStats={data?.token_stats?.[group[0].session_id]}
+                    />
+                  ))}
                 </div>
               )}
             </DetailSection>

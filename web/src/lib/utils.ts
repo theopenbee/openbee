@@ -50,3 +50,7 @@ export function getFileCategory(filePath: string): FileCategory {
   if (ARCHIVE_EXTS.has(ext)) return "archive"
   return "other"
 }
+
+export function isImeComposing(event: { nativeEvent: KeyboardEvent }): boolean {
+  return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
+}

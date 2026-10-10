@@ -11,6 +11,7 @@
 - Stop Enter from sending local chat messages mid-IME composition.
 - Render Markdown tables in local chat messages.
 - Translate execution statuses on the session detail page.
+- Keep chat scroll position while reading earlier messages.
 
 ## [0.0.43] - 2026-10-08
 

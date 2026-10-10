@@ -26,6 +26,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { StatusBadge } from "@/components/status-badge"
 import type { Task } from "@/lib/types"
 import { useCan } from "@/hooks/use-can"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Perm } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
@@ -40,25 +41,22 @@ interface TaskListProps {
   onPageChange?: (page: number) => void
 }
 
-function CronCell({ task }: { task: Task }) {
-  if (task.type === "scheduled" && task.cron_expr) {
-    return <p className="font-mono text-xs text-foreground/80">{task.cron_expr}</p>
-  }
-  return <span className="text-sm text-muted-foreground">—</span>
+function cronLabel(task: Task) {
+  return task.type === "scheduled" && task.cron_expr ? task.cron_expr : undefined
 }
 
-function nextRunTimestamp(task: Task) {
-  return task.type === "countdown" ? task.scheduled_at : task.next_run_at
+function nextRunLabel(task: Task) {
+  const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
+  return timestamp ? new Date(timestamp).toLocaleString() : undefined
 }
 
-function NextRunCell({ task }: { task: Task }) {
-  const timestamp = nextRunTimestamp(task)
-  if (timestamp) {
-    return (
-      <p className="font-mono text-xs text-foreground/80">
-        {new Date(timestamp).toLocaleString()}
-      </p>
-    )
+function workerLabel(task: Task) {
+  return task.worker_name || task.worker_id.slice(0, 8) + "..."
+}
+
+function ScheduleCell({ value }: { value?: string }) {
+  if (value) {
+    return <p className="font-mono text-xs text-foreground/80">{value}</p>
   }
   return <span className="text-sm text-muted-foreground">—</span>
 }
@@ -71,6 +69,7 @@ export function TaskList({
 }: TaskListProps) {
   const { t } = useTranslation()
   const canWrite = useCan(Perm.TasksWrite)
+  const isMobile = useIsMobile()
   const [internalPage, setInternalPage] = useState(1)
   const page = controlledPage ?? internalPage
   const setPage = onPageChange ?? setInternalPage
@@ -85,6 +84,7 @@ export function TaskList({
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
 
   const mutationError = cancelTask.error || cancelAll.error
+  const canCancel = (task: Task) => task.status === "pending" && canWrite
 
   return (
     <div>
@@ -113,125 +113,130 @@ export function TaskList({
         <EmptyState title={t("emptyState.noTasks")} />
       ) : (
         <>
-          <ul className="divide-y divide-border/70 overflow-hidden rounded-sm border border-border/70 bg-card md:hidden">
-            {tasks.map((task) => {
-              const nextRun = nextRunTimestamp(task)
-              const canCancel = task.status === "pending" && canWrite
-              return (
-                <li key={task.id} className="space-y-2 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="min-w-0 line-clamp-3 break-words text-sm leading-5 text-foreground">
-                      {task.instruction}
-                    </p>
-                    <StatusBadge status={task.status} />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      {!workerId && task.worker_id && (
-                        <Link
-                          to={`/workers/${task.worker_id}`}
-                          className="font-medium text-foreground/80 transition-colors hover:text-foreground"
-                        >
-                          {task.worker_name || task.worker_id.slice(0, 8) + "..."}
-                        </Link>
-                      )}
-                      {task.type === "scheduled" && task.cron_expr && (
-                        <span className="inline-flex items-center gap-1 font-mono">
-                          <RepeatIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.cron")} />
-                          {task.cron_expr}
-                        </span>
-                      )}
-                      {nextRun && (
-                        <span className="inline-flex items-center gap-1 font-mono">
-                          <CalendarClockIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.nextRunAt")} />
-                          {new Date(nextRun).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                    {canCancel && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => setConfirmCancelId(task.id)}
-                        disabled={cancelTask.isPending}
-                        className="-mr-2 h-9 text-destructive hover:text-destructive"
-                      >
-                        {t("tasks.cancel")}
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-
-          <div className="hidden overflow-hidden rounded-sm border border-border/70 bg-card md:block">
-            <Table className="min-w-[920px]">
-              <TableHeader>
-                <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                  {!workerId && <TableHead className="pl-5 w-40">{t("tasks.columns.worker")}</TableHead>}
-                  <TableHead className={cn("min-w-[24rem]", workerId && "pl-5")}>{t("tasks.columns.instruction")}</TableHead>
-                  <TableHead className="w-44">{t("tasks.columns.cron")}</TableHead>
-                  <TableHead className="w-48">{t("tasks.columns.nextRunAt")}</TableHead>
-                  <TableHead className="w-28 text-right">{t("tasks.columns.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.map((task) => {
-                  const borderClass = cn(
-                    "pl-4 border-l-2",
-                    STATUS_ROW_BORDER[task.status] ?? "border-l-transparent"
-                  )
-                  return (
-                  <TableRow key={task.id} className="hover:bg-primary/5 transition-colors">
-                    {!workerId && (
-                      <TableCell className={borderClass}>
-                        {task.worker_id ? (
-                          <Link
-                            to={`/workers/${task.worker_id}`}
-                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            {task.worker_name || task.worker_id.slice(0, 8) + "..."}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell className={cn("max-w-[32rem] whitespace-normal", workerId && borderClass)}>
+          {isMobile ? (
+            <ul className="divide-y divide-border/70 overflow-hidden rounded-sm border border-border/70 bg-card">
+              {tasks.map((task) => {
+                const cron = cronLabel(task)
+                const nextRun = nextRunLabel(task)
+                return (
+                  <li key={task.id} className="space-y-2 px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
                       <p
-                        className="line-clamp-2 break-words text-sm leading-5 text-foreground"
+                        className="min-w-0 line-clamp-3 break-words text-sm leading-5 text-foreground"
                         title={task.instruction}
                       >
                         {task.instruction}
                       </p>
-                    </TableCell>
-                    <TableCell>
-                      <CronCell task={task} />
-                    </TableCell>
-                    <TableCell>
-                      <NextRunCell task={task} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {task.status === "pending" && canWrite ? (
+                      <StatusBadge status={task.status} />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {!workerId && task.worker_id && (
+                          <Link
+                            to={`/workers/${task.worker_id}`}
+                            className="font-medium text-foreground/80 transition-colors hover:text-foreground"
+                          >
+                            {workerLabel(task)}
+                          </Link>
+                        )}
+                        {cron && (
+                          <span className="inline-flex items-center gap-1 font-mono">
+                            <RepeatIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.cron")} />
+                            {cron}
+                          </span>
+                        )}
+                        {nextRun && (
+                          <span className="inline-flex items-center gap-1 font-mono">
+                            <CalendarClockIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.nextRunAt")} />
+                            {nextRun}
+                          </span>
+                        )}
+                      </div>
+                      {canCancel(task) && (
                         <Button
                           variant="ghost"
-                          size="sm"
                           onClick={() => setConfirmCancelId(task.id)}
                           disabled={cancelTask.isPending}
-                          className="text-destructive hover:text-destructive"
+                          className="-mr-2 h-9 text-destructive hover:text-destructive"
                         >
                           {t("tasks.cancel")}
                         </Button>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
                       )}
-                    </TableCell>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <div className="overflow-hidden rounded-sm border border-border/70 bg-card">
+              <Table className="min-w-[920px]">
+                <TableHeader>
+                  <TableRow className="bg-secondary/50 hover:bg-secondary/50">
+                    {!workerId && <TableHead className="pl-5 w-40">{t("tasks.columns.worker")}</TableHead>}
+                    <TableHead className={cn("min-w-[24rem]", workerId && "pl-5")}>{t("tasks.columns.instruction")}</TableHead>
+                    <TableHead className="w-44">{t("tasks.columns.cron")}</TableHead>
+                    <TableHead className="w-48">{t("tasks.columns.nextRunAt")}</TableHead>
+                    <TableHead className="w-28 text-right">{t("tasks.columns.actions")}</TableHead>
                   </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => {
+                    const borderClass = cn(
+                      "pl-4 border-l-2",
+                      STATUS_ROW_BORDER[task.status] ?? "border-l-transparent"
+                    )
+                    return (
+                    <TableRow key={task.id} className="hover:bg-primary/5 transition-colors">
+                      {!workerId && (
+                        <TableCell className={borderClass}>
+                          {task.worker_id ? (
+                            <Link
+                              to={`/workers/${task.worker_id}`}
+                              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {workerLabel(task)}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                      <TableCell className={cn("max-w-[32rem] whitespace-normal", workerId && borderClass)}>
+                        <p
+                          className="line-clamp-2 break-words text-sm leading-5 text-foreground"
+                          title={task.instruction}
+                        >
+                          {task.instruction}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <ScheduleCell value={cronLabel(task)} />
+                      </TableCell>
+                      <TableCell>
+                        <ScheduleCell value={nextRunLabel(task)} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canCancel(task) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setConfirmCancelId(task.id)}
+                            disabled={cancelTask.isPending}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            {t("tasks.cancel")}
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
           <PaginationControls
             page={page}
             totalPages={totalPages}
