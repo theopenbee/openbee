@@ -1,6 +1,6 @@
 cmd:
   root:
-    short: "OpenBee core service"
+    short: "OpenBee: your agents, anywhere, anytime"
   config:
     short: "Interactively generate a config file"
   server:

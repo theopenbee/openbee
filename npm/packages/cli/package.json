@@ -1,7 +1,22 @@
 {
   "name": "@theopenbee/cli",
   "version": "0.0.15",
-  "description": "openbee CLI",
+  "description": "Use your AI agents anywhere, anytime: Claude Code, Codex, and Pi from Lark, DingTalk, WeCom, WeChat, Telegram, or the browser.",
+  "keywords": [
+    "ai",
+    "agent",
+    "claude-code",
+    "codex",
+    "pi",
+    "lark",
+    "feishu",
+    "dingtalk",
+    "wecom",
+    "wechat",
+    "telegram",
+    "self-hosted"
+  ],
+  "homepage": "https://docs.theopenbee.com",
   "main": "./lib/index.js",
   "bin": {
     "openbee": "./bin/openbee"

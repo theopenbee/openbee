@@ -18,7 +18,7 @@ func TestLoad_zh(t *testing.T) {
 
 func TestLoad_en(t *testing.T) {
 	require.NoError(t, i18n.Load("en"))
-	assert.Equal(t, "OpenBee core service", i18n.M.Cmd.Root.Short)
+	assert.Equal(t, "OpenBee: your agents, anywhere, anytime", i18n.M.Cmd.Root.Short)
 	assert.Equal(t, "Server port:", i18n.M.Prompt.ServerPort)
 	got := i18n.M.Cmd.CtlWorker.Sub("list")
 	assert.Equal(t, "List all workers", got)

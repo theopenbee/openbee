@@ -1,8 +1,8 @@
 <img src="docs/logo-full.svg" alt="OpenBee" width="220" />
 
-# OpenBee — Build smarter AI teams.
+# OpenBee — Your agents, anywhere, anytime.
 
-**OpenBee** is an around-the-clock digital worker solution, dedicated to making AI Agents your 7×24 always-on assistant.
+**OpenBee** lets you use your AI agents anywhere, anytime. Claude Code, Codex, and Pi run on your own machine; reach them from Lark, DingTalk, WeCom, WeChat, Telegram, Linear, or the browser.
 
 To learn more about the project, visit [docs.theopenbee.com](https://docs.theopenbee.com).
 
@@ -90,8 +90,8 @@ openbee server -d
 
 ### Step 4: Start using
 
-- Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
+- Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 
 ## 🌟 Star History
 

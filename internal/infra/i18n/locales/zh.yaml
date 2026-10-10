@@ -1,6 +1,6 @@
 cmd:
   root:
-    short: "OpenBee 核心服务"
+    short: "OpenBee：随时随地，使用你的 Agent"
   config:
     short: "交互式生成配置文件"
   server:

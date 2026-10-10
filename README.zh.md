@@ -1,8 +1,8 @@
 <img src="docs/logo-full.svg" alt="OpenBee" width="220" />
 
-# OpenBee — Build smarter AI teams.
+# OpenBee — 随时随地，使用你的 Agent。
 
-**OpenBee** 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。
+**OpenBee** 让你在任何地方、任何时间使用 AI Agent。Claude Code、Codex、Pi 运行在你自己的机器上，你可以通过飞书、钉钉、企微、微信、Telegram、Linear 或浏览器随时找到它们。
 
 了解更多请访问 [docs.theopenbee.com](https://docs.theopenbee.com)。
 
@@ -90,8 +90,8 @@ openbee server -d
 
 ### 第四步：开始使用
 
-- 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 - 在已配置的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+- 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 
 ## 🌟 Star History
 
