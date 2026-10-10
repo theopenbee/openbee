@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+import { statusLabel } from "@/lib/format"
 
 export const presenceColor: Record<string, string> = {
   idle: "bg-status-idle",
@@ -28,7 +29,7 @@ interface WorkerAvatarProps {
 export function WorkerAvatar({ name, status, size = "default", className }: WorkerAvatarProps) {
   const { t } = useTranslation()
   const color = presenceColor[status] ?? "bg-muted-foreground"
-  const statusLabel = t(`statuses.${status}`, status)
+  const label = statusLabel(status, t)
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
@@ -37,9 +38,9 @@ export function WorkerAvatar({ name, status, size = "default", className }: Work
       </Avatar>
       <span
         className="absolute -right-0.5 -bottom-0.5 inline-flex size-2.5 items-center justify-center rounded-full ring-2 ring-card"
-        title={statusLabel}
+        title={label}
         role="img"
-        aria-label={statusLabel}
+        aria-label={label}
       >
         {status === "working" && (
           <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />

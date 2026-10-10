@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react"
@@ -40,6 +41,8 @@ import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage, isImeComposing } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
+import { observeResize } from "@/lib/resize-observer"
+import { mergeLatestPage, messageKeys } from "@/lib/chat-messages"
 import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
@@ -55,6 +58,33 @@ const EMPTY_WORKERS: Worker[] = []
 const STREAMDOWN_PLUGINS = { code }
 
 const TOUCH_ONLY_QUERY = "(hover: none) and (pointer: coarse)"
+
+const NEAR_BOTTOM_PX = 48
+
+type ScrollAnchor = { el: Element; top: number }
+
+function isNearBottom(container: HTMLElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_PX
+}
+
+function findScrollAnchor(container: HTMLElement, log: HTMLElement | null): ScrollAnchor | null {
+  if (!log) return null
+  const containerTop = container.getBoundingClientRect().top
+  const items = log.children
+  let lo = 0
+  let hi = items.length - 1
+  let anchor: Element | null = null
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (items[mid].getBoundingClientRect().bottom > containerTop) {
+      anchor = items[mid]
+      hi = mid - 1
+    } else {
+      lo = mid + 1
+    }
+  }
+  return anchor ? { el: anchor, top: anchor.getBoundingClientRect().top - containerTop } : null
+}
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"
@@ -129,9 +159,11 @@ const COLLAPSE_HEIGHT = 320
 const MessageBubble = memo(function MessageBubble({
   message,
   isGroupStart,
+  onExpandToggle,
 }: {
   message: ChatMessage
   isGroupStart: boolean
+  onExpandToggle: () => void
 }) {
   const { t, i18n } = useTranslation()
   const isUser = message.role === "user"
@@ -191,7 +223,7 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {hasContent && (
-            <ExpandableContent maxHeight={COLLAPSE_HEIGHT}>
+            <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
               <div
                 className={cn(
                   "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
@@ -235,23 +267,53 @@ export function LocalChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollContentRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
-  const scrollRestoreRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
+  const scrollAnchorRef = useRef<ScrollAnchor | null>(null)
+  const lastScrollTopRef = useRef(0)
 
-  const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
+  const captureScrollAnchor = useCallback(() => {
     const container = scrollContainerRef.current
-    if (container) {
-      stickToBottomRef.current = false
-      scrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight }
-    }
-    setLocalMessages((prev) => [...older, ...prev])
+    scrollAnchorRef.current =
+      container && !stickToBottomRef.current ? findScrollAnchor(container, logRef.current) : null
   }, [])
 
-  const { loadMore, hasMore, isLoadingMore } = useLoadMoreMessages(handleOlderLoaded, data?.has_more ?? false)
+  const syncScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    if (stickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight
+      lastScrollTopRef.current = container.scrollTop
+      return
+    }
+    const anchor = scrollAnchorRef.current
+    if (anchor?.el.isConnected) {
+      const delta = anchor.el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.top
+      if (Math.abs(delta) >= 1) container.scrollTop += delta
+    }
+    lastScrollTopRef.current = container.scrollTop
+    captureScrollAnchor()
+  }, [captureScrollAnchor])
+
+  const handleExpandToggle = useCallback(() => {
+    stickToBottomRef.current = false
+    captureScrollAnchor()
+  }, [captureScrollAnchor])
+
+  const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
+    if (older.length === 0) return
+    captureScrollAnchor()
+    setLocalMessages((prev) => [...older, ...prev])
+  }, [captureScrollAnchor])
+
+  const { loadMore, hasMore, isLoadingMore, loadError } = useLoadMoreMessages(
+    handleOlderLoaded,
+    data?.has_more ?? false
+  )
 
   useEffect(() => {
     if (!data) return
-    setLocalMessages(data.messages)
+    setLocalMessages((prev) => mergeLatestPage(prev, data.messages))
   }, [data])
 
   useEffect(() => {
@@ -278,28 +340,32 @@ export function LocalChat() {
     const container = scrollContainerRef.current
     const content = scrollContentRef.current
     if (!container || !content) return
-    const observer = new ResizeObserver(() => {
-      if (stickToBottomRef.current) container.scrollTop = container.scrollHeight
-    })
-    observer.observe(container)
-    observer.observe(content)
-    return () => observer.disconnect()
-  }, [])
+    const stopContainer = observeResize(container, syncScroll)
+    const stopContent = observeResize(content, syncScroll)
+    return () => {
+      stopContainer()
+      stopContent()
+    }
+  }, [syncScroll])
 
   useLayoutEffect(() => {
-    const container = scrollContainerRef.current
-    const restore = scrollRestoreRef.current
-    if (!container || !restore) return
-    scrollRestoreRef.current = null
-    container.scrollTop = restore.scrollTop + container.scrollHeight - restore.scrollHeight
-  }, [localMessages])
+    syncScroll()
+  }, [localMessages, syncScroll])
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current
     if (!container) return
-    stickToBottomRef.current =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 48
-  }, [])
+    const top = container.scrollTop
+    if (Math.abs(top - lastScrollTopRef.current) < 1) {
+      syncScroll()
+      return
+    }
+    const movedUp = top < lastScrollTopRef.current
+    lastScrollTopRef.current = top
+    if (isNearBottom(container)) stickToBottomRef.current = true
+    else if (movedUp) stickToBottomRef.current = false
+    captureScrollAnchor()
+  }, [captureScrollAnchor, syncScroll])
 
   const handleSend = useCallback(async () => {
     const content = input.trim()
@@ -333,7 +399,7 @@ export function LocalChat() {
   }, [input, pendingMediaPaths, sendMessage])
 
   const handleLoadMore = useCallback(() => {
-    loadMore(localMessages[0]?.ts ?? Date.now()).catch(() => {})
+    void loadMore(localMessages[0]?.ts ?? Date.now())
   }, [loadMore, localMessages])
 
   const uploadFiles = useCallback(async (files: File[]) => {
@@ -375,11 +441,13 @@ export function LocalChat() {
   const isTouchOnly = useMediaQuery(TOUCH_ONLY_QUERY)
 
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event) || isTouchOnly) return
+    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) return
+    if (isTouchOnly && !event.metaKey && !event.ctrlKey) return
     event.preventDefault()
     void handleSend()
   }, [handleSend, isTouchOnly])
 
+  const keys = useMemo(() => messageKeys(localMessages), [localMessages])
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
@@ -411,47 +479,64 @@ export function LocalChat() {
                 description={t("localChat.noMessagesDescription")}
               />
             ) : (
-              <div role="log" aria-live="polite" aria-relevant="additions">
+              <>
                 {hasMore && (
-                  <div className="flex justify-center pb-4">
+                  <div className="flex justify-center pb-8">
                     <button
                       type="button"
                       disabled={isLoadingMore}
                       onClick={handleLoadMore}
-                      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-xs transition-colors disabled:opacity-50",
+                        loadError
+                          ? "border-destructive/40 text-destructive hover:bg-destructive/10"
+                          : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
                     >
-                      {isLoadingMore ? t("localChat.loadingMore") : t("localChat.loadMore")}
+                      {isLoadingMore
+                        ? t("localChat.loadingMore")
+                        : loadError
+                          ? t("localChat.loadMoreError")
+                          : t("localChat.loadMore")}
                     </button>
+                    {loadError && !isLoadingMore && (
+                      <span role="alert" className="sr-only">
+                        {t("localChat.loadMoreError")}
+                      </span>
+                    )}
                   </div>
                 )}
-                {localMessages.map((message, index) => {
-                  const prev = localMessages[index - 1]
-                  const isGroupStart = !prev || prev.role !== message.role
+                <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
+                  {localMessages.map((message, index) => {
+                    const prev = localMessages[index - 1]
+                    const isGroupStart = !prev || prev.role !== message.role
 
-                  return (
-                    <MessageBubble
-                      key={`${message.role}-${message.ts}-${index}`}
-                      message={message}
-                      isGroupStart={isGroupStart}
-                    />
-                  )
-                })}
+                    return (
+                      <MessageBubble
+                        key={keys[index]}
+                        message={message}
+                        isGroupStart={isGroupStart}
+                        onExpandToggle={handleExpandToggle}
+                      />
+                    )
+                  })}
 
-                {isProcessing && (
-                  <div className="mt-4 flex flex-col items-start">
-                    <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
-                      <span className="size-1.5 rounded-full bg-primary" />
-                      <span className="font-medium">{t("localChat.beeLabel")}</span>
-                      <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                  {isProcessing && (
+                    <div className="mt-4 flex flex-col items-start">
+                      <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
+                        <span className="size-1.5 rounded-full bg-primary" />
+                        <span className="font-medium">{t("localChat.beeLabel")}</span>
+                        <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                      </div>
+                      <div className="flex gap-1.5 px-0.5 py-1">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
+                      </div>
                     </div>
-                    <div className="flex gap-1.5 px-0.5 py-1">
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
       </div>
@@ -504,11 +589,9 @@ export function LocalChat() {
               </div>
 
               <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
-                {!isTouchOnly && (
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {t("localChat.composerHint")}
-                  </span>
-                )}
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  {isTouchOnly ? t("localChat.composerHintTouch") : t("localChat.composerHint")}
+                </span>
 
                 <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
                   <input

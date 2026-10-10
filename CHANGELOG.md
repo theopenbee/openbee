@@ -12,6 +12,12 @@
 - Render Markdown tables in local chat messages.
 - Translate execution statuses on the session detail page.
 - Keep chat scroll position while reading earlier messages.
+- Keep chat position when messages expand or images load.
+- Keep loaded chat history when messages refresh.
+- Send chat with Ctrl/⌘+Enter on touch devices.
+- Copy chat messages on non-HTTPS origins.
+- Show an error when earlier chat messages fail to load.
+- Stop token popover dismissal from opening the session.
 
 ## [0.0.43] - 2026-10-08
 

@@ -23,7 +23,7 @@ import { SessionGroupRow } from "@/components/session-group-row"
 import { WorkerLink } from "@/components/worker-link"
 import { cn, sessionDetailPath } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { formatDuration, formatRelative, formatTimestamp, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, formatTimestamp, formatTokenCount, groupExecutionsBySession, isActiveStatus, statusLabel, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -42,7 +42,7 @@ function TurnPips({ executions }: { executions: WorkerExecution[] }) {
       {ordered.map((e, i) => (
         <div
           key={e.id}
-          title={`${t("sessionDetail.turn", { index: i + 1 })}: ${t(`statuses.${e.status}`, e.status)}`}
+          title={`${t("sessionDetail.turn", { index: i + 1 })}: ${statusLabel(e.status, t)}`}
           className={cn(
             "size-2 rounded-full shrink-0",
             TURN_DOT[e.status] ?? "bg-muted-foreground/30"

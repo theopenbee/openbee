@@ -39,6 +39,10 @@ export function statusTone(status: string) {
   }
 }
 
+export function statusLabel(status: string, t: (key: string, defaultValue: string) => string) {
+  return t(`statuses.${status}`, status)
+}
+
 export function isActiveStatus(status: string) {
   return status === "running" || status === "pending"
 }

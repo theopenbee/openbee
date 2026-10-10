@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { observeResize } from "@/lib/resize-observer"
 import { cn } from "@/lib/utils"
@@ -8,6 +8,7 @@ interface ExpandableContentProps {
   maxHeight: number
   fadeClassName?: string
   className?: string
+  onToggle?: () => void
 }
 
 export function ExpandableContent({
@@ -15,6 +16,7 @@ export function ExpandableContent({
   maxHeight,
   fadeClassName = "h-16 from-background/95",
   className,
+  onToggle,
 }: ExpandableContentProps) {
   const { t } = useTranslation()
   const innerRef = useRef<HTMLDivElement>(null)
@@ -23,13 +25,10 @@ export function ExpandableContent({
 
   useLayoutEffect(() => {
     const el = innerRef.current
-    if (el) setOverflows(el.scrollHeight > maxHeight)
-  }, [children, maxHeight])
-
-  useEffect(() => {
-    const el = innerRef.current
     if (!el) return
-    return observeResize(el, () => setOverflows(el.scrollHeight > maxHeight))
+    const measure = () => setOverflows(el.scrollHeight > maxHeight)
+    measure()
+    return observeResize(el, measure)
   }, [maxHeight])
 
   const clipped = collapsed && overflows
@@ -38,7 +37,7 @@ export function ExpandableContent({
     <div className={className}>
       <div
         className={cn("overflow-hidden transition-[max-height] duration-300", clipped && "relative")}
-        style={{ maxHeight: clipped ? maxHeight : undefined }}
+        style={{ maxHeight: collapsed ? maxHeight : undefined }}
       >
         <div ref={innerRef}>{children}</div>
         {clipped && (
@@ -54,7 +53,10 @@ export function ExpandableContent({
         <button
           type="button"
           aria-expanded={!collapsed}
-          onClick={() => setCollapsed((prev) => !prev)}
+          onClick={() => {
+            onToggle?.()
+            setCollapsed((prev) => !prev)
+          }}
           className="mt-1 py-1 text-xs font-medium text-primary/80 transition-colors hover:text-primary"
         >
           {collapsed ? t("common.showMore") : t("common.showLess")}

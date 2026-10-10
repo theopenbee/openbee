@@ -24,6 +24,7 @@ export function useLoadMoreMessages(
   const isLoadingRef = useRef(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialHasMore)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     setHasMore(initialHasMore)
@@ -33,17 +34,20 @@ export function useLoadMoreMessages(
     if (isLoadingRef.current) return
     isLoadingRef.current = true
     setIsLoadingMore(true)
+    setLoadError(false)
     try {
       const res = await api.localChat.getMessages(earliestTs)
       setHasMore(res.has_more)
       onLoaded(res.messages)
+    } catch {
+      setLoadError(true)
     } finally {
       isLoadingRef.current = false
       setIsLoadingMore(false)
     }
   }, [onLoaded])
 
-  return { loadMore, hasMore, isLoadingMore }
+  return { loadMore, hasMore, isLoadingMore, loadError }
 }
 
 export function useSendMessage() {

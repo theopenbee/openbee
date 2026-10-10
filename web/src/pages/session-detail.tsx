@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/empty-state"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, statusLabel, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
   const { t } = useTranslation()
@@ -146,7 +146,7 @@ export function SessionDetail() {
                   <Activity className={cn("size-3.5", statusTone(latestExecution.status))} />
                   <span>{t("sessions.columns.latestStatus")}</span>
                   <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                    {t(`statuses.${latestExecution.status}`, latestExecution.status)}
+                    {statusLabel(latestExecution.status, t)}
                   </span>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function SessionDetail() {
                   <span>
                     {t("sessions.columns.latestStatus")}{" "}
                     <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                      {t(`statuses.${latestExecution.status}`, latestExecution.status)}
+                      {statusLabel(latestExecution.status, t)}
                     </span>
                   </span>
                 }
@@ -280,7 +280,7 @@ export function SessionDetail() {
                             </span>
                             <span className={cn("inline-flex items-center gap-1.5 font-medium", statusTone(exec.status))}>
                               <span className="size-1.5 rounded-full bg-current" />
-                              {t(`statuses.${exec.status}`, exec.status)}
+                              {statusLabel(exec.status, t)}
                             </span>
                           </div>
                         </div>

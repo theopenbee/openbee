@@ -78,4 +78,39 @@ describe("observeResize", () => {
     expect(FakeResizeObserver.instances[0].observed.has(a)).toBe(false)
     expect(onA).not.toHaveBeenCalled()
   })
+
+  it("keeps every callback registered for the same element", async () => {
+    const { observeResize } = await import("../resize-observer")
+    const a = el()
+    const first = vi.fn()
+    const second = vi.fn()
+    observeResize(a, first)
+    observeResize(a, second)
+
+    FakeResizeObserver.instances[0].trigger(a)
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it("only removes its own callback and unobserves after the last one", async () => {
+    const { observeResize } = await import("../resize-observer")
+    const a = el()
+    const first = vi.fn()
+    const second = vi.fn()
+    const stopFirst = observeResize(a, first)
+    const stopSecond = observeResize(a, second)
+
+    stopFirst()
+    stopFirst()
+    FakeResizeObserver.instances[0].trigger(a)
+
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(FakeResizeObserver.instances[0].observed.has(a)).toBe(true)
+
+    stopSecond()
+
+    expect(FakeResizeObserver.instances[0].observed.has(a)).toBe(false)
+  })
 })

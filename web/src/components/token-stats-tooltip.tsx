@@ -12,7 +12,7 @@ export function TokenStatsInfoButton({
   align?: "start" | "center" | "end"
 }) {
   return (
-    <Popover.Root>
+    <Popover.Root modal>
       <Popover.Trigger
         openOnHover
         delay={0}

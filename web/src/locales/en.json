@@ -29,6 +29,7 @@
     "view": "View",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Copy failed",
     "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
@@ -292,9 +293,11 @@
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
     "composerHint": "Enter to send, Shift+Enter for a new line",
+    "composerHintTouch": "Ctrl/⌘+Enter to send",
     "removeAttachment": "Remove attachment",
     "loadMore": "Load earlier messages",
-    "loadingMore": "Loading…"
+    "loadingMore": "Loading…",
+    "loadMoreError": "Couldn't load earlier messages. Retry"
   },
   "breadcrumb": {
     "detail": "Detail"
