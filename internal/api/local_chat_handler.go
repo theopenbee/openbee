@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -63,25 +64,21 @@ func NewLocalChatHandler(
 	}
 }
 
-func currentSessionKey(c *gin.Context) (string, bool) {
+func currentUserID(c *gin.Context) (string, bool) {
 	uid := auth.UserID(c)
 	if uid == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return "", false
 	}
-	return local.SessionKey(uid), true
+	return uid, true
 }
 
 func (h *LocalChatHandler) currentMediaDir(c *gin.Context) (string, bool) {
-	sessionKey, ok := currentSessionKey(c)
+	uid, ok := currentUserID(c)
 	if !ok {
 		return "", false
 	}
-	return h.sessionMediaDir(c, sessionKey)
-}
-
-func (h *LocalChatHandler) sessionMediaDir(c *gin.Context, sessionKey string) (string, bool) {
-	dir, err := local.MediaDir(h.mediaRoot, sessionKey)
+	dir, err := local.MediaDir(h.mediaRoot, local.SessionKey(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return "", false
@@ -89,8 +86,12 @@ func (h *LocalChatHandler) sessionMediaDir(c *gin.Context, sessionKey string) (s
 	return dir, true
 }
 
+func localMessageID(userID, clientID string) string {
+	return localMessageIDPrefix + userID + ":" + clientID
+}
+
 func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
-	sessionKey, ok := currentSessionKey(c)
+	uid, ok := currentUserID(c)
 	if !ok {
 		return
 	}
@@ -99,7 +100,7 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	ch, unsub := h.hub.Subscribe(sessionKey)
+	ch, unsub := h.hub.Subscribe(local.SessionKey(uid))
 	defer unsub()
 
 	ctx := c.Request.Context()
@@ -118,7 +119,7 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 }
 
 func (h *LocalChatHandler) SendMessage(c *gin.Context) {
-	sessionKey, ok := currentSessionKey(c)
+	uid, ok := currentUserID(c)
 	if !ok {
 		return
 	}
@@ -153,11 +154,11 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 
 	h.receiver.Enqueue(platform.InboundMessage{
 		Platform:          local.PlatformID,
-		SenderID:          auth.UserID(c),
-		SessionKey:        sessionKey,
+		SenderID:          uid,
+		SessionKey:        local.SessionKey(uid),
 		Content:           content,
 		RawContent:        content,
-		PlatformMessageID: localMessageIDPrefix + id,
+		PlatformMessageID: localMessageID(uid, id),
 		MessageTime:       ts,
 	})
 
@@ -215,14 +216,11 @@ type chatMessage struct {
 }
 
 func (h *LocalChatHandler) GetMessages(c *gin.Context) {
-	sessionKey, ok := currentSessionKey(c)
+	uid, ok := currentUserID(c)
 	if !ok {
 		return
 	}
-	mediaDir, ok := h.sessionMediaDir(c, sessionKey)
-	if !ok {
-		return
-	}
+	sessionKey := local.SessionKey(uid)
 	ctx := c.Request.Context()
 
 	before := int64(0)
@@ -260,7 +258,7 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
-		msg := chatMessage{ID: inboundChatID(m), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
+		msg := chatMessage{ID: inboundChatID(m, uid), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
 		if len(paths) > 0 {
 			msg.MediaPaths = paths
 		}
@@ -268,11 +266,8 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	}
 	for _, r := range replies {
 		msg := chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt}
-		if r.MediaPath != "" {
-			name := local.MediaFileName(r.ID, r.MediaPath)
-			if _, err := os.Stat(filepath.Join(mediaDir, name)); err == nil {
-				msg.MediaPaths = []string{name}
-			}
+		if h.isStagedMedia(r.MediaPath) {
+			msg.MediaPaths = []string{filepath.Base(r.MediaPath)}
 		}
 		combined = append(combined, msg)
 	}
@@ -286,7 +281,14 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
-func inboundChatID(m store.InboundMessage) string {
+func (h *LocalChatHandler) isStagedMedia(path string) bool {
+	return path != "" && filepath.Dir(filepath.Dir(path)) == filepath.Clean(h.mediaRoot)
+}
+
+func inboundChatID(m store.InboundMessage, userID string) string {
+	if id, ok := strings.CutPrefix(m.PlatformMsgID, localMessageID(userID, "")); ok {
+		return id
+	}
 	if id, ok := strings.CutPrefix(m.PlatformMsgID, localMessageIDPrefix); ok {
 		return id
 	}
@@ -294,6 +296,11 @@ func inboundChatID(m store.InboundMessage) string {
 }
 
 func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
+	uploadDir, ok := h.currentMediaDir(c)
+	if !ok {
+		return
+	}
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing 'file' field"})
@@ -301,10 +308,6 @@ func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 	}
 	defer file.Close()
 
-	uploadDir, ok := h.currentMediaDir(c)
-	if !ok {
-		return
-	}
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -328,16 +331,37 @@ func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 }
 
 func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
+	mediaDir, ok := h.currentMediaDir(c)
+	if !ok {
+		return
+	}
+
 	filename := filepath.Base(c.Param("filename"))
 	if filename == "." || filename == ".." {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
 		return
 	}
 
-	mediaDir, ok := h.currentMediaDir(c)
-	if !ok {
+	path := filepath.Join(mediaDir, filename)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox")
+	if isInlineMedia(filename) {
+		c.File(path)
 		return
 	}
+	c.Header("Content-Type", "application/octet-stream")
+	c.FileAttachment(path, filename)
+}
 
-	c.File(filepath.Join(mediaDir, filename))
+func isInlineMedia(filename string) bool {
+	mediaType, _, _ := mime.ParseMediaType(mime.TypeByExtension(filepath.Ext(filename)))
+	if mediaType == "image/svg+xml" {
+		return false
+	}
+	for _, prefix := range []string{"image/", "video/", "audio/"} {
+		if strings.HasPrefix(mediaType, prefix) {
+			return true
+		}
+	}
+	return mediaType == "text/plain"
 }

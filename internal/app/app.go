@@ -146,11 +146,12 @@ func BuildApp(cfg config.Config) (*App, error) {
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
-	localMediaRoot := config.DefaultLocalUploadsDir()
-	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot)
-	claimLegacyChat := func(ctx context.Context, userID string) error {
-		return local.ClaimLegacySession(ctx, s.sessionStore, localMediaRoot, userID)
+	localMediaRoot, err := config.LocalUploadsDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolving local uploads dir: %w", err)
 	}
+	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
+	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot, legacyChat)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
@@ -204,12 +205,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
-	if ownerID, ok, err := s.userStore.FirstActiveSuperAdminID(); err != nil {
-		logger.Error("find legacy local chat owner", zap.Error(err))
-	} else if ok {
-		if err := claimLegacyChat(context.Background(), ownerID); err != nil {
-			logger.Error("claim legacy local chat", zap.String("user_id", ownerID), zap.Error(err))
-		}
+	if err := legacyChat.Restore(context.Background(), s.userStore.FirstActiveSuperAdminID); err != nil {
+		logger.Error("restore legacy local chat", zap.Error(err))
 	}
 
 	// Synchronous startup recovery — must run before goroutines start
@@ -253,7 +250,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		localMediaRoot,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, claimLegacyChat, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}

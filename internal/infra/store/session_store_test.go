@@ -316,7 +316,7 @@ func TestSessionStore_DifferentEnginesCoexist(t *testing.T) {
 	assert.Equal(t, "codex-sid", codex)
 }
 
-func TestSessionStore_ReassignSessionKey(t *testing.T) {
+func TestSessionStore_ClaimSessionKey(t *testing.T) {
 	db, ss := setupSessionDB(t)
 	ctx := context.Background()
 	for _, q := range []string{
@@ -325,6 +325,9 @@ func TestSessionStore_ReassignSessionKey(t *testing.T) {
 		        ('in-other', 'feishu:chat:user', 'feishu', 'hi', 1, 1, 1)`,
 		`INSERT INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
 		 VALUES ('out-old', 'local:old', 'local', 'hello', 'sent', 2, 2)`,
+		`INSERT INTO bee_constraints (id, scope, key, value, created_at, updated_at)
+		 VALUES ('c-old', 'local:old', 'tone', 'formal', 1, 1),
+		        ('c-global', 'global', 'tone', 'casual', 1, 1)`,
 	} {
 		_, err := db.Exec(q)
 		require.NoError(t, err, q)
@@ -333,16 +336,24 @@ func TestSessionStore_ReassignSessionKey(t *testing.T) {
 	require.NoError(t, ss.UpsertSessionContext(ctx, "local:old", "w1", "old-worker", "claude"))
 	require.NoError(t, ss.UpsertSessionContext(ctx, "local:new", store.BeeAgentID, "new-bee", "claude"))
 
-	require.NoError(t, ss.ReassignSessionKey(ctx, "local:old", "local:new"))
+	_, claimed, err := ss.SessionKeyClaim(ctx, "local:old")
+	require.NoError(t, err)
+	require.False(t, claimed)
 
-	sessionKeyOf := func(query, id string) string {
-		var key string
-		require.NoError(t, db.QueryRow(query, id).Scan(&key))
-		return key
+	owner, err := ss.ClaimSessionKey(ctx, "local:old", "local:new")
+	require.NoError(t, err)
+	assert.Equal(t, "local:new", owner)
+
+	column := func(query, id string) string {
+		var v string
+		require.NoError(t, db.QueryRow(query, id).Scan(&v))
+		return v
 	}
-	assert.Equal(t, "local:new", sessionKeyOf(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-old"))
-	assert.Equal(t, "feishu:chat:user", sessionKeyOf(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-other"))
-	assert.Equal(t, "local:new", sessionKeyOf(`SELECT session_key FROM bee_outbound_messages WHERE id = ?`, "out-old"))
+	assert.Equal(t, "local:new", column(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-old"))
+	assert.Equal(t, "feishu:chat:user", column(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-other"))
+	assert.Equal(t, "local:new", column(`SELECT session_key FROM bee_outbound_messages WHERE id = ?`, "out-old"))
+	assert.Equal(t, "local:new", column(`SELECT scope FROM bee_constraints WHERE id = ?`, "c-old"))
+	assert.Equal(t, "global", column(`SELECT scope FROM bee_constraints WHERE id = ?`, "c-global"))
 
 	worker, err := ss.GetSessionContextForEngine(ctx, "local:new", "w1", "claude")
 	require.NoError(t, err)
@@ -350,4 +361,30 @@ func TestSessionStore_ReassignSessionKey(t *testing.T) {
 	bee, err := ss.GetSessionContextForEngine(ctx, "local:new", store.BeeAgentID, "claude")
 	require.NoError(t, err)
 	assert.Equal(t, "new-bee", bee)
+
+	recorded, claimed, err := ss.SessionKeyClaim(ctx, "local:old")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	assert.Equal(t, "local:new", recorded)
+}
+
+func TestSessionStore_ClaimSessionKey_KeepsFirstOwner(t *testing.T) {
+	db, ss := setupSessionDB(t)
+	ctx := context.Background()
+
+	owner, err := ss.ClaimSessionKey(ctx, "local:old", "local:first")
+	require.NoError(t, err)
+	require.Equal(t, "local:first", owner)
+
+	_, err = db.Exec(`INSERT INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
+		 VALUES ('late', 'local:old', 'local', 'late', 'sent', 3, 3)`)
+	require.NoError(t, err)
+
+	owner, err = ss.ClaimSessionKey(ctx, "local:old", "local:second")
+	require.NoError(t, err)
+	assert.Equal(t, "local:first", owner)
+
+	var key string
+	require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_outbound_messages WHERE id = 'late'`).Scan(&key))
+	assert.Equal(t, "local:old", key)
 }

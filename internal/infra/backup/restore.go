@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 const encExt = ".enc"
@@ -82,14 +84,14 @@ func Restore(opts RestoreOptions) error {
 	if err := os.MkdirAll(filepath.Dir(opts.DBPath), 0755); err != nil {
 		return fmt.Errorf("create db dir: %w", err)
 	}
-	if err := copyFile(filepath.Join(extractDir, "openbee.db"), opts.DBPath); err != nil {
+	if err := utils.CopyFile(filepath.Join(extractDir, "openbee.db"), opts.DBPath); err != nil {
 		return fmt.Errorf("restore database: %w", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(opts.ConfigPath), 0755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	if err := copyFile(filepath.Join(extractDir, "config.yaml"), opts.ConfigPath); err != nil {
+	if err := utils.CopyFile(filepath.Join(extractDir, "config.yaml"), opts.ConfigPath); err != nil {
 		return fmt.Errorf("restore config: %w", err)
 	}
 

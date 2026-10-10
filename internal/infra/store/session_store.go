@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -152,24 +153,58 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, bee
 	return tx.Commit()
 }
 
-func (s *SessionStore) ReassignSessionKey(ctx context.Context, from, to string) error {
+func (s *SessionStore) SessionKeyClaim(ctx context.Context, from string) (string, bool, error) {
+	var to string
+	err := s.db.QueryRowContext(ctx, `SELECT to_key FROM bee_session_key_claims WHERE from_key = ?`, from).Scan(&to)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return to, true, nil
+}
+
+func (s *SessionStore) ClaimSessionKey(ctx context.Context, from, to string) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO bee_session_key_claims (from_key, to_key, claimed_at) VALUES (?, ?, ?)
+		 ON CONFLICT(from_key) DO NOTHING`,
+		from, to, time.Now().UnixMilli(),
+	)
+	if err != nil {
+		return "", err
+	}
+	inserted, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if inserted == 0 {
+		var owner string
+		err := tx.QueryRowContext(ctx, `SELECT to_key FROM bee_session_key_claims WHERE from_key = ?`, from).Scan(&owner)
+		return owner, err
+	}
 
 	for _, q := range []string{
 		`UPDATE bee_platform_messages SET session_key = ? WHERE session_key = ?`,
 		`UPDATE bee_outbound_messages SET session_key = ? WHERE session_key = ?`,
 		`UPDATE OR IGNORE bee_session_contexts SET session_key = ? WHERE session_key = ?`,
+		`UPDATE OR IGNORE bee_constraints SET scope = ? WHERE scope = ?`,
 	} {
 		if _, err := tx.ExecContext(ctx, q, to, from); err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return to, nil
 }
 
 // SessionAgent represents one agent's session context entry, enriched with

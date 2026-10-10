@@ -45,11 +45,6 @@ func DefaultPiSessionsDir() string {
 	return filepath.Join(home, ".openbee", ".pi", "sessions")
 }
 
-func DefaultLocalUploadsDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openbee", "local-uploads")
-}
-
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`

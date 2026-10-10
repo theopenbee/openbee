@@ -2,11 +2,11 @@ package backup
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -33,13 +33,13 @@ func Backup(opts BackupOptions) (string, error) {
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		if err := copyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
+		if err := utils.CopyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
 			return fmt.Errorf("copy database: %w", err)
 		}
 		return nil
 	})
 	eg.Go(func() error {
-		if err := copyFile(opts.ConfigPath, filepath.Join(tmp, "config.yaml")); err != nil {
+		if err := utils.CopyFile(opts.ConfigPath, filepath.Join(tmp, "config.yaml")); err != nil {
 			return fmt.Errorf("copy config: %w", err)
 		}
 		return nil
@@ -91,7 +91,7 @@ func Backup(opts BackupOptions) (string, error) {
 		finalPath := filepath.Join(opts.OutputDir, baseName)
 		if err := os.Rename(tarPath, finalPath); err != nil {
 			// Rename across devices may fail; fall back to copy+delete.
-			if err2 := copyFile(tarPath, finalPath); err2 != nil {
+			if err2 := utils.CopyFile(tarPath, finalPath); err2 != nil {
 				os.Remove(tarPath)
 				return "", fmt.Errorf("move archive: %w", err2)
 			}
@@ -101,25 +101,6 @@ func Backup(opts BackupOptions) (string, error) {
 	}
 
 	return finalName, nil
-}
-
-// copyFile copies the file at src to dst.
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }
 
 // copyDir recursively copies srcDir to dstDir.
@@ -144,7 +125,7 @@ func copyDir(srcDir, dstDir string) error {
 			}
 			return os.Symlink(target, dst)
 		}
-		return copyFile(path, dst)
+		return utils.CopyFile(path, dst)
 	})
 }
 

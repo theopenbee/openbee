@@ -161,6 +161,7 @@ func newLocalChatServer(t *testing.T) localChatTestServer {
 	r.GET("/local/messages", h.GetMessages)
 	r.POST("/local/media", h.UploadMedia)
 	r.GET("/local/media/:filename", h.ServeMedia)
+	r.GET("/local/stream", h.StreamReplies)
 	return localChatTestServer{router: r, receiver: receiver, msgStore: msgStore, outboundStore: outboundStore, mediaRoot: mediaRoot}
 }
 
@@ -294,7 +295,7 @@ func TestSendMessage_UsesClientIDAndReturnsServerTimestamp(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
 	assert.Equal(t, "client-1", res.ID)
 	msg := nextInbound(t, receiver)
-	assert.Equal(t, "local:client-1", msg.PlatformMessageID)
+	assert.Equal(t, "local:user-1:client-1", msg.PlatformMessageID)
 	assert.Equal(t, res.TS, msg.MessageTime)
 }
 
@@ -309,7 +310,7 @@ func TestSendMessage_GeneratesIDWhenMissing(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
 	require.NotEmpty(t, res.ID)
-	assert.Equal(t, "local:"+res.ID, nextInbound(t, receiver).PlatformMessageID)
+	assert.Equal(t, "local:user-1:"+res.ID, nextInbound(t, receiver).PlatformMessageID)
 }
 
 func TestSendMessage_RejectsInvalidID(t *testing.T) {
@@ -320,13 +321,41 @@ func TestSendMessage_RejectsInvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestSendMessage_ScopesDedupIDToUser(t *testing.T) {
+	s := newLocalChatServer(t)
+
+	for _, uid := range []string{testUserID, "user-2"} {
+		req := httptest.NewRequest(http.MethodPost, "/local/messages", bytes.NewReader([]byte(`{"id":"same","content":"hi"}`)))
+		req.Header.Set("Content-Type", "application/json")
+		rec := serveAs(s.router, req, uid)
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		assert.Equal(t, "local:"+uid+":same", nextInbound(t, s.receiver).PlatformMessageID)
+	}
+}
+
+func TestGetMessages_DecodesClientIDs(t *testing.T) {
+	s := newLocalChatServer(t)
+	_, err := s.msgStore.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "row-1", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "legacy", PlatformMsgID: "local:c1", Status: "received", MessageTime: 100},
+		{ID: "row-2", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "scoped", PlatformMsgID: "local:user-1:c2", Status: "received", MessageTime: 200},
+	})
+	require.NoError(t, err)
+
+	res := getMessages(t, s.router, "")
+
+	require.Len(t, res.Messages, 2)
+	assert.Equal(t, []string{"c1", "c2"}, []string{res.Messages[0].ID, res.Messages[1].ID})
+}
+
 func TestLocalChat_RejectsRequestsWithoutUser(t *testing.T) {
 	s := newLocalChatServer(t)
 
 	for _, req := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/local/messages", nil),
 		httptest.NewRequest(http.MethodPost, "/local/messages", bytes.NewReader([]byte(`{"content":"hi"}`))),
+		httptest.NewRequest(http.MethodPost, "/local/media", bytes.NewReader([]byte("payload"))),
 		httptest.NewRequest(http.MethodGet, "/local/media/a.png", nil),
+		httptest.NewRequest(http.MethodGet, "/local/stream", nil),
 	} {
 		rec := serveAs(s.router, req, anonymousUser)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code, req.Method+" "+req.URL.Path)
@@ -371,13 +400,11 @@ func TestGetMessages_ScopesHistoryToCurrentUser(t *testing.T) {
 
 func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
 	s := newLocalChatServer(t)
-	userDir := filepath.Join(s.mediaRoot, testUserID)
-	require.NoError(t, os.MkdirAll(userDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(userDir, "r1_report.pdf"), []byte("pdf"), 0o644))
 	for _, m := range []store.OutboundMessage{
-		{ID: "r1", MediaPath: "/work/out/report.pdf", Status: store.OutboundStatusSent, SentAt: 100},
-		{ID: "r2", MediaPath: "/work/out/unstaged.png", Status: store.OutboundStatusSent, SentAt: 200},
+		{ID: "r1", MediaPath: filepath.Join(s.mediaRoot, testUserID, "r1_report.pdf"), Status: store.OutboundStatusSent, SentAt: 100},
+		{ID: "r2", MediaPath: "/work/out/unstaged.png", Status: store.OutboundStatusFailed, SentAt: 200},
 		{ID: "r3", Content: "text only", Status: store.OutboundStatusSent, SentAt: 300},
+		{ID: "r4", MediaPath: filepath.Join(s.mediaRoot, "default", "r4_old.png"), Status: store.OutboundStatusSent, SentAt: 400},
 	} {
 		m.SessionKey = testSessionKey
 		m.Platform = local.PlatformID
@@ -386,10 +413,11 @@ func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
 
 	res := getMessages(t, s.router, "")
 
-	require.Len(t, res.Messages, 3)
+	require.Len(t, res.Messages, 4)
 	assert.Equal(t, []string{"r1_report.pdf"}, res.Messages[0].MediaPaths)
 	assert.Empty(t, res.Messages[1].MediaPaths)
 	assert.Empty(t, res.Messages[2].MediaPaths)
+	assert.Equal(t, []string{"r4_old.png"}, res.Messages[3].MediaPaths)
 }
 
 func TestUploadMedia_StoresInCurrentUserDir(t *testing.T) {
@@ -430,4 +458,36 @@ func TestServeMedia_IsolatesUsers(t *testing.T) {
 	assert.Equal(t, testUserID, rec.Body.String())
 
 	assert.Equal(t, http.StatusNotFound, fetch("user-2", "mine.png").Code)
+}
+
+func TestServeMedia_SandboxesAndDownloadsActiveContent(t *testing.T) {
+	s := newLocalChatServer(t)
+	userDir := filepath.Join(s.mediaRoot, testUserID)
+	require.NoError(t, os.MkdirAll(userDir, 0o755))
+	for _, name := range []string{"photo.png", "report.html", "icon.svg", "noext"} {
+		require.NoError(t, os.WriteFile(filepath.Join(userDir, name), []byte("<script>alert(1)</script>"), 0o644))
+	}
+
+	for _, tc := range []struct {
+		name   string
+		inline bool
+	}{
+		{"photo.png", true},
+		{"report.html", false},
+		{"icon.svg", false},
+		{"noext", false},
+	} {
+		rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/media/"+tc.name, nil), testUserID)
+
+		require.Equal(t, http.StatusOK, rec.Code, tc.name)
+		assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"), tc.name)
+		assert.Equal(t, "sandbox", rec.Header().Get("Content-Security-Policy"), tc.name)
+		if tc.inline {
+			assert.Empty(t, rec.Header().Get("Content-Disposition"), tc.name)
+			assert.Equal(t, "image/png", rec.Header().Get("Content-Type"), tc.name)
+			continue
+		}
+		assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment", tc.name)
+		assert.Equal(t, "application/octet-stream", rec.Header().Get("Content-Type"), tc.name)
+	}
 }

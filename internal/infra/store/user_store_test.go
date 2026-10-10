@@ -1,7 +1,9 @@
 package store
 
 import (
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -139,4 +141,32 @@ func TestUserStore_FirstActiveSuperAdminID(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, ids[2], id)
+}
+
+func TestUserStore_CreateFirstAllowsOnlyOneUser(t *testing.T) {
+	us := setupUserStore(t)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 8)
+	for i := range errs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = us.CreateFirst(fmt.Sprintf("admin-%d", i), "s3cret", "", []string{model.RoleIDSuperAdmin})
+		}()
+	}
+	wg.Wait()
+
+	created := 0
+	for _, err := range errs {
+		if err == nil {
+			created++
+			continue
+		}
+		assert.ErrorIs(t, err, ErrAlreadyInitialized)
+	}
+	assert.Equal(t, 1, created)
+	n, err := us.Count()
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
 }

@@ -1,13 +1,15 @@
 package local
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -16,17 +18,44 @@ import (
 type LocalSender struct {
 	hub       *SSEHub
 	mediaRoot string
+	legacy    *LegacySession
 }
 
 // NewLocalSender constructs a LocalSender.
-func NewLocalSender(hub *SSEHub, mediaRoot string) *LocalSender {
-	return &LocalSender{hub: hub, mediaRoot: mediaRoot}
+func NewLocalSender(hub *SSEHub, mediaRoot string, legacy *LegacySession) *LocalSender {
+	return &LocalSender{hub: hub, mediaRoot: mediaRoot, legacy: legacy}
+}
+
+func (s *LocalSender) PrepareOutbound(_ context.Context, msg platform.OutboundMessage) (platform.OutboundMessage, error) {
+	if msg.ID == "" {
+		msg.ID = uuid.New().String()
+	}
+	msg.ReplyTo.SessionKey = s.legacy.Resolve(cmp.Or(msg.ReplyTo.SessionKey, msg.SessionKey))
+	msg.SessionKey = s.legacy.Resolve(msg.SessionKey)
+	if msg.MediaPath == "" {
+		return msg, nil
+	}
+	dir, err := MediaDir(s.mediaRoot, msg.ReplyTo.SessionKey)
+	if err != nil {
+		return msg, err
+	}
+	if filepath.Dir(msg.MediaPath) == dir {
+		return msg, nil
+	}
+	staged := filepath.Join(dir, msg.ID+"_"+platform.SanitizeFileName(filepath.Base(msg.MediaPath)))
+	if err := utils.LinkOrCopyFile(msg.MediaPath, staged); err != nil {
+		return msg, fmt.Errorf("stage media: %w", err)
+	}
+	msg.MediaPath = staged
+	return msg, nil
 }
 
 // Send broadcasts the reply to any connected SSE clients for the session.
-// The session key is read from msg.ReplyTo.SessionKey.
 func (s *LocalSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
-	sessionKey := msg.ReplyTo.SessionKey
+	msg, err := s.PrepareOutbound(ctx, msg)
+	if err != nil {
+		return err
+	}
 
 	payload := map[string]any{
 		"id":         msg.ID,
@@ -34,32 +63,13 @@ func (s *LocalSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 		"created_at": time.Now().UnixMilli(),
 	}
 	if msg.MediaPath != "" {
-		name, err := s.stageMedia(sessionKey, msg.ID, msg.MediaPath)
-		if err != nil {
-			return err
-		}
-		payload["media_paths"] = []string{name}
+		payload["media_paths"] = []string{filepath.Base(msg.MediaPath)}
 	}
 
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal SSE payload: %w", err)
 	}
-	s.hub.Broadcast(sessionKey, string(data))
+	s.hub.Broadcast(msg.ReplyTo.SessionKey, string(data))
 	return nil
-}
-
-func (s *LocalSender) stageMedia(sessionKey, messageID, src string) (string, error) {
-	dir, err := MediaDir(s.mediaRoot, sessionKey)
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("create media dir: %w", err)
-	}
-	name := MediaFileName(messageID, src)
-	if err := copyFile(src, filepath.Join(dir, name)); err != nil {
-		return "", fmt.Errorf("stage media: %w", err)
-	}
-	return name, nil
 }

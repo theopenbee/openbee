@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -54,7 +55,11 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	user, err := h.users.Create(req.Username, req.Password, req.DisplayName, "", []string{model.RoleIDSuperAdmin})
+	user, err := h.users.CreateFirst(req.Username, req.Password, req.DisplayName, []string{model.RoleIDSuperAdmin})
+	if errors.Is(err, store.ErrAlreadyInitialized) {
+		c.JSON(http.StatusConflict, gin.H{"error": "system already initialized"})
+		return
+	}
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, err)
 		return

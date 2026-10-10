@@ -38,6 +38,10 @@ type PlatformSenderAdapter interface {
 	Send(ctx context.Context, msg OutboundMessage) error
 }
 
+type OutboundPreparer interface {
+	PrepareOutbound(ctx context.Context, msg OutboundMessage) (OutboundMessage, error)
+}
+
 // Platform bundles a receiver and sender for a single messaging platform.
 type Platform interface {
 	ID() string
