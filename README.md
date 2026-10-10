@@ -16,7 +16,7 @@ To learn more about the project, visit [docs.theopenbee.com](https://docs.theope
 
 ## 📸 Screenshots
 
-<img src="docs/openbee-mobile-chat.png" alt="Chatting with OpenBee in Lark on mobile" width="300" />
+<img src="docs/openbee-mobile-chat.png" alt="Chatting with OpenBee in Telegram on mobile" width="300" />
 
 <img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
