@@ -1,6 +1,6 @@
 ---
 name: OpenBee Console
-description: An enterprise workspace for managing a workforce of AI digital employees.
+description: The home base for using your AI agents anywhere, anytime.
 colors:
   background: "oklch(1 0 0)"
   foreground: "oklch(0.145 0 0)"
@@ -88,17 +88,17 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Digital Workforce HQ" (企业数字员工工作台)**
+**Creative North Star: "Agents On Call" (随时随地，使用你的 Agent)**
 
-OpenBee is the headquarters of a digital workforce. The operator manages AI workers the way a manager runs a team inside a serious enterprise office platform, and the interface is built on a single conviction: an AI worker is a digital employee, equal in standing to a human colleague. So workers are not rows in a job queue; they carry identity, presence, and history. The roster, the presence dots, the profiles, the activity, all the affordances we give people at work, are given to digital employees too. That dignity is the whole design.
+OpenBee is the home base for your AI agents. Agents run on infrastructure the user controls and are reached from wherever the user is: an IM thread on a phone, a browser tab, a scheduled task that fires overnight. The console exists so that, from any screen, the user can see which agents are available, what each one is doing, and what it did, then act in one step. Agents are not rows in a job queue; each carries a name, an identity, presence, and history, so it is recognizable at a glance and addressable by name from any chat. That legibility is the whole design.
 
-The register is product, not brand. Design serves the work of directing a workforce during routine operational use. The aesthetic is calm, efficient, and precise, drawing on the clarity of Slack and Linear: pack meaningful information with restraint, do the heavy lifting so the operator's task feels effortless, and never make them think. Light mode is the primary home, the natural ambient for an office tool used through the working day; dark mode is held to the exact same standard.
+The register is product, not brand. Design serves quick check-ins as much as long working sessions, on a phone as much as on a desktop. The aesthetic is calm, efficient, and precise, drawing on the clarity of Slack and Linear: pack meaningful information with restraint, do the heavy lifting so the user's task feels effortless, and never make them think. Light mode is the primary home; dark mode is held to the exact same standard.
 
-Warmth lives in one place: a single brand orange (`#EC7B35`), the color of a workplace that respects the people, and the digital people, inside it. Everything else is a disciplined achromatic field so that orange, used sparingly, always means "this matters." The system explicitly rejects consumer-app energy (cartoon shapes, emoji, mascots), enterprise drab (heavy borders, dated grays, bloated nav), and verbose redundant copy. If the interface can say it, the words come out.
+Warmth lives in one place: a single brand orange (`#EC7B35`). Everything else is a disciplined achromatic field so that orange, used sparingly, always means "this matters." The system explicitly rejects consumer-app energy (cartoon shapes, emoji, mascots), enterprise drab (heavy borders, dated grays, bloated nav), and verbose redundant copy. If the interface can say it, the words come out.
 
 **Key Characteristics:**
 - Warm brand orange used as a rare signal; an achromatic neutral field carries everything else.
-- Worker state is read as employee presence: green (available/idle), purple (working/busy), red (blocked/error).
+- Agent state is read as presence: green (available/idle), purple (working/busy), red (blocked/error).
 - Flat by default. Depth comes from hairline rings and tonal layering, never drop shadows.
 - A tight radius scale capped at `sm`, machine-consistent across components and deliberately squared for a serious register.
 - Light-primary, dark-equal. Both themes ship complete. WCAG AA throughout.
@@ -118,8 +118,8 @@ A restrained achromatic field warmed by one brand orange, plus three presence si
 - **Hairline** (`oklch(0.922 0 0)` light / `oklch(1 0 0 / 10%)` dark): Borders, dividers, and the 1px rings that define every container.
 
 ### Status (presence signals)
-- **Available / Idle Green** (`oklch(0.527 0.154 150)` light / `oklch(0.696 0.171 150)` dark): A digital employee at rest, or a task finished cleanly.
-- **Working / Busy Purple** (`oklch(0.546 0.185 264)` light / `oklch(0.693 0.17 264)` dark): A worker actively executing. The workforce in motion.
+- **Available / Idle Green** (`oklch(0.527 0.154 150)` light / `oklch(0.696 0.171 150)` dark): An agent at rest, or a task finished cleanly.
+- **Working / Busy Purple** (`oklch(0.546 0.185 264)` light / `oklch(0.693 0.17 264)` dark): An agent actively executing.
 - **Blocked / Error Red** (`oklch(0.577 0.245 27)` light / `oklch(0.704 0.191 22)` dark): A failure or destructive action. Shared with the `destructive` role; kept clearly redder than the brand orange so the two never blur.
 
 ### Named Rules
@@ -149,7 +149,7 @@ A restrained achromatic field warmed by one brand orange, plus three presence si
 
 ## 4. Elevation
 
-The system is flat by default. Depth is conveyed through hairline rings and tonal layering, never drop shadows. A card is lifted only by a single `ring-1` at 10% foreground opacity and, where needed, a step in background tone (sidebar and popovers sit slightly off the base). This keeps the interface reading as a machined office surface rather than a stack of floating consumer cards. Shadows, when present at all, belong only to transient overlays (dropdowns, dialogs) from the component library, never to resting surfaces.
+The system is flat by default. Depth is conveyed through hairline rings and tonal layering, never drop shadows. A card is lifted only by a single `ring-1` at 10% foreground opacity and, where needed, a step in background tone (sidebar and popovers sit slightly off the base). This keeps the interface reading as a machined surface rather than a stack of floating consumer cards. Shadows, when present at all, belong only to transient overlays (dropdowns, dialogs) from the component library, never to resting surfaces.
 
 ### Named Rules
 **The Hairline-Not-Shadow Rule.** Containers are defined by a 1px ring or border, not a box-shadow. To make a surface distinct, change its tone or its ring, never drop a shadow under it.
@@ -176,7 +176,7 @@ The system is flat by default. Depth is conveyed through hairline rings and tona
 - **Error / Disabled:** Invalid borders and rings in `destructive`; disabled drops to 50% opacity with no pointer events.
 
 ### Worker Identity Row (signature component)
-The component that carries the digital-employee thesis. Each worker is shown as a person would be in a team roster: an **avatar**, a **name**, and a **presence dot** driven by status (green available, purple working, red blocked). Presence is never color-only, the dot pairs with a short status label or icon. This row appears in the sidebar, worker lists, and headers, giving every AI worker the same identity affordances a human colleague would have.
+The component that carries the agent-identity thesis. Each worker is shown with an **avatar**, a **name**, and a **presence dot** driven by status (green available, purple working, red blocked). Presence is never color-only, the dot pairs with a short status label or icon. This row appears in the sidebar, worker lists, and headers, so every agent is recognizable at a glance and addressable by name from any chat.
 
 ### Status Badge
 - **Style:** Outline badge colored entirely by presence: `bg-status-X/15 text-status-X border-status-X/20`. Idle maps to green, working to purple, error to red; `pending` falls back to neutral muted.
@@ -191,8 +191,9 @@ The component that carries the digital-employee thesis. Each worker is shown as 
 ### Do:
 - **Do** keep orange rare (≤10% of a screen) and reserved for "this matters": active states, focus, key indicators, the primary CTA.
 - **Do** use white text on Strong Orange (`oklch(0.555 0.135 49)`) for solid orange buttons, so labels clear WCAG AA.
-- **Do** read worker state as employee presence and always pair the color with an icon or text label.
-- **Do** give every worker identity affordances (avatar, name, presence) as you would a human colleague.
+- **Do** read worker state as presence and always pair the color with an icon or text label.
+- **Do** give every worker identity affordances (avatar, name, presence) so it is recognizable at a glance and addressable by name.
+- **Do** make core flows (chat, status, stopping a task) work on a phone-width screen.
 - **Do** define containers with a single `ring-1 ring-foreground/10` and convey depth through tone.
 - **Do** hold light mode (primary) and dark mode to the exact same polish; respect `prefers-reduced-motion`.
 - **Do** prefer skeletons over spinners and inline states over modals; the user is technical and wants immediate feedback.

@@ -117,7 +117,7 @@
       "name": "Worker Identity Row",
       "kind": "custom",
       "refersTo": "worker-identity",
-      "description": "Signature component carrying the digital-employee thesis: avatar + name + presence dot with label. Presence is never color-only.",
+      "description": "Signature component carrying the agent-identity thesis: avatar + name + presence dot with label. Presence is never color-only.",
       "html": "<div class=\"ds-worker\"><span class=\"ds-avatar\">B7</span><span class=\"ds-worker-name\">bee-worker-07</span><span class=\"ds-presence\"><span class=\"ds-dot ds-dot-working\"></span>working</span></div>",
       "css": ".ds-worker { display: inline-flex; align-items: center; gap: 8px; font-family: 'Inter Variable', 'Noto Sans SC', system-ui, sans-serif; font-size: 0.875rem; color: var(--foreground, oklch(0.145 0 0)); } .ds-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0.1875rem; background: var(--muted, oklch(0.97 0 0)); color: var(--muted-foreground, oklch(0.556 0 0)); font-size: 0.6875rem; font-weight: 500; } .ds-worker-name { font-weight: 500; } .ds-presence { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-dot { width: 8px; height: 8px; border-radius: 9999px; } .ds-dot-working { background: oklch(0.546 0.185 264.376); } .ds-dot-idle { background: oklch(0.527 0.154 150.069); } .ds-dot-error { background: oklch(0.577 0.245 27.325); }"
     },
@@ -131,11 +131,11 @@
     }
   ],
   "narrative": {
-    "northStar": "The Digital Workforce HQ (企业数字员工工作台)",
-    "overview": "OpenBee is the headquarters of a digital workforce. The operator manages AI workers the way a manager runs a team inside a serious enterprise office platform, built on one conviction: an AI worker is a digital employee, equal in standing to a human colleague. Workers carry identity, presence, and history; the roster, presence dots, and profiles we give people are given to digital employees too. The register is product. The aesthetic is calm, efficient, and precise, drawing on Slack and Linear: do the heavy lifting so the operator's task feels effortless, and never make them think. Light mode is primary, dark mode equal. Warmth lives in a single brand orange used rarely; everything else is a disciplined achromatic field.",
+    "northStar": "Agents On Call (随时随地，使用你的 Agent)",
+    "overview": "OpenBee is the home base for your AI agents. Agents run on infrastructure the user controls and are reached from wherever the user is: an IM thread on a phone, a browser tab, a scheduled task that fires overnight. From any screen, the user sees which agents are available, what each one is doing, and what it did, then acts in one step. Each agent carries a name, identity, presence, and history, so it is recognizable at a glance and addressable by name from any chat. The register is product. The aesthetic is calm, efficient, and precise, drawing on Slack and Linear: do the heavy lifting so the user's task feels effortless, and never make them think. Light mode is primary, dark mode equal. Warmth lives in a single brand orange used rarely; everything else is a disciplined achromatic field.",
     "keyCharacteristics": [
       "Warm brand orange used as a rare signal; an achromatic neutral field carries everything else.",
-      "Worker state is read as employee presence: green (available/idle), purple (working/busy), red (blocked/error).",
+      "Agent state is read as presence: green (available/idle), purple (working/busy), red (blocked/error).",
       "Flat by default. Depth comes from hairline rings and tonal layering, never drop shadows.",
       "A tight radius scale capped at sm, machine-consistent across components and deliberately squared for a serious register.",
       "Light-primary, dark-equal. Both themes ship complete. WCAG AA throughout."
@@ -151,8 +151,9 @@
     "dos": [
       "Do keep orange rare (≤10% of a screen) and reserved for active states, focus, key indicators, and the primary CTA.",
       "Do use white text on Strong Orange (oklch(0.555 0.135 49)) for solid orange buttons, so labels clear WCAG AA.",
-      "Do read worker state as employee presence and always pair the color with an icon or text label.",
-      "Do give every worker identity affordances (avatar, name, presence) as you would a human colleague.",
+      "Do read worker state as presence and always pair the color with an icon or text label.",
+      "Do give every worker identity affordances (avatar, name, presence) so it is recognizable at a glance and addressable by name.",
+      "Do make core flows (chat, status, stopping a task) work on a phone-width screen.",
       "Do define containers with a single ring-1 ring-foreground/10 and convey depth through tone.",
       "Do hold light (primary) and dark mode to the same polish; respect prefers-reduced-motion.",
       "Do prefer skeletons over spinners and inline states over modals."

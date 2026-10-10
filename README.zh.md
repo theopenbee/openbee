@@ -16,6 +16,8 @@
 
 ## 📸 产品截图
 
+<img src="docs/openbee-mobile-chat.png" alt="在手机飞书上与 OpenBee 对话" width="300" />
+
 <img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## 🚀 快速开始
