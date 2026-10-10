@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
 import { Activity, Bot, Clock3, Logs, Zap } from "lucide-react"
@@ -12,6 +12,7 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
+import { WorkerLink } from "@/components/worker-link"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
 import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, statusLabel, isActiveStatus, extractMessageContent } from "@/lib/format"
@@ -131,12 +132,11 @@ export function SessionDetail() {
                 <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
                   <Bot className="size-3.5" />
                   {hasWorker ? (
-                    <Link
-                      to={`/workers/${workerExecution.worker_id}`}
-                      className="font-medium text-foreground transition-colors hover:text-primary"
-                    >
-                      {workerLabel}
-                    </Link>
+                    <WorkerLink
+                      id={workerExecution.worker_id!}
+                      name={workerExecution.worker_name}
+                      className="font-medium text-foreground hover:text-primary"
+                    />
                   ) : (
                     <span className="font-medium text-foreground">{workerLabel}</span>
                   )}
@@ -363,12 +363,11 @@ export function SessionDetail() {
                         label={t("sessionDetail.worker")}
                         value={
                           selectedExecution.worker_id ? (
-                            <Link
-                              to={`/workers/${selectedExecution.worker_id}`}
-                              className="transition-colors hover:text-primary"
-                            >
-                              {selectedExecution.worker_name || selectedExecution.worker_id}
-                            </Link>
+                            <WorkerLink
+                              id={selectedExecution.worker_id}
+                              name={selectedExecution.worker_name}
+                              className="hover:text-primary"
+                            />
                           ) : (
                             t("sessionDetail.bee")
                           )

@@ -1,5 +1,5 @@
 import { Fragment, useState, type FormEvent, type ComponentType } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
@@ -39,6 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { WorkerAvatar } from "@/components/worker-avatar"
+import { WorkerLink } from "@/components/worker-link"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
@@ -220,12 +221,11 @@ export function Workers() {
                     <div className="flex items-center gap-3 py-1">
                       <WorkerAvatar name={w.name} status={w.status} />
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <Link
-                          to={`/workers/${w.id}`}
-                          className="font-medium text-foreground transition-colors hover:text-primary"
-                        >
-                          {w.name}
-                        </Link>
+                        <WorkerLink
+                          id={w.id}
+                          name={w.name}
+                          className="font-medium text-foreground hover:text-primary"
+                        />
                         <p className="max-w-[34rem] text-xs leading-5 text-muted-foreground line-clamp-2">
                           {w.description || "—"}
                         </p>

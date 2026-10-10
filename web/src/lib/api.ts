@@ -139,10 +139,10 @@ export const api = {
     },
   },
   localChat: {
-    sendMessage: (content: string, mediaPaths?: string[]) =>
-      fetchAPI("/local/messages", {
+    sendMessage: (id: string, content: string, mediaPaths?: string[]) =>
+      fetchAPI<{ id: string; ts: number }>("/local/messages", {
         method: "POST",
-        body: JSON.stringify({ content, media_paths: mediaPaths }),
+        body: JSON.stringify({ id, content, media_paths: mediaPaths }),
       }),
     getMessages: async (before?: number, limit = 50): Promise<LocalMessagesResponse> => {
       const qs = new URLSearchParams({ limit: String(limit) })

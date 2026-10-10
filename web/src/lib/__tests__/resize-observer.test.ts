@@ -66,6 +66,19 @@ describe("observeResize", () => {
     expect(onB).toHaveBeenCalledTimes(1)
   })
 
+  it("runs a callback once when several of its elements resize together", async () => {
+    const { observeResize } = await import("../resize-observer")
+    const a = el()
+    const b = el()
+    const onResize = vi.fn()
+    observeResize(a, onResize)
+    observeResize(b, onResize)
+
+    FakeResizeObserver.instances[0].trigger(a, b)
+
+    expect(onResize).toHaveBeenCalledTimes(1)
+  })
+
   it("stops observing and notifying after cleanup", async () => {
     const { observeResize } = await import("../resize-observer")
     const a = el()

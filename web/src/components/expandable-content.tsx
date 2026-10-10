@@ -36,7 +36,7 @@ export function ExpandableContent({
   return (
     <div className={className}>
       <div
-        className={cn("overflow-hidden transition-[max-height] duration-300", clipped && "relative")}
+        className={cn("overflow-hidden", clipped && "relative")}
         style={{ maxHeight: collapsed ? maxHeight : undefined }}
       >
         <div ref={innerRef}>{children}</div>

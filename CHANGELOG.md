@@ -14,6 +14,8 @@
 - Keep chat scroll position while reading earlier messages.
 - Keep chat position when messages expand or images load.
 - Keep loaded chat history when messages refresh.
+- Fix duplicated or missing chat messages after history refresh.
+- Fix local chat history pages skipping the newest message.
 - Send chat with Ctrl/⌘+Enter on touch devices.
 - Copy chat messages on non-HTTPS origins.
 - Show an error when earlier chat messages fail to load.

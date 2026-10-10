@@ -18,6 +18,7 @@ type InboundMessage struct {
 
 // OutboundMessage carries a reply to send back on a platform.
 type OutboundMessage struct {
+	ID           string
 	SessionKey   string
 	Content      string
 	ReplyTo      InboundMessage

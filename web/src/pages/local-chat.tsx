@@ -3,7 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react"
@@ -37,12 +37,12 @@ import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage, Worker } from "@/lib/types"
+import type { ChatMessage, LocalMessagesResponse, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage, isImeComposing } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
 import { observeResize } from "@/lib/resize-observer"
-import { mergeLatestPage, messageKeys } from "@/lib/chat-messages"
+import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
 import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
@@ -258,7 +258,8 @@ export function LocalChat() {
   const { data, isLoading } = useLocalMessages()
   const sendMessage = useSendMessage()
 
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
+  const [chat, dispatch] = useReducer(chatReducer, EMPTY_CHAT)
+  const localMessages = chat.messages
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
@@ -300,20 +301,17 @@ export function LocalChat() {
     captureScrollAnchor()
   }, [captureScrollAnchor])
 
-  const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
-    if (older.length === 0) return
-    captureScrollAnchor()
-    setLocalMessages((prev) => [...older, ...prev])
+  const handleOlderLoaded = useCallback((page: LocalMessagesResponse) => {
+    if (page.messages.length > 0) captureScrollAnchor()
+    dispatch({ type: "older", messages: page.messages, hasMore: page.has_more })
   }, [captureScrollAnchor])
 
-  const { loadMore, hasMore, isLoadingMore, loadError } = useLoadMoreMessages(
-    handleOlderLoaded,
-    data?.has_more ?? false
-  )
+  const { loadMore, isLoadingMore, loadError } = useLoadMoreMessages(handleOlderLoaded)
+  const hasMore = chat.hasMore
 
   useEffect(() => {
     if (!data) return
-    setLocalMessages((prev) => mergeLatestPage(prev, data.messages))
+    dispatch({ type: "latest", messages: data.messages, hasMore: data.has_more })
   }, [data])
 
   useEffect(() => {
@@ -324,7 +322,7 @@ export function LocalChat() {
   }, [input])
 
   const handleReply = useCallback((message: ChatMessage) => {
-    setLocalMessages((prev) => [...prev, message])
+    dispatch({ type: "add", message })
     setIsProcessing(false)
   }, [])
   useLocalChatStream(handleReply)
@@ -372,27 +370,32 @@ export function LocalChat() {
     if (!content && pendingMediaPaths.length === 0) return
 
     const paths = [...pendingMediaPaths]
+    const id = createMessageId()
     const userMessage: ChatMessage = {
+      id,
       role: "user",
       content,
       media_paths: paths.length > 0 ? paths : undefined,
       ts: Date.now(),
+      pending: true,
     }
 
     stickToBottomRef.current = true
-    setLocalMessages((prev) => [...prev, userMessage])
+    dispatch({ type: "add", message: userMessage })
     setInput("")
     setPendingMediaPaths([])
     setUploadError(null)
     setIsProcessing(true)
 
     try {
-      await sendMessage.mutateAsync({
+      const sent = await sendMessage.mutateAsync({
+        id,
         content: content || " ",
         mediaPaths: paths.length > 0 ? paths : undefined,
       })
+      dispatch({ type: "sent", id, ts: sent.ts })
     } catch {
-      setLocalMessages((prev) => prev.filter((message) => message !== userMessage))
+      dispatch({ type: "remove", id })
       setPendingMediaPaths((prev) => [...paths, ...prev])
       setIsProcessing(false)
     }
@@ -447,7 +450,6 @@ export function LocalChat() {
     void handleSend()
   }, [handleSend, isTouchOnly])
 
-  const keys = useMemo(() => messageKeys(localMessages), [localMessages])
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
@@ -513,7 +515,7 @@ export function LocalChat() {
 
                     return (
                       <MessageBubble
-                        key={keys[index]}
+                        key={message.id}
                         message={message}
                         isGroupStart={isGroupStart}
                         onExpandToggle={handleExpandToggle}

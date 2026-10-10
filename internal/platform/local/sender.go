@@ -26,6 +26,7 @@ func (s *LocalSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 	sessionKey := msg.ReplyTo.SessionKey
 
 	data, err := json.Marshal(map[string]any{
+		"id":         msg.ID,
 		"content":    msg.Content,
 		"created_at": time.Now().UnixMilli(),
 	})

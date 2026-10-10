@@ -4,9 +4,11 @@ let observer: ResizeObserver | null = null
 function getObserver() {
   if (!observer) {
     observer = new ResizeObserver((entries) => {
+      const due = new Set<() => void>()
       for (const entry of entries) {
-        callbacks.get(entry.target)?.forEach((callback) => callback())
+        callbacks.get(entry.target)?.forEach((callback) => due.add(callback))
       }
+      due.forEach((callback) => callback())
     })
   }
   return observer

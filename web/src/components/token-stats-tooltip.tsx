@@ -1,6 +1,8 @@
 import { Popover } from "@base-ui/react/popover"
 import { Info } from "lucide-react"
+import { TOOLTIP_BUBBLE } from "@/lib/styles"
 import type { SessionTokenStats } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 export function TokenStatsInfoButton({
   stats,
@@ -23,7 +25,7 @@ export function TokenStatsInfoButton({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side={side} align={align} sideOffset={4} className="isolate z-50">
-          <Popover.Popup className="z-50 w-fit max-w-xs origin-(--transform-origin) rounded-sm bg-foreground px-3 py-1.5 text-xs text-background outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+          <Popover.Popup className={cn(TOOLTIP_BUBBLE, "outline-none")}>
             <TokenStatsTooltip stats={stats} />
           </Popover.Popup>
         </Popover.Positioner>

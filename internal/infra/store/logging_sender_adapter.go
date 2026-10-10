@@ -36,6 +36,9 @@ func NewLoggingPlatformSenderAdapter(
 
 // Send delegates to the inner sender and records the result to the outbound store.
 func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.OutboundMessage) error {
+	if msg.ID == "" {
+		msg.ID = uuid.New().String()
+	}
 	sentAt := time.Now().UnixMilli()
 	sendErr := a.inner.Send(ctx, msg)
 
@@ -54,7 +57,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 	}
 
 	record := OutboundMessage{
-		ID:           uuid.New().String(),
+		ID:           msg.ID,
 		SessionKey:   sessionKey,
 		Platform:     a.platformID,
 		Content:      msg.Content,

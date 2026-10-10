@@ -22,6 +22,7 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	// OutboundMessage.SessionKey is intentionally left empty — Send reads the
 	// session key from ReplyTo.SessionKey only.
 	msg := platform.OutboundMessage{
+		ID:      "out-1",
 		ReplyTo: platform.InboundMessage{SessionKey: "local:sess-1"},
 		Content: "Reply content",
 	}
@@ -32,6 +33,7 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 		var payload map[string]any
 		require.NoError(t, json.Unmarshal([]byte(data), &payload))
 		assert.Equal(t, "Reply content", payload["content"])
+		assert.Equal(t, "out-1", payload["id"])
 	default:
 		t.Fatal("expected SSE broadcast but channel was empty")
 	}

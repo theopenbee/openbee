@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage } from "@/lib/types"
+import type { ChatMessage, LocalMessagesResponse } from "@/lib/types"
 
 export function useLocalMessages() {
   return useQuery({
@@ -14,21 +14,12 @@ export function useLocalMessages() {
 
 /**
  * useLoadMoreMessages manages incremental loading of older messages.
- * Pass `initialHasMore` from the first query response to initialize the button state.
  * Call `loadMore(earliestTs)` with the timestamp of the oldest message currently shown.
  */
-export function useLoadMoreMessages(
-  onLoaded: (older: ChatMessage[]) => void,
-  initialHasMore = false,
-) {
+export function useLoadMoreMessages(onLoaded: (page: LocalMessagesResponse) => void) {
   const isLoadingRef = useRef(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(initialHasMore)
   const [loadError, setLoadError] = useState(false)
-
-  useEffect(() => {
-    setHasMore(initialHasMore)
-  }, [initialHasMore])
 
   const loadMore = useCallback(async (earliestTs: number) => {
     if (isLoadingRef.current) return
@@ -36,9 +27,7 @@ export function useLoadMoreMessages(
     setIsLoadingMore(true)
     setLoadError(false)
     try {
-      const res = await api.localChat.getMessages(earliestTs)
-      setHasMore(res.has_more)
-      onLoaded(res.messages)
+      onLoaded(await api.localChat.getMessages(earliestTs))
     } catch {
       setLoadError(true)
     } finally {
@@ -47,13 +36,13 @@ export function useLoadMoreMessages(
     }
   }, [onLoaded])
 
-  return { loadMore, hasMore, isLoadingMore, loadError }
+  return { loadMore, isLoadingMore, loadError }
 }
 
 export function useSendMessage() {
   return useMutation({
-    mutationFn: ({ content, mediaPaths }: { content: string; mediaPaths?: string[] }) =>
-      api.localChat.sendMessage(content, mediaPaths),
+    mutationFn: ({ id, content, mediaPaths }: { id: string; content: string; mediaPaths?: string[] }) =>
+      api.localChat.sendMessage(id, content, mediaPaths),
   })
 }
 
@@ -88,9 +77,11 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
         try {
           const data = JSON.parse(event.data)
           onReplyRef.current({
+            id: data.id,
             role: "bee",
             content: data.content,
             ts: data.created_at,
+            pending: true,
           })
         } catch {
           // ignore malformed events
