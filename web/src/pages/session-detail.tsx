@@ -146,7 +146,7 @@ export function SessionDetail() {
                   <Activity className={cn("size-3.5", statusTone(latestExecution.status))} />
                   <span>{t("sessions.columns.latestStatus")}</span>
                   <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                    {latestExecution.status}
+                    {t(`statuses.${latestExecution.status}`, latestExecution.status)}
                   </span>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function SessionDetail() {
                   <span>
                     {t("sessions.columns.latestStatus")}{" "}
                     <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                      {latestExecution.status}
+                      {t(`statuses.${latestExecution.status}`, latestExecution.status)}
                     </span>
                   </span>
                 }
@@ -280,7 +280,7 @@ export function SessionDetail() {
                             </span>
                             <span className={cn("inline-flex items-center gap-1.5 font-medium", statusTone(exec.status))}>
                               <span className="size-1.5 rounded-full bg-current" />
-                              {exec.status}
+                              {t(`statuses.${exec.status}`, exec.status)}
                             </span>
                           </div>
                         </div>

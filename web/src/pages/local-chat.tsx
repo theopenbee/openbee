@@ -39,7 +39,7 @@ import { tokenParam } from "@/lib/auth"
 import type { ChatMessage, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { isSameDay } from "@/lib/format"
+import { isSameDay, normalizeBeeContent } from "@/lib/format"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
 import { hasPermission, Perm } from "@/lib/permissions"
@@ -51,18 +51,6 @@ const EMPTY_WORKERS: Worker[] = []
 // module-level reference so Streamdown's memoization isn't defeated by a new
 // object on every render.
 const STREAMDOWN_PLUGINS = { code }
-
-// Convert isolated single newlines to double newlines so Markdown renders them
-// as paragraph breaks. Fenced code blocks are left untouched.
-function normalizeBeeContent(content: string): string {
-  const parts = content.split(/(```[\s\S]*?```)/g)
-  return parts
-    .map((part, index) => {
-      if (index % 2 === 1) return part
-      return part.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
-    })
-    .join("")
-}
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"

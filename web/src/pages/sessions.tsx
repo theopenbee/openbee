@@ -33,13 +33,14 @@ const TURN_DOT: Record<string, string> = {
 }
 
 function TurnPips({ executions }: { executions: WorkerExecution[] }) {
+  const { t } = useTranslation()
   const ordered = [...executions].reverse()
   return (
     <div className="flex items-center gap-0.5 flex-wrap max-w-[120px]">
       {ordered.map((e, i) => (
         <div
           key={e.id}
-          title={`Turn ${i + 1}: ${e.status}`}
+          title={`${t("sessionDetail.turn", { index: i + 1 })}: ${t(`statuses.${e.status}`, e.status)}`}
           className={cn(
             "size-2 rounded-full shrink-0",
             TURN_DOT[e.status] ?? "bg-muted-foreground/30"

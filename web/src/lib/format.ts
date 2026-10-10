@@ -148,3 +148,24 @@ export function formatTokenCountAxis(n: number): string {
 export function formatNumber(n: number): string {
   return n.toLocaleString()
 }
+
+const TABLE_ROW_RE = /^\s*\|/
+
+function isTableRowBreak(text: string, offset: number): boolean {
+  const prevLine = text.slice(text.lastIndexOf("\n", offset - 1) + 1, offset)
+  const nextEnd = text.indexOf("\n", offset + 1)
+  const nextLine = text.slice(offset + 1, nextEnd === -1 ? undefined : nextEnd)
+  return TABLE_ROW_RE.test(prevLine) && TABLE_ROW_RE.test(nextLine)
+}
+
+export function normalizeBeeContent(content: string): string {
+  const parts = content.split(/(```[\s\S]*?```)/g)
+  return parts
+    .map((part, index) => {
+      if (index % 2 === 1) return part
+      return part.replace(/(?<!\n)\n(?!\n)/g, (newline, offset: number) =>
+        isTableRowBreak(part, offset) ? newline : "\n\n"
+      )
+    })
+    .join("")
+}
