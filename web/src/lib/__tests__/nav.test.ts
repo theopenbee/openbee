@@ -18,7 +18,7 @@ describe("firstAccessiblePath", () => {
 
   it("skips chat when chat:write is missing and lands on the next accessible page", () => {
     expect(firstAccessiblePath([Perm.TasksRead])).toBe("/tasks")
-    expect(firstAccessiblePath([Perm.ContactsRead])).toBe("/departments")
+    expect(firstAccessiblePath([Perm.ContactsRead])).toBe("/workers")
   })
 
   it("returns undefined when no permissions grant any page", () => {

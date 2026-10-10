@@ -14,7 +14,7 @@
     "users": "Users",
     "roles": "Roles",
     "directory": "Directory",
-    "digitalEmployees": "Digital Employees",
+    "agents": "Agents",
     "settings": "Env Variables",
     "systemSettings": "Settings",
     "systemConfig": "System",
@@ -46,7 +46,7 @@
   },
   "dashboard": {
     "title": "Overview",
-    "tagline": "Build smarter AI teams.",
+    "tagline": "Your agents, anywhere, anytime.",
     "basicInfo": "Basics",
     "departments": "Departments",
     "workers": "Workers",
@@ -466,7 +466,7 @@
     }
   },
   "emptyState": {
-    "noWorkers": "No workers in the hive yet",
+    "noWorkers": "No workers yet",
     "noWorkersDesc": "Create your first AI worker to get started",
     "noWorkersInGroup": "No workers in this group",
     "noWorkersInGroupDesc": "Switch groups or add workers to this group",

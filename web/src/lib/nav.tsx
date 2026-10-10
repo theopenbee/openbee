@@ -34,11 +34,11 @@ export const NAV: NavDef[] = [
   { titleKey: "nav.dashboard", url: "/", icon: <LayoutDashboardIcon />, perm: Perm.DashboardRead},
   { titleKey: "localChat.title", url: "/chat", icon: <MessageCircleIcon />, perm: Perm.ChatWrite },
   {
-    titleKey: "nav.digitalEmployees",
+    titleKey: "nav.agents",
     icon: <BotIcon />,
     items: [
-      { titleKey: "nav.departments", url: "/departments", perm: Perm.ContactsRead },
       { titleKey: "nav.workers", url: "/workers", perm: Perm.ContactsRead },
+      { titleKey: "nav.departments", url: "/departments", perm: Perm.ContactsRead },
     ],
   },
   {
