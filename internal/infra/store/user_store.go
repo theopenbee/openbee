@@ -308,6 +308,26 @@ func (s *UserStore) UserAuthState(userID string) (string, int64, error) {
 	return status, passwordChangedAt, err
 }
 
+func (s *UserStore) FirstActiveSuperAdminID() (string, bool, error) {
+	var id string
+	err := s.db.QueryRow(`
+		SELECT u.id
+		FROM bee_users u
+		JOIN bee_user_roles ur ON ur.user_id = u.id
+		WHERE ur.role_id = ? AND u.status = ?
+		ORDER BY u.created_at, u.id
+		LIMIT 1`,
+		model.RoleIDSuperAdmin, model.UserStatusActive,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return id, true, nil
+}
+
 // CountActiveSuperAdmins counts active users holding the super-admin role.
 func (s *UserStore) CountActiveSuperAdmins() (int, error) {
 	var n int

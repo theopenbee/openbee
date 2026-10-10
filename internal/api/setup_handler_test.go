@@ -2,7 +2,9 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,12 +19,17 @@ import (
 
 func newSetupServer(t *testing.T) (*gin.Engine, *store.UserStore) {
 	t.Helper()
+	return newSetupServerWithClaim(t, func(context.Context, string) error { return nil })
+}
+
+func newSetupServerWithClaim(t *testing.T, claimLegacyChat func(context.Context, string) error) (*gin.Engine, *store.UserStore) {
+	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	us := store.NewUserStore(db)
 	jwtSvc := auth.NewJWTService("secret", time.Hour, time.Hour)
-	h := api.NewSetupHandler(us, jwtSvc)
+	h := api.NewSetupHandler(us, jwtSvc, claimLegacyChat)
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/api/setup/status", h.Status)
@@ -65,4 +72,24 @@ func TestSetup_SecondCreateRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusConflict, rec.Code)
+}
+
+func TestSetup_ClaimsLegacyChatForFirstAdmin(t *testing.T) {
+	var claimed []string
+	r, us := newSetupServerWithClaim(t, func(_ context.Context, userID string) error {
+		claimed = append(claimed, userID)
+		return errors.New("claim failed")
+	})
+
+	body, _ := json.Marshal(map[string]string{"username": "root", "password": "rootpw"})
+	req := httptest.NewRequest(http.MethodPost, "/api/setup", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	ownerID, ok, err := us.FirstActiveSuperAdminID()
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, []string{ownerID}, claimed)
 }

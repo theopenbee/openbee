@@ -2,16 +2,21 @@ package api
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
@@ -119,7 +124,21 @@ func TestDecodeMediaPaths(t *testing.T) {
 	}
 }
 
-func newLocalChatTestServer(t *testing.T) (*gin.Engine, *local.LocalReceiver, *store.MessageStore, *store.OutboundMessageStore) {
+const testUserID = "user-1"
+const testUserHeader = "X-Test-User"
+const anonymousUser = "-"
+
+var testSessionKey = local.SessionKey(testUserID)
+
+type localChatTestServer struct {
+	router        *gin.Engine
+	receiver      *local.LocalReceiver
+	msgStore      *store.MessageStore
+	outboundStore *store.OutboundMessageStore
+	mediaRoot     string
+}
+
+func newLocalChatServer(t *testing.T) localChatTestServer {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
@@ -127,13 +146,28 @@ func newLocalChatTestServer(t *testing.T) (*gin.Engine, *local.LocalReceiver, *s
 	msgStore := store.NewMessageStore(db)
 	outboundStore := store.NewOutboundMessageStore(db)
 	receiver := local.NewLocalReceiver(4)
-	h := NewLocalChatHandler(receiver, local.NewSSEHub(), outboundStore, msgStore)
+	mediaRoot := t.TempDir()
+	h := NewLocalChatHandler(receiver, local.NewSSEHub(), outboundStore, msgStore, mediaRoot)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		if uid := c.GetHeader(testUserHeader); uid != anonymousUser {
+			auth.SetUserID(c, cmp.Or(uid, testUserID))
+		}
+		c.Next()
+	})
 	r.POST("/local/messages", h.SendMessage)
 	r.GET("/local/messages", h.GetMessages)
-	return r, receiver, msgStore, outboundStore
+	r.POST("/local/media", h.UploadMedia)
+	r.GET("/local/media/:filename", h.ServeMedia)
+	return localChatTestServer{router: r, receiver: receiver, msgStore: msgStore, outboundStore: outboundStore, mediaRoot: mediaRoot}
+}
+
+func newLocalChatTestServer(t *testing.T) (*gin.Engine, *local.LocalReceiver, *store.MessageStore, *store.OutboundMessageStore) {
+	t.Helper()
+	s := newLocalChatServer(t)
+	return s.router, s.receiver, s.msgStore, s.outboundStore
 }
 
 type messagesResponse struct {
@@ -141,11 +175,21 @@ type messagesResponse struct {
 	HasMore  bool          `json:"has_more"`
 }
 
-func getMessages(t *testing.T, r *gin.Engine, query string) messagesResponse {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/local/messages?"+query, nil)
+func serveAs(r *gin.Engine, req *http.Request, userID string) *httptest.ResponseRecorder {
+	req.Header.Set(testUserHeader, userID)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
+	return rec
+}
+
+func getMessages(t *testing.T, r *gin.Engine, query string) messagesResponse {
+	t.Helper()
+	return getMessagesAs(t, r, testUserID, query)
+}
+
+func getMessagesAs(t *testing.T, r *gin.Engine, userID, query string) messagesResponse {
+	t.Helper()
+	rec := serveAs(r, httptest.NewRequest(http.MethodGet, "/local/messages?"+query, nil), userID)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var res messagesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
@@ -155,7 +199,7 @@ func getMessages(t *testing.T, r *gin.Engine, query string) messagesResponse {
 func seedOutbound(t *testing.T, s *store.OutboundMessageStore, id string, sentAt int64) {
 	t.Helper()
 	require.NoError(t, s.Create(context.Background(), store.OutboundMessage{
-		ID: id, SessionKey: defaultSessionKey, Platform: local.PlatformID,
+		ID: id, SessionKey: testSessionKey, Platform: local.PlatformID,
 		Content: id, Status: store.OutboundStatusSent, SentAt: sentAt,
 	}))
 }
@@ -163,9 +207,9 @@ func seedOutbound(t *testing.T, s *store.OutboundMessageStore, id string, sentAt
 func TestGetMessages_ReturnsNewestPageWithIDs(t *testing.T) {
 	r, _, msgStore, outboundStore := newLocalChatTestServer(t)
 	_, err := msgStore.CreateBatch(context.Background(), []store.BatchMsg{
-		{ID: "row-1", SessionKey: defaultSessionKey, Platform: local.PlatformID, Content: "u1", PlatformMsgID: "local:c1", Status: "received", MessageTime: 100},
-		{ID: "row-3", SessionKey: defaultSessionKey, Platform: local.PlatformID, Content: "u3", PlatformMsgID: "local:c3", Status: "received", MessageTime: 300},
-		{ID: "row-5", SessionKey: defaultSessionKey, Platform: local.PlatformID, Content: "u5", Status: "received", MessageTime: 500},
+		{ID: "row-1", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "u1", PlatformMsgID: "local:c1", Status: "received", MessageTime: 100},
+		{ID: "row-3", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "u3", PlatformMsgID: "local:c3", Status: "received", MessageTime: 300},
+		{ID: "row-5", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "u5", Status: "received", MessageTime: 500},
 	})
 	require.NoError(t, err)
 	seedOutbound(t, outboundStore, "r2", 200)
@@ -194,8 +238,8 @@ func TestGetMessages_ReturnsNewestPageWithIDs(t *testing.T) {
 func TestGetMessages_HasMoreWhenStoresTogetherExceedLimit(t *testing.T) {
 	r, _, msgStore, outboundStore := newLocalChatTestServer(t)
 	_, err := msgStore.CreateBatch(context.Background(), []store.BatchMsg{
-		{ID: "u1", SessionKey: defaultSessionKey, Platform: local.PlatformID, Content: "u1", Status: "received", MessageTime: 100},
-		{ID: "u3", SessionKey: defaultSessionKey, Platform: local.PlatformID, Content: "u3", Status: "received", MessageTime: 300},
+		{ID: "u1", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "u1", Status: "received", MessageTime: 100},
+		{ID: "u3", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "u3", Status: "received", MessageTime: 300},
 	})
 	require.NoError(t, err)
 	seedOutbound(t, outboundStore, "r2", 200)
@@ -274,4 +318,116 @@ func TestSendMessage_RejectsInvalidID(t *testing.T) {
 	rec := postMessage(t, r, map[string]any{"id": "bad id/..", "content": "hi"})
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestLocalChat_RejectsRequestsWithoutUser(t *testing.T) {
+	s := newLocalChatServer(t)
+
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/local/messages", nil),
+		httptest.NewRequest(http.MethodPost, "/local/messages", bytes.NewReader([]byte(`{"content":"hi"}`))),
+		httptest.NewRequest(http.MethodGet, "/local/media/a.png", nil),
+	} {
+		rec := serveAs(s.router, req, anonymousUser)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, req.Method+" "+req.URL.Path)
+	}
+}
+
+func TestSendMessage_UsesCurrentUserSession(t *testing.T) {
+	s := newLocalChatServer(t)
+
+	raw, err := json.Marshal(map[string]any{"content": "hi"})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/local/messages", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := serveAs(s.router, req, "user-2")
+
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	msg := nextInbound(t, s.receiver)
+	assert.Equal(t, "local:user-2", msg.SessionKey)
+	assert.Equal(t, "user-2", msg.SenderID)
+}
+
+func TestGetMessages_ScopesHistoryToCurrentUser(t *testing.T) {
+	s := newLocalChatServer(t)
+	_, err := s.msgStore.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "mine", SessionKey: testSessionKey, Platform: local.PlatformID, Content: "mine", Status: "received", MessageTime: 100},
+		{ID: "theirs", SessionKey: local.SessionKey("user-2"), Platform: local.PlatformID, Content: "theirs", Status: "received", MessageTime: 200},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.outboundStore.Create(context.Background(), store.OutboundMessage{
+		ID: "reply-theirs", SessionKey: local.SessionKey("user-2"), Platform: local.PlatformID,
+		Content: "reply", Status: store.OutboundStatusSent, SentAt: 300,
+	}))
+
+	mine := getMessagesAs(t, s.router, testUserID, "")
+	require.Len(t, mine.Messages, 1)
+	assert.Equal(t, "mine", mine.Messages[0].ID)
+
+	theirs := getMessagesAs(t, s.router, "user-2", "")
+	require.Len(t, theirs.Messages, 2)
+	assert.Equal(t, []string{"theirs", "reply-theirs"}, []string{theirs.Messages[0].ID, theirs.Messages[1].ID})
+}
+
+func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
+	s := newLocalChatServer(t)
+	userDir := filepath.Join(s.mediaRoot, testUserID)
+	require.NoError(t, os.MkdirAll(userDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(userDir, "r1_report.pdf"), []byte("pdf"), 0o644))
+	for _, m := range []store.OutboundMessage{
+		{ID: "r1", MediaPath: "/work/out/report.pdf", Status: store.OutboundStatusSent, SentAt: 100},
+		{ID: "r2", MediaPath: "/work/out/unstaged.png", Status: store.OutboundStatusSent, SentAt: 200},
+		{ID: "r3", Content: "text only", Status: store.OutboundStatusSent, SentAt: 300},
+	} {
+		m.SessionKey = testSessionKey
+		m.Platform = local.PlatformID
+		require.NoError(t, s.outboundStore.Create(context.Background(), m))
+	}
+
+	res := getMessages(t, s.router, "")
+
+	require.Len(t, res.Messages, 3)
+	assert.Equal(t, []string{"r1_report.pdf"}, res.Messages[0].MediaPaths)
+	assert.Empty(t, res.Messages[1].MediaPaths)
+	assert.Empty(t, res.Messages[2].MediaPaths)
+}
+
+func TestUploadMedia_StoresInCurrentUserDir(t *testing.T) {
+	s := newLocalChatServer(t)
+
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	fw, err := mw.CreateFormFile("file", "photo.png")
+	require.NoError(t, err)
+	_, err = fw.Write([]byte("png-bytes"))
+	require.NoError(t, err)
+	require.NoError(t, mw.Close())
+	req := httptest.NewRequest(http.MethodPost, "/local/media", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := serveAs(s.router, req, "user-2")
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var res struct {
+		Path string `json:"path"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	data, err := os.ReadFile(filepath.Join(s.mediaRoot, "user-2", res.Path))
+	require.NoError(t, err)
+	assert.Equal(t, "png-bytes", string(data))
+}
+
+func TestServeMedia_IsolatesUsers(t *testing.T) {
+	s := newLocalChatServer(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(s.mediaRoot, testUserID), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(s.mediaRoot, testUserID, "mine.png"), []byte(testUserID), 0o644))
+
+	fetch := func(userID, name string) *httptest.ResponseRecorder {
+		return serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/media/"+name, nil), userID)
+	}
+
+	rec := fetch(testUserID, "mine.png")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, testUserID, rec.Body.String())
+
+	assert.Equal(t, http.StatusNotFound, fetch("user-2", "mine.png").Code)
 }

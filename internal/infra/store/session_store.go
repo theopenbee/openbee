@@ -152,6 +152,26 @@ func (s *SessionStore) ClearSessionContexts(ctx context.Context, sessionKey, bee
 	return tx.Commit()
 }
 
+func (s *SessionStore) ReassignSessionKey(ctx context.Context, from, to string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, q := range []string{
+		`UPDATE bee_platform_messages SET session_key = ? WHERE session_key = ?`,
+		`UPDATE bee_outbound_messages SET session_key = ? WHERE session_key = ?`,
+		`UPDATE OR IGNORE bee_session_contexts SET session_key = ? WHERE session_key = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, q, to, from); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // SessionAgent represents one agent's session context entry, enriched with
 // a human-readable name.
 type SessionAgent struct {

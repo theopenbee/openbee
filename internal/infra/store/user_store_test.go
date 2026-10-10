@@ -107,3 +107,36 @@ func TestUserStore_DeleteCascadesRoles(t *testing.T) {
 	_, err := us.GetByID(u.ID)
 	assert.Error(t, err, "expected user gone")
 }
+
+func TestUserStore_FirstActiveSuperAdminID(t *testing.T) {
+	us := setupUserStore(t)
+
+	_, ok, err := us.FirstActiveSuperAdminID()
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	var ids []string
+	for _, spec := range []struct {
+		name  string
+		roles []string
+	}{
+		{"operator", nil},
+		{"disabled-admin", []string{model.RoleIDSuperAdmin}},
+		{"first-admin", []string{model.RoleIDSuperAdmin}},
+		{"later-admin", []string{model.RoleIDSuperAdmin}},
+	} {
+		u, err := us.Create(spec.name, "s3cret", "", "", spec.roles)
+		require.NoError(t, err)
+		ids = append(ids, u.ID)
+	}
+	for i, id := range ids {
+		_, err := us.db.Exec(`UPDATE bee_users SET created_at = ? WHERE id = ?`, i+1, id)
+		require.NoError(t, err)
+	}
+	require.NoError(t, us.SetStatus(ids[1], model.UserStatusDisabled))
+
+	id, ok, err := us.FirstActiveSuperAdminID()
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, ids[2], id)
+}

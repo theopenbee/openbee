@@ -315,3 +315,39 @@ func TestSessionStore_DifferentEnginesCoexist(t *testing.T) {
 	assert.Equal(t, "claude-sid", claude)
 	assert.Equal(t, "codex-sid", codex)
 }
+
+func TestSessionStore_ReassignSessionKey(t *testing.T) {
+	db, ss := setupSessionDB(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, received_at, created_at, updated_at)
+		 VALUES ('in-old', 'local:old', 'local', 'hi', 1, 1, 1),
+		        ('in-other', 'feishu:chat:user', 'feishu', 'hi', 1, 1, 1)`,
+		`INSERT INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
+		 VALUES ('out-old', 'local:old', 'local', 'hello', 'sent', 2, 2)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+	require.NoError(t, ss.UpsertSessionContext(ctx, "local:old", store.BeeAgentID, "old-bee", "claude"))
+	require.NoError(t, ss.UpsertSessionContext(ctx, "local:old", "w1", "old-worker", "claude"))
+	require.NoError(t, ss.UpsertSessionContext(ctx, "local:new", store.BeeAgentID, "new-bee", "claude"))
+
+	require.NoError(t, ss.ReassignSessionKey(ctx, "local:old", "local:new"))
+
+	sessionKeyOf := func(query, id string) string {
+		var key string
+		require.NoError(t, db.QueryRow(query, id).Scan(&key))
+		return key
+	}
+	assert.Equal(t, "local:new", sessionKeyOf(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-old"))
+	assert.Equal(t, "feishu:chat:user", sessionKeyOf(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-other"))
+	assert.Equal(t, "local:new", sessionKeyOf(`SELECT session_key FROM bee_outbound_messages WHERE id = ?`, "out-old"))
+
+	worker, err := ss.GetSessionContextForEngine(ctx, "local:new", "w1", "claude")
+	require.NoError(t, err)
+	assert.Equal(t, "old-worker", worker)
+	bee, err := ss.GetSessionContextForEngine(ctx, "local:new", store.BeeAgentID, "claude")
+	require.NoError(t, err)
+	assert.Equal(t, "new-bee", bee)
+}
