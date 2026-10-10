@@ -39,7 +39,7 @@ export function TokenUsageCard() {
           valueClass="text-2xl font-medium text-muted-foreground"
           divider
         />
-        <div className="border-l border-border/70 px-5 py-4">
+        <div className="border-l border-border/70 px-3 py-4 sm:px-5">
           <p className={EYEBROW_LABEL}>{t("dashboard.dayOverDay")}</p>
           <div className="mt-2.5 flex h-7 items-center">
             {isLoading ? (
@@ -47,7 +47,7 @@ export function TokenUsageCard() {
             ) : changeLabel !== null && ChangeIcon ? (
               <span className="flex items-center gap-1.5 text-muted-foreground" aria-label={changeLabel}>
                 <ChangeIcon className="size-4" aria-hidden />
-                <span className="text-xl font-semibold tabular-nums">{changeLabel}</span>
+                <span className="text-lg font-semibold tabular-nums sm:text-xl">{changeLabel}</span>
               </span>
             ) : (
               <span className="text-xl font-medium text-muted-foreground" aria-label={t("dashboard.noComparison")}>
@@ -79,7 +79,7 @@ function Metric({
   divider?: boolean
 }) {
   return (
-    <div className={cn("px-5 py-4", divider && "border-l border-border/70")}>
+    <div className={cn("px-3 py-4 sm:px-5", divider && "border-l border-border/70")}>
       <p className={EYEBROW_LABEL}>{label}</p>
       <div className="mt-2.5 flex h-7 items-center">
         {isLoading ? (

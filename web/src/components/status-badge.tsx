@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { statusLabel } from "@/lib/format"
 
 const statusStyles: Record<string, string> = {
   idle: "bg-status-idle/15 text-status-idle border-status-idle/20",
@@ -28,7 +29,7 @@ export function StatusBadge({ status }: { status: string }) {
   return (
     <Badge variant="outline" className={statusStyles[key] || "bg-muted text-muted-foreground"}>
       <span className={cn("size-1.5 rounded-full", dotStyles[key] ?? "bg-muted-foreground")} aria-hidden="true" />
-      {t(`statuses.${status}`, status)}
+      {statusLabel(status, t)}
     </Badge>
   )
 }

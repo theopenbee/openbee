@@ -19,7 +19,7 @@ const isFullBleedPath = (pathname: string) =>
 // The sidebar primitive is `position: fixed; inset-y-0`, so it would slide under
 // the top bar. An inline offset wins over the class unconditionally, pinning it
 // to start below the 3rem bar. Hoisted so it isn't re-allocated each render.
-const SIDEBAR_OFFSET = { top: "3rem", height: "calc(100svh - 3rem)" }
+const SIDEBAR_OFFSET = { top: "3rem", height: "calc(100dvh - 3rem)" }
 
 export function Layout() {
   const { pathname } = useLocation()
@@ -30,7 +30,7 @@ export function Layout() {
     // SidebarProvider normally lays its children out as a row, so we flip it to a
     // column and pin it to the viewport height; the body row below owns the
     // remaining space and lets the main pane scroll on its own.
-    <SidebarProvider defaultOpen className="h-svh flex-col">
+    <SidebarProvider defaultOpen className="h-dvh flex-col">
       <AppTopbar />
       <div className="flex min-h-0 w-full flex-1">
         <AppSidebar style={SIDEBAR_OFFSET} />
@@ -38,7 +38,7 @@ export function Layout() {
           <main
             className={cn(
               "min-w-0 flex-1",
-              fullBleed ? "flex flex-col overflow-hidden" : "overflow-auto p-6"
+              fullBleed ? "flex flex-col overflow-hidden" : "overflow-auto p-4 md:p-6"
             )}
           >
             {/* Keyed by path so navigating away from a forbidden page clears the

@@ -3,7 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react"
@@ -31,17 +31,22 @@ import {
 } from "@/hooks/use-local-chat"
 import { EmptyState } from "@/components/empty-state"
 import { CopyButton } from "@/components/copy-button"
+import { ExpandableContent } from "@/components/expandable-content"
 import { ImageLightbox } from "@/components/image-lightbox"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage, Worker } from "@/lib/types"
-import { basename, cn, getFileCategory, isImage } from "@/lib/utils"
+import type { ChatMessage, LocalMessagesResponse, Worker } from "@/lib/types"
+import { basename, cn, getFileCategory, isImage, isImeComposing } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
+import { observeResize } from "@/lib/resize-observer"
+import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
+import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMe } from "@/hooks/use-me"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { hasPermission, Perm } from "@/lib/permissions"
 import { MentionTextarea } from "@/components/mention-textarea"
 
@@ -52,16 +57,33 @@ const EMPTY_WORKERS: Worker[] = []
 // object on every render.
 const STREAMDOWN_PLUGINS = { code }
 
-// Convert isolated single newlines to double newlines so Markdown renders them
-// as paragraph breaks. Fenced code blocks are left untouched.
-function normalizeBeeContent(content: string): string {
-  const parts = content.split(/(```[\s\S]*?```)/g)
-  return parts
-    .map((part, index) => {
-      if (index % 2 === 1) return part
-      return part.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
-    })
-    .join("")
+const TOUCH_ONLY_QUERY = "(hover: none) and (pointer: coarse)"
+
+const NEAR_BOTTOM_PX = 48
+
+type ScrollAnchor = { el: Element; top: number }
+
+function isNearBottom(container: HTMLElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < NEAR_BOTTOM_PX
+}
+
+function findScrollAnchor(container: HTMLElement, log: HTMLElement | null): ScrollAnchor | null {
+  if (!log) return null
+  const containerTop = container.getBoundingClientRect().top
+  const items = log.children
+  let lo = 0
+  let hi = items.length - 1
+  let anchor: Element | null = null
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (items[mid].getBoundingClientRect().bottom > containerTop) {
+      anchor = items[mid]
+      hi = mid - 1
+    } else {
+      lo = mid + 1
+    }
+  }
+  return anchor ? { el: anchor, top: anchor.getBoundingClientRect().top - containerTop } : null
 }
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
@@ -131,64 +153,22 @@ const AttachmentPreview = memo(function AttachmentPreview({
 
 const COLLAPSE_HEIGHT = 320
 
-const CollapsibleContent = memo(function CollapsibleContent({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const { t } = useTranslation()
-  const innerRef = useRef<HTMLDivElement>(null)
-  const [collapsed, setCollapsed] = useState(true)
-  const [overflows, setOverflows] = useState(false)
-
-  useLayoutEffect(() => {
-    const el = innerRef.current
-    if (!el) return
-    setOverflows(el.scrollHeight > COLLAPSE_HEIGHT)
-  }, [children])
-
-  return (
-    <div>
-      <div
-        className={cn("overflow-hidden transition-[max-height] duration-300", collapsed && overflows ? "relative" : "")}
-        style={{ maxHeight: collapsed && overflows ? COLLAPSE_HEIGHT : undefined }}
-      >
-        <div ref={innerRef}>{children}</div>
-        {collapsed && overflows && (
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/95 to-transparent" />
-        )}
-      </div>
-      {overflows && (
-        <button
-          type="button"
-          className="mt-2 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
-          onClick={() => setCollapsed((prev) => !prev)}
-        >
-          {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
-        </button>
-      )}
-    </div>
-  )
-})
-
 // A single chat message row (sent or received). Extracted as a memo'd component
 // so a long transcript doesn't re-render every bubble on each state change, and
 // so each row can own its hover state for the inline copy affordance.
 const MessageBubble = memo(function MessageBubble({
   message,
   isGroupStart,
+  onExpandToggle,
 }: {
   message: ChatMessage
   isGroupStart: boolean
+  onExpandToggle: () => void
 }) {
   const { t, i18n } = useTranslation()
   const isUser = message.role === "user"
   const hasContent = message.content.trim().length > 0
   const hasMedia = Boolean(message.media_paths && message.media_paths.length > 0)
-  const normalizedContent = useMemo(
-    () => normalizeBeeContent(message.content),
-    [message.content]
-  )
 
   return (
     <div
@@ -222,13 +202,13 @@ const MessageBubble = memo(function MessageBubble({
 
       <div
         className={cn(
-          "relative min-w-0",
-          isUser ? "max-w-[min(100%,42rem)]" : "max-w-[min(100%,52rem)]"
+          "relative flex min-w-0 flex-col",
+          isUser ? "max-w-[min(85%,42rem)] items-end" : "max-w-[min(100%,52rem)] items-start"
         )}
       >
         <div
           className={cn(
-            "overflow-hidden",
+            "max-w-full overflow-hidden",
             isUser
               ? "rounded-sm bg-muted/50 px-3.5 py-2"
               : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
@@ -243,16 +223,18 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {hasContent && (
-            <CollapsibleContent>
+            <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
               <div
                 className={cn(
                   "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
                   hasMedia && "mt-2"
                 )}
               >
-                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS}>{normalizedContent}</Streamdown>
+                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS} remarkPlugins={CHAT_REMARK_PLUGINS}>
+                  {message.content}
+                </Streamdown>
               </div>
-            </CollapsibleContent>
+            </ExpandableContent>
           )}
         </div>
 
@@ -260,8 +242,8 @@ const MessageBubble = memo(function MessageBubble({
           <CopyButton
             value={message.content}
             className={cn(
-              "absolute top-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-              isUser ? "-left-7" : "-right-7"
+              "-mx-2 p-2 pointer-fine:absolute pointer-fine:top-1 pointer-fine:m-0 pointer-fine:p-0 pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100",
+              isUser ? "pointer-fine:-left-7" : "pointer-fine:-right-7"
             )}
           />
         )}
@@ -276,27 +258,60 @@ export function LocalChat() {
   const { data, isLoading } = useLocalMessages()
   const sendMessage = useSendMessage()
 
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
+  const [chat, dispatch] = useReducer(chatReducer, EMPTY_CHAT)
+  const localMessages = chat.messages
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const suppressScrollRef = useRef(false)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+  const scrollAnchorRef = useRef<ScrollAnchor | null>(null)
+  const lastScrollTopRef = useRef(0)
 
-  const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
-    suppressScrollRef.current = true
-    setLocalMessages((prev) => [...older, ...prev])
+  const captureScrollAnchor = useCallback(() => {
+    const container = scrollContainerRef.current
+    scrollAnchorRef.current =
+      container && !stickToBottomRef.current ? findScrollAnchor(container, logRef.current) : null
   }, [])
 
-  const { loadMore, hasMore, isLoadingMore } = useLoadMoreMessages(handleOlderLoaded, data?.has_more ?? false)
+  const syncScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    if (stickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight
+      lastScrollTopRef.current = container.scrollTop
+      return
+    }
+    const anchor = scrollAnchorRef.current
+    if (anchor?.el.isConnected) {
+      const delta = anchor.el.getBoundingClientRect().top - container.getBoundingClientRect().top - anchor.top
+      if (Math.abs(delta) >= 1) container.scrollTop += delta
+    }
+    lastScrollTopRef.current = container.scrollTop
+    captureScrollAnchor()
+  }, [captureScrollAnchor])
+
+  const handleExpandToggle = useCallback(() => {
+    stickToBottomRef.current = false
+    captureScrollAnchor()
+  }, [captureScrollAnchor])
+
+  const handleOlderLoaded = useCallback((page: LocalMessagesResponse) => {
+    if (page.messages.length > 0) captureScrollAnchor()
+    dispatch({ type: "older", messages: page.messages, hasMore: page.has_more })
+  }, [captureScrollAnchor])
+
+  const { loadMore, isLoadingMore, loadError } = useLoadMoreMessages(handleOlderLoaded)
+  const hasMore = chat.hasMore
 
   useEffect(() => {
     if (!data) return
-    setLocalMessages(data.messages)
+    dispatch({ type: "latest", messages: data.messages, hasMore: data.has_more })
   }, [data])
 
   useEffect(() => {
@@ -307,7 +322,7 @@ export function LocalChat() {
   }, [input])
 
   const handleReply = useCallback((message: ChatMessage) => {
-    setLocalMessages((prev) => [...prev, message])
+    dispatch({ type: "add", message })
     setIsProcessing(false)
   }, [])
   useLocalChatStream(handleReply)
@@ -320,54 +335,74 @@ export function LocalChat() {
   const { data: workersData } = useWorkers(undefined, { enabled: canMention })
 
   useEffect(() => {
-    if (suppressScrollRef.current) {
-      suppressScrollRef.current = false
+    const container = scrollContainerRef.current
+    const content = scrollContentRef.current
+    if (!container || !content) return
+    const stopContainer = observeResize(container, syncScroll)
+    const stopContent = observeResize(content, syncScroll)
+    return () => {
+      stopContainer()
+      stopContent()
+    }
+  }, [syncScroll])
+
+  useLayoutEffect(() => {
+    syncScroll()
+  }, [localMessages, syncScroll])
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const top = container.scrollTop
+    if (Math.abs(top - lastScrollTopRef.current) < 1) {
+      syncScroll()
       return
     }
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [localMessages, isProcessing])
+    const movedUp = top < lastScrollTopRef.current
+    lastScrollTopRef.current = top
+    if (isNearBottom(container)) stickToBottomRef.current = true
+    else if (movedUp) stickToBottomRef.current = false
+    captureScrollAnchor()
+  }, [captureScrollAnchor, syncScroll])
 
   const handleSend = useCallback(async () => {
     const content = input.trim()
     if (!content && pendingMediaPaths.length === 0) return
 
     const paths = [...pendingMediaPaths]
+    const id = createMessageId()
     const userMessage: ChatMessage = {
+      id,
       role: "user",
       content,
       media_paths: paths.length > 0 ? paths : undefined,
       ts: Date.now(),
+      pending: true,
     }
 
-    setLocalMessages((prev) => [...prev, userMessage])
+    stickToBottomRef.current = true
+    dispatch({ type: "add", message: userMessage })
     setInput("")
     setPendingMediaPaths([])
     setUploadError(null)
     setIsProcessing(true)
 
     try {
-      await sendMessage.mutateAsync({
+      const sent = await sendMessage.mutateAsync({
+        id,
         content: content || " ",
         mediaPaths: paths.length > 0 ? paths : undefined,
       })
+      dispatch({ type: "sent", id, ts: sent.ts })
     } catch {
-      setLocalMessages((prev) => prev.filter((message) => message !== userMessage))
+      dispatch({ type: "remove", id })
       setPendingMediaPaths((prev) => [...paths, ...prev])
       setIsProcessing(false)
     }
   }, [input, pendingMediaPaths, sendMessage])
 
   const handleLoadMore = useCallback(() => {
-    const container = scrollContainerRef.current
-    const prevScrollHeight = container?.scrollHeight ?? 0
-    const earliestTs = localMessages[0]?.ts ?? Date.now()
-    loadMore(earliestTs).then(() => {
-      if (container) {
-        container.scrollTop += container.scrollHeight - prevScrollHeight
-      }
-    }).catch(() => {
-      // scroll restoration skipped on error; hasMore remains true so user can retry
-    })
+    void loadMore(localMessages[0]?.ts ?? Date.now())
   }, [loadMore, localMessages])
 
   const uploadFiles = useCallback(async (files: File[]) => {
@@ -406,12 +441,14 @@ export function LocalChat() {
     await uploadFiles(files)
   }, [uploadFiles])
 
+  const isTouchOnly = useMediaQuery(TOUCH_ONLY_QUERY)
+
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      void handleSend()
-    }
-  }, [handleSend])
+    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) return
+    if (isTouchOnly && !event.metaKey && !event.ctrlKey) return
+    event.preventDefault()
+    void handleSend()
+  }, [handleSend, isTouchOnly])
 
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
@@ -419,8 +456,12 @@ export function LocalChat() {
 
   return (
     <div className="flex h-full min-h-0 flex-col animate-fade-in">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
+      >
+        <div ref={scrollContentRef} className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-5">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -440,55 +481,70 @@ export function LocalChat() {
                 description={t("localChat.noMessagesDescription")}
               />
             ) : (
-              <div role="log" aria-live="polite" aria-relevant="additions">
+              <>
                 {hasMore && (
-                  <div className="flex justify-center pb-4">
+                  <div className="flex justify-center pb-8">
                     <button
                       type="button"
                       disabled={isLoadingMore}
                       onClick={handleLoadMore}
-                      className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-xs transition-colors disabled:opacity-50",
+                        loadError
+                          ? "border-destructive/40 text-destructive hover:bg-destructive/10"
+                          : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
                     >
-                      {isLoadingMore ? t("localChat.loadingMore") : t("localChat.loadMore")}
+                      {isLoadingMore
+                        ? t("localChat.loadingMore")
+                        : loadError
+                          ? t("localChat.loadMoreError")
+                          : t("localChat.loadMore")}
                     </button>
+                    {loadError && !isLoadingMore && (
+                      <span role="alert" className="sr-only">
+                        {t("localChat.loadMoreError")}
+                      </span>
+                    )}
                   </div>
                 )}
-                {localMessages.map((message, index) => {
-                  const prev = localMessages[index - 1]
-                  const isGroupStart = !prev || prev.role !== message.role
+                <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
+                  {localMessages.map((message, index) => {
+                    const prev = localMessages[index - 1]
+                    const isGroupStart = !prev || prev.role !== message.role
 
-                  return (
-                    <MessageBubble
-                      key={`${message.role}-${message.ts}-${index}`}
-                      message={message}
-                      isGroupStart={isGroupStart}
-                    />
-                  )
-                })}
+                    return (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        isGroupStart={isGroupStart}
+                        onExpandToggle={handleExpandToggle}
+                      />
+                    )
+                  })}
 
-                {isProcessing && (
-                  <div className="mt-4 flex flex-col items-start">
-                    <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
-                      <span className="size-1.5 rounded-full bg-primary" />
-                      <span className="font-medium">{t("localChat.beeLabel")}</span>
-                      <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                  {isProcessing && (
+                    <div className="mt-4 flex flex-col items-start">
+                      <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
+                        <span className="size-1.5 rounded-full bg-primary" />
+                        <span className="font-medium">{t("localChat.beeLabel")}</span>
+                        <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
+                      </div>
+                      <div className="flex gap-1.5 px-0.5 py-1">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
+                      </div>
                     </div>
-                    <div className="flex gap-1.5 px-0.5 py-1">
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
-                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
-                    </div>
-                  </div>
-                )}
-
-                <div ref={bottomRef} />
-              </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
       </div>
 
       <div className="border-t border-border/70 bg-card">
-        <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-6">
+        <div className="mx-auto w-full max-w-4xl px-3 py-2 sm:px-6 sm:py-3">
             {uploadError && (
               <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-2 px-3 py-2")}>
                 {uploadError}
@@ -503,7 +559,7 @@ export function LocalChat() {
                     className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
                   >
                     <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="max-w-52 truncate">{basename(path)}</span>
+                    <span className="max-w-40 truncate sm:max-w-52">{basename(path)}</span>
                     <button
                       type="button"
                       className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -519,25 +575,27 @@ export function LocalChat() {
               </div>
             )}
 
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2">
-              <MentionTextarea
-                textareaRef={textareaRef}
-                className="max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
-                placeholder={t("localChat.inputPlaceholder")}
-                value={input}
-                onChange={setInput}
-                onKeyDown={handleComposerKeyDown}
-                onPaste={handlePaste}
-                workers={workersData ?? EMPTY_WORKERS}
-                disabled={isProcessing}
-              />
+            <div className="flex items-end gap-1 rounded-sm border border-border/70 bg-background/80 p-1 sm:block sm:p-2">
+              <div className="min-w-0 flex-1">
+                <MentionTextarea
+                  textareaRef={textareaRef}
+                  className="block max-h-[160px] min-h-10 w-full resize-none bg-transparent px-2 py-2 text-base leading-6 placeholder:text-muted-foreground focus:outline-none sm:min-h-[2.75rem] sm:py-1.5 sm:text-sm"
+                  placeholder={t("localChat.inputPlaceholder")}
+                  value={input}
+                  onChange={setInput}
+                  onKeyDown={handleComposerKeyDown}
+                  onPaste={handlePaste}
+                  workers={workersData ?? EMPTY_WORKERS}
+                  disabled={isProcessing}
+                />
+              </div>
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {t("localChat.composerHint")}
+                  {isTouchOnly ? t("localChat.composerHintTouch") : t("localChat.composerHint")}
                 </span>
 
-                <div className="flex items-center gap-2">
+                <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -547,21 +605,21 @@ export function LocalChat() {
                   />
                   <Button
                     variant="outline"
-                    className="h-9 rounded-sm"
+                    className="order-first size-10 rounded-sm border-transparent bg-transparent text-muted-foreground dark:border-transparent dark:bg-transparent sm:order-none sm:h-9 sm:w-auto sm:border-border sm:bg-background sm:text-foreground dark:sm:border-input dark:sm:bg-input/30"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t("localChat.uploadFile")}
                   >
-                    <Paperclip className="size-4" />
+                    <Paperclip className="size-5 sm:size-4" />
                     <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
                   </Button>
                   <Button
-                    className="h-9 rounded-sm"
+                    className="size-10 rounded-sm sm:h-9 sm:w-auto"
                     onClick={() => void handleSend()}
                     disabled={!canSend || sendMessage.isPending}
                     aria-label={t("localChat.send")}
                   >
                     <Send className="size-4" />
-                    <span>{t("localChat.send")}</span>
+                    <span className="hidden sm:inline">{t("localChat.send")}</span>
                   </Button>
                 </div>
               </div>

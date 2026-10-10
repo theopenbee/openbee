@@ -29,10 +29,13 @@
     "view": "查看",
     "copy": "复制",
     "copied": "已复制",
+    "copyFailed": "复制失败",
     "create": "创建",
     "noDescription": "无描述",
     "loadError": "加载数据失败。",
-    "retry": "重试"
+    "retry": "重试",
+    "showMore": "展开全部",
+    "showLess": "收起"
   },
   "statuses": {
     "idle": "空闲",
@@ -288,12 +291,12 @@
     "noMessagesDescription": "发送一条消息，或者上传文件。",
     "operatorLabel": "操作员",
     "beeLabel": "Bee",
-    "showMore": "展开全部",
-    "showLess": "收起",
     "composerHint": "回车发送，Shift+Enter 换行",
+    "composerHintTouch": "Ctrl/⌘+Enter 发送",
     "removeAttachment": "移除附件",
     "loadMore": "加载更早消息",
-    "loadingMore": "加载中…"
+    "loadingMore": "加载中…",
+    "loadMoreError": "加载失败，点击重试"
   },
   "breadcrumb": {
     "detail": "详情"

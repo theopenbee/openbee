@@ -1,6 +1,8 @@
+import { Popover } from "@base-ui/react/popover"
 import { Info } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TOOLTIP_BUBBLE } from "@/lib/styles"
 import type { SessionTokenStats } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 export function TokenStatsInfoButton({
   stats,
@@ -12,18 +14,23 @@ export function TokenStatsInfoButton({
   align?: "start" | "center" | "end"
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        type="button"
+    <Popover.Root modal>
+      <Popover.Trigger
+        openOnHover
+        delay={0}
         aria-label="Token breakdown"
-        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors pointer-coarse:-m-2.5 pointer-coarse:p-2.5"
       >
         <Info className="size-3" />
-      </TooltipTrigger>
-      <TooltipContent side={side} align={align}>
-        <TokenStatsTooltip stats={stats} />
-      </TooltipContent>
-    </Tooltip>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side={side} align={align} sideOffset={4} className="isolate z-50">
+          <Popover.Popup className={cn(TOOLTIP_BUBBLE, "outline-none")}>
+            <TokenStatsTooltip stats={stats} />
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 

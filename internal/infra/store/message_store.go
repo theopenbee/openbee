@@ -315,9 +315,10 @@ func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, e
 
 // InboundMessage is a non-merged bee_platform_messages row for display in chat history.
 type InboundMessage struct {
-	ID         string
-	Content    string
-	ReceivedAt int64
+	ID            string
+	PlatformMsgID string
+	Content       string
+	ReceivedAt    int64
 }
 
 // ListedMessage is a bee_platform_messages row for admin/API listing purposes.
@@ -400,12 +401,12 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 		args  []any
 	)
 	if before > 0 {
-		query = `SELECT id, content, received_at FROM bee_platform_messages
+		query = `SELECT id, platform_msg_id, content, received_at FROM bee_platform_messages
                  WHERE session_key = ? AND status != ? AND received_at < ?
                  ORDER BY received_at DESC LIMIT ?`
 		args = []any{sessionKey, MsgStatusMerged, before, limit}
 	} else {
-		query = `SELECT id, content, received_at FROM bee_platform_messages
+		query = `SELECT id, platform_msg_id, content, received_at FROM bee_platform_messages
                  WHERE session_key = ? AND status != ?
                  ORDER BY received_at DESC LIMIT ?`
 		args = []any{sessionKey, MsgStatusMerged, limit}
@@ -418,7 +419,7 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	var msgs []InboundMessage
 	for rows.Next() {
 		var m InboundMessage
-		if err := rows.Scan(&m.ID, &m.Content, &m.ReceivedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PlatformMsgID, &m.Content, &m.ReceivedAt); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)

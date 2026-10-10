@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,8 +33,11 @@ const fileMediaPrefix = fileMediaMarker + " "
 const legacyFileMediaPrefix = legacyFileMediaMarker + " "
 
 const defaultSessionKey = "local:default"
+const localMessageIDPrefix = "local:"
 const chatRoleUser = "user"
 const chatRoleBee = "bee"
+
+var messageIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type LocalChatHandler struct {
 	receiver      *local.LocalReceiver
@@ -81,11 +85,20 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 
 func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	var body struct {
+		ID         string   `json:"id"`
 		Content    string   `json:"content" binding:"required"`
 		MediaPaths []string `json:"media_paths"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id := body.ID
+	if id == "" {
+		id = uuid.New().String()
+	} else if !messageIDPattern.MatchString(id) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message id"})
 		return
 	}
 
@@ -97,17 +110,19 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	}
 
 	content := encodeMediaPaths(body.MediaPaths, body.Content)
+	ts := time.Now().UnixMilli()
 
 	h.receiver.Enqueue(platform.InboundMessage{
-		Platform:    local.PlatformID,
-		SenderID:    "web",
-		SessionKey:  defaultSessionKey,
-		Content:     content,
-		RawContent:  content,
-		MessageTime: time.Now().UnixMilli(),
+		Platform:          local.PlatformID,
+		SenderID:          "web",
+		SessionKey:        defaultSessionKey,
+		Content:           content,
+		RawContent:        content,
+		PlatformMessageID: localMessageIDPrefix + id,
+		MessageTime:       ts,
 	})
 
-	c.JSON(http.StatusAccepted, gin.H{"status": "queued"})
+	c.JSON(http.StatusAccepted, gin.H{"status": "queued", "id": id, "ts": ts})
 }
 
 // encodeMediaPaths prepends zero or more "[file] name\n" lines to text.
@@ -153,6 +168,7 @@ func decodeMediaPaths(content string) ([]string, string) {
 }
 
 type chatMessage struct {
+	ID         string   `json:"id"`
 	Role       string   `json:"role"`
 	Content    string   `json:"content"`
 	MediaPaths []string `json:"media_paths,omitempty"`
@@ -194,35 +210,33 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
-	// Detect has_more per-store before merging; len(combined) > limit is not reliable
-	// because two stores returning limit items each would produce 2*limit combined.
-	hasMore := len(inbound) > limit || len(replies) > limit
-	if len(inbound) > limit {
-		inbound = inbound[:limit]
-	}
-	if len(replies) > limit {
-		replies = replies[:limit]
-	}
-
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
-		msg := chatMessage{Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
+		msg := chatMessage{ID: inboundChatID(m), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
 		if len(paths) > 0 {
 			msg.MediaPaths = paths
 		}
 		combined = append(combined, msg)
 	}
 	for _, r := range replies {
-		combined = append(combined, chatMessage{Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt})
+		combined = append(combined, chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt})
 	}
-	sort.Slice(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
+	sort.SliceStable(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
-	if len(combined) > limit {
+	hasMore := len(combined) > limit
+	if hasMore {
 		combined = combined[len(combined)-limit:]
 	}
 
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
+}
+
+func inboundChatID(m store.InboundMessage) string {
+	if id, ok := strings.CutPrefix(m.PlatformMsgID, localMessageIDPrefix); ok {
+		return id
+	}
+	return m.ID
 }
 
 func (h *LocalChatHandler) UploadMedia(c *gin.Context) {

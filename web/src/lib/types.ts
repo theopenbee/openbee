@@ -76,10 +76,12 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ChatMessage {
+  id: string
   role: "user" | "bee"
   content: string
   media_paths?: string[]
   ts: number
+  pending?: boolean
 }
 
 export interface LocalMessagesResponse {

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
+import { useLocation } from "react-router-dom"
 import { GithubIcon, PanelLeftIcon } from "lucide-react"
 
 import { NavMain, type NavEntry, type NavSubItem } from "@/components/nav-main"
@@ -26,8 +27,13 @@ const navSecondary = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, setOpenMobile } = useSidebar()
+  const { key: locationKey } = useLocation()
   const { data: me } = useMe()
+
+  React.useEffect(() => {
+    setOpenMobile(false)
+  }, [locationKey, setOpenMobile])
 
   // The shared NAV (lib/nav) is the single source of truth — also used by the
   // home resolver. Here we translate each entry's titleKey and apply gating:

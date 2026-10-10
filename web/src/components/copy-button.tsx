@@ -1,6 +1,7 @@
 import { useState } from "react"
-import { Check, Copy } from "lucide-react"
+import { Check, Copy, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { copyText } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
 
 // Inline copy affordance: copies `value` to the clipboard and shows a brief
@@ -16,16 +17,20 @@ export function CopyButton({
   className?: string
 }) {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-  const title = copied ? t("common.copied") : label ?? t("common.copy")
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const title =
+    status === "copied"
+      ? t("common.copied")
+      : status === "failed"
+        ? t("common.copyFailed")
+        : label ?? t("common.copy")
 
   return (
     <button
       type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(value)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+      onClick={async () => {
+        setStatus((await copyText(value)) ? "copied" : "failed")
+        setTimeout(() => setStatus("idle"), 2000)
       }}
       aria-label={title}
       title={title}
@@ -34,7 +39,13 @@ export function CopyButton({
         className,
       )}
     >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      {status === "copied" ? (
+        <Check className="size-3.5" />
+      ) : status === "failed" ? (
+        <X className="size-3.5 text-destructive" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
     </button>
   )
 }

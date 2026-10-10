@@ -48,13 +48,13 @@ export function DetailOverviewStat({
   valueClassName?: string
 }) {
   return (
-    <div className={cn("rounded-sm border border-border/70 bg-background/80 p-4", className)}>
+    <div className={cn("min-w-0 rounded-sm border border-border/70 bg-background/80 p-4", className)}>
       <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
         {Icon ? <Icon className="size-3.5" /> : null}
         <span>{label}</span>
       </div>
-      <div className={cn("mt-3 text-base font-medium text-foreground", valueClassName)}>{value}</div>
-      {hint ? <div className="mt-2 text-xs text-muted-foreground">{hint}</div> : null}
+      <div className={cn("mt-3 text-base font-medium text-foreground wrap-anywhere", valueClassName)}>{value}</div>
+      {hint ? <div className="mt-2 text-xs text-muted-foreground wrap-anywhere">{hint}</div> : null}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
 import { Activity, Bot, Clock3, Logs, Zap } from "lucide-react"
@@ -12,9 +12,10 @@ import { FadeIn } from "@/components/fade-in"
 import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
+import { WorkerLink } from "@/components/worker-link"
 import { cn } from "@/lib/utils"
 import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, isActiveStatus, extractMessageContent } from "@/lib/format"
+import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, statusLabel, isActiveStatus, extractMessageContent } from "@/lib/format"
 
 export function SessionDetail() {
   const { t } = useTranslation()
@@ -131,12 +132,11 @@ export function SessionDetail() {
                 <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
                   <Bot className="size-3.5" />
                   {hasWorker ? (
-                    <Link
-                      to={`/workers/${workerExecution.worker_id}`}
-                      className="font-medium text-foreground transition-colors hover:text-primary"
-                    >
-                      {workerLabel}
-                    </Link>
+                    <WorkerLink
+                      id={workerExecution.worker_id!}
+                      name={workerExecution.worker_name}
+                      className="font-medium text-foreground hover:text-primary"
+                    />
                   ) : (
                     <span className="font-medium text-foreground">{workerLabel}</span>
                   )}
@@ -146,13 +146,13 @@ export function SessionDetail() {
                   <Activity className={cn("size-3.5", statusTone(latestExecution.status))} />
                   <span>{t("sessions.columns.latestStatus")}</span>
                   <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                    {latestExecution.status}
+                    {statusLabel(latestExecution.status, t)}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               <DetailOverviewStat
                 icon={Logs}
                 label={t("sessions.columns.turns")}
@@ -172,7 +172,7 @@ export function SessionDetail() {
                   <span>
                     {t("sessions.columns.latestStatus")}{" "}
                     <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                      {latestExecution.status}
+                      {statusLabel(latestExecution.status, t)}
                     </span>
                   </span>
                 }
@@ -223,7 +223,7 @@ export function SessionDetail() {
                 </p>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
+              <div className="max-h-80 flex-1 space-y-2 overflow-y-auto p-3 sm:p-4 xl:max-h-none">
                 {[...executions].reverse().map((exec, reverseIndex) => {
                   const turnNumber = executions.length - reverseIndex
                   const isSelected = exec.id === selectedExecution.id
@@ -280,7 +280,7 @@ export function SessionDetail() {
                             </span>
                             <span className={cn("inline-flex items-center gap-1.5 font-medium", statusTone(exec.status))}>
                               <span className="size-1.5 rounded-full bg-current" />
-                              {exec.status}
+                              {statusLabel(exec.status, t)}
                             </span>
                           </div>
                         </div>
@@ -363,12 +363,11 @@ export function SessionDetail() {
                         label={t("sessionDetail.worker")}
                         value={
                           selectedExecution.worker_id ? (
-                            <Link
-                              to={`/workers/${selectedExecution.worker_id}`}
-                              className="transition-colors hover:text-primary"
-                            >
-                              {selectedExecution.worker_name || selectedExecution.worker_id}
-                            </Link>
+                            <WorkerLink
+                              id={selectedExecution.worker_id}
+                              name={selectedExecution.worker_name}
+                              className="hover:text-primary"
+                            />
                           ) : (
                             t("sessionDetail.bee")
                           )

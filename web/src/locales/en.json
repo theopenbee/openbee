@@ -29,10 +29,13 @@
     "view": "View",
     "copy": "Copy",
     "copied": "Copied",
+    "copyFailed": "Copy failed",
     "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showMore": "Show more",
+    "showLess": "Show less"
   },
   "statuses": {
     "idle": "Idle",
@@ -289,12 +292,12 @@
     "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
-    "showMore": "Show more",
-    "showLess": "Show less",
     "composerHint": "Enter to send, Shift+Enter for a new line",
+    "composerHintTouch": "Ctrl/⌘+Enter to send",
     "removeAttachment": "Remove attachment",
     "loadMore": "Load earlier messages",
-    "loadingMore": "Loading…"
+    "loadingMore": "Loading…",
+    "loadMoreError": "Couldn't load earlier messages. Retry"
   },
   "breadcrumb": {
     "detail": "Detail"

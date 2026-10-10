@@ -11,8 +11,8 @@ export function useDepartments() {
 }
 
 export function useFlatDepartments() {
-  const { data: departments = [] } = useDepartments()
-  return useMemo(() => flattenDeptTree(departments), [departments])
+  const { data } = useDepartments()
+  return useMemo(() => flattenDeptTree(data ?? []), [data])
 }
 
 export function useCreateDepartment() {
