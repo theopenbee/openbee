@@ -148,10 +148,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localReceiver := local.NewLocalReceiver(64)
 	localMediaRoot, err := config.LocalUploadsDir()
 	if err != nil {
-		return nil, fmt.Errorf("resolving local uploads dir: %w", err)
+		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
 	}
 	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
-	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot, legacyChat)
+	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 

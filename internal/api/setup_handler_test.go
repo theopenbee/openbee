@@ -93,3 +93,20 @@ func TestSetup_ClaimsLegacyChatForFirstAdmin(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, []string{ownerID}, claimed)
 }
+
+func TestSetup_ClaimSurvivesClientDisconnect(t *testing.T) {
+	claimErr := errors.New("claim not called")
+	r, _ := newSetupServerWithClaim(t, func(ctx context.Context, _ string) error {
+		claimErr = ctx.Err()
+		return nil
+	})
+	reqCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	body, _ := json.Marshal(map[string]string{"username": "root", "password": "rootpw"})
+	req := httptest.NewRequest(http.MethodPost, "/api/setup", bytes.NewReader(body)).WithContext(reqCtx)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(httptest.NewRecorder(), req)
+
+	require.NoError(t, claimErr)
+}

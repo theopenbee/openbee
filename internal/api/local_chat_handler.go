@@ -255,6 +255,7 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
+	mediaDir, _ := local.MediaDir(h.mediaRoot, sessionKey)
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
@@ -265,11 +266,7 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 		combined = append(combined, msg)
 	}
 	for _, r := range replies {
-		msg := chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt}
-		if h.isStagedMedia(r.MediaPath) {
-			msg.MediaPaths = []string{filepath.Base(r.MediaPath)}
-		}
-		combined = append(combined, msg)
+		combined = append(combined, chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, MediaPaths: replyMedia(mediaDir, r), Timestamp: r.SentAt})
 	}
 	sort.SliceStable(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
@@ -281,8 +278,15 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
-func (h *LocalChatHandler) isStagedMedia(path string) bool {
-	return path != "" && filepath.Dir(filepath.Dir(path)) == filepath.Clean(h.mediaRoot)
+func replyMedia(mediaDir string, r store.OutboundMessage) []string {
+	if mediaDir == "" || r.MediaPath == "" || r.Status != store.OutboundStatusSent {
+		return nil
+	}
+	name := local.MediaFileName(r.ID, r.MediaPath)
+	if info, err := os.Stat(filepath.Join(mediaDir, name)); err != nil || !info.Mode().IsRegular() {
+		return nil
+	}
+	return []string{name}
 }
 
 func inboundChatID(m store.InboundMessage, userID string) string {

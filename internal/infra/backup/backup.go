@@ -89,13 +89,9 @@ func Backup(opts BackupOptions) (string, error) {
 		finalName = encPath
 	} else {
 		finalPath := filepath.Join(opts.OutputDir, baseName)
-		if err := os.Rename(tarPath, finalPath); err != nil {
-			// Rename across devices may fail; fall back to copy+delete.
-			if err2 := utils.CopyFile(tarPath, finalPath); err2 != nil {
-				os.Remove(tarPath)
-				return "", fmt.Errorf("move archive: %w", err2)
-			}
+		if err := utils.MoveFile(tarPath, finalPath); err != nil {
 			os.Remove(tarPath)
+			return "", fmt.Errorf("move archive: %w", err)
 		}
 		finalName = finalPath
 	}

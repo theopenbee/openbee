@@ -67,13 +67,22 @@ func TestMediaDir(t *testing.T) {
 	}
 }
 
-func TestLegacySession_ClaimMovesMediaAndResolvesLegacyKey(t *testing.T) {
+func TestMediaDir_RequiresRoot(t *testing.T) {
+	_, err := local.MediaDir("", local.SessionKey("user-1"))
+
+	require.ErrorContains(t, err, "media root is unavailable")
+}
+
+func TestMediaFileName(t *testing.T) {
+	assert.Equal(t, "out-1_chart.png", local.MediaFileName("out-1", "/work/out/chart.png"))
+}
+
+func TestLegacySession_ClaimMovesMedia(t *testing.T) {
 	root := t.TempDir()
 	writeLegacyMedia(t, root, "old.png", "old")
 	claims := &fakeClaimStore{}
 	legacy := local.NewLegacySession(claims, root)
 
-	assert.Equal(t, "local:default", legacy.Resolve("local:default"))
 	require.NoError(t, legacy.Claim(context.Background(), "user-1"))
 
 	data, err := os.ReadFile(filepath.Join(root, "user-1", "old.png"))
@@ -81,8 +90,6 @@ func TestLegacySession_ClaimMovesMediaAndResolvesLegacyKey(t *testing.T) {
 	assert.Equal(t, "old", string(data))
 	assert.NoDirExists(t, filepath.Join(root, "default"))
 	assert.Equal(t, []claimCall{{"local:default", "local:user-1"}}, claims.claims)
-	assert.Equal(t, "local:user-1", legacy.Resolve("local:default"))
-	assert.Equal(t, "local:user-2", legacy.Resolve("local:user-2"))
 }
 
 func TestLegacySession_ClaimKeepsRecordedOwner(t *testing.T) {
@@ -93,7 +100,6 @@ func TestLegacySession_ClaimKeepsRecordedOwner(t *testing.T) {
 
 	require.NoError(t, legacy.Claim(context.Background(), "user-2"))
 
-	assert.Equal(t, "local:user-1", legacy.Resolve("local:default"))
 	assert.FileExists(t, filepath.Join(root, "user-1", "late.png"))
 	assert.NoDirExists(t, filepath.Join(root, "user-2"))
 }
@@ -104,7 +110,6 @@ func TestLegacySession_ClaimReturnsStoreError(t *testing.T) {
 	err := legacy.Claim(context.Background(), "user-1")
 
 	require.ErrorContains(t, err, "db down")
-	assert.Equal(t, "local:default", legacy.Resolve("local:default"))
 }
 
 func TestLegacySession_ClaimRecordsOwnerEvenWhenMediaMoveFails(t *testing.T) {
@@ -120,7 +125,7 @@ func TestLegacySession_ClaimRecordsOwnerEvenWhenMediaMoveFails(t *testing.T) {
 
 	require.ErrorContains(t, err, "move legacy media")
 	assert.Equal(t, []claimCall{{"local:default", "local:user-1"}}, claims.claims)
-	assert.Equal(t, "local:user-1", legacy.Resolve("local:default"))
+	assert.Equal(t, "local:user-1", claims.owners["local:default"])
 	assert.FileExists(t, filepath.Join(root, "user-1", "b.png"))
 	assert.FileExists(t, filepath.Join(root, "default", "a.png"))
 }
@@ -132,7 +137,6 @@ func TestLegacySession_RestoreClaimsForFirstOwner(t *testing.T) {
 	require.NoError(t, legacy.Restore(context.Background(), ownerFinder("user-1")))
 
 	assert.Equal(t, []claimCall{{"local:default", "local:user-1"}}, claims.claims)
-	assert.Equal(t, "local:user-1", legacy.Resolve("local:default"))
 }
 
 func TestLegacySession_RestoreWithoutOwnerDoesNothing(t *testing.T) {
@@ -142,10 +146,9 @@ func TestLegacySession_RestoreWithoutOwnerDoesNothing(t *testing.T) {
 	require.NoError(t, legacy.Restore(context.Background(), noOwner))
 
 	assert.Empty(t, claims.claims)
-	assert.Equal(t, "local:default", legacy.Resolve("local:default"))
 }
 
-func TestLegacySession_RestoreUsesRecordedClaimWithoutReclaiming(t *testing.T) {
+func TestLegacySession_RestoreResweepsRecordedClaim(t *testing.T) {
 	root := t.TempDir()
 	writeLegacyMedia(t, root, "left.png", "left")
 	claims := &fakeClaimStore{owners: map[string]string{"local:default": "local:user-1"}}
@@ -153,13 +156,7 @@ func TestLegacySession_RestoreUsesRecordedClaimWithoutReclaiming(t *testing.T) {
 
 	require.NoError(t, legacy.Restore(context.Background(), ownerFinder("user-2")))
 
-	assert.Empty(t, claims.claims)
-	assert.Equal(t, "local:user-1", legacy.Resolve("local:default"))
+	assert.Equal(t, []claimCall{{"local:default", "local:user-1"}}, claims.claims)
 	assert.FileExists(t, filepath.Join(root, "user-1", "left.png"))
-}
-
-func TestLegacySession_NilResolvesUnchanged(t *testing.T) {
-	var legacy *local.LegacySession
-
-	assert.Equal(t, "local:default", legacy.Resolve("local:default"))
+	assert.NoDirExists(t, filepath.Join(root, "user-2"))
 }

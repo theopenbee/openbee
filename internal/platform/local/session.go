@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 const sessionKeyPrefix = PlatformID + ":"
@@ -25,7 +25,6 @@ type SessionClaimStore interface {
 type LegacySession struct {
 	store     SessionClaimStore
 	mediaRoot string
-	owner     atomic.Pointer[string]
 }
 
 func NewLegacySession(store SessionClaimStore, mediaRoot string) *LegacySession {
@@ -37,6 +36,9 @@ func SessionKey(userID string) string {
 }
 
 func MediaDir(root, sessionKey string) (string, error) {
+	if root == "" {
+		return "", errors.New("local media root is unavailable")
+	}
 	id, ok := strings.CutPrefix(sessionKey, sessionKeyPrefix)
 	if !ok || id == "" || id == "." || id == ".." || strings.ContainsAny(id, `/\`) {
 		return "", fmt.Errorf("invalid local session key %q", sessionKey)
@@ -44,27 +46,33 @@ func MediaDir(root, sessionKey string) (string, error) {
 	return filepath.Join(root, id), nil
 }
 
+func MediaFileName(messageID, mediaPath string) string {
+	return messageID + "_" + platform.SanitizeFileName(filepath.Base(mediaPath))
+}
+
 func (l *LegacySession) Restore(ctx context.Context, findOwner func() (string, bool, error)) error {
 	owner, claimed, err := l.store.SessionKeyClaim(ctx, legacySessionKey)
 	if err != nil {
 		return fmt.Errorf("load legacy session claim: %w", err)
 	}
-	if claimed {
-		l.owner.Store(&owner)
-		return l.moveMedia(owner)
+	if !claimed {
+		userID, found, err := findOwner()
+		if err != nil {
+			return fmt.Errorf("find legacy session owner: %w", err)
+		}
+		if !found {
+			return nil
+		}
+		owner = SessionKey(userID)
 	}
-	userID, found, err := findOwner()
-	if err != nil {
-		return fmt.Errorf("find legacy session owner: %w", err)
-	}
-	if !found {
-		return nil
-	}
-	return l.Claim(ctx, userID)
+	return l.claim(ctx, owner)
 }
 
 func (l *LegacySession) Claim(ctx context.Context, userID string) error {
-	sessionKey := SessionKey(userID)
+	return l.claim(ctx, SessionKey(userID))
+}
+
+func (l *LegacySession) claim(ctx context.Context, sessionKey string) error {
 	if sessionKey == legacySessionKey {
 		return nil
 	}
@@ -72,18 +80,7 @@ func (l *LegacySession) Claim(ctx context.Context, userID string) error {
 	if err != nil {
 		return fmt.Errorf("claim legacy session: %w", err)
 	}
-	l.owner.Store(&owner)
 	return l.moveMedia(owner)
-}
-
-func (l *LegacySession) Resolve(sessionKey string) string {
-	if l == nil || sessionKey != legacySessionKey {
-		return sessionKey
-	}
-	if owner := l.owner.Load(); owner != nil {
-		return *owner
-	}
-	return sessionKey
 }
 
 func (l *LegacySession) moveMedia(owner string) error {
@@ -114,7 +111,8 @@ func moveDirContents(src, dst string) error {
 	}
 	var errs []error
 	for _, e := range entries {
-		if err := moveFile(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+		err := utils.MoveFile(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			errs = append(errs, err)
 		}
 	}
@@ -125,15 +123,4 @@ func moveDirContents(src, dst string) error {
 		return err
 	}
 	return nil
-}
-
-func moveFile(src, dst string) error {
-	renameErr := os.Rename(src, dst)
-	if renameErr == nil || errors.Is(renameErr, fs.ErrNotExist) {
-		return nil
-	}
-	if err := utils.CopyFile(src, dst); err != nil {
-		return errors.Join(renameErr, err)
-	}
-	return os.Remove(src)
 }

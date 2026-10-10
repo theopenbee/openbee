@@ -42,7 +42,7 @@ func writeAgentFile(t *testing.T, name, content string) string {
 
 func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(hub, t.TempDir(), nil)
+	sender := local.NewLocalSender(hub, t.TempDir())
 
 	ch, unsub := hub.Subscribe("local:sess-1")
 	defer unsub()
@@ -62,7 +62,7 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 func TestLocalSender_Send_FallsBackToSessionKeyAndGeneratesID(t *testing.T) {
 	hub := local.NewSSEHub()
 	root := t.TempDir()
-	sender := local.NewLocalSender(hub, root, nil)
+	sender := local.NewLocalSender(hub, root)
 	src := writeAgentFile(t, "a.png", "a")
 
 	ch, unsub := hub.Subscribe("local:user-1")
@@ -80,52 +80,87 @@ func TestLocalSender_Send_FallsBackToSessionKeyAndGeneratesID(t *testing.T) {
 	assert.FileExists(t, filepath.Join(root, "user-1", second.ID+"_a.png"))
 }
 
-func TestLocalSender_PrepareOutbound_StagesMediaIntoSessionDir(t *testing.T) {
+func TestLocalSender_Send_CopiesMediaSoLaterRewritesDoNotLeak(t *testing.T) {
 	root := t.TempDir()
-	sender := local.NewLocalSender(local.NewSSEHub(), root, nil)
-	src := writeAgentFile(t, "chart.png", "png-bytes")
+	sender := local.NewLocalSender(local.NewSSEHub(), root)
+	src := writeAgentFile(t, "chart.png", "v1")
 
-	msg, err := sender.PrepareOutbound(context.Background(), platform.OutboundMessage{
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
 		ID:        "out-2",
+		ReplyTo:   platform.InboundMessage{SessionKey: "local:user-1"},
+		MediaPath: src,
+	}))
+	require.NoError(t, os.WriteFile(src, []byte("v2-overwritten"), 0o644))
+
+	staged := filepath.Join(root, "user-1", "out-2_chart.png")
+	data, err := os.ReadFile(staged)
+	require.NoError(t, err)
+	assert.Equal(t, "v1", string(data))
+	srcInfo, err := os.Stat(src)
+	require.NoError(t, err)
+	stagedInfo, err := os.Stat(staged)
+	require.NoError(t, err)
+	assert.False(t, os.SameFile(srcInfo, stagedInfo))
+}
+
+func TestLocalSender_Send_StagesFileAlreadyInMediaDir(t *testing.T) {
+	root := t.TempDir()
+	sender := local.NewLocalSender(local.NewSSEHub(), root)
+	userDir := filepath.Join(root, "user-1")
+	require.NoError(t, os.MkdirAll(userDir, 0o755))
+	src := filepath.Join(userDir, "upload_a.png")
+	require.NoError(t, os.WriteFile(src, []byte("a"), 0o644))
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		ID:        "out-5",
+		ReplyTo:   platform.InboundMessage{SessionKey: "local:user-1"},
+		MediaPath: src,
+	}))
+
+	assert.FileExists(t, filepath.Join(userDir, "out-5_upload_a.png"))
+}
+
+func TestLocalSender_Send_RejectsUnreadableMediaSources(t *testing.T) {
+	root := t.TempDir()
+	userDir := filepath.Join(root, "user-1")
+	require.NoError(t, os.MkdirAll(userDir, 0o755))
+	dangling := filepath.Join(t.TempDir(), "dangling")
+	require.NoError(t, os.Symlink("../missing-target", dangling))
+	sender := local.NewLocalSender(local.NewSSEHub(), root)
+
+	for name, src := range map[string]string{
+		"missing in media dir": filepath.Join(userDir, "typo.png"),
+		"directory":            t.TempDir(),
+		"dangling symlink":     dangling,
+	} {
+		err := sender.Send(context.Background(), platform.OutboundMessage{
+			ID:        "out-6",
+			ReplyTo:   platform.InboundMessage{SessionKey: "local:user-1"},
+			MediaPath: src,
+		})
+		assert.Error(t, err, name)
+	}
+	entries, err := os.ReadDir(userDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestLocalSender_Send_FailsWithoutMediaRoot(t *testing.T) {
+	sender := local.NewLocalSender(local.NewSSEHub(), "")
+	src := writeAgentFile(t, "a.png", "a")
+
+	err := sender.Send(context.Background(), platform.OutboundMessage{
+		ID:        "out-7",
 		ReplyTo:   platform.InboundMessage{SessionKey: "local:user-1"},
 		MediaPath: src,
 	})
 
-	require.NoError(t, err)
-	staged := filepath.Join(root, "user-1", "out-2_chart.png")
-	assert.Equal(t, staged, msg.MediaPath)
-	data, err := os.ReadFile(staged)
-	require.NoError(t, err)
-	assert.Equal(t, "png-bytes", string(data))
-
-	again, err := sender.PrepareOutbound(context.Background(), msg)
-	require.NoError(t, err)
-	assert.Equal(t, staged, again.MediaPath)
-}
-
-func TestLocalSender_PrepareOutbound_RedirectsClaimedLegacySession(t *testing.T) {
-	root := t.TempDir()
-	legacy := local.NewLegacySession(&fakeClaimStore{}, root)
-	require.NoError(t, legacy.Claim(context.Background(), "owner"))
-	sender := local.NewLocalSender(local.NewSSEHub(), root, legacy)
-	src := writeAgentFile(t, "late.txt", "late")
-
-	msg, err := sender.PrepareOutbound(context.Background(), platform.OutboundMessage{
-		ID:         "out-4",
-		SessionKey: "local:default",
-		ReplyTo:    platform.InboundMessage{SessionKey: "local:default"},
-		MediaPath:  src,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "local:owner", msg.ReplyTo.SessionKey)
-	assert.Equal(t, "local:owner", msg.SessionKey)
-	assert.Equal(t, filepath.Join(root, "owner", "out-4_late.txt"), msg.MediaPath)
+	require.ErrorContains(t, err, "media root is unavailable")
 }
 
 func TestLocalSender_Send_MissingMediaFails(t *testing.T) {
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(hub, t.TempDir(), nil)
+	sender := local.NewLocalSender(hub, t.TempDir())
 
 	ch, unsub := hub.Subscribe("local:user-1")
 	defer unsub()

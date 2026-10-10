@@ -40,13 +40,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 		msg.ID = uuid.New().String()
 	}
 	sentAt := time.Now().UnixMilli()
-	var sendErr error
-	if p, ok := a.inner.(platform.OutboundPreparer); ok {
-		msg, sendErr = p.PrepareOutbound(ctx, msg)
-	}
-	if sendErr == nil {
-		sendErr = a.inner.Send(ctx, msg)
-	}
+	sendErr := a.inner.Send(ctx, msg)
 
 	status := OutboundStatusSent
 	errMsg := ""

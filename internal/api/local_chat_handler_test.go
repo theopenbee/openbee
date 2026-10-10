@@ -400,11 +400,23 @@ func TestGetMessages_ScopesHistoryToCurrentUser(t *testing.T) {
 
 func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
 	s := newLocalChatServer(t)
+	userDir := filepath.Join(s.mediaRoot, testUserID)
+	otherDir := filepath.Join(s.mediaRoot, "user-2")
+	for dir, names := range map[string][]string{
+		userDir:  {"r1_report.pdf", "r2_failed.png"},
+		otherDir: {"r4_theirs.png"},
+	} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(name), 0o644))
+		}
+	}
 	for _, m := range []store.OutboundMessage{
-		{ID: "r1", MediaPath: filepath.Join(s.mediaRoot, testUserID, "r1_report.pdf"), Status: store.OutboundStatusSent, SentAt: 100},
-		{ID: "r2", MediaPath: "/work/out/unstaged.png", Status: store.OutboundStatusFailed, SentAt: 200},
+		{ID: "r1", MediaPath: "/work/out/report.pdf", Status: store.OutboundStatusSent, SentAt: 100},
+		{ID: "r2", MediaPath: "/work/out/failed.png", Status: store.OutboundStatusFailed, SentAt: 200},
 		{ID: "r3", Content: "text only", Status: store.OutboundStatusSent, SentAt: 300},
-		{ID: "r4", MediaPath: filepath.Join(s.mediaRoot, "default", "r4_old.png"), Status: store.OutboundStatusSent, SentAt: 400},
+		{ID: "r4", MediaPath: "/work/out/theirs.png", Status: store.OutboundStatusSent, SentAt: 400},
+		{ID: "r5", MediaPath: "/work/out/never-staged.png", Status: store.OutboundStatusSent, SentAt: 500},
 	} {
 		m.SessionKey = testSessionKey
 		m.Platform = local.PlatformID
@@ -413,11 +425,11 @@ func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
 
 	res := getMessages(t, s.router, "")
 
-	require.Len(t, res.Messages, 4)
+	require.Len(t, res.Messages, 5)
 	assert.Equal(t, []string{"r1_report.pdf"}, res.Messages[0].MediaPaths)
-	assert.Empty(t, res.Messages[1].MediaPaths)
-	assert.Empty(t, res.Messages[2].MediaPaths)
-	assert.Equal(t, []string{"r4_old.png"}, res.Messages[3].MediaPaths)
+	for _, m := range res.Messages[1:] {
+		assert.Empty(t, m.MediaPaths, m.ID)
+	}
 }
 
 func TestUploadMedia_StoresInCurrentUserDir(t *testing.T) {

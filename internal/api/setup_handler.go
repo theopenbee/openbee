@@ -64,7 +64,7 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if err := h.claimLegacyChat(c.Request.Context(), user.ID); err != nil {
+	if err := h.claimLegacyChat(context.WithoutCancel(c.Request.Context()), user.ID); err != nil {
 		logger.Error("claim legacy local chat", zap.String("user_id", user.ID), zap.Error(err))
 	}
 	pair, err := h.jwtSvc.GenerateUserTokenPair(user.ID)

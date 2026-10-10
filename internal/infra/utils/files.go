@@ -3,7 +3,6 @@ package utils
 import (
 	"errors"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -31,18 +30,13 @@ func CopyFile(src, dst string) error {
 	return err
 }
 
-func LinkOrCopyFile(src, dst string) error {
-	if resolved, err := filepath.EvalSymlinks(src); err == nil {
-		src = resolved
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	if err := os.Remove(dst); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	if os.Link(src, dst) == nil {
+func MoveFile(src, dst string) error {
+	renameErr := os.Rename(src, dst)
+	if renameErr == nil {
 		return nil
 	}
-	return CopyFile(src, dst)
+	if err := CopyFile(src, dst); err != nil {
+		return errors.Join(renameErr, err)
+	}
+	return os.Remove(src)
 }

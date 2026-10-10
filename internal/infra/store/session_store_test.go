@@ -368,7 +368,7 @@ func TestSessionStore_ClaimSessionKey(t *testing.T) {
 	assert.Equal(t, "local:new", recorded)
 }
 
-func TestSessionStore_ClaimSessionKey_KeepsFirstOwner(t *testing.T) {
+func TestSessionStore_ClaimSessionKey_KeepsFirstOwnerAndResweeps(t *testing.T) {
 	db, ss := setupSessionDB(t)
 	ctx := context.Background()
 
@@ -386,5 +386,5 @@ func TestSessionStore_ClaimSessionKey_KeepsFirstOwner(t *testing.T) {
 
 	var key string
 	require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_outbound_messages WHERE id = 'late'`).Scan(&key))
-	assert.Equal(t, "local:old", key)
+	assert.Equal(t, "local:first", key)
 }
