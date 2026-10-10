@@ -1,21 +1,26 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"go.uber.org/zap"
 )
 
 type SetupHandler struct {
-	users  *store.UserStore
-	jwtSvc *auth.JWTService
+	users           *store.UserStore
+	jwtSvc          *auth.JWTService
+	claimLegacyChat func(ctx context.Context, userID string) error
 }
 
-func NewSetupHandler(users *store.UserStore, jwtSvc *auth.JWTService) *SetupHandler {
-	return &SetupHandler{users: users, jwtSvc: jwtSvc}
+func NewSetupHandler(users *store.UserStore, jwtSvc *auth.JWTService, claimLegacyChat func(ctx context.Context, userID string) error) *SetupHandler {
+	return &SetupHandler{users: users, jwtSvc: jwtSvc, claimLegacyChat: claimLegacyChat}
 }
 
 // Status reports whether the system already has at least one user.
@@ -50,10 +55,17 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	user, err := h.users.Create(req.Username, req.Password, req.DisplayName, "", []string{model.RoleIDSuperAdmin})
+	user, err := h.users.CreateFirst(req.Username, req.Password, req.DisplayName, []string{model.RoleIDSuperAdmin})
+	if errors.Is(err, store.ErrAlreadyInitialized) {
+		c.JSON(http.StatusConflict, gin.H{"error": "system already initialized"})
+		return
+	}
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, err)
 		return
+	}
+	if err := h.claimLegacyChat(context.WithoutCancel(c.Request.Context()), user.ID); err != nil {
+		logger.Error("claim legacy local chat", zap.String("user_id", user.ID), zap.Error(err))
 	}
 	pair, err := h.jwtSvc.GenerateUserTokenPair(user.ID)
 	if err != nil {

@@ -471,6 +471,15 @@ UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission =
 		name:    "add_password_changed_at_to_bee_users",
 		sql:     `ALTER TABLE bee_users ADD COLUMN password_changed_at INTEGER NOT NULL DEFAULT 0`,
 	},
+	{
+		version: 50,
+		name:    "create_table_bee_session_key_claims",
+		sql: `CREATE TABLE IF NOT EXISTS bee_session_key_claims (
+	from_key   TEXT PRIMARY KEY,
+	to_key     TEXT NOT NULL,
+	claimed_at INTEGER NOT NULL
+)`,
+	},
 }
 
 type whereBuilder struct {

@@ -50,7 +50,6 @@ export function useSendMessage() {
 // error (revoked permission, server down) can't spin a reconnect loop forever.
 const MAX_RECONNECT_ATTEMPTS = 5
 
-// useLocalChatStream subscribes to SSE for the default local session.
 // Calls onReply on each new reply event and re-fetches history on reconnect.
 export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
   const queryClient = useQueryClient()
@@ -80,6 +79,7 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
             id: data.id,
             role: "bee",
             content: data.content,
+            media_paths: data.media_paths,
             ts: data.created_at,
             pending: true,
           })

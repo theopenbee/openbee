@@ -15,6 +15,8 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid username or password")
 
+var ErrAlreadyInitialized = errors.New("system already initialized")
+
 type UserStore struct {
 	db *sql.DB
 }
@@ -33,6 +35,14 @@ const userColumns = `id, username, password_hash, display_name, status, created_
 func floorToSecond(ms int64) int64 { return ms / 1000 * 1000 }
 
 func (s *UserStore) Create(username, plainPassword, displayName, createdBy string, roleIDs []string) (model.UserWithRoles, error) {
+	return s.create(username, plainPassword, displayName, createdBy, roleIDs, false)
+}
+
+func (s *UserStore) CreateFirst(username, plainPassword, displayName string, roleIDs []string) (model.UserWithRoles, error) {
+	return s.create(username, plainPassword, displayName, "", roleIDs, true)
+}
+
+func (s *UserStore) create(username, plainPassword, displayName, createdBy string, roleIDs []string, onlyIfEmpty bool) (model.UserWithRoles, error) {
 	hash, err := auth.HashPassword(plainPassword)
 	if err != nil {
 		return model.UserWithRoles{}, err
@@ -55,11 +65,20 @@ func (s *UserStore) Create(username, plainPassword, displayName, createdBy strin
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if _, err := tx.Exec(
-		`INSERT INTO bee_users (`+userColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	insert := `INSERT INTO bee_users (` + userColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if onlyIfEmpty {
+		insert = `INSERT INTO bee_users (` + userColumns + `) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM bee_users)`
+	}
+	res, err := tx.Exec(insert,
 		u.ID, u.Username, u.PasswordHash, u.DisplayName, u.Status, u.CreatedBy, u.CreatedAt, u.UpdatedAt, u.PasswordChangedAt,
-	); err != nil {
+	)
+	if err != nil {
 		return model.UserWithRoles{}, fmt.Errorf("insert user: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return model.UserWithRoles{}, err
+	} else if n == 0 {
+		return model.UserWithRoles{}, ErrAlreadyInitialized
 	}
 	if err := replaceUserRoles(tx, u.ID, roleIDs, now); err != nil {
 		return model.UserWithRoles{}, err
@@ -306,6 +325,26 @@ func (s *UserStore) UserAuthState(userID string) (string, int64, error) {
 	err := s.db.QueryRow(`SELECT status, password_changed_at FROM bee_users WHERE id = ?`, userID).
 		Scan(&status, &passwordChangedAt)
 	return status, passwordChangedAt, err
+}
+
+func (s *UserStore) FirstActiveSuperAdminID() (string, bool, error) {
+	var id string
+	err := s.db.QueryRow(`
+		SELECT u.id
+		FROM bee_users u
+		JOIN bee_user_roles ur ON ur.user_id = u.id
+		WHERE ur.role_id = ? AND u.status = ?
+		ORDER BY u.created_at, u.id
+		LIMIT 1`,
+		model.RoleIDSuperAdmin, model.UserStatusActive,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return id, true, nil
 }
 
 // CountActiveSuperAdmins counts active users holding the super-admin role.

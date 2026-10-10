@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
@@ -32,7 +34,6 @@ const legacyFileMediaMarker = "[file]"
 const fileMediaPrefix = fileMediaMarker + " "
 const legacyFileMediaPrefix = legacyFileMediaMarker + " "
 
-const defaultSessionKey = "local:default"
 const localMessageIDPrefix = "local:"
 const chatRoleUser = "user"
 const chatRoleBee = "bee"
@@ -44,6 +45,7 @@ type LocalChatHandler struct {
 	hub           *local.SSEHub
 	outboundStore *store.OutboundMessageStore
 	msgStore      *store.MessageStore
+	mediaRoot     string
 }
 
 func NewLocalChatHandler(
@@ -51,21 +53,54 @@ func NewLocalChatHandler(
 	hub *local.SSEHub,
 	outboundStore *store.OutboundMessageStore,
 	msgStore *store.MessageStore,
+	mediaRoot string,
 ) *LocalChatHandler {
 	return &LocalChatHandler{
 		receiver:      receiver,
 		hub:           hub,
 		outboundStore: outboundStore,
 		msgStore:      msgStore,
+		mediaRoot:     mediaRoot,
 	}
 }
 
+func currentUserID(c *gin.Context) (string, bool) {
+	uid := auth.UserID(c)
+	if uid == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return "", false
+	}
+	return uid, true
+}
+
+func (h *LocalChatHandler) currentMediaDir(c *gin.Context) (string, bool) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return "", false
+	}
+	dir, err := local.MediaDir(h.mediaRoot, local.SessionKey(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return "", false
+	}
+	return dir, true
+}
+
+func localMessageID(userID, clientID string) string {
+	return localMessageIDPrefix + userID + ":" + clientID
+}
+
 func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	ch, unsub := h.hub.Subscribe(defaultSessionKey)
+	ch, unsub := h.hub.Subscribe(local.SessionKey(uid))
 	defer unsub()
 
 	ctx := c.Request.Context()
@@ -84,6 +119,11 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 }
 
 func (h *LocalChatHandler) SendMessage(c *gin.Context) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+
 	var body struct {
 		ID         string   `json:"id"`
 		Content    string   `json:"content" binding:"required"`
@@ -114,11 +154,11 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 
 	h.receiver.Enqueue(platform.InboundMessage{
 		Platform:          local.PlatformID,
-		SenderID:          "web",
-		SessionKey:        defaultSessionKey,
+		SenderID:          uid,
+		SessionKey:        local.SessionKey(uid),
 		Content:           content,
 		RawContent:        content,
-		PlatformMessageID: localMessageIDPrefix + id,
+		PlatformMessageID: localMessageID(uid, id),
 		MessageTime:       ts,
 	})
 
@@ -176,6 +216,11 @@ type chatMessage struct {
 }
 
 func (h *LocalChatHandler) GetMessages(c *gin.Context) {
+	uid, ok := currentUserID(c)
+	if !ok {
+		return
+	}
+	sessionKey := local.SessionKey(uid)
 	ctx := c.Request.Context()
 
 	before := int64(0)
@@ -197,12 +242,12 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		inbound, err = h.msgStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
+		inbound, err = h.msgStore.ListBySessionKey(gCtx, sessionKey, before, fetch)
 		return err
 	})
 	g.Go(func() error {
 		var err error
-		replies, err = h.outboundStore.ListBySessionKey(gCtx, defaultSessionKey, before, fetch)
+		replies, err = h.outboundStore.ListBySessionKey(gCtx, sessionKey, before, fetch)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -210,17 +255,18 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 		return
 	}
 
+	mediaDir, _ := local.MediaDir(h.mediaRoot, sessionKey)
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
 		paths, text := decodeMediaPaths(m.Content)
-		msg := chatMessage{ID: inboundChatID(m), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
+		msg := chatMessage{ID: inboundChatID(m, uid), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
 		if len(paths) > 0 {
 			msg.MediaPaths = paths
 		}
 		combined = append(combined, msg)
 	}
 	for _, r := range replies {
-		combined = append(combined, chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, Timestamp: r.SentAt})
+		combined = append(combined, chatMessage{ID: r.ID, Role: chatRoleBee, Content: r.Content, MediaPaths: replyMedia(mediaDir, r), Timestamp: r.SentAt})
 	}
 	sort.SliceStable(combined, func(i, j int) bool { return combined[i].Timestamp < combined[j].Timestamp })
 
@@ -232,7 +278,21 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
 }
 
-func inboundChatID(m store.InboundMessage) string {
+func replyMedia(mediaDir string, r store.OutboundMessage) []string {
+	if mediaDir == "" || r.MediaPath == "" || r.Status != store.OutboundStatusSent {
+		return nil
+	}
+	name := local.MediaFileName(r.ID, r.MediaPath)
+	if info, err := os.Stat(filepath.Join(mediaDir, name)); err != nil || !info.Mode().IsRegular() {
+		return nil
+	}
+	return []string{name}
+}
+
+func inboundChatID(m store.InboundMessage, userID string) string {
+	if id, ok := strings.CutPrefix(m.PlatformMsgID, localMessageID(userID, "")); ok {
+		return id
+	}
 	if id, ok := strings.CutPrefix(m.PlatformMsgID, localMessageIDPrefix); ok {
 		return id
 	}
@@ -240,6 +300,11 @@ func inboundChatID(m store.InboundMessage) string {
 }
 
 func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
+	uploadDir, ok := h.currentMediaDir(c)
+	if !ok {
+		return
+	}
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing 'file' field"})
@@ -247,11 +312,6 @@ func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 	}
 	defer file.Close()
 
-	uploadDir, err := localUploadDir()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -275,25 +335,37 @@ func (h *LocalChatHandler) UploadMedia(c *gin.Context) {
 }
 
 func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
+	mediaDir, ok := h.currentMediaDir(c)
+	if !ok {
+		return
+	}
+
 	filename := filepath.Base(c.Param("filename"))
 	if filename == "." || filename == ".." {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filename"})
 		return
 	}
 
-	uploadDir, err := localUploadDir()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	path := filepath.Join(mediaDir, filename)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "sandbox")
+	if isInlineMedia(filename) {
+		c.File(path)
 		return
 	}
-
-	c.File(filepath.Join(uploadDir, filename))
+	c.Header("Content-Type", "application/octet-stream")
+	c.FileAttachment(path, filename)
 }
 
-func localUploadDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("get home dir: %w", err)
+func isInlineMedia(filename string) bool {
+	mediaType, _, _ := mime.ParseMediaType(mime.TypeByExtension(filepath.Ext(filename)))
+	if mediaType == "image/svg+xml" {
+		return false
 	}
-	return filepath.Join(home, ".openbee", "local-uploads", "default"), nil
+	for _, prefix := range []string{"image/", "video/", "audio/"} {
+		if strings.HasPrefix(mediaType, prefix) {
+			return true
+		}
+	}
+	return mediaType == "text/plain"
 }
