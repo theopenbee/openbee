@@ -20,7 +20,8 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { SessionGroupRow } from "@/components/session-group-row"
-import { cn } from "@/lib/utils"
+import { WorkerLink } from "@/components/worker-link"
+import { cn, sessionDetailPath } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { formatDuration, formatRelative, formatTimestamp, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
@@ -138,7 +139,7 @@ export function Sessions() {
                           )}
                         >
                           <Link
-                            to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
+                            to={sessionDetailPath(latest.session_id)}
                             aria-label={t("sessions.viewSession", { id: latest.session_id })}
                             className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
                           >
@@ -148,12 +149,11 @@ export function Sessions() {
 
                         <TableCell>
                           {latest.worker_id ? (
-                            <Link
-                              to={`/workers/${latest.worker_id}`}
-                              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {latest.worker_name || latest.worker_id.slice(0, 8)}
-                            </Link>
+                            <WorkerLink
+                              id={latest.worker_id}
+                              name={latest.worker_name}
+                              className="text-sm text-muted-foreground"
+                            />
                           ) : (
                             <span className="text-sm text-muted-foreground/50">—</span>
                           )}

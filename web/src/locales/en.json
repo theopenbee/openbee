@@ -291,8 +291,6 @@
     "noMessagesDescription": "Send a message or upload a file.",
     "operatorLabel": "Operator",
     "beeLabel": "Bee",
-    "showMore": "Show more",
-    "showLess": "Show less",
     "composerHint": "Enter to send, Shift+Enter for a new line",
     "removeAttachment": "Remove attachment",
     "loadMore": "Load earlier messages",

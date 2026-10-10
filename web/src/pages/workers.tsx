@@ -1,13 +1,12 @@
-import { Fragment, useMemo, useState, type FormEvent, type ComponentType } from "react"
+import { Fragment, useState, type FormEvent, type ComponentType } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
-import { useDepartments } from "@/hooks/use-departments"
-import { flattenDeptTree } from "@/lib/department-utils"
-import { formatEngineLabel, formatRelative } from "@/lib/format"
+import { useDepartments, useFlatDepartments } from "@/hooks/use-departments"
+import { formatEngineLabel, formatRelative, formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
 import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
@@ -63,9 +62,8 @@ export function Workers() {
   const canWrite = useCan(Perm.ContactsWrite)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
-  const { data: departmentsData } = useDepartments()
-  const departments = departmentsData ?? []
-  const flatDepartments = useMemo(() => flattenDeptTree(departmentsData ?? []), [departmentsData])
+  const { data: departments = [] } = useDepartments()
+  const flatDepartments = useFlatDepartments()
   const selectedDept = flatDepartments.find(({ dept }) => dept.id === selectedDeptId)?.dept
   const activeDeptId = selectedDeptId === UNGROUPED_FILTER || selectedDept ? selectedDeptId : null
   const deptFilter = activeDeptId === UNGROUPED_FILTER ? undefined : (activeDeptId ?? undefined)
@@ -161,7 +159,7 @@ export function Workers() {
                 <SheetHeader className="border-b">
                   <SheetTitle>{t("departments.filter")}</SheetTitle>
                 </SheetHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                <div className="min-h-0 flex-1 overflow-y-auto">
                   <DepartmentTreeSidebar
                     departments={departments}
                     selectedId={activeDeptId}
@@ -246,7 +244,7 @@ export function Workers() {
                     )}
                   </TableCell>
                   <TableCell className="hidden text-sm font-mono text-muted-foreground xl:table-cell">
-                    <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
+                    <span title={w.updated_at ? formatTimestamp(w.updated_at) : undefined}>
                       {formatRelative(w.updated_at, t)}
                     </span>
                   </TableCell>

@@ -54,3 +54,7 @@ export function getFileCategory(filePath: string): FileCategory {
 export function isImeComposing(event: { nativeEvent: KeyboardEvent }): boolean {
   return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229
 }
+
+export function sessionDetailPath(sessionId: string): string {
+  return `/sessions/detail?session_id=${encodeURIComponent(sessionId)}`
+}

@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-local-chat"
 import { EmptyState } from "@/components/empty-state"
 import { CopyButton } from "@/components/copy-button"
+import { ExpandableContent } from "@/components/expandable-content"
 import { ImageLightbox } from "@/components/image-lightbox"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
@@ -122,46 +123,6 @@ const AttachmentPreview = memo(function AttachmentPreview({
 
 const COLLAPSE_HEIGHT = 320
 
-const CollapsibleContent = memo(function CollapsibleContent({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const { t } = useTranslation()
-  const innerRef = useRef<HTMLDivElement>(null)
-  const [collapsed, setCollapsed] = useState(true)
-  const [overflows, setOverflows] = useState(false)
-
-  useLayoutEffect(() => {
-    const el = innerRef.current
-    if (!el) return
-    setOverflows(el.scrollHeight > COLLAPSE_HEIGHT)
-  }, [children])
-
-  return (
-    <div>
-      <div
-        className={cn("overflow-hidden transition-[max-height] duration-300", collapsed && overflows ? "relative" : "")}
-        style={{ maxHeight: collapsed && overflows ? COLLAPSE_HEIGHT : undefined }}
-      >
-        <div ref={innerRef}>{children}</div>
-        {collapsed && overflows && (
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background/95 to-transparent" />
-        )}
-      </div>
-      {overflows && (
-        <button
-          type="button"
-          className="mt-2 text-xs font-medium text-primary/80 hover:text-primary transition-colors"
-          onClick={() => setCollapsed((prev) => !prev)}
-        >
-          {collapsed ? t("localChat.showMore") : t("localChat.showLess")}
-        </button>
-      )}
-    </div>
-  )
-})
-
 // A single chat message row (sent or received). Extracted as a memo'd component
 // so a long transcript doesn't re-render every bubble on each state change, and
 // so each row can own its hover state for the inline copy affordance.
@@ -230,7 +191,7 @@ const MessageBubble = memo(function MessageBubble({
           )}
 
           {hasContent && (
-            <CollapsibleContent>
+            <ExpandableContent maxHeight={COLLAPSE_HEIGHT}>
               <div
                 className={cn(
                   "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
@@ -241,7 +202,7 @@ const MessageBubble = memo(function MessageBubble({
                   {message.content}
                 </Streamdown>
               </div>
-            </CollapsibleContent>
+            </ExpandableContent>
           )}
         </div>
 

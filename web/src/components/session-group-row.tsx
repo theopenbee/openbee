@@ -4,7 +4,8 @@ import { Clock, Hash, Logs, Zap } from "lucide-react"
 import { StatusBadge } from "@/components/status-badge"
 import { CopyButton } from "@/components/copy-button"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
-import { cn } from "@/lib/utils"
+import { WorkerLink } from "@/components/worker-link"
+import { cn, sessionDetailPath } from "@/lib/utils"
 import { extractMessageContent, formatRelative, formatTimestamp, formatTokenCount, isActiveStatus } from "@/lib/format"
 import type { SessionTokenStats, WorkerExecution } from "@/lib/types"
 
@@ -32,7 +33,7 @@ export function SessionGroupRow({
       )}
     >
       <Link
-        to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
+        to={sessionDetailPath(latest.session_id)}
         aria-label={t("sessions.viewSession", { id: latest.session_id })}
         className="absolute inset-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       />
@@ -42,12 +43,11 @@ export function SessionGroupRow({
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {showWorker && latest.worker_id && (
-            <Link
-              to={`/workers/${latest.worker_id}`}
-              className="relative z-10 text-foreground/80 transition-colors hover:text-foreground"
-            >
-              {latest.worker_name || latest.worker_id.slice(0, 8)}
-            </Link>
+            <WorkerLink
+              id={latest.worker_id}
+              name={latest.worker_name}
+              className="relative z-10 text-foreground/80"
+            />
           )}
           <span
             className="inline-flex items-center gap-1"

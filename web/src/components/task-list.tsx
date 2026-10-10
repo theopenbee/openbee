@@ -1,5 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react"
-import { Link } from "react-router-dom"
+import { useState, type ComponentProps } from "react"
 import { useTranslation } from "react-i18next"
 import { CalendarClockIcon, RepeatIcon } from "lucide-react"
 import { useTasks, useCancelTask, useCancelWorkerTasks } from "@/hooks/use-tasks"
@@ -21,9 +20,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { EmptyState } from "@/components/empty-state"
+import { ExpandableContent } from "@/components/expandable-content"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { StatusBadge } from "@/components/status-badge"
+import { WorkerLink } from "@/components/worker-link"
 import type { Task } from "@/lib/types"
 import { useCan } from "@/hooks/use-can"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -50,45 +51,14 @@ function nextRunLabel(task: Task) {
   return timestamp ? formatTimestamp(timestamp) : undefined
 }
 
-function workerLabel(task: Task) {
-  return task.worker_name || task.worker_id.slice(0, 8) + "..."
-}
+const INSTRUCTION_COLLAPSED_HEIGHT = 60
 
-function ClampedInstruction({ text }: { text: string }) {
+function CancelTaskButton({ className, ...props }: ComponentProps<typeof Button>) {
   const { t } = useTranslation()
-  const textRef = useRef<HTMLParagraphElement>(null)
-  const [expanded, setExpanded] = useState(false)
-  const [clamped, setClamped] = useState(false)
-
-  useLayoutEffect(() => {
-    const el = textRef.current
-    if (!el || expanded) return
-    const measure = () => setClamped(el.scrollHeight > el.clientHeight)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [text, expanded])
-
   return (
-    <div className="min-w-0">
-      <p
-        ref={textRef}
-        className={cn("break-words text-sm leading-5 text-foreground", !expanded && "line-clamp-3")}
-      >
-        {text}
-      </p>
-      {clamped && (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((prev) => !prev)}
-          className="mt-1 py-1 text-xs font-medium text-primary/80 transition-colors hover:text-primary"
-        >
-          {expanded ? t("common.showLess") : t("common.showMore")}
-        </button>
-      )}
-    </div>
+    <Button variant="ghost" className={cn("text-destructive hover:text-destructive", className)} {...props}>
+      {t("tasks.cancel")}
+    </Button>
   )
 }
 
@@ -159,18 +129,23 @@ export function TaskList({
                 return (
                   <li key={task.id} className="space-y-2 px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
-                      <ClampedInstruction text={task.instruction} />
+                      <ExpandableContent
+                        maxHeight={INSTRUCTION_COLLAPSED_HEIGHT}
+                        fadeClassName="h-5 from-card"
+                        className="min-w-0"
+                      >
+                        <p className="break-words text-sm leading-5 text-foreground">{task.instruction}</p>
+                      </ExpandableContent>
                       <StatusBadge status={task.status} />
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {!workerId && task.worker_id && (
-                          <Link
-                            to={`/workers/${task.worker_id}`}
-                            className="font-medium text-foreground/80 transition-colors hover:text-foreground"
-                          >
-                            {workerLabel(task)}
-                          </Link>
+                          <WorkerLink
+                            id={task.worker_id}
+                            name={task.worker_name}
+                            className="font-medium text-foreground/80"
+                          />
                         )}
                         {cron && (
                           <span className="inline-flex items-center gap-1 font-mono">
@@ -186,14 +161,12 @@ export function TaskList({
                         )}
                       </div>
                       {canCancel(task) && (
-                        <Button
-                          variant="ghost"
+                        <CancelTaskButton
+                          size="lg"
                           onClick={() => setConfirmCancelId(task.id)}
                           disabled={cancelTask.isPending}
-                          className="-mr-2 h-9 text-destructive hover:text-destructive"
-                        >
-                          {t("tasks.cancel")}
-                        </Button>
+                          className="-mr-2"
+                        />
                       )}
                     </div>
                   </li>
@@ -223,12 +196,11 @@ export function TaskList({
                       {!workerId && (
                         <TableCell className={borderClass}>
                           {task.worker_id ? (
-                            <Link
-                              to={`/workers/${task.worker_id}`}
-                              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                              {workerLabel(task)}
-                            </Link>
+                            <WorkerLink
+                              id={task.worker_id}
+                              name={task.worker_name}
+                              className="text-sm text-muted-foreground"
+                            />
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
@@ -250,15 +222,11 @@ export function TaskList({
                       </TableCell>
                       <TableCell className="text-right">
                         {canCancel(task) ? (
-                          <Button
-                            variant="ghost"
+                          <CancelTaskButton
                             size="sm"
                             onClick={() => setConfirmCancelId(task.id)}
                             disabled={cancelTask.isPending}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            {t("tasks.cancel")}
-                          </Button>
+                          />
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
