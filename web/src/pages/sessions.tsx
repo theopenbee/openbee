@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { Clock, Logs } from "lucide-react"
 import { useExecutions } from "@/hooks/use-executions"
 import type { WorkerExecution } from "@/lib/types"
 import {
@@ -20,7 +21,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { extractMessageContent, formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -46,6 +47,43 @@ function TurnPips({ executions }: { executions: WorkerExecution[] }) {
         />
       ))}
     </div>
+  )
+}
+
+function SessionListItem({ group }: { group: WorkerExecution[] }) {
+  const { t } = useTranslation()
+  const latest = group[0]
+  const oldest = group[group.length - 1]
+  const intent = extractMessageContent(oldest.trigger_input)
+
+  return (
+    <li>
+      <Link
+        to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
+        aria-label={t("sessions.viewSession", { id: latest.session_id })}
+        className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-primary/5 active:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">
+            {intent || t("sessions.noTriggerContent")}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {latest.worker_id && (
+              <span className="text-foreground/80">{latest.worker_name || latest.worker_id.slice(0, 8)}</span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              <Clock className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
+              {formatRelative(oldest.started_at, t)}
+            </span>
+            <span className="inline-flex items-center gap-1 font-mono">
+              <Logs className="size-3.5 text-muted-foreground/70" aria-hidden="true" />
+              {t("sessions.turnCount", { count: group.length })}
+            </span>
+          </div>
+        </div>
+        <StatusBadge status={latest.status} />
+      </Link>
+    </li>
   )
 }
 
@@ -88,7 +126,13 @@ export function Sessions() {
         />
       ) : (
         <>
-          <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
+          <ul className="divide-y divide-border/70 overflow-hidden rounded-sm border border-border/70 bg-card md:hidden">
+            {sessionGroups.map((group) => (
+              <SessionListItem key={group[0].session_id} group={group} />
+            ))}
+          </ul>
+
+          <div className="hidden overflow-hidden rounded-sm border border-border/70 bg-card md:block">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

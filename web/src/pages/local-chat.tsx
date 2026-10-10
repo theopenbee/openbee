@@ -222,13 +222,13 @@ const MessageBubble = memo(function MessageBubble({
 
       <div
         className={cn(
-          "relative min-w-0",
-          isUser ? "max-w-[min(100%,42rem)]" : "max-w-[min(100%,52rem)]"
+          "relative flex min-w-0 flex-col",
+          isUser ? "max-w-[min(85%,42rem)] items-end" : "max-w-[min(100%,52rem)] items-start"
         )}
       >
         <div
           className={cn(
-            "overflow-hidden",
+            "max-w-full overflow-hidden",
             isUser
               ? "rounded-sm bg-muted/50 px-3.5 py-2"
               : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
@@ -260,8 +260,8 @@ const MessageBubble = memo(function MessageBubble({
           <CopyButton
             value={message.content}
             className={cn(
-              "absolute top-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-              isUser ? "-left-7" : "-right-7"
+              "-mx-2 p-2 pointer-fine:absolute pointer-fine:top-1 pointer-fine:m-0 pointer-fine:p-0 pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100",
+              isUser ? "hidden pointer-fine:block pointer-fine:-left-7" : "pointer-fine:-right-7"
             )}
           />
         )}
@@ -286,6 +286,7 @@ export function LocalChat() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const suppressScrollRef = useRef(false)
+  const stickToBottomRef = useRef(true)
 
   const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
     suppressScrollRef.current = true
@@ -318,6 +319,23 @@ export function LocalChat() {
   const { data: me } = useMe()
   const canMention = hasPermission(me?.permissions, Perm.ContactsRead)
   const { data: workersData } = useWorkers(undefined, { enabled: canMention })
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) container.scrollTop = container.scrollHeight
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    stickToBottomRef.current =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 48
+  }, [])
 
   useEffect(() => {
     if (suppressScrollRef.current) {
@@ -407,10 +425,11 @@ export function LocalChat() {
   }, [uploadFiles])
 
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      void handleSend()
-    }
+    if (event.key !== "Enter" || event.shiftKey) return
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+    if (window.matchMedia("(pointer: coarse)").matches) return
+    event.preventDefault()
+    void handleSend()
   }, [handleSend])
 
   const messageCount = localMessages.length
@@ -419,8 +438,12 @@ export function LocalChat() {
 
   return (
     <div className="flex h-full min-h-0 flex-col animate-fade-in">
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+      >
+        <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-5">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -488,7 +511,7 @@ export function LocalChat() {
       </div>
 
       <div className="border-t border-border/70 bg-card">
-        <div className="mx-auto w-full max-w-4xl px-4 py-3 sm:px-6">
+        <div className="mx-auto w-full max-w-4xl px-3 py-2 sm:px-6 sm:py-3">
             {uploadError && (
               <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-2 px-3 py-2")}>
                 {uploadError}
@@ -503,7 +526,7 @@ export function LocalChat() {
                     className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
                   >
                     <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="max-w-52 truncate">{basename(path)}</span>
+                    <span className="max-w-40 truncate sm:max-w-52">{basename(path)}</span>
                     <button
                       type="button"
                       className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -519,25 +542,27 @@ export function LocalChat() {
               </div>
             )}
 
-            <div className="rounded-sm border border-border/70 bg-background/80 p-2">
-              <MentionTextarea
-                textareaRef={textareaRef}
-                className="max-h-[160px] min-h-[2.75rem] w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-6 placeholder:text-muted-foreground focus:outline-none"
-                placeholder={t("localChat.inputPlaceholder")}
-                value={input}
-                onChange={setInput}
-                onKeyDown={handleComposerKeyDown}
-                onPaste={handlePaste}
-                workers={workersData ?? EMPTY_WORKERS}
-                disabled={isProcessing}
-              />
+            <div className="flex items-end gap-1 rounded-sm border border-border/70 bg-background/80 p-1 sm:block sm:p-2">
+              <div className="min-w-0 flex-1">
+                <MentionTextarea
+                  textareaRef={textareaRef}
+                  className="block max-h-[160px] min-h-10 w-full resize-none bg-transparent px-2 py-2 text-base leading-6 placeholder:text-muted-foreground focus:outline-none sm:min-h-[2.75rem] sm:py-1.5 sm:text-sm"
+                  placeholder={t("localChat.inputPlaceholder")}
+                  value={input}
+                  onChange={setInput}
+                  onKeyDown={handleComposerKeyDown}
+                  onPaste={handlePaste}
+                  workers={workersData ?? EMPTY_WORKERS}
+                  disabled={isProcessing}
+                />
+              </div>
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                <span className="hidden text-xs text-muted-foreground sm:inline">
+              <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
+                <span className="hidden text-xs text-muted-foreground sm:pointer-fine:inline">
                   {t("localChat.composerHint")}
                 </span>
 
-                <div className="flex items-center gap-2">
+                <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -547,21 +572,21 @@ export function LocalChat() {
                   />
                   <Button
                     variant="outline"
-                    className="h-9 rounded-sm"
+                    className="order-first size-10 rounded-sm border-transparent bg-transparent text-muted-foreground dark:border-transparent dark:bg-transparent sm:order-none sm:h-9 sm:w-auto sm:border-border sm:bg-background sm:text-foreground dark:sm:border-input dark:sm:bg-input/30"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t("localChat.uploadFile")}
                   >
-                    <Paperclip className="size-4" />
+                    <Paperclip className="size-5 sm:size-4" />
                     <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
                   </Button>
                   <Button
-                    className="h-9 rounded-sm"
+                    className="size-10 rounded-sm sm:h-9 sm:w-auto"
                     onClick={() => void handleSend()}
                     disabled={!canSend || sendMessage.isPending}
                     aria-label={t("localChat.send")}
                   >
                     <Send className="size-4" />
-                    <span>{t("localChat.send")}</span>
+                    <span className="hidden sm:inline">{t("localChat.send")}</span>
                   </Button>
                 </div>
               </div>

@@ -152,7 +152,7 @@ export function SessionDetail() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               <DetailOverviewStat
                 icon={Logs}
                 label={t("sessions.columns.turns")}
@@ -223,7 +223,7 @@ export function SessionDetail() {
                 </p>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
+              <div className="max-h-80 flex-1 space-y-2 overflow-y-auto p-3 sm:p-4 xl:max-h-none">
                 {[...executions].reverse().map((exec, reverseIndex) => {
                   const turnNumber = executions.length - reverseIndex
                   const isSelected = exec.id === selectedExecution.id

@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { CalendarClockIcon, RepeatIcon } from "lucide-react"
 import { useTasks, useCancelTask, useCancelWorkerTasks } from "@/hooks/use-tasks"
 import {
   Table,
@@ -22,6 +23,7 @@ import {
 import { EmptyState } from "@/components/empty-state"
 import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
+import { StatusBadge } from "@/components/status-badge"
 import type { Task } from "@/lib/types"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
@@ -45,8 +47,12 @@ function CronCell({ task }: { task: Task }) {
   return <span className="text-sm text-muted-foreground">—</span>
 }
 
+function nextRunTimestamp(task: Task) {
+  return task.type === "countdown" ? task.scheduled_at : task.next_run_at
+}
+
 function NextRunCell({ task }: { task: Task }) {
-  const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
+  const timestamp = nextRunTimestamp(task)
   if (timestamp) {
     return (
       <p className="font-mono text-xs text-foreground/80">
@@ -107,7 +113,58 @@ export function TaskList({
         <EmptyState title={t("emptyState.noTasks")} />
       ) : (
         <>
-          <div className="rounded-sm border border-border/70 bg-card overflow-hidden">
+          <ul className="divide-y divide-border/70 overflow-hidden rounded-sm border border-border/70 bg-card md:hidden">
+            {tasks.map((task) => {
+              const nextRun = nextRunTimestamp(task)
+              const canCancel = task.status === "pending" && canWrite
+              return (
+                <li key={task.id} className="space-y-2 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 line-clamp-3 break-words text-sm leading-5 text-foreground">
+                      {task.instruction}
+                    </p>
+                    <StatusBadge status={task.status} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {!workerId && task.worker_id && (
+                        <Link
+                          to={`/workers/${task.worker_id}`}
+                          className="font-medium text-foreground/80 transition-colors hover:text-foreground"
+                        >
+                          {task.worker_name || task.worker_id.slice(0, 8) + "..."}
+                        </Link>
+                      )}
+                      {task.type === "scheduled" && task.cron_expr && (
+                        <span className="inline-flex items-center gap-1 font-mono">
+                          <RepeatIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.cron")} />
+                          {task.cron_expr}
+                        </span>
+                      )}
+                      {nextRun && (
+                        <span className="inline-flex items-center gap-1 font-mono">
+                          <CalendarClockIcon className="size-3.5 shrink-0" aria-label={t("tasks.columns.nextRunAt")} />
+                          {new Date(nextRun).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {canCancel && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setConfirmCancelId(task.id)}
+                        disabled={cancelTask.isPending}
+                        className="-mr-2 h-9 text-destructive hover:text-destructive"
+                      >
+                        {t("tasks.cancel")}
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="hidden overflow-hidden rounded-sm border border-border/70 bg-card md:block">
             <Table className="min-w-[920px]">
               <TableHeader>
                 <TableRow className="bg-secondary/50 hover:bg-secondary/50">

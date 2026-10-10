@@ -1,7 +1,7 @@
 import { Fragment, useState, type FormEvent, type ComponentType } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
-import { Copy, EyeIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
 import { useCan } from "@/hooks/use-can"
 import { Perm } from "@/lib/permissions"
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import {
   Table,
   TableBody,
@@ -41,8 +42,18 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
 import { SkeletonTable } from "@/components/skeleton-loader"
+import type { DepartmentTree } from "@/lib/types"
 
 type DeleteStep = 1 | 2
+
+function findDepartmentName(nodes: DepartmentTree[], id: string): string | undefined {
+  for (const node of nodes) {
+    if (node.id === id) return node.name
+    const found = findDepartmentName(node.children, id)
+    if (found) return found
+  }
+  return undefined
+}
 
 // One row action in the worker dropdown. Read actions (View) are always present;
 // write actions (Copy, Delete) are appended only when the user holds
@@ -60,6 +71,7 @@ export function Workers() {
   const navigate = useNavigate()
   const canWrite = useCan(Perm.ContactsWrite)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
   const { data: departments = [] } = useDepartments()
   const deptFilter = selectedDeptId === UNGROUPED_FILTER ? undefined : (selectedDeptId ?? undefined)
   const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
@@ -82,6 +94,12 @@ export function Workers() {
   const error = fetchError?.message || deleteWorker.error?.message || ""
   const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
   const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
+  const filterLabel =
+    selectedDeptId === null
+      ? t("departments.allWorkers")
+      : selectedDeptId === UNGROUPED_FILTER
+        ? t("departments.ungrouped")
+        : (findDepartmentName(departments, selectedDeptId) ?? t("departments.allWorkers"))
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || !isDeleteNameConfirmed) return
@@ -106,7 +124,7 @@ export function Workers() {
     <FadeIn className="h-full">
       <div className="flex h-full">
         {/* Left pane: department filter, flush to the layout edge with its own scroll. */}
-        <aside className="flex w-60 shrink-0 flex-col border-r">
+        <aside className="hidden w-60 shrink-0 flex-col border-r lg:flex">
           <div className="flex h-16 items-center border-b px-4">
             <h2 className="text-sm font-semibold tracking-tight">{t("departments.filter")}</h2>
           </div>
@@ -121,9 +139,9 @@ export function Workers() {
 
         {/* Right pane: worker list, fills remaining width with its own scroll. */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">{t("workers.title")}</h1>
+          <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 py-2 md:h-16 md:px-6 md:py-0">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold tracking-tight md:text-xl">{t("workers.title")}</h1>
               {displayedWorkers.length > 0 && (
                 <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
                   {t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })}
@@ -139,7 +157,32 @@ export function Workers() {
             )}
           </div>
 
-          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+          <div className="flex items-center border-b px-4 py-2 lg:hidden">
+            <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+              <SheetTrigger render={<Button variant="outline" className="h-9 max-w-full" />}>
+                <ListFilterIcon className="text-muted-foreground" />
+                <span className="truncate">{filterLabel}</span>
+                <ChevronDownIcon className="text-muted-foreground" />
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[75dvh] gap-0">
+                <SheetHeader className="border-b">
+                  <SheetTitle>{t("departments.filter")}</SheetTitle>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                  <DepartmentTreeSidebar
+                    departments={departments}
+                    selectedId={selectedDeptId}
+                    onSelect={(id) => {
+                      setSelectedDeptId(id)
+                      setFilterSheetOpen(false)
+                    }}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">
       {error && (
         <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4 mx-auto w-full max-w-6xl")}>
           {error}
@@ -160,12 +203,12 @@ export function Workers() {
         />
       ) : (
         <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
-          <Table className="min-w-[680px]">
+          <Table className="xl:min-w-[680px]">
             <TableHeader>
               <TableRow className="bg-secondary/50 hover:bg-secondary/50">
                 <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead className="w-[112px]">{t("workers.columns.engine")}</TableHead>
-                <TableHead className="w-[124px]">{t("workers.columns.activeTime")}</TableHead>
+                <TableHead className="hidden w-[112px] sm:table-cell">{t("workers.columns.engine")}</TableHead>
+                <TableHead className="hidden w-[124px] xl:table-cell">{t("workers.columns.activeTime")}</TableHead>
                 <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -182,7 +225,7 @@ export function Workers() {
                 ]
                 return (
                 <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell>
+                  <TableCell className="max-xl:whitespace-normal">
                     <div className="flex items-center gap-3 py-1">
                       <WorkerAvatar name={w.name} status={w.status} />
                       <div className="flex min-w-0 flex-col gap-0.5">
@@ -198,7 +241,7 @@ export function Workers() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                     {w.engine ? (
                       <EngineIcon
                         engine={w.engine}
@@ -209,7 +252,7 @@ export function Workers() {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell className="text-sm font-mono text-muted-foreground">
+                  <TableCell className="hidden text-sm font-mono text-muted-foreground xl:table-cell">
                     <span title={w.updated_at ? new Date(w.updated_at).toLocaleString() : undefined}>
                       {formatRelative(w.updated_at, t)}
                     </span>

@@ -71,6 +71,10 @@ const SECTIONS = [
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
 
+const revealTab = (el: HTMLButtonElement | null) => {
+  el?.scrollIntoView({ block: "nearest", inline: "nearest" })
+}
+
 // Static Tailwind class lookup for the overview activity band, whose column
 // count shrinks when the session metrics are hidden (no sessions:read).
 const GRID_COLS: Record<number, string> = {
@@ -158,7 +162,7 @@ function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; de
 function ProfileAvatar({ name, status }: { name: string; status: string }) {
   const color = presenceColor[status] ?? "bg-muted-foreground"
   return (
-    <span className="relative inline-flex shrink-0">
+    <span className="relative inline-flex shrink-0 self-start">
       <span className="flex size-16 select-none items-center justify-center rounded-full bg-muted text-xl font-medium text-muted-foreground ring-1 ring-border">
         {initials(name)}
       </span>
@@ -299,28 +303,49 @@ export function WorkerDetail() {
 
   return (
     <FadeIn className="h-full">
-      <div className="flex h-full">
+      <div className="flex h-full flex-col lg:flex-row">
         {/* Left rail: worker identity + vertical section menu. */}
-        <aside className="flex w-60 shrink-0 flex-col border-r">
-          <div className="flex h-16 items-center gap-3 border-b px-4">
+        <aside className="flex shrink-0 flex-col border-b lg:w-60 lg:border-r lg:border-b-0">
+          <div className="flex h-14 items-center gap-3 px-4 lg:h-16 lg:border-b">
             <WorkerAvatar name={worker.name} status={worker.status} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
             </div>
+            <Can perm={Perm.ContactsWrite}>
+              <div className="flex shrink-0 items-center gap-1 lg:hidden">
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  onClick={() => setEditInfoSheetOpen(true)}
+                  aria-label={t("common.edit")}
+                >
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  onClick={() => navigate(`/workers/create?copy=${worker.id}`)}
+                  aria-label={t("common.copy")}
+                >
+                  <Copy />
+                </Button>
+              </div>
+            </Can>
           </div>
-          <nav className="min-h-0 flex-1 overflow-auto p-2">
-            <ul className="space-y-1">
+          <nav className="overflow-x-auto px-2 pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:overflow-auto lg:p-2 lg:[mask-image:none]">
+            <ul className="flex w-max gap-1 pr-6 lg:block lg:w-auto lg:space-y-1 lg:pr-0">
               {visibleSections.map((section) => {
                 const isActive = section.key === activeSection
                 const Icon = section.icon
                 return (
                   <li key={section.key}>
                     <button
+                      ref={isActive ? revealTab : undefined}
                       type="button"
                       onClick={() => setActiveSection(section.key)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
-                        "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                        "flex w-full items-center gap-2.5 whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                         isActive
                           ? "bg-secondary text-foreground"
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -338,7 +363,7 @@ export function WorkerDetail() {
 
         {/* Right pane: section header + scrollable content. */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-16 items-center justify-between gap-4 border-b px-6">
+          <div className="hidden h-16 items-center justify-between gap-4 border-b px-6 lg:flex">
             <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
             <Can perm={Perm.ContactsWrite}>
               <div className="flex shrink-0 items-center gap-2">
@@ -354,7 +379,7 @@ export function WorkerDetail() {
             </Can>
           </div>
 
-          <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+          <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">
             {/* Section-scoped boundary: a 403 from a cross-domain panel degrades
                 only the active section, not the whole page. Keyed by section so
                 switching tabs clears a prior forbidden state. */}
@@ -504,7 +529,7 @@ export function WorkerDetail() {
                               <span className="font-mono">{shortId}</span>
                               <CopyButton
                                 value={latest.session_id}
-                                className="relative z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                                className="relative z-10 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100"
                               />
                             </span>
                           </div>

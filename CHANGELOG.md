@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Make the web chat page mobile-first.
+- Adapt web console pages to phone and tablet widths.
+
+### Fixed
+- Close the mobile navigation drawer after navigating.
+- Stop Enter from sending local chat messages mid-IME composition.
+
 ## [0.0.43] - 2026-10-08
 
 ### Added
