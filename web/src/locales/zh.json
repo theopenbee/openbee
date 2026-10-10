@@ -32,7 +32,9 @@
     "create": "创建",
     "noDescription": "无描述",
     "loadError": "加载数据失败。",
-    "retry": "重试"
+    "retry": "重试",
+    "showMore": "展开全部",
+    "showLess": "收起"
   },
   "statuses": {
     "idle": "空闲",

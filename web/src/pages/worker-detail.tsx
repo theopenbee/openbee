@@ -40,7 +40,6 @@ import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
 import { Can, ForbiddenBoundary } from "@/components/guard"
 import { Perm, hasPermission } from "@/lib/permissions"
 import { useMe } from "@/hooks/use-me"
-import { useMediaQuery } from "@/hooks/use-media-query"
 import {
   Table,
   TableBody,
@@ -70,8 +69,6 @@ const SECTIONS = [
 ] satisfies ReadonlyArray<{ key: string; labelKey: string; icon: LucideIcon; perm?: string }>
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
-
-const DESKTOP_QUERY = "(min-width: 1024px)"
 
 const revealTab = (el: HTMLButtonElement | null) => {
   el?.scrollIntoView({ block: "nearest", inline: "nearest" })
@@ -192,10 +189,12 @@ function RecordRow({ label, children }: { label: string; children: ReactNode }) 
 function WorkerActions({
   workerId,
   compact,
+  className,
   onEdit,
 }: {
   workerId: string
   compact: boolean
+  className?: string
   onEdit: () => void
 }) {
   const { t } = useTranslation()
@@ -207,7 +206,7 @@ function WorkerActions({
 
   return (
     <Can perm={Perm.ContactsWrite}>
-      <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-2")}>
+      <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-2", className)}>
         {actions.map(({ key, icon: Icon, label, onClick }) => (
           <Button
             key={key}
@@ -227,7 +226,6 @@ function WorkerActions({
 
 export function WorkerDetail() {
   const { t } = useTranslation()
-  const isDesktop = useMediaQuery(DESKTOP_QUERY)
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
   const { data: me } = useMe()
@@ -339,13 +337,7 @@ export function WorkerDetail() {
     },
   ]
 
-  const workerActions = (
-    <WorkerActions
-      workerId={worker.id}
-      compact={!isDesktop}
-      onEdit={() => setEditInfoSheetOpen(true)}
-    />
-  )
+  const openEditInfoSheet = () => setEditInfoSheetOpen(true)
 
   return (
     <FadeIn className="h-full">
@@ -357,7 +349,7 @@ export function WorkerDetail() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
             </div>
-            {!isDesktop && workerActions}
+            <WorkerActions workerId={worker.id} compact className="lg:hidden" onEdit={openEditInfoSheet} />
           </div>
           <nav className="scroll-pe-6 overflow-x-auto px-2 pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:overflow-auto lg:p-2 lg:[mask-image:none]">
             <ul className="flex w-max gap-1 pr-6 lg:block lg:w-auto lg:space-y-1 lg:pr-0">
@@ -389,10 +381,11 @@ export function WorkerDetail() {
         </aside>
 
         {/* Right pane: section header + scrollable content. */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <h1 className="sr-only lg:hidden">{t(activeLabelKey)}</h1>
           <div className="hidden h-16 items-center justify-between gap-4 border-b px-6 lg:flex">
             <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
-            {isDesktop && workerActions}
+            <WorkerActions workerId={worker.id} compact={false} onEdit={openEditInfoSheet} />
           </div>
 
           <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">

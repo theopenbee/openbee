@@ -22,7 +22,7 @@ import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { SessionGroupRow } from "@/components/session-group-row"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { formatDuration, formatRelative, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
+import { formatDuration, formatRelative, formatTimestamp, formatTokenCount, groupExecutionsBySession, isActiveStatus, STATUS_ROW_BORDER } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -174,11 +174,7 @@ export function Sessions() {
 
                         <TableCell
                           className="text-xs font-mono text-muted-foreground"
-                          title={
-                            oldest.started_at
-                              ? new Date(oldest.started_at).toLocaleString()
-                              : undefined
-                          }
+                          title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
                         >
                           {formatRelative(oldest.started_at, t)}
                         </TableCell>

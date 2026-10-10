@@ -33,7 +33,7 @@ export function SessionGroupRow({
     >
       <Link
         to={`/sessions/detail?session_id=${encodeURIComponent(latest.session_id)}`}
-        aria-label={intent}
+        aria-label={t("sessions.viewSession", { id: latest.session_id })}
         className="absolute inset-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       />
 

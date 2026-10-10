@@ -1,5 +1,5 @@
+import { Popover } from "@base-ui/react/popover"
 import { Info } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SessionTokenStats } from "@/lib/types"
 
 export function TokenStatsInfoButton({
@@ -12,18 +12,23 @@ export function TokenStatsInfoButton({
   align?: "start" | "center" | "end"
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        type="button"
+    <Popover.Root>
+      <Popover.Trigger
+        openOnHover
+        delay={0}
         aria-label="Token breakdown"
-        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+        className="flex items-center text-muted-foreground/40 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors pointer-coarse:-m-2.5 pointer-coarse:p-2.5"
       >
         <Info className="size-3" />
-      </TooltipTrigger>
-      <TooltipContent side={side} align={align}>
-        <TokenStatsTooltip stats={stats} />
-      </TooltipContent>
-    </Tooltip>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side={side} align={align} sideOffset={4} className="isolate z-50">
+          <Popover.Popup className="z-50 w-fit max-w-xs origin-(--transform-origin) rounded-sm bg-foreground px-3 py-1.5 text-xs text-background outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+            <TokenStatsTooltip stats={stats} />
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 

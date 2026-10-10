@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { CalendarClockIcon, RepeatIcon } from "lucide-react"
@@ -30,7 +30,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { Perm } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { STATUS_ROW_BORDER } from "@/lib/format"
+import { formatTimestamp, STATUS_ROW_BORDER } from "@/lib/format"
 
 export const TASK_PAGE_SIZE = 20
 
@@ -47,11 +47,49 @@ function cronLabel(task: Task) {
 
 function nextRunLabel(task: Task) {
   const timestamp = task.type === "countdown" ? task.scheduled_at : task.next_run_at
-  return timestamp ? new Date(timestamp).toLocaleString() : undefined
+  return timestamp ? formatTimestamp(timestamp) : undefined
 }
 
 function workerLabel(task: Task) {
   return task.worker_name || task.worker_id.slice(0, 8) + "..."
+}
+
+function ClampedInstruction({ text }: { text: string }) {
+  const { t } = useTranslation()
+  const textRef = useRef<HTMLParagraphElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [clamped, setClamped] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = textRef.current
+    if (!el || expanded) return
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [text, expanded])
+
+  return (
+    <div className="min-w-0">
+      <p
+        ref={textRef}
+        className={cn("break-words text-sm leading-5 text-foreground", !expanded && "line-clamp-3")}
+      >
+        {text}
+      </p>
+      {clamped && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-1 py-1 text-xs font-medium text-primary/80 transition-colors hover:text-primary"
+        >
+          {expanded ? t("common.showLess") : t("common.showMore")}
+        </button>
+      )}
+    </div>
+  )
 }
 
 function ScheduleCell({ value }: { value?: string }) {
@@ -121,12 +159,7 @@ export function TaskList({
                 return (
                   <li key={task.id} className="space-y-2 px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
-                      <p
-                        className="min-w-0 line-clamp-3 break-words text-sm leading-5 text-foreground"
-                        title={task.instruction}
-                      >
-                        {task.instruction}
-                      </p>
+                      <ClampedInstruction text={task.instruction} />
                       <StatusBadge status={task.status} />
                     </div>
                     <div className="flex items-center gap-3">

@@ -32,7 +32,9 @@
     "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "showMore": "Show more",
+    "showLess": "Show less"
   },
   "statuses": {
     "idle": "Idle",

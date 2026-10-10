@@ -53,7 +53,7 @@ const EMPTY_WORKERS: Worker[] = []
 // object on every render.
 const STREAMDOWN_PLUGINS = { code }
 
-const TOUCH_PHONE_QUERY = "(pointer: coarse) and (max-width: 767px)"
+const TOUCH_ONLY_QUERY = "(hover: none) and (pointer: coarse)"
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
   if (!timestamp) return "—"
@@ -272,13 +272,17 @@ export function LocalChat() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const suppressScrollRef = useRef(false)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
+  const scrollRestoreRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
 
   const handleOlderLoaded = useCallback((older: ChatMessage[]) => {
-    suppressScrollRef.current = true
+    const container = scrollContainerRef.current
+    if (container) {
+      stickToBottomRef.current = false
+      scrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight }
+    }
     setLocalMessages((prev) => [...older, ...prev])
   }, [])
 
@@ -311,13 +315,23 @@ export function LocalChat() {
 
   useEffect(() => {
     const container = scrollContainerRef.current
-    if (!container) return
+    const content = scrollContentRef.current
+    if (!container || !content) return
     const observer = new ResizeObserver(() => {
       if (stickToBottomRef.current) container.scrollTop = container.scrollHeight
     })
     observer.observe(container)
+    observer.observe(content)
     return () => observer.disconnect()
   }, [])
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+    const restore = scrollRestoreRef.current
+    if (!container || !restore) return
+    scrollRestoreRef.current = null
+    container.scrollTop = restore.scrollTop + container.scrollHeight - restore.scrollHeight
+  }, [localMessages])
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current
@@ -325,15 +339,6 @@ export function LocalChat() {
     stickToBottomRef.current =
       container.scrollHeight - container.scrollTop - container.clientHeight < 48
   }, [])
-
-  useEffect(() => {
-    if (suppressScrollRef.current) {
-      suppressScrollRef.current = false
-      return
-    }
-    if (!stickToBottomRef.current) return
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [localMessages, isProcessing])
 
   const handleSend = useCallback(async () => {
     const content = input.trim()
@@ -367,16 +372,7 @@ export function LocalChat() {
   }, [input, pendingMediaPaths, sendMessage])
 
   const handleLoadMore = useCallback(() => {
-    const container = scrollContainerRef.current
-    const prevScrollHeight = container?.scrollHeight ?? 0
-    const earliestTs = localMessages[0]?.ts ?? Date.now()
-    loadMore(earliestTs).then(() => {
-      if (container) {
-        container.scrollTop += container.scrollHeight - prevScrollHeight
-      }
-    }).catch(() => {
-      // scroll restoration skipped on error; hasMore remains true so user can retry
-    })
+    loadMore(localMessages[0]?.ts ?? Date.now()).catch(() => {})
   }, [loadMore, localMessages])
 
   const uploadFiles = useCallback(async (files: File[]) => {
@@ -415,13 +411,13 @@ export function LocalChat() {
     await uploadFiles(files)
   }, [uploadFiles])
 
-  const isTouchPhone = useMediaQuery(TOUCH_PHONE_QUERY)
+  const isTouchOnly = useMediaQuery(TOUCH_ONLY_QUERY)
 
   const handleComposerKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event) || isTouchPhone) return
+    if (event.key !== "Enter" || event.shiftKey || isImeComposing(event) || isTouchOnly) return
     event.preventDefault()
     void handleSend()
-  }, [handleSend, isTouchPhone])
+  }, [handleSend, isTouchOnly])
 
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
@@ -432,9 +428,9 @@ export function LocalChat() {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
       >
-        <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-5">
+        <div ref={scrollContentRef} className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-5">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => (
@@ -494,8 +490,6 @@ export function LocalChat() {
                     </div>
                   </div>
                 )}
-
-                <div ref={bottomRef} />
               </div>
             )}
           </div>
@@ -549,7 +543,7 @@ export function LocalChat() {
               </div>
 
               <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
-                {!isTouchPhone && (
+                {!isTouchOnly && (
                   <span className="hidden text-xs text-muted-foreground sm:inline">
                     {t("localChat.composerHint")}
                   </span>
