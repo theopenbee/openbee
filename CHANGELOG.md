@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Isolate web chat sessions and uploads per console user.
+- Hand legacy web chat history to the first super admin.
+- Serve web chat media with nosniff and CSP sandbox headers.
+
+### Fixed
+- Show agent images and files in web chat.
+- Render SVG attachments inline in web chat.
+- Create the first super admin atomically during setup.
+
 ## [0.0.44] - 2026-10-09
 
 ### Changed
