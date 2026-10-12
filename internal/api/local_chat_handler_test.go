@@ -481,22 +481,22 @@ func TestServeMedia_SandboxesAndDownloadsActiveContent(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name   string
-		inline bool
+		name       string
+		inlineType string
 	}{
-		{"photo.png", true},
-		{"report.html", false},
-		{"icon.svg", false},
-		{"noext", false},
+		{"photo.png", "image/png"},
+		{"icon.svg", "image/svg+xml"},
+		{"report.html", ""},
+		{"noext", ""},
 	} {
 		rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/media/"+tc.name, nil), testUserID)
 
 		require.Equal(t, http.StatusOK, rec.Code, tc.name)
 		assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"), tc.name)
 		assert.Equal(t, "sandbox", rec.Header().Get("Content-Security-Policy"), tc.name)
-		if tc.inline {
+		if tc.inlineType != "" {
 			assert.Empty(t, rec.Header().Get("Content-Disposition"), tc.name)
-			assert.Equal(t, "image/png", rec.Header().Get("Content-Type"), tc.name)
+			assert.Equal(t, tc.inlineType, rec.Header().Get("Content-Type"), tc.name)
 			continue
 		}
 		assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment", tc.name)

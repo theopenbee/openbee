@@ -359,9 +359,6 @@ func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
 
 func isInlineMedia(filename string) bool {
 	mediaType, _, _ := mime.ParseMediaType(mime.TypeByExtension(filepath.Ext(filename)))
-	if mediaType == "image/svg+xml" {
-		return false
-	}
 	for _, prefix := range []string{"image/", "video/", "audio/"} {
 		if strings.HasPrefix(mediaType, prefix) {
 			return true
