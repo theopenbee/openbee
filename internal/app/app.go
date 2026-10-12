@@ -146,7 +146,12 @@ func BuildApp(cfg config.Config) (*App, error) {
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localReceiver := local.NewLocalReceiver(64)
-	rawLocalSender := local.NewLocalSender(localHub)
+	localMediaRoot, err := config.LocalUploadsDir()
+	if err != nil {
+		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
+	}
+	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
+	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
@@ -200,6 +205,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
+	if err := legacyChat.Restore(context.Background(), s.userStore.FirstActiveSuperAdminID); err != nil {
+		logger.Error("restore legacy local chat", zap.Error(err))
+	}
+
 	// Synchronous startup recovery — must run before goroutines start
 	feeder.RecoverFeeding(context.Background())
 	sched.RecoverRunning(context.Background())
@@ -238,9 +247,10 @@ func BuildApp(cfg config.Config) (*App, error) {
 		localReceiver, localHub,
 		s.outboundMsgStore,
 		s.msgStore,
+		localMediaRoot,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, disp)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -378,7 +388,7 @@ func buildPlatforms(
 	return result, nil
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -401,7 +411,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
 		Users:             api.NewUserHandler(s.userStore, resolver),
 		Roles:             api.NewRoleHandler(s.roleStore, resolver),
-		Setup:             api.NewSetupHandler(s.userStore, jwtSvc),
+		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,

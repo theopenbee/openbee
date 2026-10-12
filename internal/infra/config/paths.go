@@ -42,3 +42,11 @@ func DaemonLogFile() (string, error) {
 	}
 	return filepath.Join(h, "openbee.log"), nil
 }
+
+func LocalUploadsDir() (string, error) {
+	h, err := OpenbeeHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(h, "local-uploads"), nil
+}
