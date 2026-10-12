@@ -252,6 +252,26 @@ func (s *TaskStore) CancelTask(ctx context.Context, taskID string) error {
 	return err
 }
 
+func (s *TaskStore) UpdatePending(ctx context.Context, t model.Task) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE bee_tasks
+		SET worker_id = ?, instruction = ?, type = ?,
+		    scheduled_at = ?, cron_expr = ?, next_run_at = ?,
+		    updated_at = ?
+		WHERE id = ? AND status = ?`,
+		t.WorkerID, t.Instruction, t.Type,
+		t.ScheduledAt, t.CronExpr, t.NextRunAt,
+		time.Now().UnixMilli(), t.ID, model.TaskStatusPending)
+	if err != nil {
+		return false, fmt.Errorf("update pending task: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("rows affected: %w", err)
+	}
+	return n > 0, nil
+}
+
 // UpdateStatus sets only the status of a task.
 func (s *TaskStore) UpdateStatus(ctx context.Context, taskID, status string) error {
 	_, err := s.db.ExecContext(ctx,

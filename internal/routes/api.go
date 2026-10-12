@@ -33,6 +33,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 
 	// Tasks
 	r.GET("/tasks", rp(auth.PermTasksRead), s.Tasks.List)
+	r.GET("/tasks/targets", rp(auth.PermTasksWrite), s.Tasks.Targets)
+	r.POST("/tasks", rp(auth.PermTasksWrite), s.Tasks.Create)
+	r.PUT("/tasks/:id", rp(auth.PermTasksWrite), s.Tasks.Update)
 	r.DELETE("/tasks/:id", rp(auth.PermTasksWrite), s.Tasks.Cancel)
 	r.POST("/workers/:id/tasks/cancel-all", rp(auth.PermTasksWrite), s.Tasks.CancelByWorker)
 

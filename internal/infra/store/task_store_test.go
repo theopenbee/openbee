@@ -596,3 +596,48 @@ func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, active, "scheduled task must not affect HasActiveImmediateTasksByWorkerID")
 }
+
+func TestTaskStore_UpdatePending(t *testing.T) {
+	ts := NewTaskStore(newTestDB(t, seedWorkerSQL("w1"), seedWorkerSQL("w2"), seedMessageSQL("m1", "s")))
+	ctx := context.Background()
+	scheduledAt := time.Now().Add(time.Hour).UnixMilli()
+	id := seedTask(t, ts, model.Task{Type: model.TaskTypeCountdown, ScheduledAt: &scheduledAt})
+
+	nextRun := time.Now().Add(time.Minute).UnixMilli()
+	updated, err := ts.UpdatePending(ctx, model.Task{
+		ID: id, WorkerID: "w2", Instruction: "new", Type: model.TaskTypeScheduled,
+		CronExpr: "*/5 * * * *", NextRunAt: &nextRun,
+	})
+	require.NoError(t, err)
+	assert.True(t, updated)
+
+	got, err := ts.GetByID(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, "w2", got.WorkerID)
+	assert.Equal(t, "new", got.Instruction)
+	assert.Equal(t, model.TaskTypeScheduled, got.Type)
+	assert.Equal(t, "*/5 * * * *", got.CronExpr)
+	assert.Nil(t, got.ScheduledAt)
+	require.NotNil(t, got.NextRunAt)
+	assert.Equal(t, nextRun, *got.NextRunAt)
+	assert.Equal(t, "m1", got.MessageID)
+	assert.Equal(t, model.TaskStatusPending, got.Status)
+}
+
+func TestTaskStore_UpdatePending_SkipsNonPending(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+	ctx := context.Background()
+	id := seedTask(t, ts, model.Task{Type: model.TaskTypeScheduled, CronExpr: "0 * * * *"})
+	require.NoError(t, ts.UpdateStatus(ctx, id, model.TaskStatusRunning))
+
+	updated, err := ts.UpdatePending(ctx, model.Task{
+		ID: id, WorkerID: "w1", Instruction: "new", Type: model.TaskTypeScheduled, CronExpr: "*/5 * * * *",
+	})
+	require.NoError(t, err)
+	assert.False(t, updated)
+
+	got, err := ts.GetByID(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, "go", got.Instruction)
+	assert.Equal(t, "0 * * * *", got.CronExpr)
+}

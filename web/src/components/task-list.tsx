@@ -1,6 +1,6 @@
 import { useState, type ComponentProps } from "react"
 import { useTranslation } from "react-i18next"
-import { CalendarClockIcon, RepeatIcon } from "lucide-react"
+import { CalendarClockIcon, PencilIcon, RepeatIcon } from "lucide-react"
 import { useTasks, useCancelTask, useCancelWorkerTasks } from "@/hooks/use-tasks"
 import {
   Table,
@@ -25,6 +25,7 @@ import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
 import { StatusBadge } from "@/components/status-badge"
 import { WorkerLink } from "@/components/worker-link"
+import { NewTaskButton, TaskFormDialog } from "@/components/task-form-dialog"
 import type { Task } from "@/lib/types"
 import { useCan } from "@/hooks/use-can"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -62,6 +63,16 @@ function CancelTaskButton({ className, ...props }: ComponentProps<typeof Button>
   )
 }
 
+function EditTaskButton({ className, ...props }: ComponentProps<typeof Button>) {
+  const { t } = useTranslation()
+  return (
+    <Button variant="ghost" className={className} {...props}>
+      <PencilIcon className="size-3.5" />
+      {t("common.edit")}
+    </Button>
+  )
+}
+
 function ScheduleCell({ value }: { value?: string }) {
   if (value) {
     return <p className="font-mono text-xs text-foreground/80">{value}</p>
@@ -87,17 +98,23 @@ export function TaskList({
   const cancelAll = useCancelWorkerTasks()
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
   const [confirmCancelAll, setConfirmCancelAll] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const openEdit = (task: Task) => {
+    setEditingTask(task)
+    setEditOpen(true)
+  }
 
   const tasks = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
 
   const mutationError = cancelTask.error || cancelAll.error
-  const canCancel = (task: Task) => task.status === "pending" && canWrite
+  const canModify = (task: Task) => task.status === "pending" && canWrite
 
   return (
     <div>
       {workerId && canWrite && !isLoading && tasks.length > 0 && (
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end gap-2 mb-4">
           <Button
             variant="outline"
             size="sm"
@@ -106,6 +123,7 @@ export function TaskList({
           >
             {t("tasks.cancelAll")}
           </Button>
+          <NewTaskButton workerId={workerId} size="sm" />
         </div>
       )}
 
@@ -118,7 +136,11 @@ export function TaskList({
       {isLoading ? (
         <SkeletonTable />
       ) : tasks.length === 0 && !error ? (
-        <EmptyState title={t("emptyState.noTasks")} />
+        <EmptyState
+          title={t("emptyState.noTasks")}
+          description={canWrite ? t("tasks.emptyDescription") : undefined}
+          action={<NewTaskButton workerId={workerId} />}
+        />
       ) : (
         <>
           {isMobile ? (
@@ -160,13 +182,15 @@ export function TaskList({
                           </span>
                         )}
                       </div>
-                      {canCancel(task) && (
-                        <CancelTaskButton
-                          size="lg"
-                          onClick={() => setConfirmCancelId(task.id)}
-                          disabled={cancelTask.isPending}
-                          className="-mr-2"
-                        />
+                      {canModify(task) && (
+                        <div className="-mr-2 flex shrink-0 items-center">
+                          <EditTaskButton size="lg" onClick={() => openEdit(task)} />
+                          <CancelTaskButton
+                            size="lg"
+                            onClick={() => setConfirmCancelId(task.id)}
+                            disabled={cancelTask.isPending}
+                          />
+                        </div>
                       )}
                     </div>
                   </li>
@@ -182,7 +206,7 @@ export function TaskList({
                     <TableHead className={cn("min-w-[24rem]", workerId && "pl-5")}>{t("tasks.columns.instruction")}</TableHead>
                     <TableHead className="w-44">{t("tasks.columns.cron")}</TableHead>
                     <TableHead className="w-48">{t("tasks.columns.nextRunAt")}</TableHead>
-                    <TableHead className="w-28 text-right">{t("tasks.columns.actions")}</TableHead>
+                    <TableHead className="w-44 text-right">{t("tasks.columns.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -221,12 +245,15 @@ export function TaskList({
                         <ScheduleCell value={nextRunLabel(task)} />
                       </TableCell>
                       <TableCell className="text-right">
-                        {canCancel(task) ? (
-                          <CancelTaskButton
-                            size="sm"
-                            onClick={() => setConfirmCancelId(task.id)}
-                            disabled={cancelTask.isPending}
-                          />
+                        {canModify(task) ? (
+                          <div className="inline-flex items-center gap-1">
+                            <EditTaskButton size="sm" onClick={() => openEdit(task)} />
+                            <CancelTaskButton
+                              size="sm"
+                              onClick={() => setConfirmCancelId(task.id)}
+                              disabled={cancelTask.isPending}
+                            />
+                          </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
@@ -246,6 +273,13 @@ export function TaskList({
           />
         </>
       )}
+
+      <TaskFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        task={editingTask}
+        workerId={workerId}
+      />
 
       <Dialog open={confirmCancelId !== null} onOpenChange={(open) => { if (!open) setConfirmCancelId(null) }}>
         <DialogContent>

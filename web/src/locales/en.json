@@ -278,7 +278,52 @@
     "cancelConfirmDescription": "Are you sure you want to cancel this task? This action cannot be undone.",
     "cancelAll": "Cancel all tasks",
     "cancelAllConfirmTitle": "Cancel all tasks",
-    "cancelAllConfirmDescription": "Are you sure you want to cancel all tasks for this worker? This action cannot be undone."
+    "cancelAllConfirmDescription": "Are you sure you want to cancel all tasks for this worker? This action cannot be undone.",
+    "create": "New task",
+    "emptyDescription": "Schedule a worker to run an instruction on a recurring or one-time basis.",
+    "form": {
+      "createTitle": "New task",
+      "createDescription": "The worker runs the instruction on schedule and sends results to the chosen conversation.",
+      "editTitle": "Edit task",
+      "editDescription": "Changes apply from the next run. Results still go to the original conversation.",
+      "worker": "Worker",
+      "workerPlaceholder": "Select a worker",
+      "target": "Send results to",
+      "targetPlaceholder": "Select a conversation",
+      "targetHelper": "Lists conversations that have received messages. Other users' web chats are hidden.",
+      "targetEmpty": "No conversations yet. Send a message in Chat first.",
+      "webChat": "Web chat (me)",
+      "type": "Schedule",
+      "types": {
+        "scheduled": "Recurring",
+        "countdown": "One-time"
+      },
+      "cron": "Cron expression",
+      "cronHelper": "Five fields: minute hour day month weekday, evaluated in the server's time zone.",
+      "presets": {
+        "hourly": "Hourly",
+        "daily": "Daily 09:00",
+        "weekdays": "Weekdays 09:00",
+        "weekly": "Mondays 09:00"
+      },
+      "runAt": "Run at",
+      "instruction": "Instruction",
+      "instructionPlaceholder": "e.g. Summarize yesterday's open issues and post the list",
+      "errors": {
+        "worker": "Select a worker.",
+        "instruction": "Enter an instruction.",
+        "cron": "Enter a cron expression.",
+        "runAt": "Run time must be in the future."
+      }
+    },
+    "platforms": {
+      "feishu": "Feishu",
+      "telegram": "Telegram",
+      "dingtalk": "DingTalk",
+      "wecom": "WeCom",
+      "weixin": "WeChat",
+      "linear": "Linear"
+    }
   },
   "localChat": {
     "title": "Chat",
@@ -572,6 +617,13 @@
     "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
     "env_reserved_key": "{{key}} is reserved and cannot be set",
     "env_scope_id_required": "scope_id is required for scope {{scope}}",
-    "old_password_incorrect": "The current password is incorrect."
+    "old_password_incorrect": "The current password is incorrect.",
+    "task_not_found": "Task not found",
+    "task_not_editable": "Only pending tasks can be edited",
+    "task_target_not_found": "Conversation not found",
+    "task_instruction_required": "Instruction is required",
+    "task_scheduled_at_invalid": "Run time must be at least 5 seconds in the future",
+    "task_cron_invalid": "Invalid cron expression",
+    "task_type_invalid": "Unsupported task type"
   }
 }

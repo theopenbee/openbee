@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Create and edit scheduled tasks from the web console.
+
 ## [0.0.45] - 2026-10-12
 
 ### Changed

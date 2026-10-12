@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -412,4 +413,54 @@ func TestMessageStore_FailReceived(t *testing.T) {
 		s.db.QueryRowContext(ctx, `SELECT status FROM bee_platform_messages WHERE id = ?`, id).Scan(&status) //nolint
 		assert.Equal(t, want, status, "id=%s", id)
 	}
+}
+
+func TestMessageStore_LatestBySessionKey(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+	_, err := s.Create(ctx, "old", "feishu:c1", "feishu", "a", "", "", 100)
+	require.NoError(t, err)
+	_, err = s.Create(ctx, "new", "feishu:c1", "feishu", "b", "", "", 200)
+	require.NoError(t, err)
+	_, err = s.Create(ctx, "other", "feishu:c2", "feishu", "c", "", "", 300)
+	require.NoError(t, err)
+
+	m, err := s.LatestBySessionKey(ctx, "feishu:c1")
+	require.NoError(t, err)
+	assert.Equal(t, "new", m.ID)
+	assert.Equal(t, "feishu", m.Platform)
+
+	_, err = s.LatestBySessionKey(ctx, "missing")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestMessageStore_ListRecentSessions(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+	for _, m := range []struct {
+		id, session, platform string
+		at                    int64
+	}{
+		{"f1", "feishu:c1", "feishu", 100},
+		{"f2", "feishu:c1", "feishu", 400},
+		{"t1", "telegram:9", "telegram", 300},
+		{"l1", "local:me", "local", 200},
+		{"l2", "local:other", "local", 500},
+	} {
+		_, err := s.Create(ctx, m.id, m.session, m.platform, "x", "", "", m.at)
+		require.NoError(t, err)
+	}
+
+	got, err := s.ListRecentSessions(ctx, "local", "local:me", 10)
+	require.NoError(t, err)
+	assert.Equal(t, []RecentSession{
+		{SessionKey: "feishu:c1", Platform: "feishu", LastActiveAt: 400},
+		{SessionKey: "telegram:9", Platform: "telegram", LastActiveAt: 300},
+		{SessionKey: "local:me", Platform: "local", LastActiveAt: 200},
+	}, got)
+
+	got, err = s.ListRecentSessions(ctx, "local", "local:me", 1)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "feishu:c1", got[0].SessionKey)
 }

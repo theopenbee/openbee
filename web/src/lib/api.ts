@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, TaskInput, CreateTaskInput, TaskTarget, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -185,6 +185,14 @@ export const api = {
       if (workerID) qs.set("worker_id", workerID)
       return fetchAPI<PaginatedResponse<Task>>(`/tasks?${qs}`)
     },
+    targets: async () => {
+      const res = await fetchAPI<{ items: TaskTarget[] | null }>("/tasks/targets")
+      return res.items ?? []
+    },
+    create: (data: CreateTaskInput) =>
+      fetchAPI<Task>("/tasks", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: TaskInput) =>
+      fetchAPI<Task>(`/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     cancel: (id: string) =>
       fetchAPI(`/tasks/${id}`, { method: "DELETE" }),
     cancelAll: (workerID: string) =>

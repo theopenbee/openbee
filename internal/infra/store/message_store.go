@@ -313,6 +313,55 @@ func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, e
 	return m, nil
 }
 
+type LatestMessage struct {
+	ID       string
+	Platform string
+}
+
+func (s *MessageStore) LatestBySessionKey(ctx context.Context, sessionKey string) (LatestMessage, error) {
+	var m LatestMessage
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, platform FROM bee_platform_messages
+		 WHERE session_key = ?
+		 ORDER BY received_at DESC, created_at DESC LIMIT 1`, sessionKey,
+	).Scan(&m.ID, &m.Platform)
+	if err != nil {
+		return LatestMessage{}, fmt.Errorf("latest message for session %s: %w", sessionKey, err)
+	}
+	return m, nil
+}
+
+type RecentSession struct {
+	SessionKey   string
+	Platform     string
+	LastActiveAt int64
+}
+
+func (s *MessageStore) ListRecentSessions(ctx context.Context, exceptPlatform, keepSessionKey string, limit int) ([]RecentSession, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT session_key, MIN(platform), MAX(received_at) AS last_active_at
+		 FROM bee_platform_messages
+		 WHERE platform <> ? OR session_key = ?
+		 GROUP BY session_key
+		 ORDER BY last_active_at DESC
+		 LIMIT ?`,
+		exceptPlatform, keepSessionKey, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list recent sessions: %w", err)
+	}
+	defer rows.Close()
+	var sessions []RecentSession
+	for rows.Next() {
+		var r RecentSession
+		if err := rows.Scan(&r.SessionKey, &r.Platform, &r.LastActiveAt); err != nil {
+			return nil, fmt.Errorf("scan recent session: %w", err)
+		}
+		sessions = append(sessions, r)
+	}
+	return sessions, rows.Err()
+}
+
 // InboundMessage is a non-merged bee_platform_messages row for display in chat history.
 type InboundMessage struct {
 	ID            string

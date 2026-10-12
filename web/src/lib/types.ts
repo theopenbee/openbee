@@ -106,6 +106,26 @@ export interface Task {
   updated_at: number
 }
 
+export type EditableTaskType = Extract<TaskType, "scheduled" | "countdown">
+
+export interface TaskInput {
+  worker_id: string
+  instruction: string
+  type: EditableTaskType
+  cron_expr?: string
+  scheduled_at?: number
+}
+
+export interface CreateTaskInput extends TaskInput {
+  session_key: string
+}
+
+export interface TaskTarget {
+  session_key: string
+  platform: string
+  last_active_at: number
+}
+
 export interface StatsOverview {
   departments: number
   workers: number
