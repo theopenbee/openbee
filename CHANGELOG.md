@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.45] - 2026-10-12
 
 ### Changed
 - Isolate web chat sessions and uploads per console user.
