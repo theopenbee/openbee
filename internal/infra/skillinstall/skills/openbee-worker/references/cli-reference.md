@@ -5,12 +5,14 @@ Prefer using the following commands to complete worker-related configuration and
 ## message subcommand
 
 ```bash
-openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message send (--message-id <id> | --session-key <key>) [--stdin] [--media-path <file path>]
 openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
 openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
 # --stdin and --media-path can be used independently or together (text first, then media)
+# --message-id replies to that message; --session-key sends a new message to the conversation
+# Use the target your task_meta provides: message_id (immediate tasks) or session_key (scheduled / countdown tasks)
 
 # Send plain text
 openbee ctl message send --message-id <id> --stdin << 'EOF'
@@ -23,6 +25,11 @@ openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 # Send text and file together
 openbee ctl message send --message-id <id> --stdin --media-path /tmp/output.csv << 'EOF'
 See attachment for details.
+EOF
+
+# Scheduled / countdown task: send a new message to the conversation
+openbee ctl message send --session-key <session_key> --stdin << 'EOF'
+Daily report attached.
 EOF
 ```
 

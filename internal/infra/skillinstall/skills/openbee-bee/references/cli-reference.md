@@ -93,11 +93,12 @@ openbee ctl system overview
 ## message subcommand
 
 ```bash
-openbee ctl message send --message-id <id> [--stdin] [--media-path <file path>]
+openbee ctl message send (--message-id <id> | --session-key <key>) [--stdin] [--media-path <file path>]
 openbee ctl message list [--session-key <key>] [--platform <platform>] [--status <status>] [--received-from <unix ms>] [--received-to <unix ms>] [--page <n>] [--page-size <n>]
 openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] [--status <status>] [--source-type <type>] [--source-id <id>] [--sent-from <unix ms>] [--sent-to <unix ms>] [--page <n>] [--page-size <n>]
 
 # Note: --media-path supports only one file per call; sending multiple files requires multiple calls
+# --message-id replies to that message; --session-key sends a new message to the conversation without replying to any message
 
 # Scenario 1: Text-only notification
 openbee ctl message send --message-id <id> --stdin << 'EOF'

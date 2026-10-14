@@ -130,6 +130,7 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	// bee_tasks is required by migration 45 (backfill task_id into bee_executions).
 	_, err = db.Exec(`CREATE TABLE bee_tasks (
 		id           TEXT PRIMARY KEY,
+		message_id   TEXT NOT NULL DEFAULT '',
 		execution_id TEXT NOT NULL DEFAULT ''
 	)`)
 	require.NoError(t, err)
@@ -193,4 +194,46 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	var count int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM bee_session_contexts WHERE session_key = 'sk' AND agent_id = 'bee'`).Scan(&count))
 	require.Equal(t, 2, count, "expected 2 per-engine rows after migration")
+}
+
+func TestMigration_BackfillsTaskSessionTarget(t *testing.T) {
+	db, err := sql.Open("sqlite", t.TempDir()+"/pre51.db")
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec(`CREATE TABLE bee_migrations (
+		version    INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		applied_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	)`)
+	require.NoError(t, err)
+
+	var before []migration
+	for _, m := range migrations {
+		if m.version < 51 {
+			before = append(before, m)
+		}
+	}
+	require.NoError(t, applyMigrations(db, before))
+
+	for _, q := range []string{
+		seedWorkerSQL("w1"),
+		seedMessageSQL("m1", "feishu:oc_1:ou_1"),
+		`INSERT INTO bee_tasks (id, message_id, worker_id, instruction, type, created_at, updated_at)
+		 VALUES ('t-linked','m1','w1','go','scheduled',1,1), ('t-orphan','missing','w1','go','scheduled',1,1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, migrate(db))
+
+	var sessionKey, platform string
+	require.NoError(t, db.QueryRow(`SELECT session_key, platform FROM bee_tasks WHERE id = 't-linked'`).Scan(&sessionKey, &platform))
+	assert.Equal(t, "feishu:oc_1:ou_1", sessionKey)
+	assert.Equal(t, "feishu", platform)
+
+	require.NoError(t, db.QueryRow(`SELECT session_key, platform FROM bee_tasks WHERE id = 't-orphan'`).Scan(&sessionKey, &platform))
+	assert.Empty(t, sessionKey)
+	assert.Empty(t, platform)
 }

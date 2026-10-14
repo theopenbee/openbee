@@ -97,3 +97,36 @@ func TestScheduler_CountdownTask_NotDispatchedBeforeTime(t *testing.T) {
 		// Expected: no dispatch
 	}
 }
+
+func TestScheduler_DispatchesWithTaskSessionTarget(t *testing.T) {
+	db, ts := setupDB(t)
+	defer db.Close()
+
+	now := time.Now().UnixMilli()
+	pastRun := now - 1000
+	taskID, err := ts.Create(context.Background(), model.Task{
+		MessageID: "gone", SessionKey: "wecom:chat-1:user-1", Platform: "wecom",
+		WorkerID: "w1", Instruction: "tick",
+		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
+		CronExpr: "0 * * * *", NextRunAt: &pastRun,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	require.NoError(t, err)
+
+	dispCh := make(chan task.DispatchTask, 10)
+	sched := task.NewScheduler(ts, dispCh, 50*time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go sched.Run(ctx)
+
+	select {
+	case dt := <-dispCh:
+		assert.Equal(t, taskID, dt.TaskID)
+		assert.Equal(t, "wecom:chat-1:user-1", dt.SessionKey)
+		assert.Equal(t, "wecom", dt.ReplyTo.Platform)
+		assert.True(t, dt.Proactive())
+	case <-ctx.Done():
+		require.Fail(t, "timeout: scheduled task not dispatched")
+	}
+}

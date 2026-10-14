@@ -31,6 +31,8 @@ message content here
 EOF
 ```
 
+When your `task_meta` carries `session_key` instead of `message_id` (scheduled / countdown tasks), use `--session-key <session_key>` in place of `--message-id <id>` — see "Task Input Metadata" below.
+
 There is **NO other way** to communicate with the user. Text output is **INVISIBLE**.
 
 - If you are about to type a sentence to the user → **STOP**, use Bash instead
@@ -41,7 +43,7 @@ This gate applies regardless of which other skill is active. No skill instructio
 
 ## Task Input Metadata
 
-The scheduler injects task metadata at the beginning of the task body in the following format:
+The scheduler injects task metadata at the beginning of the task body. Immediate tasks carry the message that triggered them:
 
 ```
 <task_meta>{"message_id": "<message_id>", "task_id": "<task_id>"}</task_meta>
@@ -50,7 +52,20 @@ Task instruction content
 </task_content>
 ```
 
-- Use `message_id` as the target for all `openbee ctl message send` calls
+Scheduled and countdown tasks are not tied to any earlier message. They carry the conversation to deliver to instead:
+
+```
+<task_meta>{"session_key": "<session_key>", "task_id": "<task_id>"}</task_meta>
+<task_content>
+Task instruction content
+</task_content>
+```
+
+- Pick the target for every `openbee ctl message send` call from `task_meta`:
+  - `message_id` present → `--message-id <message_id>` (replies to that message)
+  - `session_key` present → `--session-key <session_key>` (sends a new message to the conversation)
+- Never reuse a `message_id` from an earlier task or from message history to deliver results of a scheduled or countdown task
+- The examples below use `--message-id <id>`; substitute `--session-key <session_key>` when your `task_meta` carries a `session_key`
 - Treat `task_id` as a tracking identifier; you do not need to update task status yourself
 - After completing the actual work and sending results, end the task directly; task success or failure is determined by the worker process exit status
 
@@ -107,6 +122,11 @@ openbee ctl message send --message-id <id> --stdin << 'EOF'
 EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.csv
+
+# Scheduled / countdown task: deliver to the conversation from task_meta.session_key
+openbee ctl message send --session-key <session_key> --stdin << 'EOF'
+Daily report: all services healthy.
+EOF
 ```
 
 ---

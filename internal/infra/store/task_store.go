@@ -27,11 +27,11 @@ func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 	now := time.Now().UnixMilli()
 	_, err := s.db.ExecContext(ctx, `
         INSERT INTO bee_tasks
-            (id, message_id, worker_id, instruction, type, status,
+            (id, message_id, session_key, platform, worker_id, instruction, type, status,
              scheduled_at, cron_expr, next_run_at,
              created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		id, t.MessageID, t.WorkerID, t.Instruction, t.Type, t.Status,
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		id, t.MessageID, t.SessionKey, t.Platform, t.WorkerID, t.Instruction, t.Type, t.Status,
 		t.ScheduledAt, t.CronExpr, t.NextRunAt,
 		now, now,
 	)
@@ -43,11 +43,7 @@ func (s *TaskStore) Create(ctx context.Context, t model.Task) (string, error) {
 
 // GetByID fetches a single task by ID.
 func (s *TaskStore) GetByID(ctx context.Context, id string) (model.Task, error) {
-	row := s.db.QueryRowContext(ctx, `
-        SELECT id, message_id, worker_id, instruction, type, status,
-               scheduled_at, cron_expr, next_run_at,
-               created_at, updated_at
-        FROM bee_tasks WHERE id = ?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM bee_tasks t WHERE t.id = ?`, id)
 	return scanTask(row)
 }
 
@@ -79,9 +75,6 @@ type TaskFilter struct {
 // buildFilterWhere appends the JOIN (if needed) and WHERE clauses for a TaskFilter
 // to the given query prefix, returning the extended query and bound args.
 func buildFilterWhere(q string, f TaskFilter) (string, []any) {
-	if f.SessionKey != "" {
-		q += ` JOIN bee_platform_messages pm ON t.message_id = pm.id`
-	}
 	q += ` WHERE 1=1`
 	var args []any
 	if f.TaskID != "" {
@@ -93,7 +86,7 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 		args = append(args, f.MessageID)
 	}
 	if f.SessionKey != "" {
-		q += ` AND pm.session_key = ?`
+		q += ` AND t.session_key = ?`
 		args = append(args, f.SessionKey)
 	}
 	if f.WorkerID != "" {
@@ -105,14 +98,9 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 	return q, args
 }
 
-// List returns tasks matching the given filter. If session_key is set, tasks are
-// joined with bee_platform_messages to resolve the session. Results are ordered
-// by created_at DESC.
+// List returns tasks matching the given filter. Results are ordered by created_at DESC.
 func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
-	q, args := buildFilterWhere(`SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-	             t.scheduled_at, t.cron_expr, t.next_run_at,
-	             t.created_at, t.updated_at
-	      FROM bee_tasks t`, f)
+	q, args := buildFilterWhere(`SELECT `+taskColumns+` FROM bee_tasks t`, f)
 	q += ` ORDER BY t.created_at DESC`
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
@@ -142,7 +130,7 @@ func (s *TaskStore) CountTasks(ctx context.Context, f TaskFilter) (int, error) {
 // marks immediate/countdown tasks as running, and sets scheduled tasks' next_run_at
 // to the pre-computed value from scheduledNextRuns (keyed by task ID).
 // scheduledNextRuns may be nil if there are no due scheduled tasks.
-func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.ClaimedTask, error) {
+func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.Task, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
@@ -150,12 +138,8 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 	defer tx.Rollback() //nolint:errcheck
 
 	rows, err := tx.QueryContext(ctx, `
-        SELECT t.id, t.message_id, t.worker_id, t.instruction, t.type, t.status,
-               t.scheduled_at, t.cron_expr, t.next_run_at,
-               t.created_at, t.updated_at,
-               pm.session_key, pm.platform
+        SELECT `+taskColumns+`
         FROM bee_tasks t
-        JOIN bee_platform_messages pm ON pm.id = t.message_id
         WHERE t.status = ?
           AND (
             t.type = ?
@@ -171,28 +155,10 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 		return nil, fmt.Errorf("query due tasks: %w", err)
 	}
 
-	var claimed []model.ClaimedTask
-	for rows.Next() {
-		var ct model.ClaimedTask
-		var scheduledAt, nextRunAt sql.NullInt64
-		err := rows.Scan(
-			&ct.ID, &ct.MessageID, &ct.WorkerID, &ct.Instruction,
-			&ct.Type, &ct.Status, &scheduledAt, &ct.CronExpr,
-			&nextRunAt,
-			&ct.CreatedAt, &ct.UpdatedAt,
-			&ct.MessageSessionKey, &ct.MessagePlatform,
-		)
-		if err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("scan task: %w", err)
-		}
-		ct.ScheduledAt = nullInt64Ptr(scheduledAt)
-		ct.NextRunAt = nullInt64Ptr(nextRunAt)
-		claimed = append(claimed, ct)
-	}
+	claimed, err := scanTasks(rows)
 	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UnixMilli()
@@ -228,13 +194,11 @@ func (s *TaskStore) ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNex
 // Used by Scheduler.poll to compute real next_run_at values before claiming.
 func (s *TaskStore) PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, message_id, worker_id, instruction, type, status,
-		       scheduled_at, cron_expr, next_run_at,
-		       created_at, updated_at
-		FROM bee_tasks
-		WHERE type = ?
-		  AND status = ?
-		  AND (next_run_at IS NULL OR next_run_at <= ?)`,
+		SELECT `+taskColumns+`
+		FROM bee_tasks t
+		WHERE t.type = ?
+		  AND t.status = ?
+		  AND (t.next_run_at IS NULL OR t.next_run_at <= ?)`,
 		model.TaskTypeScheduled, model.TaskStatusPending, nowMS)
 	if err != nil {
 		return nil, fmt.Errorf("peek due scheduled tasks: %w", err)
@@ -306,7 +270,7 @@ func (s *TaskStore) Cancel(ctx context.Context, f CancelFilter) (int64, error) {
 	args := []any{model.TaskStatusCancelled, time.Now().UnixMilli(),
 		model.TaskStatusPending, model.TaskStatusRunning}
 	if f.SessionKey != "" {
-		q += " AND message_id IN (SELECT id FROM bee_platform_messages WHERE session_key = ?)"
+		q += " AND session_key = ?"
 		args = append(args, f.SessionKey)
 	}
 	if f.WorkerID != "" {
@@ -464,40 +428,47 @@ func nullInt64Ptr(n sql.NullInt64) *int64 {
 	return &v
 }
 
-// scanTask scans a single task row.
-func scanTask(row *sql.Row) (model.Task, error) {
+const taskColumns = `t.id, t.message_id, t.session_key, t.platform, t.worker_id, t.instruction, t.type, t.status,
+       t.scheduled_at, t.cron_expr, t.next_run_at,
+       t.created_at, t.updated_at`
+
+type taskScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTaskInto(row taskScanner) (model.Task, error) {
 	var t model.Task
 	var scheduledAt, nextRunAt sql.NullInt64
 	err := row.Scan(
-		&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
+		&t.ID, &t.MessageID, &t.SessionKey, &t.Platform, &t.WorkerID, &t.Instruction,
 		&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
 		&nextRunAt,
 		&t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
-		return model.Task{}, fmt.Errorf("scan task: %w", err)
+		return model.Task{}, err
 	}
 	t.ScheduledAt = nullInt64Ptr(scheduledAt)
 	t.NextRunAt = nullInt64Ptr(nextRunAt)
 	return t, nil
 }
 
+// scanTask scans a single task row.
+func scanTask(row *sql.Row) (model.Task, error) {
+	t, err := scanTaskInto(row)
+	if err != nil {
+		return model.Task{}, fmt.Errorf("scan task: %w", err)
+	}
+	return t, nil
+}
+
 func scanTasks(rows *sql.Rows) ([]model.Task, error) {
 	var result []model.Task
 	for rows.Next() {
-		var t model.Task
-		var scheduledAt, nextRunAt sql.NullInt64
-		err := rows.Scan(
-			&t.ID, &t.MessageID, &t.WorkerID, &t.Instruction,
-			&t.Type, &t.Status, &scheduledAt, &t.CronExpr,
-			&nextRunAt,
-			&t.CreatedAt, &t.UpdatedAt,
-		)
+		t, err := scanTaskInto(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scan task row: %w", err)
 		}
-		t.ScheduledAt = nullInt64Ptr(scheduledAt)
-		t.NextRunAt = nullInt64Ptr(nextRunAt)
 		result = append(result, t)
 	}
 	return result, rows.Err()

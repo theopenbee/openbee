@@ -16,6 +16,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/bee"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -321,9 +322,9 @@ type mockFailureNotifier struct {
 	calls []failureNotifyCall
 }
 
-func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
+func (m *mockFailureNotifier) NotifyTaskFailure(_ context.Context, target delivery.Target, info model.FailureInfo) error {
 	m.mu.Lock()
-	m.calls = append(m.calls, failureNotifyCall{messageID: messageID, info: info})
+	m.calls = append(m.calls, failureNotifyCall{messageID: target.MessageID, info: info})
 	m.mu.Unlock()
 	return nil
 }

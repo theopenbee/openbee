@@ -14,13 +14,13 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/linear"
 )
 
@@ -364,6 +364,11 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 			model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled)
 	}
 
+	origin, err := s.messageStore.GetByID(ctx, params.MessageID)
+	if err != nil {
+		return nil, fmt.Errorf("get message: %w", err)
+	}
+
 	nowMS := time.Now().UnixMilli()
 
 	switch params.Type {
@@ -386,6 +391,8 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 		if err != nil {
 			task := model.Task{
 				MessageID:   params.MessageID,
+				SessionKey:  origin.SessionKey,
+				Platform:    origin.Platform,
 				WorkerID:    params.WorkerID,
 				Instruction: params.Instruction,
 				Type:        params.Type,
@@ -406,6 +413,8 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 
 	task := model.Task{
 		MessageID:   params.MessageID,
+		SessionKey:  origin.SessionKey,
+		Platform:    origin.Platform,
 		WorkerID:    params.WorkerID,
 		Instruction: params.Instruction,
 		Type:        params.Type,
@@ -535,15 +544,19 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 
 func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		MessageID string `json:"message_id"`
-		Content   string `json:"content"`
-		MediaPath string `json:"media_path"`
+		MessageID  string `json:"message_id"`
+		SessionKey string `json:"session_key"`
+		Content    string `json:"content"`
+		MediaPath  string `json:"media_path"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
 	}
-	if params.MessageID == "" {
-		return nil, fmt.Errorf("message_id is required")
+	if params.MessageID == "" && params.SessionKey == "" {
+		return nil, fmt.Errorf("message_id or session_key is required")
+	}
+	if params.MessageID != "" && params.SessionKey != "" {
+		return nil, fmt.Errorf("message_id and session_key are mutually exclusive")
 	}
 	if params.Content == "" && params.MediaPath == "" {
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
@@ -559,30 +572,14 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		}
 	}
 
-	stored, err := s.messageStore.GetByID(ctx, params.MessageID)
+	sender, base, err := s.delivery.Resolve(ctx, delivery.Target{MessageID: params.MessageID, SessionKey: params.SessionKey})
 	if err != nil {
-		return nil, fmt.Errorf("get message: %w", err)
+		return nil, err
 	}
+	base.SourceType = sourceType
+	base.SourceID = sourceID
 
-	sender, ok := s.senders[stored.Platform]
-	if !ok {
-		return nil, fmt.Errorf("no sender registered for platform %q", stored.Platform)
-	}
-
-	replyTo := platform.InboundMessage{
-		Platform:   stored.Platform,
-		SessionKey: stored.SessionKey,
-		Raw:        stored.Raw,
-	}
-
-	base := platform.OutboundMessage{
-		ReplyTo:      replyTo,
-		SourceType:   sourceType,
-		SourceID:     sourceID,
-		InboundMsgID: params.MessageID,
-	}
-
-	if stored.Platform == linear.PlatformID && params.Content != "" && params.MediaPath != "" {
+	if base.ReplyTo.Platform == linear.PlatformID && params.Content != "" && params.MediaPath != "" {
 		outbound := base
 		outbound.Content = params.Content
 		outbound.MediaPath = params.MediaPath

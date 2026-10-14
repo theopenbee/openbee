@@ -413,3 +413,24 @@ func TestMessageStore_FailReceived(t *testing.T) {
 		assert.Equal(t, want, status, "id=%s", id)
 	}
 }
+
+func TestMessageStore_LatestBySessionKey(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	_, err := s.Create(ctx, "old", "feishu:oc_1:ou_1", "feishu", "a", `{"seq":1}`, "", 1000)
+	require.NoError(t, err)
+	_, err = s.Create(ctx, "new", "feishu:oc_1:ou_1", "feishu", "b", `{"seq":2}`, "", 2000)
+	require.NoError(t, err)
+	_, err = s.Create(ctx, "other", "feishu:oc_2:ou_1", "feishu", "c", `{"seq":3}`, "", 3000)
+	require.NoError(t, err)
+
+	got, found, err := s.LatestBySessionKey(ctx, "feishu:oc_1:ou_1")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, StoredMessage{Platform: "feishu", SessionKey: "feishu:oc_1:ou_1", Raw: `{"seq":2}`}, got)
+
+	_, found, err = s.LatestBySessionKey(ctx, "feishu:missing:ou_1")
+	require.NoError(t, err)
+	assert.False(t, found)
+}

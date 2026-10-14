@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -311,6 +312,23 @@ func (s *MessageStore) GetByID(ctx context.Context, id string) (StoredMessage, e
 		return StoredMessage{}, fmt.Errorf("get message %s: %w", id, err)
 	}
 	return m, nil
+}
+
+func (s *MessageStore) LatestBySessionKey(ctx context.Context, sessionKey string) (StoredMessage, bool, error) {
+	var m StoredMessage
+	err := s.db.QueryRowContext(ctx,
+		`SELECT platform, session_key, raw FROM bee_platform_messages
+		 WHERE session_key = ?
+		 ORDER BY received_at DESC, created_at DESC
+		 LIMIT 1`, sessionKey,
+	).Scan(&m.Platform, &m.SessionKey, &m.Raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return StoredMessage{}, false, nil
+	}
+	if err != nil {
+		return StoredMessage{}, false, fmt.Errorf("get latest message for session %s: %w", sessionKey, err)
+	}
+	return m, true, nil
 }
 
 // InboundMessage is a non-merged bee_platform_messages row for display in chat history.

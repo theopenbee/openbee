@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Send messages to a session with `message send --session-key`.
+
+### Fixed
+- Deliver scheduled and countdown task results proactively to the conversation.
+
 ## [0.0.45] - 2026-10-12
 
 ### Changed

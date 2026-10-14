@@ -23,3 +23,7 @@ When a user message contains scheduled or countdown intent, you must separate th
   - `--type scheduled --cron "* * * * *"`
   - `--instruction "Get the current system time and report it to the user"` (✓ only the execution action)
   - Wrong: `--instruction "Create a scheduled task, run every minute, get system time..."` (✗ contains scheduling description)
+
+## Result Delivery for Scheduled/Delayed Tasks
+
+Scheduled and countdown tasks are not bound to the message that created them. `--message-id` on `openbee ctl task create` only records where the task came from and which conversation (`session_key`) it belongs to. Each run delivers its results as a new message to that conversation (the worker receives `session_key` in its task metadata and calls `openbee ctl message send --session-key`), so results arrive even long after the original message.

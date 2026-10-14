@@ -473,13 +473,18 @@ const (
 )
 
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
+	if msg.Proactive && msg.ReplyTo.Raw == "" {
+		return fmt.Errorf("dingtalk: no conversation context for session %q", msg.SessionKey)
+	}
 	var data chatbot.BotCallbackDataModel
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &data); err != nil {
 		log.Error("failed to unmarshal raw", zap.Error(err))
 		return fmt.Errorf("unmarshal raw: %w", err)
 	}
-	if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
-		recallThinkingEmoji(ctx, s.cfg, &data)
+	if !msg.Proactive {
+		if _, ok := s.pendingEmojis.LoadAndDelete(data.MsgId); ok {
+			recallThinkingEmoji(ctx, s.cfg, &data)
+		}
 	}
 
 	expired := isWebhookExpired(&data)

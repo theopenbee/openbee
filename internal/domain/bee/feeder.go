@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -30,7 +31,7 @@ type messageMeta struct {
 
 // FailureNotifier sends a notification to the user when a message is permanently failed.
 type FailureNotifier interface {
-	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
+	NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error
 }
 
 // Option configures a Feeder.
@@ -311,7 +312,7 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 	}
 	for _, m := range msgs {
 		log.Warn("message failed", zap.String("messageID", m.ID), zap.String("reason", reason))
-		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, m.ID, model.FailureInfo{Reason: reason, WorkerName: "bee"}); notifyErr != nil {
+		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: m.ID}, model.FailureInfo{Reason: reason, WorkerName: "bee"}); notifyErr != nil {
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}
@@ -399,6 +400,8 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 
 	_, err = f.taskStore.Create(ctx, model.Task{
 		MessageID:   primary.ID,
+		SessionKey:  primary.SessionKey,
+		Platform:    primary.Platform,
 		WorkerID:    worker.ID,
 		Instruction: instruction,
 		Type:        model.TaskTypeImmediate,
