@@ -426,9 +426,9 @@ type WeixinSender struct {
 }
 
 func (s *WeixinSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
-	raw, err := parseWeixinRaw(msg.ReplyTo.Raw)
+	raw, err := sendTarget(msg)
 	if err != nil {
-		return fmt.Errorf("parse reply context: %w", err)
+		return err
 	}
 
 	if raw.ContextToken == "" {
@@ -441,6 +441,32 @@ func (s *WeixinSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 		return s.sendMedia(ctx, raw, msg.MediaPath)
 	}
 	return s.sendText(ctx, raw, msg.Content)
+}
+
+func sendTarget(msg platform.OutboundMessage) (weixinRaw, error) {
+	if !msg.Proactive {
+		raw, err := parseWeixinRaw(msg.ReplyTo.Raw)
+		if err != nil {
+			return weixinRaw{}, fmt.Errorf("parse reply context: %w", err)
+		}
+		return raw, nil
+	}
+	userID, err := platform.SessionChatID(msg.SessionKey, PlatformID)
+	if err != nil {
+		return weixinRaw{}, err
+	}
+	target := weixinRaw{FromUserID: userID}
+	if msg.ReplyTo.Raw == "" {
+		return target, nil
+	}
+	latest, err := parseWeixinRaw(msg.ReplyTo.Raw)
+	if err != nil {
+		return weixinRaw{}, fmt.Errorf("parse session context: %w", err)
+	}
+	target.ToUserID = latest.ToUserID
+	target.SessionID = latest.SessionID
+	target.ContextToken = latest.ContextToken
+	return target, nil
 }
 
 func (s *WeixinSender) sendText(ctx context.Context, raw weixinRaw, text string) error {

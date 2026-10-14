@@ -6,6 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -16,16 +17,15 @@ import (
 // PlatformFailureNotifier implements FailureNotifier by looking up the originating
 // message and sending a failure notification via the appropriate platform sender.
 type PlatformFailureNotifier struct {
-	msgStore *store.MessageStore
-	senders  map[string]platform.PlatformSenderAdapter
+	resolver *delivery.Resolver
 }
 
 // NewPlatformFailureNotifier creates a PlatformFailureNotifier.
 func NewPlatformFailureNotifier(msgStore *store.MessageStore, senders map[string]platform.PlatformSenderAdapter) *PlatformFailureNotifier {
-	return &PlatformFailureNotifier{msgStore: msgStore, senders: senders}
+	return &PlatformFailureNotifier{resolver: delivery.NewResolver(msgStore, senders)}
 }
 
-func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error {
+func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error {
 	m := i18n.M.Runtime.FailureNotifier
 	var workerLine string
 	if info.WorkerName != "" {
@@ -34,45 +34,31 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, message
 		workerLine = m.ParseFailed
 	}
 	content := m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
-	return n.sendNotification(ctx, messageID, content)
+	return n.sendNotification(ctx, target, content)
 }
 
-func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error {
+func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName string) error {
 	m := i18n.M.Runtime.FailureNotifier
 	content := m.TaskCancelled
 	if workerName != "" {
 		content += fmt.Sprintf(m.WorkerLine, workerName)
 	}
-	return n.sendNotification(ctx, messageID, content)
+	return n.sendNotification(ctx, target, content)
 }
 
-func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, messageID, content string) error {
-	stored, err := n.msgStore.GetByID(ctx, messageID)
+func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, target delivery.Target, content string) error {
+	sender, outbound, err := n.resolver.Resolve(ctx, target)
 	if err != nil {
-		return fmt.Errorf("get message for notification: %w", err)
-	}
-
-	sender, ok := n.senders[stored.Platform]
-	if !ok {
-		return fmt.Errorf("no sender for platform %q", stored.Platform)
+		return fmt.Errorf("resolve notification target: %w", err)
 	}
 
 	// 499 content runes + ellipsis = 500 visible runes, the platform ceiling.
 	const maxContentRunes = 499
-	content = utils.TruncateRunes(content, maxContentRunes)
+	outbound.Content = utils.TruncateRunes(content, maxContentRunes)
+	outbound.SourceType = store.SourceTypeSystem
 
-	outbound := platform.OutboundMessage{
-		Content: content,
-		ReplyTo: platform.InboundMessage{
-			Platform:   stored.Platform,
-			SessionKey: stored.SessionKey,
-			Raw:        stored.Raw,
-		},
-		SourceType:   store.SourceTypeSystem,
-		InboundMsgID: messageID,
-	}
 	if err := sender.Send(ctx, outbound); err != nil {
-		log.Error("send notification", zap.String("messageID", messageID), zap.Error(err))
+		log.Error("send notification", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
 		return fmt.Errorf("send notification: %w", err)
 	}
 	return nil

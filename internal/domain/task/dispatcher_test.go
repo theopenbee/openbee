@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -192,26 +193,28 @@ type mockFailureNotifier struct {
 }
 
 type failureCall struct {
-	messageID string
-	info      model.FailureInfo
+	messageID  string
+	sessionKey string
+	info       model.FailureInfo
 }
 
 type cancelCall struct {
 	messageID  string
+	sessionKey string
 	workerName string
 }
 
-func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, messageID string, info model.FailureInfo) error {
+func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, target delivery.Target, info model.FailureInfo) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.calls = append(n.calls, failureCall{messageID: messageID, info: info})
+	n.calls = append(n.calls, failureCall{messageID: target.MessageID, sessionKey: target.SessionKey, info: info})
 	return nil
 }
 
-func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, messageID string, workerName string) error {
+func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, target delivery.Target, workerName string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: messageID, workerName: workerName})
+	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: target.MessageID, sessionKey: target.SessionKey, workerName: workerName})
 	return nil
 }
 
@@ -659,27 +662,31 @@ func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error
 
 func TestTaskDispatcher_FailureCallsFailTask(t *testing.T) {
 	cases := []struct {
-		name       string
-		execErr    error
-		execStatus model.ExecutionStatus
-		taskID     string
-		taskType   string
-		execResult model.WorkerExecution
-		wantReason string
+		name           string
+		execErr        error
+		execStatus     model.ExecutionStatus
+		taskID         string
+		taskType       string
+		execResult     model.WorkerExecution
+		wantReason     string
+		wantMessageID  string
+		wantSessionKey string
 	}{
 		{
-			name:     "ExecuteError",
-			execErr:  fmt.Errorf("exec: \"claude\": executable file not found in $PATH"),
-			taskID:   "task-launch-fail",
-			taskType: "countdown",
+			name:           "ExecuteError",
+			execErr:        fmt.Errorf("exec: \"claude\": executable file not found in $PATH"),
+			taskID:         "task-launch-fail",
+			taskType:       "countdown",
+			wantSessionKey: "s1",
 		},
 		{
-			name:       "ExecStatusFailed",
-			execStatus: model.ExecStatusFailed,
-			taskID:     "task-fail-1",
-			taskType:   "immediate",
-			execResult: model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
-			wantReason: "API Error: blocked",
+			name:          "ExecStatusFailed",
+			execStatus:    model.ExecStatusFailed,
+			taskID:        "task-fail-1",
+			taskType:      "immediate",
+			execResult:    model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
+			wantReason:    "API Error: blocked",
+			wantMessageID: "msg-1",
 		},
 	}
 
@@ -728,7 +735,8 @@ func TestTaskDispatcher_FailureCallsFailTask(t *testing.T) {
 			require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
 			fn.mu.Lock()
 			defer fn.mu.Unlock()
-			assert.Equal(t, "msg-1", fn.calls[0].messageID)
+			assert.Equal(t, tc.wantMessageID, fn.calls[0].messageID)
+			assert.Equal(t, tc.wantSessionKey, fn.calls[0].sessionKey)
 			if tc.wantReason != "" {
 				assert.Equal(t, tc.wantReason, fn.calls[0].info.Reason)
 			}

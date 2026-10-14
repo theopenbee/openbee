@@ -471,3 +471,79 @@ func TestExtractContext_InvalidBody(t *testing.T) {
 	got := ExtractContext(frame)
 	assert.Empty(t, got)
 }
+
+func TestSend_ProactiveTextPushesMarkdown(t *testing.T) {
+	mock := &mockSendReply{}
+	var ps sync.Map
+	ps.Store("msg-old", "stream-old")
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+
+	stale := buildRawFrame(t, "req-old", messageBody{
+		MsgID: "msg-old", ChatType: chatTypeGroup, ChatID: "group-1", From: messageFrom{UserID: "u1"},
+	})
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "wecom:group-1:u1",
+		Content:    "daily report",
+		ReplyTo:    platform.InboundMessage{Platform: PlatformID, SessionKey: "wecom:group-1:u1", Raw: stale},
+		Proactive:  true,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, mock.calls, 1)
+	assert.Equal(t, WsCmdSendMsg, mock.calls[0].cmd)
+	assert.NotEqual(t, "req-old", mock.calls[0].reqID)
+	body := mock.calls[0].body.(sendMsgBody)
+	assert.Equal(t, "group-1", body.ChatID)
+	assert.Equal(t, msgTypeMarkdown, body.MsgType)
+	require.NotNil(t, body.Markdown)
+	assert.Equal(t, "daily report", body.Markdown.Content)
+
+	_, stillPending := ps.Load("msg-old")
+	assert.True(t, stillPending, "proactive send must not consume the pending stream of another message")
+}
+
+func TestSend_ProactiveMediaSkipsStreamFinish(t *testing.T) {
+	tmpFile := t.TempDir() + "/test.png"
+	require.NoError(t, os.WriteFile(tmpFile, make([]byte, 100), 0600))
+
+	mock := &mockSendReply{
+		response: map[string]WsFrame{
+			WsCmdUploadMediaInit:   buildUploadInitResponse("upload-xyz"),
+			WsCmdUploadMediaFinish: buildUploadFinishResponse("media-xyz"),
+		},
+	}
+	var ps sync.Map
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn, mediaSvc: media.NewService()}
+
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "wecom:u1:u1",
+		MediaPath:  tmpFile,
+		Proactive:  true,
+	})
+	require.NoError(t, err)
+
+	var sendBody sendMsgBody
+	for _, c := range mock.calls {
+		assert.NotEqual(t, WsCmdResponse, c.cmd, "proactive media must not respond to a callback stream")
+		if c.cmd == WsCmdSendMsg {
+			sendBody = c.body.(sendMsgBody)
+		}
+	}
+	assert.Equal(t, "u1", sendBody.ChatID)
+	require.NotNil(t, sendBody.Image)
+	assert.Equal(t, "media-xyz", sendBody.Image.MediaID)
+}
+
+func TestSend_ProactiveRejectsInvalidSessionKey(t *testing.T) {
+	mock := &mockSendReply{}
+	var ps sync.Map
+	s := &WeComSender{pendingStreams: &ps, sendReplyFn: mock.fn}
+
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "feishu:oc_1:ou_1",
+		Content:    "hi",
+		Proactive:  true,
+	})
+	require.Error(t, err)
+	assert.Empty(t, mock.calls)
+}

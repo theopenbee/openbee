@@ -26,6 +26,8 @@ var TaskStatuses = []string{
 type Task struct {
 	ID          string
 	MessageID   string
+	SessionKey  string
+	Platform    string
 	WorkerID    string
 	Instruction string
 	Type        string // TaskTypeImmediate | TaskTypeCountdown | TaskTypeScheduled
@@ -35,12 +37,4 @@ type Task struct {
 	NextRunAt   *int64 // ms; scheduled tasks only
 	CreatedAt   int64
 	UpdatedAt   int64
-}
-
-// ClaimedTask is a Task joined with data from its originating platform_messages row,
-// needed by the TaskScheduler to build a DispatchTask.
-type ClaimedTask struct {
-	Task
-	MessageSessionKey string
-	MessagePlatform   string
 }

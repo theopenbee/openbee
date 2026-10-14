@@ -44,6 +44,11 @@ func seedTask(t *testing.T, ts *TaskStore, task model.Task) string {
 	if task.MessageID == "" {
 		task.MessageID = "m1"
 	}
+	if task.SessionKey == "" {
+		err := ts.db.QueryRow(`SELECT session_key, platform FROM bee_platform_messages WHERE id = ?`, task.MessageID).
+			Scan(&task.SessionKey, &task.Platform)
+		require.NoError(t, err)
+	}
 	if task.WorkerID == "" {
 		task.WorkerID = "w1"
 	}

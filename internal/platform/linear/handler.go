@@ -343,6 +343,9 @@ func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	if target.IssueID == "" {
 		return errors.New("linear: reply target missing issue_id")
 	}
+	if msg.Proactive {
+		target.ParentCommentID = nil
+	}
 
 	body := selfMarker + msg.Content
 	if msg.MediaPath != "" {

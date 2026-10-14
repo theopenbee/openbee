@@ -480,6 +480,17 @@ UPDATE bee_role_permissions SET permission = 'dashboard:read' WHERE permission =
 	claimed_at INTEGER NOT NULL
 )`,
 	},
+	{
+		version: 51,
+		name:    "add_session_target_to_bee_tasks",
+		sql: `ALTER TABLE bee_tasks ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE bee_tasks ADD COLUMN platform TEXT NOT NULL DEFAULT '';
+UPDATE bee_tasks
+   SET session_key = (SELECT pm.session_key FROM bee_platform_messages pm WHERE pm.id = bee_tasks.message_id),
+       platform    = (SELECT pm.platform FROM bee_platform_messages pm WHERE pm.id = bee_tasks.message_id)
+ WHERE EXISTS (SELECT 1 FROM bee_platform_messages pm WHERE pm.id = bee_tasks.message_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_session_key ON bee_tasks(session_key);`,
+	},
 }
 
 type whereBuilder struct {

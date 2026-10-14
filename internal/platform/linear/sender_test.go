@@ -70,3 +70,21 @@ func TestSender_AppendsUploadedMarkdownToBody(t *testing.T) {
 	wantBody := "[openbee-bot]\n\nsee attached\n\n![snap.png](https://uploads.linear.app/snap.png)"
 	assert.Equal(t, wantBody, fc.created[0].Body)
 }
+
+func TestSender_ProactivePostsTopLevelComment(t *testing.T) {
+	parent := "C0"
+	rawBytes, _ := json.Marshal(replyTarget{IssueID: "I1", ParentCommentID: &parent})
+
+	fc := &fakeClient{viewer: User{ID: "BOT"}}
+	s := &LinearSender{client: fc}
+	err := s.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "linear:ENG:ENG-1",
+		Content:    "weekly digest",
+		ReplyTo:    platform.InboundMessage{Raw: string(rawBytes)},
+		Proactive:  true,
+	})
+	require.NoError(t, err)
+	require.Len(t, fc.created, 1)
+	assert.Equal(t, "I1", fc.created[0].IssueID)
+	assert.Nil(t, fc.created[0].ParentID)
+}
