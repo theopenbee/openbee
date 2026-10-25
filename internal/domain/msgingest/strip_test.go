@@ -121,18 +121,18 @@ func TestStripBotMention(t *testing.T) {
 			botName:  "机器人",
 			want:     "hello",
 		},
-		// Regression: DingTalk name is prefix of WeCom name; WeCom message must not be mangled.
+		// Regression: Alpha name is prefix of Gamma name; Gamma message must not be mangled.
 		{
-			name:     "prefix collision - wecom message unaffected by dingtalk name",
+			name:     "prefix collision - gamma message unaffected by alpha name",
 			content:  "@openbee本地测试 @someone hello",
-			platform: "wecom",
+			platform: "gamma",
 			botName:  "openbee本地测试",
 			want:     "@someone hello",
 		},
 		{
-			name:     "prefix collision - dingtalk message unaffected by wecom name",
+			name:     "prefix collision - alpha message unaffected by gamma name",
 			content:  "@openbee hello",
-			platform: "dingtalk",
+			platform: "alpha",
 			botName:  "openbee",
 			want:     "hello",
 		},

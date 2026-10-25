@@ -27,7 +27,7 @@ func (f *fakeWorkerLister) List() ([]model.Worker, error) {
 
 func makeListHandler(workers []model.Worker, err error) (*command.ListCommandHandler, *fakeSender) {
 	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
 	lister := &fakeWorkerLister{workers: workers, err: err}
 	return command.NewListCommandHandler(lister, senders), sender
 }

@@ -251,8 +251,8 @@ func TestCallTool_InvalidArgs(t *testing.T) {
 		{"SendMessage_MissingMessageID", "send_message", map[string]any{"content": "hello"}},
 		{"SendMessage_MissingContent", "send_message", map[string]any{"message_id": "msg-x"}},
 		{"SendMessage_MessageNotFound", "send_message", map[string]any{"message_id": "nonexistent-msg", "content": "hello"}},
-		{"SendMessage_MessageIDAndSessionKey", "send_message", map[string]any{"message_id": "msg-x", "session_key": "feishu:c:u", "content": "hello"}},
-		{"SendMessage_SessionWithoutSender", "send_message", map[string]any{"session_key": "feishu:c:u", "content": "hello"}},
+		{"SendMessage_MessageIDAndSessionKey", "send_message", map[string]any{"message_id": "msg-x", "session_key": "beta:c:u", "content": "hello"}},
+		{"SendMessage_SessionWithoutSender", "send_message", map[string]any{"session_key": "beta:c:u", "content": "hello"}},
 		{"CreateTask_MessageNotFound", "create_task", map[string]any{"message_id": "nonexistent-msg", "worker_id": "w", "instruction": "go", "type": "immediate"}},
 		{"ListTasks_BothParams_Error", "list_tasks", map[string]any{"message_id": "msg-1", "session_key": "session-X"}},
 		{"ListTasks_NoParams_Error", "list_tasks", map[string]any{}},
@@ -283,11 +283,11 @@ func TestCallTool_SendMessage(t *testing.T) {
 	}{
 		{
 			name:     "CallsSender",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-send-1", "feishu:chat1:userA", "feishu", "hello", //nolint
+				ms.Create(ctx, "msg-send-1", "beta:chat1:userA", "beta", "hello", //nolint
 					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 				return ctx, map[string]any{"message_id": "msg-send-1", "content": "Task done!"}
 			},
@@ -298,7 +298,7 @@ func TestCallTool_SendMessage(t *testing.T) {
 		},
 		{
 			name:     "WorkerPrefixesContent",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				// Create a worker and a message.
@@ -306,7 +306,7 @@ func TestCallTool_SendMessage(t *testing.T) {
 				w, err := ws.Create(model.Worker{Name: "MaoMao", Description: "test worker"})
 				require.NoError(t, err)
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-worker-prefix", "feishu:chat1:userA", "feishu", "hello", //nolint
+				ms.Create(ctx, "msg-worker-prefix", "beta:chat1:userA", "beta", "hello", //nolint
 					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 				// Call with a context that carries the worker's ID.
 				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
@@ -319,11 +319,11 @@ func TestCallTool_SendMessage(t *testing.T) {
 		},
 		{
 			name:     "WorkerDeletedFallsBackToWorkerID",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-deleted-worker", "feishu:chat1:userA", "feishu", "hello", //nolint
+				ms.Create(ctx, "msg-deleted-worker", "beta:chat1:userA", "beta", "hello", //nolint
 					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
 				// Use a worker ID that does not exist in the store.
 				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-deleted-xyz")
@@ -336,11 +336,11 @@ func TestCallTool_SendMessage(t *testing.T) {
 		},
 		{
 			name:     "ReplyToMessage",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-reply", "feishu:chat1:userA", "feishu", "hello", `{"origin":true}`, "", 0) //nolint
+				ms.Create(ctx, "msg-reply", "beta:chat1:userA", "beta", "hello", `{"origin":true}`, "", 0) //nolint
 				return ctx, map[string]any{"message_id": "msg-reply", "content": "done"}
 			},
 			check: func(t *testing.T, sent []platform.OutboundMessage) {
@@ -352,21 +352,21 @@ func TestCallTool_SendMessage(t *testing.T) {
 		},
 		{
 			name:     "SessionKeySendsProactivelyWithLatestContext",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-old", "feishu:chat1:userA", "feishu", "old", `{"seq":1}`, "", 1000) //nolint
-				ms.Create(ctx, "msg-new", "feishu:chat1:userA", "feishu", "new", `{"seq":2}`, "", 2000) //nolint
+				ms.Create(ctx, "msg-old", "beta:chat1:userA", "beta", "old", `{"seq":1}`, "", 1000) //nolint
+				ms.Create(ctx, "msg-new", "beta:chat1:userA", "beta", "new", `{"seq":2}`, "", 2000) //nolint
 				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-x")
-				return workerCtx, map[string]any{"session_key": "feishu:chat1:userA", "content": "daily report"}
+				return workerCtx, map[string]any{"session_key": "beta:chat1:userA", "content": "daily report"}
 			},
 			check: func(t *testing.T, sent []platform.OutboundMessage) {
 				require.Len(t, sent, 1)
 				assert.True(t, sent[0].Proactive)
 				assert.Equal(t, "worker-x\ndaily report", sent[0].Content)
-				assert.Equal(t, "feishu:chat1:userA", sent[0].SessionKey)
-				assert.Equal(t, "feishu", sent[0].ReplyTo.Platform)
+				assert.Equal(t, "beta:chat1:userA", sent[0].SessionKey)
+				assert.Equal(t, "beta", sent[0].ReplyTo.Platform)
 				assert.Equal(t, `{"seq":2}`, sent[0].ReplyTo.Raw)
 				assert.Empty(t, sent[0].InboundMsgID)
 				assert.Equal(t, store.SourceTypeWorker, sent[0].SourceType)
@@ -404,11 +404,11 @@ func TestCallTool_SendMessage(t *testing.T) {
 		},
 		{
 			name:     "NonCombinedSenderSplitsTextAndMedia",
-			senderID: "feishu",
+			senderID: "beta",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-split", "feishu:chat1:userA", "feishu", "hello", `{}`, "", 0) //nolint
+				ms.Create(ctx, "msg-split", "beta:chat1:userA", "beta", "hello", `{}`, "", 0) //nolint
 				return ctx, map[string]any{"message_id": "msg-split", "content": "a", "media_path": "/tmp/x.png"}
 			},
 			check: func(t *testing.T, sent []platform.OutboundMessage) {
@@ -460,10 +460,10 @@ func TestCallTool_SendMessage(t *testing.T) {
 }
 
 func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-origin", "feishu:oc_1:ou_1", "feishu", "every morning", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-origin", "beta:chat_1:user_1", "beta", "every morning", `{}`, "", 0) //nolint
 
 	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
@@ -476,8 +476,8 @@ func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
 	got, err := store.NewTaskStore(db).GetByID(ctx, taskID)
 	require.NoError(t, err)
 	assert.Equal(t, "msg-origin", got.MessageID)
-	assert.Equal(t, "feishu:oc_1:ou_1", got.SessionKey)
-	assert.Equal(t, "feishu", got.Platform)
+	assert.Equal(t, "beta:chat_1:user_1", got.SessionKey)
+	assert.Equal(t, "beta", got.Platform)
 }
 
 func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {
@@ -492,10 +492,10 @@ func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s, db := setupServerWithSender(t, "feishu", &mockSender{})
+			s, db := setupServerWithSender(t, "beta", &mockSender{})
 			ctx := context.Background()
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, "msg-unknown-worker", "feishu:oc_1:ou_1", "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, "msg-unknown-worker", "beta:chat_1:user_1", "beta", "hi", `{}`, "", 0) //nolint
 			mustCreateWorker(t, s, map[string]any{"name": "W"})
 
 			args := map[string]any{"message_id": "msg-unknown-worker", "worker_id": "worker-typo", "instruction": "go"}
@@ -515,11 +515,11 @@ func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {
 }
 
 func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-unk", "dingtalk:c1:u1", "dingtalk", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-unk", "alpha:c1:u1", "alpha", "hi", `{}`, "", 0) //nolint
 
 	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
 		"message_id": "msg-unk",
@@ -531,10 +531,10 @@ func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
 // --- list_tasks session_key tests ---
 
 func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-sk1", "session-X", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-sk1", "session-X", "beta", "hi", `{}`, "", 0) //nolint
 
 	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
@@ -602,7 +602,7 @@ func TestCallTool_ClearSession_StopsRunningTask(t *testing.T) {
 			ctx := context.Background()
 
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "beta", "hi", `{}`, "", 0) //nolint
 
 			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
@@ -769,7 +769,7 @@ func TestCallTool_ClearWorkerSession_RunningTask_RequiresConfirmation(t *testing
 	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-cw1", "session-CW", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-cw1", "session-CW", "beta", "hi", `{}`, "", 0) //nolint
 
 	ts := store.NewTaskStore(db)
 	ts.Create(ctx, model.Task{ //nolint
@@ -798,7 +798,7 @@ func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
 	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-cw2", "session-CW2", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-cw2", "session-CW2", "beta", "hi", `{}`, "", 0) //nolint
 
 	ts := store.NewTaskStore(db)
 	taskID, _ := ts.Create(ctx, model.Task{
@@ -834,7 +834,7 @@ func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
 }
 
 func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 
 	w1 := mustCreateWorker(t, s, map[string]any{"name": "W1"})
@@ -916,7 +916,7 @@ func TestCallTool_ClearSession_Confirmation(t *testing.T) {
 			ctx := context.Background()
 
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, "msg-1", sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, "msg-1", sessionKey, "beta", "hi", `{}`, "", 0) //nolint
 
 			ss := store.NewSessionStore(db)
 			for i, name := range tc.workers {
@@ -950,7 +950,7 @@ func TestCallTool_ClearSession_DedupesWorkersAcrossEngines(t *testing.T) {
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-dedupe", "session-D", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-dedupe", "session-D", "beta", "hi", `{}`, "", 0) //nolint
 
 	w1 := mustCreateWorker(t, s, map[string]any{"name": "W1"})
 
@@ -1005,7 +1005,7 @@ func TestCallTool_ClearSession_ActiveTask(t *testing.T) {
 			ctx := context.Background()
 
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, "msg-1", "sk", "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, "msg-1", "sk", "beta", "hi", `{}`, "", 0) //nolint
 
 			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
@@ -1050,7 +1050,7 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 			ctx := context.Background()
 
 			ms := store.NewMessageStore(db)
-			ms.Create(ctx, tc.msgID, tc.sessionKey, "feishu", "hi", `{}`, "", 0) //nolint
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "beta", "hi", `{}`, "", 0) //nolint
 
 			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
 
@@ -1083,7 +1083,7 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 }
 
 func TestResolveDepartmentID_ByID(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	dept, err := ds.Create(model.Department{Name: "Engineering"})
@@ -1098,7 +1098,7 @@ func TestResolveDepartmentID_ByID(t *testing.T) {
 }
 
 func TestResolveDepartmentID_ByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	_, err := ds.Create(model.Department{Name: "Marketing"})
@@ -1113,18 +1113,18 @@ func TestResolveDepartmentID_ByName(t *testing.T) {
 }
 
 func TestResolveDepartmentID_NotFound(t *testing.T) {
-	s, _ := setupServerWithSender(t, "feishu", &mockSender{})
+	s, _ := setupServerWithSender(t, "beta", &mockSender{})
 	_, err := s.CallTool(context.Background(), "get_department",
 		mustMarshal(t, map[string]any{"id": "nonexistent"}))
 	require.Error(t, err)
 }
 
 func TestToolListTasks_IncludesExecutions(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-exec1", "session-EX", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-exec1", "session-EX", "beta", "hi", `{}`, "", 0) //nolint
 
 	w := mustCreateWorker(t, s, map[string]any{"name": "W1"})
 
@@ -1175,11 +1175,11 @@ func decodePagedTaskItems(t *testing.T, result any) ([]map[string]any, map[strin
 }
 
 func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 
 	ms := store.NewMessageStore(db)
-	ms.Create(ctx, "msg-page", "session-PAGE", "feishu", "hi", `{}`, "", 0) //nolint
+	ms.Create(ctx, "msg-page", "session-PAGE", "beta", "hi", `{}`, "", 0) //nolint
 
 	w := mustCreateWorker(t, s, map[string]any{"name": "W1"})
 	ts := store.NewTaskStore(db)
@@ -1237,7 +1237,7 @@ func TestCallTool_ListDepartments_Empty(t *testing.T) {
 }
 
 func TestCallTool_ListDepartments_Tree(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 
 	parent, _ := ds.Create(model.Department{Name: "R&D"})
@@ -1270,7 +1270,7 @@ func TestCallTool_CreateDepartment(t *testing.T) {
 }
 
 func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	parent, _ := ds.Create(model.Department{Name: "R&D"})
 
@@ -1285,7 +1285,7 @@ func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
 }
 
 func TestCallTool_UpdateDepartment_Name(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "OldName"})
 
@@ -1298,7 +1298,7 @@ func TestCallTool_UpdateDepartment_Name(t *testing.T) {
 }
 
 func TestCallTool_DeleteDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "ToDelete"})
 
@@ -1311,7 +1311,7 @@ func TestCallTool_DeleteDepartment(t *testing.T) {
 }
 
 func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	parent, _ := ds.Create(model.Department{Name: "Parent"})
 	_, _ = ds.Create(model.Department{Name: "Child", ParentID: &parent.ID})
@@ -1322,7 +1322,7 @@ func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
 }
 
 func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1345,7 +1345,7 @@ func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
 }
 
 func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1376,7 +1376,7 @@ func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
 }
 
 func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	dept, _ := ds.Create(model.Department{Name: "Engineering"})
 
@@ -1394,7 +1394,7 @@ func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
 }
 
 func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1414,7 +1414,7 @@ func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
 }
 
 func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ds := store.NewDepartmentStore(db)
 	ws := store.NewWorkerStore(db)
 
@@ -1479,12 +1479,12 @@ func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
 }
 
 func TestCallTool_ListOutboundMessages(t *testing.T) {
-	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
 
 	oms := store.NewOutboundMessageStore(db)
 	require.NoError(t, oms.Create(ctx, store.OutboundMessage{
-		ID: "out-1", SessionKey: "sk1", Platform: "feishu",
+		ID: "out-1", SessionKey: "sk1", Platform: "beta",
 		Content: "reply", Status: store.OutboundStatusSent,
 		SourceType: store.SourceTypeWorker, SourceID: "worker-X",
 		SentAt: 1000,

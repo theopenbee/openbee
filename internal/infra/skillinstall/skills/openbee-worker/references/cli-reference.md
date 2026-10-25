@@ -88,22 +88,22 @@ openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] 
 
 ```bash
 # Single filter
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list --session-key <platform>:<chat_id>:<user_id>
 openbee ctl message list --status received
 
 # Multiple filters combined
-openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
-openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
+openbee ctl message list --platform <platform> --status received --session-key <platform>:<chat_id>:<user_id>
+openbee ctl message list --platform <platform> --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
 
 # Pagination (default 50/page, max 100)
-openbee ctl message list --platform feishu --page 2 --page-size 20
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
+openbee ctl message list --platform <platform> --page 2 --page-size 20
+openbee ctl message list --session-key <platform>:<chat_id>:<user_id> --page 1 --page-size 100
 
 # list-outbound examples
-openbee ctl message list-outbound --session-key feishu:oc_xxx:ou_xxx
+openbee ctl message list-outbound --session-key <platform>:<chat_id>:<user_id>
 openbee ctl message list-outbound --source-type worker --source-id <worker_id>
 openbee ctl message list-outbound --status failed
-openbee ctl message list-outbound --platform feishu --sent-from 1700000000000 --sent-to 1700086400000
+openbee ctl message list-outbound --platform <platform> --sent-from 1700000000000 --sent-to 1700086400000
 ```
 
 There is no standalone execution query command. Each task returned by `task list` includes an `executions` array with the newest execution records for that task — the latest 10 per task by default. Use `--execution-limit <n>` to request a different bounded count, or `--task-id <id> --execution-limit 0` to inspect the full execution history for one task.

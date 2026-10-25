@@ -23,7 +23,7 @@ func newTestServerWithTasks(t *testing.T) (*gin.Engine, *store.TaskStore) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','Worker1','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m1','s1','feishu','hi','','',1,1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,raw,platform_msg_id,received_at,created_at,updated_at) VALUES ('m1','s1','beta','hi','','',1,1,1)`)
 
 	taskStore := store.NewTaskStore(db)
 	workerStore := store.NewWorkerStore(db)

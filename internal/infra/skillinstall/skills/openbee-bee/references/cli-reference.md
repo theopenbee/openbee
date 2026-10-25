@@ -123,14 +123,14 @@ openbee ctl message send --message-id <id> --media-path /tmp/file1.png
 openbee ctl message send --message-id <id> --media-path /tmp/file2.pdf
 
 # Scenario 5: Query message history (single filter)
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --status received
-openbee ctl message list --platform feishu --received-from 1700000000000
+openbee ctl message list --session-key <platform>:<chat_id>:<user_id> --status received
+openbee ctl message list --platform <platform> --received-from 1700000000000
 
 # Scenario 6: Query message history (multiple filters combined)
-openbee ctl message list --platform feishu --status received --session-key feishu:oc_xxx:ou_xxx
-openbee ctl message list --platform feishu --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
+openbee ctl message list --platform <platform> --status received --session-key <platform>:<chat_id>:<user_id>
+openbee ctl message list --platform <platform> --received-from 1700000000000 --received-to 1700086400000 --status bee_processed
 
 # Scenario 7: Pagination (default 50 per page, max 100)
-openbee ctl message list --platform feishu --page 2 --page-size 20
-openbee ctl message list --session-key feishu:oc_xxx:ou_xxx --page 1 --page-size 100
+openbee ctl message list --platform <platform> --page 2 --page-size 20
+openbee ctl message list --session-key <platform>:<chat_id>:<user_id> --page 1 --page-size 100
 ```

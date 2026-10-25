@@ -56,7 +56,7 @@ func TestLoggingPlatformSenderAdapter_SendsTextWithMedia(t *testing.T) {
 	outboundStore := store.NewOutboundMessageStore(db)
 
 	combined := store.NewLoggingPlatformSenderAdapter(&combinedRecordingSender{}, outboundStore, "linear")
-	plain := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "feishu")
+	plain := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "beta")
 
 	assert.True(t, platform.SendsTextWithMedia(combined))
 	assert.False(t, platform.SendsTextWithMedia(plain))

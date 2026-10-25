@@ -36,7 +36,7 @@ func insertMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
 	now := time.Now().UnixMilli()
 	_, err := db.Exec(
 		`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-		 VALUES (?, ?, 'feishu', ?, 'received', ?, ?, ?)`,
+		 VALUES (?, ?, 'beta', ?, 'received', ?, ?, ?)`,
 		id, sessionKey, content, now, now, now,
 	)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.
 
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+	insertMessage(t, db, "m1", "beta:c:u", "hello")
 
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -130,7 +130,7 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	_, statErr := os.Stat(filepath.Dir(call.logPath))
 	assert.NoError(t, statErr, "log directory should exist before process runs")
 
-	got, _, err := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, err := ss.GetSessionContext(context.Background(), "beta:c:u", store.BeeAgentID)
 	require.NoError(t, err)
 	assert.Equal(t, call.opts.SessionID, got)
 
@@ -143,10 +143,10 @@ func TestFeeder_SecondTick_ResumesSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "existing-session", "claude")
+	err := ss.UpsertSessionContext(ctx, "beta:c:u", store.BeeAgentID, "existing-session", "claude")
 	require.NoError(t, err)
 
-	insertMessage(t, db, "m1", "feishu:c:u", "follow-up")
+	insertMessage(t, db, "m1", "beta:c:u", "follow-up")
 
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -167,10 +167,10 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 	ctx := context.Background()
 
-	err := ss.UpsertSessionContext(ctx, "feishu:c:u", store.BeeAgentID, "claude-session", "claude")
+	err := ss.UpsertSessionContext(ctx, "beta:c:u", store.BeeAgentID, "claude-session", "claude")
 	require.NoError(t, err)
 
-	insertMessage(t, db, "m1", "feishu:c:u", "switch to codex")
+	insertMessage(t, db, "m1", "beta:c:u", "switch to codex")
 
 	codexRunner := &mockBeeRunner{}
 	codexFeeder := newFeederWithEngine(ms, ts, ss, es, codexRunner, "codex")
@@ -185,9 +185,9 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	assert.False(t, codexCall.opts.Resume, "expected codex run to start fresh on engine switch")
 	assert.NotEqual(t, "claude-session", codexCall.opts.SessionID, "expected codex run to use a new session ID")
 
-	claudeSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "claude")
+	claudeSID, err := ss.GetSessionContextForEngine(ctx, "beta:c:u", store.BeeAgentID, "claude")
 	require.NoError(t, err)
-	codexSID, err := ss.GetSessionContextForEngine(ctx, "feishu:c:u", store.BeeAgentID, "codex")
+	codexSID, err := ss.GetSessionContextForEngine(ctx, "beta:c:u", store.BeeAgentID, "codex")
 	require.NoError(t, err)
 	assert.Equal(t, "claude-session", claudeSID)
 	assert.Equal(t, codexCall.opts.SessionID, codexSID)
@@ -195,7 +195,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 	cancel()
 	time.Sleep(100 * time.Millisecond)
 
-	insertMessage(t, db, "m2", "feishu:c:u", "switch back to claude")
+	insertMessage(t, db, "m2", "beta:c:u", "switch back to claude")
 
 	claudeRunner := &mockBeeRunner{}
 	claudeFeeder := newFeederWithEngine(ms, ts, ss, es, claudeRunner, "claude")
@@ -213,7 +213,7 @@ func TestFeeder_EngineSwitch_PreservesPriorSession(t *testing.T) {
 
 func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+	insertMessage(t, db, "m1", "beta:c:u", "hello")
 
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -227,14 +227,14 @@ func TestFeeder_OnBeeFailure_MarksFailedAndDoesNotUpdateSession(t *testing.T) {
 	db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
 	assert.Equal(t, "failed", status)
 
-	got, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u", store.BeeAgentID)
+	got, _, _ := ss.GetSessionContext(context.Background(), "beta:c:u", store.BeeAgentID)
 	assert.Empty(t, got, "session context should not be written on failure")
 }
 
 func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u1", "message from user1")
-	insertMessage(t, db, "m2", "feishu:c:u2", "message from user2")
+	insertMessage(t, db, "m1", "beta:c:u1", "message from user1")
+	insertMessage(t, db, "m2", "beta:c:u2", "message from user2")
 
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -247,8 +247,8 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 	calls := runner.getCalls()
 	require.Len(t, calls, 2, "expected 2 bee invocations (one per sessionKey)")
 
-	sess1, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u1", store.BeeAgentID)
-	sess2, _, _ := ss.GetSessionContext(context.Background(), "feishu:c:u2", store.BeeAgentID)
+	sess1, _, _ := ss.GetSessionContext(context.Background(), "beta:c:u1", store.BeeAgentID)
+	sess2, _, _ := ss.GetSessionContext(context.Background(), "beta:c:u2", store.BeeAgentID)
 	assert.NotEmpty(t, sess1, "session context for u1 should be set")
 	assert.NotEmpty(t, sess2, "session context for u2 should be set")
 	assert.NotEqual(t, sess1, sess2, "session IDs for different sessionKeys must differ")
@@ -256,7 +256,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedIndependently(t *testing.T) {
 
 func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
+	insertMessage(t, db, "m1", "beta:c:u", "hello bee")
 
 	runner := &mockBeeRunner{}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -296,7 +296,7 @@ func TestFeeder_CreatesExecutionOnBeeRun(t *testing.T) {
 
 func TestFeeder_ExecutionFailedOnBeeError(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello bee")
+	insertMessage(t, db, "m1", "beta:c:u", "hello bee")
 
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	f := newFeeder(ms, ts, ss, es, runner)
@@ -337,7 +337,7 @@ func (m *mockFailureNotifier) getCalls() []failureNotifyCall {
 
 func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+	insertMessage(t, db, "m1", "beta:c:u", "hello")
 
 	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
 	notifier := &mockFailureNotifier{}
@@ -367,9 +367,9 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
 
 	// Insert 3 messages from 3 different sessions.
-	insertMessage(t, db, "m1", "feishu:c:u1", "msg1")
-	insertMessage(t, db, "m2", "feishu:c:u2", "msg2")
-	insertMessage(t, db, "m3", "feishu:c:u3", "msg3")
+	insertMessage(t, db, "m1", "beta:c:u1", "msg1")
+	insertMessage(t, db, "m2", "beta:c:u2", "msg2")
+	insertMessage(t, db, "m3", "beta:c:u3", "msg3")
 
 	var (
 		mu         sync.Mutex
@@ -423,7 +423,7 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 
 	// Insert 6 messages from 6 different sessions — more than MaxConcurrentBee.
 	for i := range 6 {
-		insertMessage(t, db, fmt.Sprintf("m%d", i), fmt.Sprintf("feishu:c:u%d", i), "msg")
+		insertMessage(t, db, fmt.Sprintf("m%d", i), fmt.Sprintf("beta:c:u%d", i), "msg")
 	}
 
 	var (
@@ -538,7 +538,7 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 
 func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	db, ms, ts, ss, es := setupFeederDB(t)
-	insertMessage(t, db, "m1", "feishu:c:u", "hello")
+	insertMessage(t, db, "m1", "beta:c:u", "hello")
 
 	var upsertCalledBeforeRun atomic.Bool
 	done := make(chan struct{})
@@ -547,7 +547,7 @@ func TestFeeder_PreflightSessionContextWrittenBeforeRun(t *testing.T) {
 	runner := &callbackBeeRunner{
 		fn: func() {
 			ctx := context.Background()
-			sid, _, err := ss.GetSessionContext(ctx, "feishu:c:u", store.BeeAgentID)
+			sid, _, err := ss.GetSessionContext(ctx, "beta:c:u", store.BeeAgentID)
 			if err == nil && sid != "" {
 				upsertCalledBeforeRun.Store(true)
 			}

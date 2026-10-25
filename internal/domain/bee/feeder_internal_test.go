@@ -24,15 +24,15 @@ func TestBuildPrompt(t *testing.T) {
 		{
 			name: "NoHint",
 			msgs: []store.ClaimedMessage{
-				{ID: "msg-1", Platform: "feishu", SessionKey: "feishu:oc_abc:ou_xyz", Content: "hello world"},
+				{ID: "msg-1", Platform: "beta", SessionKey: "beta:chat_abc:user_xyz", Content: "hello world"},
 			},
-			wantPrefix:   `<message_meta>{"from":"feishu","session_key":"feishu:oc_abc:ou_xyz","message_id":"msg-1"}</message_meta>`,
+			wantPrefix:   `<message_meta>{"from":"beta","session_key":"beta:chat_abc:user_xyz","message_id":"msg-1"}</message_meta>`,
 			wantContains: []string{"<message_content>", "</message_content>", "hello world"},
 		},
 		{
 			name: "WithHint",
 			msgs: []store.ClaimedMessage{
-				{ID: "msg-1", Platform: "feishu", SessionKey: "sk1", Content: "hi"},
+				{ID: "msg-1", Platform: "beta", SessionKey: "sk1", Content: "hi"},
 			},
 			hint:         "use openbee-bee skill.",
 			wantPrefix:   "use openbee-bee skill.\n",
@@ -41,8 +41,8 @@ func TestBuildPrompt(t *testing.T) {
 		{
 			name: "MultipleMessages",
 			msgs: []store.ClaimedMessage{
-				{ID: "msg-1", Platform: "feishu", SessionKey: "sk1", Content: "first"},
-				{ID: "msg-2", Platform: "feishu", SessionKey: "sk1", Content: "second"},
+				{ID: "msg-1", Platform: "beta", SessionKey: "sk1", Content: "first"},
+				{ID: "msg-2", Platform: "beta", SessionKey: "sk1", Content: "second"},
 			},
 			wantContains:  []string{"msg-1", "msg-2"},
 			wantMetaCount: 2,
@@ -50,8 +50,8 @@ func TestBuildPrompt(t *testing.T) {
 		{
 			name: "MultipleMessages_WithHint",
 			msgs: []store.ClaimedMessage{
-				{ID: "msg-1", Platform: "feishu", SessionKey: "sk1", Content: "first"},
-				{ID: "msg-2", Platform: "feishu", SessionKey: "sk1", Content: "second"},
+				{ID: "msg-1", Platform: "beta", SessionKey: "sk1", Content: "first"},
+				{ID: "msg-2", Platform: "beta", SessionKey: "sk1", Content: "second"},
 			},
 			hint:          "use openbee-bee skill.",
 			wantPrefix:    "use openbee-bee skill.\n",
@@ -77,10 +77,10 @@ func TestBuildPrompt(t *testing.T) {
 
 func TestBuildPrompt_NeverHasPlatformContext(t *testing.T) {
 	platform.RegisterExtractor("testplatform2", func(_ string) string {
-		return `{"testplatform2":{"sender":{"open_id":"ou_abc"}}}`
+		return `{"testplatform2":{"sender":{"open_id":"user_abc"}}}`
 	})
 	msgs := []store.ClaimedMessage{
-		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:oc_xyz:ou_abc", Content: "hello"},
+		{ID: "msg-1", Platform: "testplatform2", SessionKey: "testplatform2:chat_xyz:user_abc", Content: "hello"},
 	}
 	got := buildPrompt(msgs, "")
 

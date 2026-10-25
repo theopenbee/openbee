@@ -61,7 +61,7 @@ func TestMediaDir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(root, "user-1"), dir)
 
-	for _, key := range []string{"feishu:user-1", "local:", "local:..", "local:a/b", `local:a\b`} {
+	for _, key := range []string{"beta:user-1", "local:", "local:..", "local:a/b", `local:a\b`} {
 		_, err := local.MediaDir(root, key)
 		assert.Error(t, err, key)
 	}

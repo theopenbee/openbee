@@ -24,7 +24,7 @@ func seedOutbound(t *testing.T, s *OutboundMessageStore, msgs []OutboundMessage)
 func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 	s := setupOutboundStore(t)
 	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Content: "hello", Status: OutboundStatusSent, SourceType: SourceTypeBee, SentAt: 1000},
+		{ID: "o1", SessionKey: "sk1", Platform: "beta", Content: "hello", Status: OutboundStatusSent, SourceType: SourceTypeBee, SentAt: 1000},
 		{ID: "o2", SessionKey: "sk2", Platform: "local", Content: "world", Status: OutboundStatusFailed, SourceType: SourceTypeWorker, SourceID: "w1", SentAt: 2000},
 	})
 
@@ -34,7 +34,7 @@ func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 	assert.Len(t, msgs, 2)
 
 	// Add a third message and verify pagination: limit/offset and DESC ordering.
-	require.NoError(t, s.Create(context.Background(), OutboundMessage{ID: "o3", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 3000}))
+	require.NoError(t, s.Create(context.Background(), OutboundMessage{ID: "o3", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 3000}))
 
 	// page 1 (limit=2, offset=0) → most recent 2
 	page1, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 2, 0)
@@ -54,8 +54,8 @@ func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 func TestOutboundMessageStore_ListFiltered_BySessionKey(t *testing.T) {
 	s := setupOutboundStore(t)
 	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 1000},
-		{ID: "o2", SessionKey: "sk2", Platform: "feishu", Status: OutboundStatusSent, SentAt: 2000},
+		{ID: "o1", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 1000},
+		{ID: "o2", SessionKey: "sk2", Platform: "beta", Status: OutboundStatusSent, SentAt: 2000},
 	})
 
 	msgs, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{SessionKey: "sk1"}, 50, 0)
@@ -68,8 +68,8 @@ func TestOutboundMessageStore_ListFiltered_BySessionKey(t *testing.T) {
 func TestOutboundMessageStore_ListFiltered_BySourceType(t *testing.T) {
 	s := setupOutboundStore(t)
 	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SourceType: SourceTypeBee, SentAt: 1000},
-		{ID: "o2", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SentAt: 2000},
+		{ID: "o1", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SourceType: SourceTypeBee, SentAt: 1000},
+		{ID: "o2", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SentAt: 2000},
 	})
 
 	msgs, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{SourceType: SourceTypeWorker}, 50, 0)
@@ -82,8 +82,8 @@ func TestOutboundMessageStore_ListFiltered_BySourceType(t *testing.T) {
 func TestOutboundMessageStore_ListFiltered_BySourceID(t *testing.T) {
 	s := setupOutboundStore(t)
 	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SourceID: "worker-A", SentAt: 1000},
-		{ID: "o2", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SourceID: "worker-B", SentAt: 2000},
+		{ID: "o1", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SourceID: "worker-A", SentAt: 1000},
+		{ID: "o2", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SourceType: SourceTypeWorker, SourceID: "worker-B", SentAt: 2000},
 	})
 
 	msgs, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{SourceID: "worker-A"}, 50, 0)
@@ -95,9 +95,9 @@ func TestOutboundMessageStore_ListFiltered_BySourceID(t *testing.T) {
 func TestOutboundMessageStore_ListFiltered_BySentAtRange(t *testing.T) {
 	s := setupOutboundStore(t)
 	seedOutbound(t, s, []OutboundMessage{
-		{ID: "o1", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 1000},
-		{ID: "o2", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 2000},
-		{ID: "o3", SessionKey: "sk1", Platform: "feishu", Status: OutboundStatusSent, SentAt: 3000},
+		{ID: "o1", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 1000},
+		{ID: "o2", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 2000},
+		{ID: "o3", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 3000},
 	})
 
 	msgs, total, err := s.ListFiltered(context.Background(), OutboundMessageFilter{SentAtFrom: 1500, SentAtTo: 2500}, 50, 0)

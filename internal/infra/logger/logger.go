@@ -30,7 +30,7 @@ func (l *Logger) resolve() *zap.Logger {
 // globalLogger at log time, so package-level vars are safe to use
 // before Init() is called.
 //
-//	var log = logger.With(zap.String("component", "dingtalk"))
+//	var log = logger.With(zap.String("component", "pluginchannel"))
 func (l *Logger) With(fields ...zap.Field) *Logger {
 	if l.zl != nil {
 		// Called on a concrete logger (e.g. globalLogger): return deferred.

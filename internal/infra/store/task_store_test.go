@@ -13,7 +13,7 @@ import (
 
 func newTaskStoreForTest(t *testing.T) *TaskStore {
 	t.Helper()
-	return NewTaskStore(newTestDB(t, seedWorkerSQL("w1"), seedMessageSQL("m1", "feishu:c:u")))
+	return NewTaskStore(newTestDB(t, seedWorkerSQL("w1"), seedMessageSQL("m1", "beta:c:u")))
 }
 
 func newTaskStoreWithTwoSessions(t *testing.T) *TaskStore {
@@ -600,12 +600,12 @@ func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
 func TestTaskStore_Create_PersistsSessionTarget(t *testing.T) {
 	ts := newTaskStoreForTest(t)
 
-	id := seedTask(t, ts, model.Task{SessionKey: "wecom:chat-1:user-1", Platform: "wecom"})
+	id := seedTask(t, ts, model.Task{SessionKey: "gamma:chat-1:user-1", Platform: "gamma"})
 
 	got, err := ts.GetByID(context.Background(), id)
 	require.NoError(t, err)
-	assert.Equal(t, "wecom:chat-1:user-1", got.SessionKey)
-	assert.Equal(t, "wecom", got.Platform)
+	assert.Equal(t, "gamma:chat-1:user-1", got.SessionKey)
+	assert.Equal(t, "gamma", got.Platform)
 }
 
 func TestTaskStore_ClaimDueTasks_DoesNotRequireOriginMessage(t *testing.T) {
@@ -613,8 +613,8 @@ func TestTaskStore_ClaimDueTasks_DoesNotRequireOriginMessage(t *testing.T) {
 
 	id := seedTask(t, ts, model.Task{
 		MessageID:  "gone",
-		SessionKey: "feishu:oc_1:ou_1",
-		Platform:   "feishu",
+		SessionKey: "beta:chat_1:user_1",
+		Platform:   "beta",
 		Type:       model.TaskTypeCountdown,
 		ScheduledAt: func() *int64 {
 			v := time.Now().Add(-time.Minute).UnixMilli()
@@ -626,8 +626,8 @@ func TestTaskStore_ClaimDueTasks_DoesNotRequireOriginMessage(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, id, tasks[0].ID)
-	assert.Equal(t, "feishu:oc_1:ou_1", tasks[0].SessionKey)
-	assert.Equal(t, "feishu", tasks[0].Platform)
+	assert.Equal(t, "beta:chat_1:user_1", tasks[0].SessionKey)
+	assert.Equal(t, "beta", tasks[0].Platform)
 }
 
 func TestTaskStore_MigrateSessionKeyPrefix(t *testing.T) {

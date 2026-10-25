@@ -33,7 +33,7 @@ func seedWorkerSQL(id string) string {
 func seedMessageSQL(id, sessionKey string) string {
 	return fmt.Sprintf(`INSERT INTO bee_platform_messages
 		(id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
-		VALUES ('%s','%s','feishu','hi','','',1,1,1)`, id, sessionKey)
+		VALUES ('%s','%s','beta','hi','','',1,1,1)`, id, sessionKey)
 }
 
 // seedTask creates task, defaulting unset fields to message m1, worker w1,

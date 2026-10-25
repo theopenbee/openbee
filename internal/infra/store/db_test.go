@@ -218,7 +218,7 @@ func TestMigration_BackfillsTaskSessionTarget(t *testing.T) {
 
 	for _, q := range []string{
 		seedWorkerSQL("w1"),
-		seedMessageSQL("m1", "feishu:oc_1:ou_1"),
+		seedMessageSQL("m1", "beta:chat_1:user_1"),
 		`INSERT INTO bee_tasks (id, message_id, worker_id, instruction, type, created_at, updated_at)
 		 VALUES ('t-linked','m1','w1','go','scheduled',1,1), ('t-orphan','missing','w1','go','scheduled',1,1)`,
 	} {
@@ -230,8 +230,8 @@ func TestMigration_BackfillsTaskSessionTarget(t *testing.T) {
 
 	var sessionKey, platform string
 	require.NoError(t, db.QueryRow(`SELECT session_key, platform FROM bee_tasks WHERE id = 't-linked'`).Scan(&sessionKey, &platform))
-	assert.Equal(t, "feishu:oc_1:ou_1", sessionKey)
-	assert.Equal(t, "feishu", platform)
+	assert.Equal(t, "beta:chat_1:user_1", sessionKey)
+	assert.Equal(t, "beta", platform)
 
 	require.NoError(t, db.QueryRow(`SELECT session_key, platform FROM bee_tasks WHERE id = 't-orphan'`).Scan(&sessionKey, &platform))
 	assert.Empty(t, sessionKey)

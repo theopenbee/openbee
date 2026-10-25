@@ -21,12 +21,12 @@ describe("extractMessageContent", () => {
   })
 
   it("extracts content from new format with message_content tag", () => {
-    const input = `<message_meta>{"from":"feishu","message_id":"abc"}</message_meta>\n<message_content>\nhello world\n</message_content>`
+    const input = `<message_meta>{"from":"beta","message_id":"abc"}</message_meta>\n<message_content>\nhello world\n</message_content>`
     expect(extractMessageContent(input)).toBe("hello world")
   })
 
   it("extracts content from new format with task_content tag", () => {
-    const input = `<message_meta>{"from":"feishu","message_id":"abc"}</message_meta>\n<task_content>\ndo something\n</task_content>`
+    const input = `<message_meta>{"from":"beta","message_id":"abc"}</message_meta>\n<task_content>\ndo something\n</task_content>`
     expect(extractMessageContent(input)).toBe("do something")
   })
 

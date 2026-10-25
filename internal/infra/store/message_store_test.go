@@ -80,7 +80,7 @@ func TestMessageStore_Create(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	_, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello world", `{"text":"hello world"}`, "", 0)
+	_, err := s.Create(ctx, "msg-1", "beta:chat1:userA", "beta", "hello world", `{"text":"hello world"}`, "", 0)
 	require.NoError(t, err)
 
 	var raw string
@@ -93,8 +93,8 @@ func TestMessageStore_UpdateStatusBatch(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "a", "", "", 0) //nolint
-	s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "b", "", "", 0) //nolint
+	s.Create(ctx, "msg-1", "beta:chat1:userA", "beta", "a", "", "", 0) //nolint
+	s.Create(ctx, "msg-2", "beta:chat1:userA", "beta", "b", "", "", 0) //nolint
 
 	err := s.UpdateStatusBatch(ctx, []string{"msg-1", "msg-2"}, "debouncing")
 	require.NoError(t, err)
@@ -160,11 +160,11 @@ func TestMessageStore_Create_Dedup_DuplicatePlatformMsgID(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	inserted, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	inserted, err := s.Create(ctx, "msg-1", "beta:chat1:userA", "beta", "hello", "", "beta-msg-abc", 0)
 	require.NoError(t, err)
 	assert.True(t, inserted, "first insert")
 
-	inserted, err = s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "feishu-msg-abc", 0)
+	inserted, err = s.Create(ctx, "msg-2", "beta:chat1:userA", "beta", "hello", "", "beta-msg-abc", 0)
 	require.NoError(t, err)
 	assert.False(t, inserted, "duplicate insert")
 }
@@ -173,11 +173,11 @@ func TestMessageStore_Create_Dedup_EmptyPlatformMsgIDNotDeduped(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	inserted1, err := s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
+	inserted1, err := s.Create(ctx, "msg-1", "beta:chat1:userA", "beta", "hello", "", "", 0)
 	require.NoError(t, err)
 	require.True(t, inserted1)
 
-	inserted2, err := s.Create(ctx, "msg-2", "feishu:chat1:userA", "feishu", "hello", "", "", 0)
+	inserted2, err := s.Create(ctx, "msg-2", "beta:chat1:userA", "beta", "hello", "", "", 0)
 	require.NoError(t, err)
 	require.True(t, inserted2)
 }
@@ -186,7 +186,7 @@ func TestMessageStore_Create_ReceivedAtMillisecondPrecision(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-ms", "feishu:chat1:userA", "feishu", "hello", "", "", 0) //nolint
+	s.Create(ctx, "msg-ms", "beta:chat1:userA", "beta", "hello", "", "", 0) //nolint
 
 	var receivedAt int64
 	err := s.db.QueryRowContext(ctx,
@@ -201,7 +201,7 @@ func TestMessageStore_Create_ReceivedAt_FromMessageTime(t *testing.T) {
 	ctx := context.Background()
 
 	const wantTime int64 = 1609073151345 // fixed past timestamp
-	inserted, err := s.Create(ctx, "msg-ts", "feishu:chat1:userA", "feishu", "hello", "", "", wantTime)
+	inserted, err := s.Create(ctx, "msg-ts", "beta:chat1:userA", "beta", "hello", "", "", wantTime)
 	require.NoError(t, err)
 	require.True(t, inserted)
 
@@ -218,7 +218,7 @@ func TestMessageStore_Create_ReceivedAt_FallbackToServerTime(t *testing.T) {
 	ctx := context.Background()
 
 	before := time.Now().UnixMilli()
-	s.Create(ctx, "msg-zero", "feishu:chat1:userA", "feishu", "hello", "", "", 0) //nolint
+	s.Create(ctx, "msg-zero", "beta:chat1:userA", "beta", "hello", "", "", 0) //nolint
 	after := time.Now().UnixMilli()
 
 	var receivedAt int64
@@ -234,12 +234,12 @@ func TestMessageStore_GetByID_ReturnsStoredFields(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "msg-1", "feishu:chat1:userA", "feishu", "hello", `{"raw":"data"}`, "", 0) //nolint
+	s.Create(ctx, "msg-1", "beta:chat1:userA", "beta", "hello", `{"raw":"data"}`, "", 0) //nolint
 
 	got, err := s.GetByID(ctx, "msg-1")
 	require.NoError(t, err)
-	assert.Equal(t, "feishu", got.Platform)
-	assert.Equal(t, "feishu:chat1:userA", got.SessionKey)
+	assert.Equal(t, "beta", got.Platform)
+	assert.Equal(t, "beta:chat1:userA", got.SessionKey)
 	assert.Equal(t, `{"raw":"data"}`, got.Raw)
 }
 
@@ -259,9 +259,9 @@ func TestMessageStore_ClaimBatch_SkipsFeedingSession(t *testing.T) {
 	// Insert two messages for the same session; mark the first as feeding.
 	now := time.Now().UnixMilli()
 	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-              VALUES ('m1', 'sk1', 'feishu', 'msg1', 'feeding', ?, ?, ?)`, now, now, now)
+              VALUES ('m1', 'sk1', 'beta', 'msg1', 'feeding', ?, ?, ?)`, now, now, now)
 	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-              VALUES ('m2', 'sk1', 'feishu', 'msg2', 'received', ?, ?, ?)`, now+1, now, now)
+              VALUES ('m2', 'sk1', 'beta', 'msg2', 'received', ?, ?, ?)`, now+1, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
 	require.NoError(t, err)
@@ -276,11 +276,11 @@ func TestMessageStore_ClaimBatch_OnePerSession(t *testing.T) {
 	now := time.Now().UnixMilli()
 	// Two messages for sk1 (different times), one for sk2.
 	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-              VALUES ('m1', 'sk1', 'feishu', 'first', 'received', ?, ?, ?)`, now, now, now)
+              VALUES ('m1', 'sk1', 'beta', 'first', 'received', ?, ?, ?)`, now, now, now)
 	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-              VALUES ('m2', 'sk1', 'feishu', 'second', 'received', ?, ?, ?)`, now+1, now, now)
+              VALUES ('m2', 'sk1', 'beta', 'second', 'received', ?, ?, ?)`, now+1, now, now)
 	db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-              VALUES ('m3', 'sk2', 'feishu', 'other', 'received', ?, ?, ?)`, now, now, now)
+              VALUES ('m3', 'sk2', 'beta', 'other', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ func TestMessageStore_ClaimBatch_RespectsLimit(t *testing.T) {
 		sk := fmt.Sprintf("sk%d", i)
 		id := fmt.Sprintf("m%d", i)
 		db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-                  VALUES (?, ?, 'feishu', 'msg', 'received', ?, ?, ?)`, id, sk, now+int64(i), now, now)
+                  VALUES (?, ?, 'beta', 'msg', 'received', ?, ?, ?)`, id, sk, now+int64(i), now, now)
 	}
 
 	msgs, err := s.ClaimBatch(ctx, 3)
@@ -315,8 +315,8 @@ func TestMessageStore_MarkFailed(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	s.Create(ctx, "m1", "feishu:c:u", "feishu", "hello", "", "", 0) //nolint
-	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")             //nolint
+	s.Create(ctx, "m1", "beta:c:u", "beta", "hello", "", "", 0) //nolint
+	s.UpdateStatusBatch(ctx, []string{"m1"}, "feeding")         //nolint
 
 	require.NoError(t, s.MarkFailed(ctx, []string{"m1"}))
 
@@ -331,9 +331,9 @@ func TestMessageStore_ClaimBatch_StalesLateArrivingMessage(t *testing.T) {
 
 	now := time.Now().UnixMilli()
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'bee_processed', ?, ?, ?)`, now+1000, now, now)
+	          VALUES ('msgB', 'sk1', 'beta', 'newer', 'bee_processed', ?, ?, ?)`, now+1000, now, now)
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'received', ?, ?, ?)`, now, now, now)
+	          VALUES ('msgA', 'sk1', 'beta', 'older', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
 	require.NoError(t, err)
@@ -353,7 +353,7 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageWithNoNewerProcessed(t *test
 
 	now := time.Now().UnixMilli()
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-	          VALUES ('msgA', 'sk1', 'feishu', 'hello', 'received', ?, ?, ?)`, now, now, now)
+	          VALUES ('msgA', 'sk1', 'beta', 'hello', 'received', ?, ?, ?)`, now, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
 	require.NoError(t, err)
@@ -368,9 +368,9 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testin
 	now := time.Now().UnixMilli()
 	// B is newer than A — it should be claimed, not staled.
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-	          VALUES ('msgA', 'sk1', 'feishu', 'older', 'bee_processed', ?, ?, ?)`, now, now, now)
+	          VALUES ('msgA', 'sk1', 'beta', 'older', 'bee_processed', ?, ?, ?)`, now, now, now)
 	s.db.Exec(`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
-	          VALUES ('msgB', 'sk1', 'feishu', 'newer', 'received', ?, ?, ?)`, now+1000, now, now)
+	          VALUES ('msgB', 'sk1', 'beta', 'newer', 'received', ?, ?, ?)`, now+1000, now, now)
 
 	msgs, err := s.ClaimBatch(ctx, 10)
 	require.NoError(t, err)
@@ -418,19 +418,19 @@ func TestMessageStore_LatestBySessionKey(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()
 
-	_, err := s.Create(ctx, "old", "feishu:oc_1:ou_1", "feishu", "a", `{"seq":1}`, "", 1000)
+	_, err := s.Create(ctx, "old", "beta:chat_1:user_1", "beta", "a", `{"seq":1}`, "", 1000)
 	require.NoError(t, err)
-	_, err = s.Create(ctx, "new", "feishu:oc_1:ou_1", "feishu", "b", `{"seq":2}`, "", 2000)
+	_, err = s.Create(ctx, "new", "beta:chat_1:user_1", "beta", "b", `{"seq":2}`, "", 2000)
 	require.NoError(t, err)
-	_, err = s.Create(ctx, "other", "feishu:oc_2:ou_1", "feishu", "c", `{"seq":3}`, "", 3000)
+	_, err = s.Create(ctx, "other", "beta:chat_2:user_1", "beta", "c", `{"seq":3}`, "", 3000)
 	require.NoError(t, err)
 
-	got, found, err := s.LatestBySessionKey(ctx, "feishu:oc_1:ou_1")
+	got, found, err := s.LatestBySessionKey(ctx, "beta:chat_1:user_1")
 	require.NoError(t, err)
 	require.True(t, found)
-	assert.Equal(t, StoredMessage{Platform: "feishu", SessionKey: "feishu:oc_1:ou_1", Raw: `{"seq":2}`}, got)
+	assert.Equal(t, StoredMessage{Platform: "beta", SessionKey: "beta:chat_1:user_1", Raw: `{"seq":2}`}, got)
 
-	_, found, err = s.LatestBySessionKey(ctx, "feishu:missing:ou_1")
+	_, found, err = s.LatestBySessionKey(ctx, "beta:missing:user_1")
 	require.NoError(t, err)
 	assert.False(t, found)
 }

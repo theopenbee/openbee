@@ -283,12 +283,12 @@ bee:
 }
 
 func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
-	p := PlatformsConfig{Plugins: map[string]map[string]any{"feishu": {"bot_name": "FeishuBot"}}}
+	p := PlatformsConfig{Plugins: map[string]map[string]any{"beta": {"bot_name": "BetaBot"}}}
 	p.Weixin.BotName = "WxBot"
 	p.Weixin.Enabled = false
 	got := p.BotNamesByPlatform()
-	assert.Equal(t, map[string]string{"feishu": "FeishuBot", "weixin": "WxBot"}, got)
-	assert.ElementsMatch(t, []string{"FeishuBot", "WxBot"}, p.BotNames())
+	assert.Equal(t, map[string]string{"beta": "BetaBot", "weixin": "WxBot"}, got)
+	assert.ElementsMatch(t, []string{"BetaBot", "WxBot"}, p.BotNames())
 }
 
 func TestPlatformsConfig_InlinePlugins(t *testing.T) {

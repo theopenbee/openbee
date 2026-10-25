@@ -44,8 +44,8 @@ func (f *fakeStopSender) Send(_ context.Context, msg platform.OutboundMessage) e
 
 func makeStopReplyTo() platform.InboundMessage {
 	return platform.InboundMessage{
-		Platform:   "feishu",
-		SessionKey: "feishu:chat1:userA",
+		Platform:   "beta",
+		SessionKey: "beta:chat1:userA",
 		Content:    "/stop",
 	}
 }
@@ -69,7 +69,7 @@ func TestStop_BeeRunning_PendingMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"feishu": sender})
+		map[string]platform.PlatformSenderAdapter{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	assert.True(t, stopper.stopped, "expected StopSession to be called")
@@ -83,7 +83,7 @@ func TestStop_BeeRunning_NoMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"feishu": sender})
+		map[string]platform.PlatformSenderAdapter{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -95,7 +95,7 @@ func TestStop_NothingToStop(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"feishu": sender})
+		map[string]platform.PlatformSenderAdapter{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -107,7 +107,7 @@ func TestStop_OnlyMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"feishu": sender})
+		map[string]platform.PlatformSenderAdapter{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -126,7 +126,7 @@ func (f *fakeWorkerStopper) StopWorker(_ context.Context, sessionKey string, w m
 
 func newStopWorkerHandler(workers command.WorkerNameLookup, stop command.WorkerStopper, sender *fakeStopSender) *command.StopCommandHandler {
 	return command.NewStopCommandHandler(&fakeBeeStopper{}, &fakeStopMsgStore{}, workers, stop,
-		map[string]platform.PlatformSenderAdapter{"feishu": sender})
+		map[string]platform.PlatformSenderAdapter{"beta": sender})
 }
 
 func workerLookup(name string, workers ...model.Worker) *fakeClearWorkerLookup {
@@ -143,7 +143,7 @@ func TestStop_Worker_StopsTasks(t *testing.T) {
 
 	h.HandleCommand(context.Background(), "/stop alice", makeStopReplyTo())
 
-	require.Equal(t, []string{"feishu:chat1:userA::w-1"}, stop.calls)
+	require.Equal(t, []string{"beta:chat1:userA::w-1"}, stop.calls)
 	require.Len(t, sender.sent, 1)
 	assert.Contains(t, sender.sent[0], "alice")
 }

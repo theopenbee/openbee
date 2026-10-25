@@ -214,8 +214,8 @@ func TestManager_ValidateWorkerName_Rejects(t *testing.T) {
 		{name: "ValidateWorkerName_CaseInsensitiveDuplicate", existingNames: []string{"Alice"}, renameIdx: -1, targetName: "alice"},
 		{name: "ValidateWorkerName_WhitespaceTrimmed", existingNames: []string{"alice"}, renameIdx: -1, targetName: " alice "},
 		{name: "UpdateWorker_RenameToDifferentName_Duplicate", existingNames: []string{"alice", "bob"}, renameIdx: 0, targetName: "bob"},
-		{name: "ValidateWorkerName_BotNameConflict", botNames: []string{"feishu"}, renameIdx: -1, targetName: "feishu"},
-		{name: "ValidateWorkerName_BotNameConflict_CaseInsensitive", botNames: []string{"feishu"}, renameIdx: -1, targetName: "FEISHU"},
+		{name: "ValidateWorkerName_BotNameConflict", botNames: []string{"beta"}, renameIdx: -1, targetName: "beta"},
+		{name: "ValidateWorkerName_BotNameConflict_CaseInsensitive", botNames: []string{"beta"}, renameIdx: -1, targetName: "BETA"},
 	}
 
 	for _, tc := range cases {
@@ -291,12 +291,12 @@ func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
 
 func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"beta"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
 
-	botName := "feishu"
+	botName := "beta"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &botName})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrValidation)
@@ -304,12 +304,12 @@ func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
 
 func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) {
 	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"feishu"})
+	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"beta"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
 
-	upperBotName := "FEISHU"
+	upperBotName := "BETA"
 	_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Name: &upperBotName})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrValidation)

@@ -113,7 +113,7 @@ func newMessageListCommand(run Runner, short string, outbound bool) *cobra.Comma
 		},
 	}
 	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Filter by session key")
-	cmd.Flags().StringVar(&platform, "platform", "", "Filter by platform (e.g. feishu, local)")
+	cmd.Flags().StringVar(&platform, "platform", "", "Filter by platform (channel id, e.g. local)")
 	cmd.Flags().StringVar(&status, "status", "", statusUsage)
 	if outbound {
 		cmd.Flags().StringVar(&sourceType, "source-type", "", "Filter by source type (bee, worker, system)")

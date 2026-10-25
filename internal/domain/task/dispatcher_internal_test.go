@@ -12,7 +12,7 @@ import (
 
 func TestBuildInstruction_WithPlatformContext(t *testing.T) {
 	platform.RegisterExtractor("testplatform", func(_ string) string {
-		return `{"feishu":{"open_id":"ou_abc","chat_id":"oc_xyz"}}`
+		return `{"beta":{"open_id":"user_abc","chat_id":"chat_xyz"}}`
 	})
 	task := DispatchTask{
 		TaskID:    "task-1",
@@ -26,7 +26,7 @@ func TestBuildInstruction_WithPlatformContext(t *testing.T) {
 	got := buildInstruction(task)
 
 	assert.Contains(t, got, `"platform_context"`)
-	assert.Contains(t, got, `"ou_abc"`)
+	assert.Contains(t, got, `"user_abc"`)
 	assert.Contains(t, got, "do something")
 }
 
@@ -47,11 +47,11 @@ func TestBuildInstruction_ProactiveTaskUsesSessionKey(t *testing.T) {
 			got := buildInstruction(DispatchTask{
 				TaskID:      "task-1",
 				MessageID:   "msg-1",
-				SessionKey:  "feishu:oc_1:ou_1",
+				SessionKey:  "beta:chat_1:user_1",
 				TaskType:    taskType,
 				Instruction: "report",
 			})
-			assert.Contains(t, got, `<task_meta>{"session_key":"feishu:oc_1:ou_1","task_id":"task-1"}</task_meta>`)
+			assert.Contains(t, got, `<task_meta>{"session_key":"beta:chat_1:user_1","task_id":"task-1"}</task_meta>`)
 			assert.NotContains(t, got, "msg-1")
 		})
 	}
@@ -61,7 +61,7 @@ func TestBuildInstruction_ImmediateTaskUsesMessageID(t *testing.T) {
 	got := buildInstruction(DispatchTask{
 		TaskID:      "task-1",
 		MessageID:   "msg-1",
-		SessionKey:  "feishu:oc_1:ou_1",
+		SessionKey:  "beta:chat_1:user_1",
 		TaskType:    model.TaskTypeImmediate,
 		Instruction: "report",
 	})

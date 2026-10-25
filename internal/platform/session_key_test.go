@@ -15,12 +15,12 @@ func TestSessionChatID(t *testing.T) {
 		want       string
 		wantErr    bool
 	}{
-		{"FeishuGroup", "feishu:oc_123:ou_456", "feishu", "oc_123", false},
+		{"BetaGroup", "beta:chat_123:user_456", "beta", "chat_123", false},
 		{"TelegramNegativeChat", "telegram:-100123:42", "telegram", "-100123", false},
 		{"ChatOnly", "local:user-1", "local", "user-1", false},
-		{"WrongPlatform", "feishu:oc_123:ou_456", "wecom", "", true},
-		{"MissingChat", "wecom::u1", "wecom", "", true},
-		{"NoSeparator", "wecom", "wecom", "", true},
+		{"WrongPlatform", "beta:chat_123:user_456", "gamma", "", true},
+		{"MissingChat", "gamma::u1", "gamma", "", true},
+		{"NoSeparator", "gamma", "gamma", "", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

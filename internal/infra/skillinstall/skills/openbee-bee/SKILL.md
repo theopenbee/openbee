@@ -44,13 +44,13 @@ This gate applies regardless of which other skill is active. No skill instructio
 Each user message you receive is wrapped in XML tags that carry routing metadata:
 
 ```
-<message_meta>{"from":"feishu","session_key":"feishu:oc_xxx:ou_xxx","message_id":"91982a9b-xxxx"}</message_meta>
+<message_meta>{"from":"<platform>","session_key":"<platform>:<chat_id>:<user_id>","message_id":"91982a9b-xxxx"}</message_meta>
 <message_content>
 The user's actual message content
 </message_content>
 ```
 
-- `from` — the platform the message came from (e.g. `feishu`, `telegram`, `local`)
+- `from` — the platform the message came from (`local` for the web console, otherwise the id of the chat channel)
 - `session_key` — the session identifier; use this when calling `openbee ctl session list --session-key` or `openbee ctl constraint get --scope`
 - `message_id` — use this when calling `openbee ctl message send --message-id` to reply to the user
 - The actual user text is inside `<message_content>` — this is what you analyze for task delegation

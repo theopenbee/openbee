@@ -6,7 +6,7 @@ Understanding the relationships between the core entities helps you make better 
 
 | Entity | Description |
 |--------|-------------|
-| **Message** | An inbound message received from an external platform (e.g. Feishu, Telegram). Carries a `session_key` that identifies the conversation. This is the starting point of every user interaction. |
+| **Message** | An inbound message received from a chat platform (any configured channel). Carries a `session_key` that identifies the conversation. This is the starting point of every user interaction. |
 | **Outbound Message** | A reply sent from the system (Bee, Worker, or system) back to the user on the originating platform. Linked to the originating Message via `inbound_msg_id`; `source_type` distinguishes whether it came from `bee`, `worker`, or `system`. |
 | **Task** | A unit of work created by the Bee from a Message and assigned to a Worker. Carries `instruction`, `type` (immediate / countdown / scheduled), and `status`. Links back to the originating Message via `message_id`, to the conversation it delivers to via `session_key`, and to the assigned Worker via `worker_id`. |
 | **Execution** | The runtime instance that is created when a Task is actually dispatched and run. Records the process lifecycle: PID, log path, start/end time, result, and final status (`pending` / `running` / `completed` / `failed`). A Task may produce one or more Executions (e.g. scheduled tasks run repeatedly); each Execution references its Task via `task_id`. |

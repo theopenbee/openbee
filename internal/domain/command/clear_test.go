@@ -133,7 +133,7 @@ func makeClearFixture(
 		opt(cfg)
 	}
 	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": sender}
+	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
 	sessions := &fakeClearSessionStore{agents: agents, deleted: true}
 	taskStore := &fakeClearTaskStore{tasks: tasks, cancelled: cfg.cancelled}
 	workers := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: workersByID}}
@@ -288,7 +288,7 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
 	execs := fakeRunningExecs{}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
@@ -306,8 +306,8 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 	require.Len(t, fx.sender.sent, 1)
 	assert.Contains(t, fx.sender.sent[0], "✅ 已清除 徐晃")
 	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped when no running tasks")
-	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.disp.clearedWorkers)
-	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.tasks.workerCancelCalls)
+	assert.Equal(t, []string{"beta:chat1:user1::w1"}, fx.disp.clearedWorkers)
+	assert.Equal(t, []string{"beta:chat1:user1::w1"}, fx.tasks.workerCancelCalls)
 }
 
 func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
@@ -328,7 +328,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1-task1"}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
@@ -360,7 +360,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", makeReplyTo())
 	require.Len(t, fx.sender.sent, 2, "expected 2 replies total")
 	assert.Equal(t, []string{"exec-w1-task1"}, fx.stopper.stopped)
-	assert.Equal(t, []string{"feishu:chat1:user1::w1"}, fx.disp.clearedWorkers)
+	assert.Equal(t, []string{"beta:chat1:user1::w1"}, fx.disp.clearedWorkers)
 	assert.Contains(t, fx.sender.sent[1], "✅ 已清除 徐晃")
 	assert.Contains(t, fx.sender.sent[1], "取消了 1 个任务")
 }
@@ -391,7 +391,7 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 		},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"feishu": fx.sender}
+	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
@@ -411,8 +411,8 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 
 	// Only 徐晃's exec should have been stopped — 貂蝉's must be untouched.
 	assert.Equal(t, []string{"exec-w1"}, fx.stopper.stopped)
-	assert.NotContains(t, fx.tasks.workerCancelCalls, "feishu:chat1:user1::w2", "貂蝉 must not have tasks cancelled")
-	assert.NotContains(t, fx.disp.clearedWorkers, "feishu:chat1:user1::w2", "貂蝉 queue must not be cleared")
+	assert.NotContains(t, fx.tasks.workerCancelCalls, "beta:chat1:user1::w2", "貂蝉 must not have tasks cancelled")
+	assert.NotContains(t, fx.disp.clearedWorkers, "beta:chat1:user1::w2", "貂蝉 queue must not be cleared")
 }
 
 func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {

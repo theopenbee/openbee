@@ -65,10 +65,10 @@ func TestPlatformFailureNotifier_MessageNotFound(t *testing.T) {
 }
 
 func TestPlatformFailureNotifier_UnknownPlatform(t *testing.T) {
-	notifier, ms, _ := setupNotifier(t, "feishu")
+	notifier, ms, _ := setupNotifier(t, "beta")
 	ctx := context.Background()
 
-	_, err := ms.Create(ctx, "msg-2", "sess-2", "dingtalk", "hi", `{}`, "", 0)
+	_, err := ms.Create(ctx, "msg-2", "sess-2", "alpha", "hi", `{}`, "", 0)
 	require.NoError(t, err)
 
 	err = notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "msg-2"}, model.FailureInfo{Reason: "boom"})

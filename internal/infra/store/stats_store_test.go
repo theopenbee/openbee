@@ -50,11 +50,11 @@ func TestStatsStore_GetOverview_Counts(t *testing.T) {
 	require.NoError(t, err)
 
 	// One inbound message today
-	ms.Create(ctx, uuid.New().String(), "sk1", "feishu", "hello", "{}", "", todayMS)
+	ms.Create(ctx, uuid.New().String(), "sk1", "beta", "hello", "{}", "", todayMS)
 
 	// One outbound message today
 	_, err = db.Exec(`INSERT INTO bee_outbound_messages (id,session_key,platform,content,media_path,status,platform_msg_id,source_type,source_id,inbound_msg_id,error,retry_count,sent_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		uuid.New().String(), "sk1", "feishu", "reply", "", "sent", "", "worker", w1.ID, "", "", 0, todayMS, todayMS)
+		uuid.New().String(), "sk1", "beta", "reply", "", "sent", "", "worker", w1.ID, "", "", 0, todayMS, todayMS)
 	require.NoError(t, err)
 
 	// Active countdown task

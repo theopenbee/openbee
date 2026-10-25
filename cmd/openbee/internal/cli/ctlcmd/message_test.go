@@ -34,10 +34,10 @@ func TestMessageSend_MessageID(t *testing.T) {
 }
 
 func TestMessageSend_SessionKey(t *testing.T) {
-	tool, args, err := runMessageSend(t, "--session-key", "feishu:oc_1:ou_1", "--media-path", "/tmp/a.png")
+	tool, args, err := runMessageSend(t, "--session-key", "beta:chat_1:user_1", "--media-path", "/tmp/a.png")
 	require.NoError(t, err)
 	assert.Equal(t, utils.SendMessage, tool)
-	assert.Equal(t, map[string]any{"session_key": "feishu:oc_1:ou_1", "media_path": "/tmp/a.png"}, args)
+	assert.Equal(t, map[string]any{"session_key": "beta:chat_1:user_1", "media_path": "/tmp/a.png"}, args)
 }
 
 func TestMessageSend_RequiresTarget(t *testing.T) {
@@ -46,6 +46,6 @@ func TestMessageSend_RequiresTarget(t *testing.T) {
 }
 
 func TestMessageSend_RejectsBothTargets(t *testing.T) {
-	_, _, err := runMessageSend(t, "--message-id", "msg-1", "--session-key", "feishu:oc_1:ou_1", "--media-path", "/tmp/a.png")
+	_, _, err := runMessageSend(t, "--message-id", "msg-1", "--session-key", "beta:chat_1:user_1", "--media-path", "/tmp/a.png")
 	require.Error(t, err)
 }

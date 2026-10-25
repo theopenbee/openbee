@@ -19,7 +19,7 @@ func setupDB(t *testing.T) (*sql.DB, *store.TaskStore) {
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','W','/','idle',1,1)`)
-	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,received_at,created_at,updated_at) VALUES ('m1','sk','feishu','hi',1,1,1)`)
+	db.Exec(`INSERT INTO bee_platform_messages (id,session_key,platform,content,received_at,created_at,updated_at) VALUES ('m1','sk','beta','hi',1,1,1)`)
 	return db, store.NewTaskStore(db)
 }
 
@@ -105,7 +105,7 @@ func TestScheduler_DispatchesWithTaskSessionTarget(t *testing.T) {
 	now := time.Now().UnixMilli()
 	pastRun := now - 1000
 	taskID, err := ts.Create(context.Background(), model.Task{
-		MessageID: "gone", SessionKey: "wecom:chat-1:user-1", Platform: "wecom",
+		MessageID: "gone", SessionKey: "gamma:chat-1:user-1", Platform: "gamma",
 		WorkerID: "w1", Instruction: "tick",
 		Type: model.TaskTypeScheduled, Status: model.TaskStatusPending,
 		CronExpr: "0 * * * *", NextRunAt: &pastRun,
@@ -123,8 +123,8 @@ func TestScheduler_DispatchesWithTaskSessionTarget(t *testing.T) {
 	select {
 	case dt := <-dispCh:
 		assert.Equal(t, taskID, dt.TaskID)
-		assert.Equal(t, "wecom:chat-1:user-1", dt.SessionKey)
-		assert.Equal(t, "wecom", dt.ReplyTo.Platform)
+		assert.Equal(t, "gamma:chat-1:user-1", dt.SessionKey)
+		assert.Equal(t, "gamma", dt.ReplyTo.Platform)
 		assert.True(t, dt.Proactive())
 	case <-ctx.Done():
 		require.Fail(t, "timeout: scheduled task not dispatched")

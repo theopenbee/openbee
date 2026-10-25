@@ -6,9 +6,9 @@ import (
 
 // InboundMessage carries a parsed message from any platform.
 type InboundMessage struct {
-	Platform          string // "feishu" | "dingtalk" | "wecom"
+	Platform          string // channel id, e.g. "local" or a plugin id
 	SenderID          string
-	SessionKey        string // platform-prefixed session key, e.g. "feishu:chatID:userID"
+	SessionKey        string // channel-prefixed session key, "<channel>:<chat_id>:<scope>"
 	Content           string
 	RawContent        string // original message text with formatting preserved (at-tags, markup)
 	Raw               string // original platform event, used by the sender for reply metadata

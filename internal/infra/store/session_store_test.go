@@ -322,7 +322,7 @@ func TestSessionStore_ClaimSessionKey(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO bee_platform_messages (id, session_key, platform, content, received_at, created_at, updated_at)
 		 VALUES ('in-old', 'local:old', 'local', 'hi', 1, 1, 1),
-		        ('in-other', 'feishu:chat:user', 'feishu', 'hi', 1, 1, 1)`,
+		        ('in-other', 'beta:chat:user', 'beta', 'hi', 1, 1, 1)`,
 		`INSERT INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
 		 VALUES ('out-old', 'local:old', 'local', 'hello', 'sent', 2, 2)`,
 		`INSERT INTO bee_constraints (id, scope, key, value, created_at, updated_at)
@@ -350,7 +350,7 @@ func TestSessionStore_ClaimSessionKey(t *testing.T) {
 		return v
 	}
 	assert.Equal(t, "local:new", column(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-old"))
-	assert.Equal(t, "feishu:chat:user", column(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-other"))
+	assert.Equal(t, "beta:chat:user", column(`SELECT session_key FROM bee_platform_messages WHERE id = ?`, "in-other"))
 	assert.Equal(t, "local:new", column(`SELECT session_key FROM bee_outbound_messages WHERE id = ?`, "out-old"))
 	assert.Equal(t, "local:new", column(`SELECT scope FROM bee_constraints WHERE id = ?`, "c-old"))
 	assert.Equal(t, "global", column(`SELECT scope FROM bee_constraints WHERE id = ?`, "c-global"))
