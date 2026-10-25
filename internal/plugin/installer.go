@@ -71,6 +71,10 @@ func (i *Installer) installNpm(ctx context.Context, spec string) (Entry, Manifes
 	if err != nil {
 		return Entry{}, Manifest{}, err
 	}
+	previous, hadPrevious, err := i.registeredPackage(name)
+	if err != nil {
+		return Entry{}, Manifest{}, err
+	}
 	if _, err := i.npm(ctx, dir, "install", "--save", spec); err != nil {
 		return Entry{}, Manifest{}, err
 	}
@@ -83,10 +87,27 @@ func (i *Installer) installNpm(ctx context.Context, spec string) (Entry, Manifes
 			}
 		}
 	}
-	if _, uerr := i.npm(ctx, dir, "uninstall", "--save", name); uerr != nil {
-		return Entry{}, Manifest{}, fmt.Errorf("%w (rollback failed: %v)", err, uerr)
+	rollback := []string{"uninstall", "--save", name}
+	if hadPrevious && previous.Version != "" {
+		rollback = []string{"install", "--save", name + "@" + previous.Version}
+	}
+	if _, rerr := i.npm(ctx, dir, rollback...); rerr != nil {
+		return Entry{}, Manifest{}, fmt.Errorf("%w (rollback failed: %v)", err, rerr)
 	}
 	return Entry{}, Manifest{}, err
+}
+
+func (i *Installer) registeredPackage(name string) (Entry, bool, error) {
+	entries, err := i.Registry.List()
+	if err != nil {
+		return Entry{}, false, err
+	}
+	for _, e := range entries {
+		if e.Source == SourceNpm && e.Package == name {
+			return e, true, nil
+		}
+	}
+	return Entry{}, false, nil
 }
 
 func (i *Installer) packageName(ctx context.Context, dir, spec string) (string, error) {

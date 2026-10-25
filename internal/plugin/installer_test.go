@@ -175,3 +175,37 @@ func TestExecRunner_ReturnsStdoutOnly(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
 }
+
+type upgradeNpm struct {
+	fakeNpm
+}
+
+func (f *upgradeNpm) run(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	if len(args) > 2 && args[0] == "install" && strings.HasSuffix(args[2], "@0.0.9") {
+		f.calls = append(f.calls, name+" "+strings.Join(args, " "))
+		pkgDir := filepath.Join(dir, "node_modules", "@x", "openbee-discord")
+		return nil, os.WriteFile(filepath.Join(pkgDir, ManifestFile), []byte(validManifest), 0o644)
+	}
+	return f.fakeNpm.run(ctx, dir, name, args...)
+}
+
+func TestInstaller_FailedUpgradeRestoresPreviousVersion(t *testing.T) {
+	npm := &upgradeNpm{fakeNpm{packJSON: `[{"name":"@x/openbee-discord"}]`, manifest: `{"protocol_version": 9}`}}
+	dir := filepath.Join(t.TempDir(), "plugins")
+	inst := &Installer{Registry: OpenRegistry(dir), Run: npm.run}
+	previous := Entry{ID: "discord", Source: SourceNpm, Package: "@x/openbee-discord", Path: filepath.Join(dir, "node_modules", "@x", "openbee-discord"), Version: "0.0.9"}
+	require.NoError(t, inst.Registry.Put(previous))
+
+	_, _, err := inst.Install(context.Background(), "@x/openbee-discord@latest")
+	require.Error(t, err)
+	assert.Equal(t, "npm install --save @x/openbee-discord@0.0.9", npm.calls[len(npm.calls)-1])
+	for _, c := range npm.calls {
+		assert.NotContains(t, c, "uninstall")
+	}
+	got, ok, err := inst.Registry.Get("discord")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, previous, got)
+	_, err = LoadManifest(previous.Path)
+	assert.NoError(t, err)
+}
