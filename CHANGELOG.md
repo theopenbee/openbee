@@ -7,10 +7,13 @@
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
+- Give each Telegram forum topic its own session.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.
 - Fix DingTalk proactive sends swapping direct and group chats.
+- Keep Telegram proactive messages in the originating forum topic.
+- Migrate Telegram tasks when a group becomes a supergroup.
 
 ## [0.0.45] - 2026-10-12
 

@@ -16,15 +16,17 @@ func TestBuildSessionKey(t *testing.T) {
 	tests := []struct {
 		name     string
 		chatID   int64
+		threadID int
 		senderID int64
 		want     string
 	}{
-		{"private chat", 123, 123, "telegram:123:123"},
-		{"group chat", -100456, 789, "telegram:-100456:789"},
+		{"private chat", 123, 0, 123, "telegram:123:123"},
+		{"group chat", -100456, 0, 789, "telegram:-100456:789"},
+		{"forum topic", -100456, 5, 789, "telegram:-100456:5:789"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildSessionKey(tt.chatID, tt.senderID)
+			got := buildSessionKey(tt.chatID, tt.threadID, tt.senderID)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -50,14 +52,27 @@ func TestEscapeHTML(t *testing.T) {
 
 func TestParseRaw(t *testing.T) {
 	raw := `{"update_id":100,"message":{"message_id":42,"chat":{"id":-9876},"date":1700000000}}`
-	chatID, msgID, err := parseRaw(raw)
+	got, err := parseRaw(raw)
 	require.NoError(t, err)
-	assert.EqualValues(t, -9876, chatID)
-	assert.Equal(t, 42, msgID)
+	assert.Equal(t, target{chatID: -9876, replyToID: 42}, got)
+}
+
+func TestParseRaw_ForumTopic(t *testing.T) {
+	raw := `{"update_id":100,"message":{"message_id":42,"message_thread_id":5,"is_topic_message":true,"chat":{"id":-9876}}}`
+	got, err := parseRaw(raw)
+	require.NoError(t, err)
+	assert.Equal(t, target{chatID: -9876, threadID: 5, replyToID: 42}, got)
+}
+
+func TestParseRaw_ReplyThreadOutsideTopicIgnored(t *testing.T) {
+	raw := `{"update_id":100,"message":{"message_id":42,"message_thread_id":40,"chat":{"id":-9876}}}`
+	got, err := parseRaw(raw)
+	require.NoError(t, err)
+	assert.Zero(t, got.threadID)
 }
 
 func TestParseRaw_InvalidJSON(t *testing.T) {
-	_, _, err := parseRaw("not json")
+	_, err := parseRaw("not json")
 	assert.Error(t, err)
 }
 
