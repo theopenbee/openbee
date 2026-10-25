@@ -22,6 +22,7 @@ type OutboundMessage struct {
 	SessionKey   string
 	Content      string
 	ReplyTo      InboundMessage
+	Proactive    bool
 	MediaPath    string // optional local file path to upload and send
 	SourceType   string // "bee" | "worker" | "system" — who sent this message
 	SourceID     string // worker_id when SourceType is "worker"

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -33,7 +34,7 @@ type Server struct {
 	taskStore            *store.TaskStore
 	messageStore         *store.MessageStore
 	outboundMessageStore *store.OutboundMessageStore
-	senders              map[string]platform.PlatformSenderAdapter
+	delivery             *delivery.Resolver
 	clearSvc             *session.ClearService
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
@@ -60,7 +61,7 @@ func NewBeeServer(
 		taskStore:            ts,
 		messageStore:         ms,
 		outboundMessageStore: oms,
-		senders:              senders,
+		delivery:             delivery.NewResolver(ms, senders),
 		clearSvc:             clearSvc,
 		executionStore:       es,
 		constraintStore:      constraintStore,

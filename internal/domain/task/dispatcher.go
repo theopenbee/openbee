@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -20,7 +21,8 @@ import (
 var log = logger.With(zap.String("component", "taskdispatcher"))
 
 type taskMeta struct {
-	MessageID       string          `json:"message_id"`
+	MessageID       string          `json:"message_id,omitempty"`
+	SessionKey      string          `json:"session_key,omitempty"`
 	TaskID          string          `json:"task_id,omitempty"`
 	PlatformContext json.RawMessage `json:"platform_context,omitempty"`
 }
@@ -50,8 +52,8 @@ type TaskStore interface {
 
 // FailureNotifier sends failure and cancellation notifications to users.
 type FailureNotifier interface {
-	NotifyTaskFailure(ctx context.Context, messageID string, info model.FailureInfo) error
-	NotifyTaskCancelled(ctx context.Context, messageID string, workerName string) error
+	NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error
+	NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName string) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
@@ -283,9 +285,11 @@ func (d *TaskDispatcher) handleClear(req clearRequest) {
 // can call mark_task_success and send_message via RPC.
 func buildInstruction(t DispatchTask) string {
 	if t.TaskID != "" || t.MessageID != "" {
-		meta := taskMeta{
-			MessageID: t.MessageID,
-			TaskID:    t.TaskID,
+		meta := taskMeta{TaskID: t.TaskID}
+		if t.Proactive() {
+			meta.SessionKey = t.SessionKey
+		} else {
+			meta.MessageID = t.MessageID
 		}
 		if ctx := platform.ExtractContext(t.ReplyTo.Platform, t.ReplyTo.Raw); ctx != "" {
 			meta.PlatformContext = json.RawMessage(ctx)
@@ -322,7 +326,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
-		d.notifyFailure(taskCtx, task.MessageID, model.FailureInfo{
+		d.notifyFailure(taskCtx, task, model.FailureInfo{
 			Reason:     err.Error(),
 			WorkerName: task.WorkerID,
 		})
@@ -333,7 +337,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	// just-launched worker before entering waitForResult.
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
-		d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
+		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
 		return
 	}
 
@@ -458,7 +462,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 					log.Error("fail task", zap.String("taskID", task.TaskID), zap.Error(err))
 				}
 			}
-			d.notifyFailure(ctx, task.MessageID, model.FailureInfo{
+			d.notifyFailure(ctx, task, model.FailureInfo{
 				Reason:     exec.Result,
 				WorkerName: workerName(exec.WorkerName, task.WorkerID),
 			})
@@ -468,7 +472,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case <-ticker.C:
 		case <-ctx.Done():
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
-			d.notifyCancel(context.Background(), task.MessageID, workerName(exec.WorkerName, task.WorkerID))
+			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
 			return
 		}
 	}
@@ -490,21 +494,23 @@ func workerName(primary, fallback string) string {
 	return fallback
 }
 
-func (d *TaskDispatcher) notifyFailure(ctx context.Context, messageID string, info model.FailureInfo) {
-	if d.failureNotifier == nil || messageID == "" {
+func (d *TaskDispatcher) notifyFailure(ctx context.Context, task DispatchTask, info model.FailureInfo) {
+	target := task.DeliveryTarget()
+	if d.failureNotifier == nil || (target.MessageID == "" && target.SessionKey == "") {
 		return
 	}
-	if err := d.failureNotifier.NotifyTaskFailure(ctx, messageID, info); err != nil {
-		log.Error("notify task failure", zap.String("messageID", messageID), zap.Error(err))
+	if err := d.failureNotifier.NotifyTaskFailure(ctx, target, info); err != nil {
+		log.Error("notify task failure", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
 	}
 }
 
-func (d *TaskDispatcher) notifyCancel(ctx context.Context, messageID, workerName string) {
-	if d.failureNotifier == nil || messageID == "" {
+func (d *TaskDispatcher) notifyCancel(ctx context.Context, task DispatchTask, workerName string) {
+	target := task.DeliveryTarget()
+	if d.failureNotifier == nil || (target.MessageID == "" && target.SessionKey == "") {
 		return
 	}
-	if err := d.failureNotifier.NotifyTaskCancelled(ctx, messageID, workerName); err != nil {
-		log.Error("notify task cancel", zap.String("messageID", messageID), zap.Error(err))
+	if err := d.failureNotifier.NotifyTaskCancelled(ctx, target, workerName); err != nil {
+		log.Error("notify task cancel", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
 	}
 }
 

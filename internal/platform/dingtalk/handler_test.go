@@ -25,9 +25,14 @@ func TestIsWebhookExpired(t *testing.T) {
 	assert.True(t, isWebhookExpired(data))
 }
 
+func TestProactiveEndpoint(t *testing.T) {
+	assert.Equal(t, "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend", proactiveEndpoint("1"))
+	assert.Equal(t, "https://api.dingtalk.com/v1.0/robot/groupMessages/send", proactiveEndpoint("2"))
+}
+
 func TestSendTextProactive_GroupChat(t *testing.T) {
 	data := &chatbot.BotCallbackDataModel{
-		ConversationType: "1",
+		ConversationType: "2",
 		ConversationId:   "testGroupId",
 		SenderStaffId:    "testStaffId",
 	}
@@ -43,7 +48,7 @@ func TestSendTextProactive_GroupChat(t *testing.T) {
 
 func TestSendTextProactive_SingleChat(t *testing.T) {
 	data := &chatbot.BotCallbackDataModel{
-		ConversationType: "2",
+		ConversationType: "1",
 		ConversationId:   "testConvId",
 		SenderStaffId:    "testStaffId",
 	}
@@ -59,10 +64,28 @@ func TestSendTextProactive_SingleChat(t *testing.T) {
 	assert.False(t, hasConvId)
 }
 
+func TestBuildProactiveMediaPayload_SingleChatTargetsSender(t *testing.T) {
+	cfg := config.DingTalkConfig{ClientID: "testBot"}
+	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "convId", SenderStaffId: "staffId"}
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/report.pdf", "media123", mediaInfo{})
+	assert.Equal(t, []string{"staffId"}, payload["userIds"])
+	_, hasConvId := payload["openConversationId"]
+	assert.False(t, hasConvId)
+}
+
+func TestBuildProactiveMediaPayload_GroupChatTargetsConversation(t *testing.T) {
+	cfg := config.DingTalkConfig{ClientID: "testBot"}
+	data := &chatbot.BotCallbackDataModel{ConversationType: "2", ConversationId: "groupId", SenderStaffId: "staffId"}
+	payload := buildProactiveMediaPayload(cfg, data, "/tmp/report.pdf", "media123", mediaInfo{})
+	assert.Equal(t, "groupId", payload["openConversationId"])
+	_, hasUserIds := payload["userIds"]
+	assert.False(t, hasUserIds)
+}
+
 func TestBuildProactiveMediaPayload_File(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
 	data := &chatbot.BotCallbackDataModel{
-		ConversationType: "1",
+		ConversationType: "2",
 		ConversationId:   "groupId",
 	}
 	payload := buildProactiveMediaPayload(cfg, data, "/tmp/report.pdf", "media123", mediaInfo{})
@@ -77,7 +100,7 @@ func TestBuildProactiveMediaPayload_File(t *testing.T) {
 
 func TestBuildProactiveMediaPayload_Audio(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
-	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
+	data := &chatbot.BotCallbackDataModel{ConversationType: "2", ConversationId: "g"}
 	payload := buildProactiveMediaPayload(cfg, data, "/tmp/voice.mp3", "audio456", mediaInfo{durationMs: 60000})
 	assert.Equal(t, "sampleAudio", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
@@ -89,7 +112,7 @@ func TestBuildProactiveMediaPayload_Audio(t *testing.T) {
 
 func TestBuildProactiveMediaPayload_Video(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
-	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
+	data := &chatbot.BotCallbackDataModel{ConversationType: "2", ConversationId: "g"}
 	payload := buildProactiveMediaPayload(cfg, data, "/tmp/clip.mp4", "vid789", mediaInfo{durationSec: 30, picMediaID: "thumb001"})
 	assert.Equal(t, "sampleVideo", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
@@ -101,7 +124,7 @@ func TestBuildProactiveMediaPayload_Video(t *testing.T) {
 
 func TestBuildProactiveMediaPayload_Image(t *testing.T) {
 	cfg := config.DingTalkConfig{ClientID: "testBot"}
-	data := &chatbot.BotCallbackDataModel{ConversationType: "1", ConversationId: "g"}
+	data := &chatbot.BotCallbackDataModel{ConversationType: "2", ConversationId: "g"}
 	payload := buildProactiveMediaPayload(cfg, data, "/tmp/photo.jpg", "img001", mediaInfo{})
 	assert.Equal(t, "sampleMarkdown", payload["msgKey"])
 	paramStr, _ := payload["msgParam"].(string)
@@ -115,7 +138,7 @@ func TestSend_RoutesCorrectlyOnExpiry(t *testing.T) {
 
 	expiredData := chatbot.BotCallbackDataModel{
 		SessionWebhookExpiredTime: nowMS - 1000,
-		ConversationType:          "1",
+		ConversationType:          "2",
 		ConversationId:            "gid",
 		SenderStaffId:             "sid",
 	}

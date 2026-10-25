@@ -464,6 +464,9 @@ type FeishuSender struct {
 }
 
 func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
+	if msg.Proactive {
+		return s.sendProactive(ctx, msg)
+	}
 	var event larkim.P2MessageReceiveV1
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &event); err != nil {
 		return fmt.Errorf("unmarshal raw event: %w", err)
@@ -519,6 +522,17 @@ func (s *FeishuSender) Send(ctx context.Context, msg platform.OutboundMessage) e
 	return s.sendMessage(ctx, chatID, chatType, messageID, "post", BuildPostContent(msg.Content))
 }
 
+func (s *FeishuSender) sendProactive(ctx context.Context, msg platform.OutboundMessage) error {
+	chatID, err := platform.SessionChatID(msg.SessionKey, PlatformID)
+	if err != nil {
+		return err
+	}
+	if msg.MediaPath != "" {
+		return s.sendMedia(ctx, msg.MediaPath, chatID, "", "")
+	}
+	return s.createMessage(ctx, chatID, "post", BuildPostContent(msg.Content))
+}
+
 func (s *FeishuSender) createMessage(ctx context.Context, chatID, msgType, content string) error {
 	resp, err := s.larkClient.Im.Message.Create(ctx,
 		larkim.NewCreateMessageReqBuilder().
@@ -539,7 +553,7 @@ func (s *FeishuSender) createMessage(ctx context.Context, chatID, msgType, conte
 }
 
 func (s *FeishuSender) sendMessage(ctx context.Context, chatID, chatType, messageID, msgType, content string) error {
-	if chatType == "p2p" {
+	if chatType == "p2p" || messageID == "" {
 		return s.createMessage(ctx, chatID, msgType, content)
 	}
 

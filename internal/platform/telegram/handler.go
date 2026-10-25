@@ -378,15 +378,34 @@ type TelegramSender struct {
 
 func (s *TelegramSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	bot := s.bot
-	chatID, replyToID, err := parseRaw(msg.ReplyTo.Raw)
+	chatID, replyToID, err := sendTarget(msg)
 	if err != nil {
-		return fmt.Errorf("parse reply context: %w", err)
+		return err
 	}
 
 	if msg.MediaPath != "" {
 		return s.sendMedia(bot, chatID, replyToID, msg.MediaPath)
 	}
 	return s.sendText(bot, chatID, replyToID, msg.Content)
+}
+
+func sendTarget(msg platform.OutboundMessage) (int64, int, error) {
+	if !msg.Proactive {
+		chatID, replyToID, err := parseRaw(msg.ReplyTo.Raw)
+		if err != nil {
+			return 0, 0, fmt.Errorf("parse reply context: %w", err)
+		}
+		return chatID, replyToID, nil
+	}
+	chat, err := platform.SessionChatID(msg.SessionKey, PlatformID)
+	if err != nil {
+		return 0, 0, err
+	}
+	chatID, err := strconv.ParseInt(chat, 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse telegram chat id %q: %w", chat, err)
+	}
+	return chatID, 0, nil
 }
 
 func (s *TelegramSender) sendText(bot *tgbotapi.BotAPI, chatID int64, replyToID int, text string) error {

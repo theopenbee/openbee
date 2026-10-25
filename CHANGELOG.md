@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Send messages to a session with `message send --session-key`.
+
+### Changed
+- Worker skill recommends xlsx for tabular attachments.
+
+### Fixed
+- Deliver scheduled and countdown task results proactively to the conversation.
+- Fix DingTalk proactive sends swapping direct and group chats.
+
 ## [0.0.45] - 2026-10-12
 
 ### Changed

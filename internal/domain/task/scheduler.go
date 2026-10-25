@@ -16,7 +16,7 @@ var schedulerLog = logger.With(zap.String("component", "taskscheduler"))
 
 type schedulerStore interface {
 	PeekDueScheduledTasks(ctx context.Context, nowMS int64) ([]model.Task, error)
-	ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.ClaimedTask, error)
+	ClaimDueTasks(ctx context.Context, nowMS int64, scheduledNextRuns map[string]int64) ([]model.Task, error)
 	ResetRunningToPending(ctx context.Context) (int64, error)
 	UpdateStatus(ctx context.Context, taskID, status string) error
 }
@@ -102,13 +102,12 @@ func (s *Scheduler) poll(ctx context.Context) {
 			}
 		}
 
-		sessionKey := ct.MessageSessionKey
 		dt := DispatchTask{
 			TaskID:      ct.ID,
 			WorkerID:    ct.WorkerID,
-			SessionKey:  sessionKey,
+			SessionKey:  ct.SessionKey,
 			Instruction: ct.Instruction,
-			ReplyTo:     platform.InboundMessage{Platform: ct.MessagePlatform, SessionKey: sessionKey},
+			ReplyTo:     platform.InboundMessage{Platform: ct.Platform, SessionKey: ct.SessionKey},
 			TaskType:    ct.Type,
 			MessageID:   ct.MessageID,
 		}

@@ -25,15 +25,18 @@ func newMessageCommand(run Runner) *cobra.Command {
 
 func newMessageSendCommand(run Runner, short string) *cobra.Command {
 	var (
-		messageID string
-		fromStdin bool
-		mediaPath string
+		messageID  string
+		sessionKey string
+		fromStdin  bool
+		mediaPath  string
 	)
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
-			a := map[string]any{"message_id": messageID}
+			a := map[string]any{}
+			setIfNonEmpty(a, "message_id", messageID)
+			setIfNonEmpty(a, "session_key", sessionKey)
 			if fromStdin {
 				b, err := io.ReadAll(os.Stdin)
 				if err != nil {
@@ -47,10 +50,12 @@ func newMessageSendCommand(run Runner, short string) *cobra.Command {
 			return run(utils.SendMessage, a)
 		},
 	}
-	cmd.Flags().StringVar(&messageID, "message-id", "", "ID of the originating platform message (required)")
+	cmd.Flags().StringVar(&messageID, "message-id", "", "Reply to this platform message")
+	cmd.Flags().StringVar(&sessionKey, "session-key", "", "Send a new message to this session instead of replying")
 	cmd.Flags().BoolVar(&fromStdin, "stdin", false, "Read text content from stdin (use with heredoc)")
 	cmd.Flags().StringVar(&mediaPath, "media-path", "", "Local file path to upload and send as media")
-	cmd.MarkFlagRequired("message-id")
+	cmd.MarkFlagsOneRequired("message-id", "session-key")
+	cmd.MarkFlagsMutuallyExclusive("message-id", "session-key")
 	return cmd
 }
 

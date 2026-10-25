@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -58,7 +59,7 @@ func TestPlatformFailureNotifier_MessageNotFound(t *testing.T) {
 	notifier, _, _ := setupNotifier(t, "test")
 	ctx := context.Background()
 
-	err := notifier.NotifyTaskFailure(ctx, "nonexistent-msg", model.FailureInfo{Reason: "some error"})
+	err := notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "nonexistent-msg"}, model.FailureInfo{Reason: "some error"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get message")
 }
@@ -70,9 +71,9 @@ func TestPlatformFailureNotifier_UnknownPlatform(t *testing.T) {
 	_, err := ms.Create(ctx, "msg-2", "sess-2", "dingtalk", "hi", `{}`, "", 0)
 	require.NoError(t, err)
 
-	err = notifier.NotifyTaskFailure(ctx, "msg-2", model.FailureInfo{Reason: "boom"})
+	err = notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "msg-2"}, model.FailureInfo{Reason: "boom"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no sender for platform")
+	assert.Contains(t, err.Error(), "no sender registered for platform")
 }
 
 func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
@@ -87,7 +88,7 @@ func TestPlatformFailureNotifier_TruncatesLongMessage(t *testing.T) {
 		Reason:     longReason,
 		WorkerName: "w",
 	}
-	require.NoError(t, notifier.NotifyTaskFailure(ctx, "msg-3", info))
+	require.NoError(t, notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "msg-3"}, info))
 
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
@@ -106,7 +107,7 @@ func TestPlatformFailureNotifier_CancelSuccess(t *testing.T) {
 	_, err := ms.Create(ctx, "msg-cancel-1", "sess-cancel", "test", "cancel me", `{"raw":true}`, "", 0)
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyTaskCancelled(ctx, "msg-cancel-1", "my-worker"))
+	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{MessageID: "msg-cancel-1"}, "my-worker"))
 
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
@@ -130,7 +131,7 @@ func TestPlatformFailureNotifier_StructuredFormat(t *testing.T) {
 		Reason:     "launch failed",
 		WorkerName: "worker-abc",
 	}
-	require.NoError(t, notifier.NotifyTaskFailure(ctx, "msg-5", info))
+	require.NoError(t, notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "msg-5"}, info))
 
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
@@ -141,4 +142,45 @@ func TestPlatformFailureNotifier_StructuredFormat(t *testing.T) {
 	assert.Contains(t, msg.Content, "worker-abc")
 	assert.NotContains(t, msg.Content, "Retried")
 	assert.Equal(t, "test", msg.ReplyTo.Platform)
+}
+
+func TestPlatformFailureNotifier_ReplyTargetRepliesToMessage(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-reply", "test:chat:user", "test", "hi", `{"origin":true}`, "", 0)
+	require.NoError(t, err)
+
+	require.NoError(t, notifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: "msg-reply"}, model.FailureInfo{Reason: "boom"}))
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	require.Len(t, sender.sent, 1)
+	msg := sender.sent[0]
+	assert.False(t, msg.Proactive)
+	assert.Equal(t, `{"origin":true}`, msg.ReplyTo.Raw)
+	assert.Equal(t, "msg-reply", msg.InboundMsgID)
+	assert.Equal(t, store.SourceTypeSystem, msg.SourceType)
+}
+
+func TestPlatformFailureNotifier_SessionTargetSendsProactively(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-old", "test:chat:user", "test", "old", `{"seq":1}`, "", 1000)
+	require.NoError(t, err)
+	_, err = ms.Create(ctx, "msg-new", "test:chat:user", "test", "new", `{"seq":2}`, "", 2000)
+	require.NoError(t, err)
+
+	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{SessionKey: "test:chat:user"}, "w"))
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	require.Len(t, sender.sent, 1)
+	msg := sender.sent[0]
+	assert.True(t, msg.Proactive)
+	assert.Equal(t, "test:chat:user", msg.SessionKey)
+	assert.Equal(t, "test:chat:user", msg.ReplyTo.SessionKey)
+	assert.Equal(t, `{"seq":2}`, msg.ReplyTo.Raw)
+	assert.Empty(t, msg.InboundMsgID)
 }

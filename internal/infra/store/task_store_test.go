@@ -596,3 +596,36 @@ func TestTaskStore_HasActiveImmediateTasksByWorkerID(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, active, "scheduled task must not affect HasActiveImmediateTasksByWorkerID")
 }
+
+func TestTaskStore_Create_PersistsSessionTarget(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+
+	id := seedTask(t, ts, model.Task{SessionKey: "wecom:chat-1:user-1", Platform: "wecom"})
+
+	got, err := ts.GetByID(context.Background(), id)
+	require.NoError(t, err)
+	assert.Equal(t, "wecom:chat-1:user-1", got.SessionKey)
+	assert.Equal(t, "wecom", got.Platform)
+}
+
+func TestTaskStore_ClaimDueTasks_DoesNotRequireOriginMessage(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+
+	id := seedTask(t, ts, model.Task{
+		MessageID:  "gone",
+		SessionKey: "feishu:oc_1:ou_1",
+		Platform:   "feishu",
+		Type:       model.TaskTypeCountdown,
+		ScheduledAt: func() *int64 {
+			v := time.Now().Add(-time.Minute).UnixMilli()
+			return &v
+		}(),
+	})
+
+	tasks, err := ts.ClaimDueTasks(context.Background(), time.Now().UnixMilli(), nil)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, id, tasks[0].ID)
+	assert.Equal(t, "feishu:oc_1:ou_1", tasks[0].SessionKey)
+	assert.Equal(t, "feishu", tasks[0].Platform)
+}

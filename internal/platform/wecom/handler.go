@@ -61,14 +61,15 @@ const (
 // ─── Message type / chat type constants ───────────────────────────────────
 
 const (
-	msgTypeText   = "text"
-	msgTypeVoice  = "voice"
-	msgTypeImage  = "image"
-	msgTypeFile   = "file"
-	msgTypeMixed  = "mixed"
-	msgTypeStream = "stream"
-	msgTypeVideo  = "video"
-	chatTypeGroup = "group"
+	msgTypeText     = "text"
+	msgTypeVoice    = "voice"
+	msgTypeImage    = "image"
+	msgTypeFile     = "file"
+	msgTypeMixed    = "mixed"
+	msgTypeStream   = "stream"
+	msgTypeVideo    = "video"
+	msgTypeMarkdown = "markdown"
+	chatTypeGroup   = "group"
 )
 
 // ─── Message body types ────────────────────────────────────────────────────
@@ -142,12 +143,17 @@ type streamItem struct {
 // sendMsgBody is the body of an aibot_send_msg frame.
 // chatid must be snake_case to match the WeCom wire protocol.
 type sendMsgBody struct {
-	ChatID  string          `json:"chatid"`
-	MsgType string          `json:"msgtype"`
-	Image   *mediaIDContent `json:"image,omitempty"`
-	Voice   *mediaIDContent `json:"voice,omitempty"`
-	Video   *mediaIDContent `json:"video,omitempty"`
-	File    *mediaIDContent `json:"file,omitempty"`
+	ChatID   string           `json:"chatid"`
+	MsgType  string           `json:"msgtype"`
+	Markdown *markdownContent `json:"markdown,omitempty"`
+	Image    *mediaIDContent  `json:"image,omitempty"`
+	Voice    *mediaIDContent  `json:"voice,omitempty"`
+	Video    *mediaIDContent  `json:"video,omitempty"`
+	File     *mediaIDContent  `json:"file,omitempty"`
+}
+
+type markdownContent struct {
+	Content string `json:"content"`
 }
 
 type mediaIDContent struct {
@@ -497,6 +503,9 @@ type WeComSender struct {
 // Send delivers a reply to WeCom. Text replies use aibot_respond_msg streaming;
 // media replies use 3-step upload + aibot_send_msg.
 func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
+	if msg.Proactive {
+		return s.sendProactive(ctx, msg)
+	}
 	var frame WsFrame
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &frame); err != nil {
 		return fmt.Errorf("wecom sender: unmarshal raw frame: %w", err)
@@ -524,6 +533,21 @@ func (s *WeComSender) Send(ctx context.Context, msg platform.OutboundMessage) er
 	return s.sendText(ctx, msg.Content, reqID, streamID)
 }
 
+func (s *WeComSender) sendProactive(ctx context.Context, msg platform.OutboundMessage) error {
+	chatID, err := platform.SessionChatID(msg.SessionKey, PlatformID)
+	if err != nil {
+		return err
+	}
+	if msg.MediaPath != "" {
+		return s.pushMedia(ctx, msg.MediaPath, chatID)
+	}
+	body := sendMsgBody{ChatID: chatID, MsgType: msgTypeMarkdown, Markdown: &markdownContent{Content: msg.Content}}
+	if _, err := s.sendReplyFn(generateReqID(WsCmdSendMsg), WsCmdSendMsg, body); err != nil {
+		return fmt.Errorf("wecom: send markdown message: %w", err)
+	}
+	return nil
+}
+
 // sendText sends a streaming text reply.
 func (s *WeComSender) sendText(_ context.Context, content, reqID, streamID string) error {
 	body := streamBody{
@@ -536,6 +560,13 @@ func (s *WeComSender) sendText(_ context.Context, content, reqID, streamID strin
 
 // sendMedia uploads a media file and sends it via aibot_send_msg.
 func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, streamID string) error {
+	if err := s.pushMedia(ctx, mediaPath, chatID); err != nil {
+		return err
+	}
+	return s.finishStream(reqID, streamID, i18n.M.Runtime.WeCom.FileSent)
+}
+
+func (s *WeComSender) pushMedia(ctx context.Context, mediaPath, chatID string) error {
 	data, err := os.ReadFile(mediaPath)
 	if err != nil {
 		return fmt.Errorf("wecom: read media file: %w", err)
@@ -569,8 +600,7 @@ func (s *WeComSender) sendMedia(ctx context.Context, mediaPath, chatID, reqID, s
 	if _, err := s.sendReplyFn(generateReqID(WsCmdSendMsg), WsCmdSendMsg, sendBody); err != nil {
 		return fmt.Errorf("wecom: send media message: %w", err)
 	}
-
-	return s.finishStream(reqID, streamID, i18n.M.Runtime.WeCom.FileSent)
+	return nil
 }
 
 // uploadMedia performs the 3-step WeCom media upload: init → chunks → finish.

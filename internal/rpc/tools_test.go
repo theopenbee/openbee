@@ -244,6 +244,9 @@ func TestCallTool_InvalidArgs(t *testing.T) {
 		{"SendMessage_MissingMessageID", "send_message", map[string]any{"content": "hello"}},
 		{"SendMessage_MissingContent", "send_message", map[string]any{"message_id": "msg-x"}},
 		{"SendMessage_MessageNotFound", "send_message", map[string]any{"message_id": "nonexistent-msg", "content": "hello"}},
+		{"SendMessage_MessageIDAndSessionKey", "send_message", map[string]any{"message_id": "msg-x", "session_key": "feishu:c:u", "content": "hello"}},
+		{"SendMessage_SessionWithoutSender", "send_message", map[string]any{"session_key": "feishu:c:u", "content": "hello"}},
+		{"CreateTask_MessageNotFound", "create_task", map[string]any{"message_id": "nonexistent-msg", "worker_id": "w", "instruction": "go", "type": "immediate"}},
 		{"ListTasks_BothParams_Error", "list_tasks", map[string]any{"message_id": "msg-1", "session_key": "session-X"}},
 		{"ListTasks_NoParams_Error", "list_tasks", map[string]any{}},
 		{"ListSessionContexts_MissingSessionKey", "list_session_contexts", map[string]any{}},
@@ -324,6 +327,58 @@ func TestCallTool_SendMessage(t *testing.T) {
 			},
 		},
 		{
+			name:     "ReplyToMessage",
+			senderID: "feishu",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-reply", "feishu:chat1:userA", "feishu", "hello", `{"origin":true}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-reply", "content": "done"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.False(t, sent[0].Proactive)
+				assert.Equal(t, `{"origin":true}`, sent[0].ReplyTo.Raw)
+				assert.Equal(t, "msg-reply", sent[0].InboundMsgID)
+			},
+		},
+		{
+			name:     "SessionKeySendsProactivelyWithLatestContext",
+			senderID: "feishu",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-old", "feishu:chat1:userA", "feishu", "old", `{"seq":1}`, "", 1000) //nolint
+				ms.Create(ctx, "msg-new", "feishu:chat1:userA", "feishu", "new", `{"seq":2}`, "", 2000) //nolint
+				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-x")
+				return workerCtx, map[string]any{"session_key": "feishu:chat1:userA", "content": "daily report"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.True(t, sent[0].Proactive)
+				assert.Equal(t, "worker-x\ndaily report", sent[0].Content)
+				assert.Equal(t, "feishu:chat1:userA", sent[0].SessionKey)
+				assert.Equal(t, "feishu", sent[0].ReplyTo.Platform)
+				assert.Equal(t, `{"seq":2}`, sent[0].ReplyTo.Raw)
+				assert.Empty(t, sent[0].InboundMsgID)
+				assert.Equal(t, store.SourceTypeWorker, sent[0].SourceType)
+			},
+		},
+		{
+			name:     "SessionKeyWithoutHistoryUsesKeyPrefix",
+			senderID: "local",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				return context.Background(), map[string]any{"session_key": "local:user-1", "content": "hi"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.True(t, sent[0].Proactive)
+				assert.Equal(t, "local", sent[0].ReplyTo.Platform)
+				assert.Equal(t, "local:user-1", sent[0].ReplyTo.SessionKey)
+				assert.Empty(t, sent[0].ReplyTo.Raw)
+			},
+		},
+		{
 			name:     "LinearContentAndMediaSentTogether",
 			senderID: "linear",
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
@@ -356,6 +411,27 @@ func TestCallTool_SendMessage(t *testing.T) {
 			tc.check(t, sent)
 		})
 	}
+}
+
+func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
+	s, db := setupServerWithSender(t, "feishu", &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-origin", "feishu:oc_1:ou_1", "feishu", "every morning", `{}`, "", 0) //nolint
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID,
+		"instruction": "report", "type": "scheduled", "cron_expr": "0 9 * * *",
+	}))
+	require.NoError(t, err)
+	taskID := result.(map[string]string)["task_id"]
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, taskID)
+	require.NoError(t, err)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Equal(t, "feishu:oc_1:ou_1", got.SessionKey)
+	assert.Equal(t, "feishu", got.Platform)
 }
 
 func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
@@ -453,7 +529,7 @@ func TestCallTool_ClearSession_StopsRunningTask(t *testing.T) {
 			// Create a running task with a running execution in bee_executions.
 			ts := store.NewTaskStore(db)
 			id, _ := ts.Create(ctx, model.Task{
-				MessageID: tc.msgID, WorkerID: w.ID, Instruction: "long task",
+				MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "long task",
 				Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 				CreatedAt: 1, UpdatedAt: 1,
 			})
@@ -463,7 +539,7 @@ func TestCallTool_ClearSession_StopsRunningTask(t *testing.T) {
 			if tc.extraPendingTask {
 				// Create a pending task.
 				ts.Create(ctx, model.Task{ //nolint
-					MessageID: tc.msgID, WorkerID: w.ID, Instruction: "queued task",
+					MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "queued task",
 					Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
 					CreatedAt: 1, UpdatedAt: 1,
 				})
@@ -617,7 +693,7 @@ func TestCallTool_ClearWorkerSession_RunningTask_RequiresConfirmation(t *testing
 
 	ts := store.NewTaskStore(db)
 	ts.Create(ctx, model.Task{ //nolint
-		MessageID: "msg-cw1", WorkerID: w.ID, Instruction: "long running",
+		MessageID: "msg-cw1", SessionKey: "session-CW", WorkerID: w.ID, Instruction: "long running",
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
@@ -646,7 +722,7 @@ func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
 
 	ts := store.NewTaskStore(db)
 	taskID, _ := ts.Create(ctx, model.Task{
-		MessageID: "msg-cw2", WorkerID: w.ID, Instruction: "long running",
+		MessageID: "msg-cw2", SessionKey: "session-CW2", WorkerID: w.ID, Instruction: "long running",
 		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
 		CreatedAt: 1, UpdatedAt: 1,
 	})
@@ -855,7 +931,7 @@ func TestCallTool_ClearSession_ActiveTask(t *testing.T) {
 
 			ts := store.NewTaskStore(db)
 			ts.Create(ctx, model.Task{ //nolint
-				MessageID: "msg-1", WorkerID: w.ID, Instruction: tc.instruction,
+				MessageID: "msg-1", SessionKey: "sk", WorkerID: w.ID, Instruction: tc.instruction,
 				Type: model.TaskTypeImmediate, Status: tc.taskStatus,
 				CreatedAt: 1, UpdatedAt: 1,
 			})
@@ -905,7 +981,7 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 
 			ts := store.NewTaskStore(db)
 			ts.Create(ctx, model.Task{ //nolint
-				MessageID: tc.msgID, WorkerID: w.ID, Instruction: "task",
+				MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "task",
 				Type: tc.taskType, Status: model.TaskStatusPending,
 				CreatedAt: 1, UpdatedAt: 1,
 			})
@@ -1032,7 +1108,7 @@ func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
 	var newestExecForFirstTask string
 	for i := 0; i < 3; i++ {
 		taskID, err := ts.Create(ctx, model.Task{
-			MessageID: "msg-page", WorkerID: w.ID, Instruction: fmt.Sprintf("task-%d", i),
+			MessageID: "msg-page", SessionKey: "session-PAGE", WorkerID: w.ID, Instruction: fmt.Sprintf("task-%d", i),
 			Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
 			CreatedAt: int64(i + 1), UpdatedAt: int64(i + 1),
 		})
