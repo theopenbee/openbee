@@ -9,7 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,14 +26,17 @@ type fakeAPI struct {
 	respond func(c apiCall) string
 }
 
-func newFakeBot(t *testing.T, respond func(c apiCall) string) (*tgbotapi.BotAPI, *fakeAPI) {
+func newFakeBot(t *testing.T, respond func(c apiCall) string, handler bot.HandlerFunc) (*bot.Bot, *fakeAPI) {
 	t.Helper()
 	f := &fakeAPI{respond: respond}
 	srv := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(srv.Close)
-	bot, err := tgbotapi.NewBotAPIWithClient("TOKEN", srv.URL+"/bot%s/%s", srv.Client())
+	if handler == nil {
+		handler = func(context.Context, *bot.Bot, *models.Update) {}
+	}
+	b, err := newBot("1:TOKEN", handler, bot.WithServerURL(srv.URL))
 	require.NoError(t, err)
-	return bot, f
+	return b, f
 }
 
 func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
@@ -75,13 +79,23 @@ func (f *fakeAPI) recorded() []apiCall {
 type migrationCall struct{ from, to string }
 
 type fakeMigrator struct {
-	mu    sync.Mutex
-	calls []migrationCall
+	mu     sync.Mutex
+	calls  []migrationCall
+	onCall func()
 }
 
 func (m *fakeMigrator) MigrateSessionKeyPrefix(_ context.Context, from, to string) (int64, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.calls = append(m.calls, migrationCall{from, to})
+	m.mu.Unlock()
+	if m.onCall != nil {
+		m.onCall()
+	}
 	return 1, nil
+}
+
+func (m *fakeMigrator) recorded() []migrationCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]migrationCall(nil), m.calls...)
 }

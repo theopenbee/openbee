@@ -8,6 +8,7 @@
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
 - Give each Telegram forum topic its own session.
+- Switch Telegram integration to the go-telegram/bot library.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.

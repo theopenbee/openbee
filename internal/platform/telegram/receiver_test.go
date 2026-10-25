@@ -2,9 +2,11 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,66 +17,62 @@ const topicUpdate = `{"update_id":500,"message":{"message_id":42,"message_thread
 	`"from":{"id":789,"is_bot":false,"first_name":"u"},"chat":{"id":-100456,"type":"supergroup","is_forum":true},` +
 	`"date":1700000000,"text":"remind me in 5 minutes"}}`
 
-func TestFetchUpdates_KeepsTopicFields(t *testing.T) {
-	bot, api := newFakeBot(t, func(c apiCall) string {
-		return `{"ok":true,"result":[` + topicUpdate + `]}`
-	})
-
-	updates, err := fetchUpdates(bot, 500, 30)
-	require.NoError(t, err)
-
-	calls := api.recorded()
-	require.Len(t, calls, 1)
-	assert.Equal(t, "getUpdates", calls[0].method)
-	assert.Equal(t, map[string]string{"offset": "500", "timeout": "30"}, calls[0].form)
-
-	require.Len(t, updates, 1)
-	assert.Equal(t, 500, updates[0].UpdateID)
-	assert.Equal(t, 5, updates[0].threadID)
-	assert.Equal(t, "remind me in 5 minutes", updates[0].Message.Text)
-	assert.JSONEq(t, topicUpdate, string(updates[0].raw))
+func serveUpdatesOnce(update string) func(apiCall) string {
+	served := false
+	return func(c apiCall) string {
+		if c.method != "getUpdates" {
+			return ""
+		}
+		if served {
+			time.Sleep(10 * time.Millisecond)
+			return `{"ok":true,"result":[]}`
+		}
+		served = true
+		return `{"ok":true,"result":[` + update + `]}`
+	}
 }
 
 func TestBuildInboundMessage_TopicSession(t *testing.T) {
-	bot, _ := newFakeBot(t, func(apiCall) string {
-		return `{"ok":true,"result":[` + topicUpdate + `]}`
-	})
-	updates, err := fetchUpdates(bot, 0, 0)
-	require.NoError(t, err)
-	require.Len(t, updates, 1)
+	var update models.Update
+	require.NoError(t, json.Unmarshal([]byte(topicUpdate), &update))
 
-	r := &TelegramReceiver{bot: bot}
-	msg := r.buildInboundMessage(context.Background(), bot, updates[0])
+	r := &TelegramReceiver{}
+	msg := r.buildInboundMessage(context.Background(), &update)
 	require.NotNil(t, msg)
 	assert.Equal(t, "telegram:-100456:5:789", msg.SessionKey)
 	assert.Equal(t, "789", msg.SenderID)
 	assert.Equal(t, "500:42", msg.PlatformMessageID)
+	assert.Equal(t, int64(1700000000000), msg.MessageTime)
 
 	got, err := sendTarget(platform.OutboundMessage{ReplyTo: *msg})
 	require.NoError(t, err)
 	assert.Equal(t, target{chatID: -100456, threadID: 5, replyToID: 42}, got)
 }
 
-func TestStart_TypingTargetsTopic(t *testing.T) {
+func TestBuildInboundMessage_ReplyThreadOutsideTopicIgnored(t *testing.T) {
+	raw := `{"update_id":1,"message":{"message_id":42,"message_thread_id":40,` +
+		`"from":{"id":789,"is_bot":false,"first_name":"u"},"chat":{"id":-100456,"type":"supergroup"},"date":0,"text":"hi"}}`
+	var update models.Update
+	require.NoError(t, json.Unmarshal([]byte(raw), &update))
+
+	msg := (&TelegramReceiver{}).buildInboundMessage(context.Background(), &update)
+	require.NotNil(t, msg)
+	assert.Equal(t, "telegram:-100456:789", msg.SessionKey)
+}
+
+func TestStart_DispatchesTopicMessage(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	served := false
-	bot, api := newFakeBot(t, func(c apiCall) string {
-		if c.method != "getUpdates" {
-			return ""
-		}
-		if served {
-			cancel()
-			return `{"ok":true,"result":[]}`
-		}
-		served = true
-		return `{"ok":true,"result":[` + topicUpdate + `]}`
-	})
-	r := &TelegramReceiver{bot: bot}
+	r := &TelegramReceiver{}
+	b, api := newFakeBot(t, serveUpdatesOnce(topicUpdate), r.handleUpdate)
+	r.bot = b
 
 	dispatched := make(chan platform.InboundMessage, 1)
-	require.NoError(t, r.Start(ctx, func(m platform.InboundMessage) { dispatched <- m }))
-	assert.Equal(t, "telegram:-100456:5:789", (<-dispatched).SessionKey)
+	done := make(chan error, 1)
+	go func() { done <- r.Start(ctx, func(m platform.InboundMessage) { dispatched <- m }) }()
+
+	got := <-dispatched
+	assert.Equal(t, "telegram:-100456:5:789", got.SessionKey)
+	assert.Equal(t, "remind me in 5 minutes", got.Content)
 
 	require.Eventually(t, func() bool {
 		for _, c := range api.recorded() {
@@ -84,6 +82,9 @@ func TestStart_TypingTargetsTopic(t *testing.T) {
 		}
 		return false
 	}, time.Second, 10*time.Millisecond)
+
+	cancel()
+	require.NoError(t, <-done)
 }
 
 func TestStart_MigratesChatOnUpgrade(t *testing.T) {
@@ -98,22 +99,15 @@ func TestStart_MigratesChatOnUpgrade(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			served := false
-			bot, _ := newFakeBot(t, func(c apiCall) string {
-				if served {
-					cancel()
-					return `{"ok":true,"result":[]}`
-				}
-				served = true
-				return `{"ok":true,"result":[` + tc.update + `]}`
-			})
-			migrator := &fakeMigrator{}
-			r := &TelegramReceiver{bot: bot, migrator: migrator}
+			migrator := &fakeMigrator{onCall: cancel}
+			r := &TelegramReceiver{migrator: migrator}
+			b, _ := newFakeBot(t, serveUpdatesOnce(tc.update), r.handleUpdate)
+			r.bot = b
 
 			dispatched := 0
 			require.NoError(t, r.Start(ctx, func(platform.InboundMessage) { dispatched++ }))
 			assert.Zero(t, dispatched)
-			assert.Equal(t, []migrationCall{{"telegram:-123:", "telegram:-100999:"}}, migrator.calls)
+			assert.Equal(t, []migrationCall{{"telegram:-123:", "telegram:-100999:"}}, migrator.recorded())
 		})
 	}
 }
