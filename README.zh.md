@@ -95,7 +95,7 @@ openbee server -d
 
 ### 渠道插件
 
-其他聊天平台可以通过插件接入，无需重新编译 OpenBee：执行 `openbee plugin install <npm 包或本地目录>`，再在 `openbee config` 中启用该渠道。详见[渠道插件协议](docs/channel-plugin-protocol.md)、[Node SDK](sdk/channel-node) 和 [Discord 参考插件](plugins/discord)。
+其他聊天平台可以通过插件接入，无需重新编译 OpenBee：执行 `openbee plugin install <npm 包或本地目录>`，再在 `openbee config` 中启用该渠道。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
 
 ## 🌟 Star History
 

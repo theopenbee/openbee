@@ -1,6 +1,6 @@
 # Channel plugin protocol (v1)
 
-A channel plugin connects openbee to a chat platform that is not built in. It runs as a child process of openbee and talks to it over stdin/stdout. Plugins can be written in any language; [`sdk/channel-node`](../sdk/channel-node) implements this protocol for Node.js and [`plugins/discord`](../plugins/discord) is a complete example.
+A channel plugin connects openbee to a chat platform that is not built in. It runs as a child process of openbee and talks to it over stdin/stdout. Plugins can be written in any language.
 
 ## Package layout
 

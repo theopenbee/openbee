@@ -6,7 +6,6 @@
 - Send messages to a session with `message send --session-key`.
 - Add external channel plugins over stdio JSON-RPC.
 - Add `openbee plugin` install, list and remove commands.
-- Add Discord reference channel plugin and Node SDK.
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
