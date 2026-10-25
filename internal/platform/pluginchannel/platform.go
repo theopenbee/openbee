@@ -14,19 +14,27 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-const sendTimeout = 120 * time.Second
+const (
+	sendTimeout    = 120 * time.Second
+	migrateTimeout = 30 * time.Second
+)
+
+type SessionKeyMigrator interface {
+	MigrateSessionKeyPrefix(ctx context.Context, from, to string) (int64, error)
+}
 
 type Platform struct {
 	id       string
 	mediaSvc *media.Service
+	migrator SessionKeyMigrator
 	sup      *Supervisor
 
 	mu       sync.RWMutex
 	dispatch func(platform.InboundMessage)
 }
 
-func New(spec Spec, mediaSvc *media.Service) *Platform {
-	p := &Platform{id: spec.ChannelID, mediaSvc: mediaSvc}
+func New(spec Spec, mediaSvc *media.Service, migrator SessionKeyMigrator) *Platform {
+	p := &Platform{id: spec.ChannelID, mediaSvc: mediaSvc, migrator: migrator}
 	p.sup = NewSupervisor(spec, p.handleNotify)
 	return p
 }
@@ -37,10 +45,46 @@ func (p *Platform) Sender() platform.PlatformSenderAdapter     { return sender{p
 func (p *Platform) Done() <-chan struct{}                      { return p.sup.Done() }
 
 func (p *Platform) handleNotify(method string, params json.RawMessage) {
-	if method != "inbound" {
+	switch method {
+	case "inbound":
+		p.handleInbound(params)
+	case "migrate_chat":
+		p.handleMigrateChat(params)
+	default:
 		p.sup.log.Debug("ignoring plugin notification", zap.String("method", method))
+	}
+}
+
+func (p *Platform) handleMigrateChat(params json.RawMessage) {
+	var in MigrateChatParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		p.sup.log.Warn("dropping malformed migrate_chat notification", zap.Error(err))
 		return
 	}
+	if err := validateChatID(in.FromChatID); err != nil {
+		p.sup.log.Warn("dropping invalid migrate_chat notification", zap.Error(err))
+		return
+	}
+	if err := validateChatID(in.ToChatID); err != nil {
+		p.sup.log.Warn("dropping invalid migrate_chat notification", zap.Error(err))
+		return
+	}
+	if p.migrator == nil || in.FromChatID == in.ToChatID {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), migrateTimeout)
+	defer cancel()
+	from := BuildSessionKey(p.id, in.FromChatID, "")
+	to := BuildSessionKey(p.id, in.ToChatID, "")
+	n, err := p.migrator.MigrateSessionKeyPrefix(ctx, from, to)
+	if err != nil {
+		p.sup.log.Error("migrate chat sessions failed", zap.String("from", from), zap.String("to", to), zap.Error(err))
+		return
+	}
+	p.sup.log.Info("migrated chat sessions", zap.String("from", from), zap.String("to", to), zap.Int64("tasks", n))
+}
+
+func (p *Platform) handleInbound(params json.RawMessage) {
 	var in InboundParams
 	if err := json.Unmarshal(params, &in); err != nil {
 		p.sup.log.Warn("dropping malformed inbound message", zap.Error(err))
@@ -94,9 +138,7 @@ func (s sender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 		Proactive:    msg.Proactive,
 		Content:      msg.Content,
 	}
-	if raw, messageID, _ := DecodeEnvelope(msg.ReplyTo.Raw); raw != "" || messageID != "" {
-		params.ReplyTo = &ReplyTo{MessageID: messageID, Raw: raw}
-	}
+	params.ReplyTo = replyTo(msg.ReplyTo.Raw)
 	if msg.MediaPath != "" {
 		params.Media = &Media{Path: msg.MediaPath, Name: filepath.Base(msg.MediaPath)}
 	}

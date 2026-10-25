@@ -16,6 +16,7 @@ import (
 type BuildOptions struct {
 	Registry *plugin.Registry
 	MediaSvc *media.Service
+	Migrator SessionKeyMigrator
 	Language string
 }
 
@@ -96,5 +97,5 @@ func buildOne(id string, section map[string]any, opts BuildOptions) (*Platform, 
 			DataDir:         dataDir,
 			MediaDir:        opts.MediaSvc.InboundDir(),
 		},
-	}, opts.MediaSvc), nil
+	}, opts.MediaSvc, opts.Migrator), nil
 }

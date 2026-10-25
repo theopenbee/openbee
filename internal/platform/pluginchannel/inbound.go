@@ -2,6 +2,7 @@ package pluginchannel
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -14,11 +15,8 @@ import (
 var attachmentTypes = map[string]bool{"image": true, "audio": true, "video": true, "document": true, "sticker": true}
 
 func ToInbound(channelID string, mediaSvc *media.Service, p InboundParams) (platform.InboundMessage, error) {
-	if p.ChatID == "" {
-		return platform.InboundMessage{}, errors.New("inbound chat_id is required")
-	}
-	if strings.Contains(p.ChatID, ":") {
-		return platform.InboundMessage{}, errors.New("inbound chat_id must not contain ':'")
+	if err := validateChatID(p.ChatID); err != nil {
+		return platform.InboundMessage{}, fmt.Errorf("inbound %w", err)
 	}
 	if p.SenderID == "" {
 		return platform.InboundMessage{}, errors.New("inbound sender_id is required")
@@ -51,6 +49,16 @@ func ToInbound(channelID string, mediaSvc *media.Service, p InboundParams) (plat
 		PlatformMessageID: msgID,
 		MessageTime:       p.Time,
 	}, nil
+}
+
+func validateChatID(id string) error {
+	if id == "" {
+		return errors.New("chat_id is required")
+	}
+	if strings.Contains(id, ":") {
+		return errors.New("chat_id must not contain ':'")
+	}
+	return nil
 }
 
 func placeholder(channelID string, mediaSvc *media.Service, a Attachment) string {

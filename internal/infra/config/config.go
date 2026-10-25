@@ -135,7 +135,6 @@ type PlatformsConfig struct {
 	Feishu   FeishuConfig   `yaml:"feishu"`
 	DingTalk DingTalkConfig `yaml:"dingtalk"`
 	WeCom    WeComConfig    `yaml:"wecom"`
-	Telegram TelegramConfig `yaml:"telegram"`
 	Weixin   WeixinConfig   `yaml:"weixin"`
 	Linear   LinearConfig   `yaml:"linear"`
 
@@ -146,7 +145,6 @@ var builtinPlatformKeys = map[string]bool{
 	"feishu":   true,
 	"dingtalk": true,
 	"wecom":    true,
-	"telegram": true,
 	"weixin":   true,
 	"linear":   true,
 }
@@ -174,7 +172,6 @@ func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
 		"feishu":   p.Feishu.BotName,
 		"dingtalk": p.DingTalk.BotName,
 		"wecom":    p.WeCom.BotName,
-		"telegram": p.Telegram.BotName,
 		"weixin":   p.Weixin.BotName,
 	} {
 		if n != "" {
@@ -221,14 +218,6 @@ type WeComConfig struct {
 	BotID        string `yaml:"bot_id"`
 	Secret       string `yaml:"secret"`
 	WebSocketURL string `yaml:"websocket_url"`
-	BotName      string `yaml:"bot_name"`
-}
-
-type TelegramConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	Token        string `yaml:"token"`
-	MaxMediaSize int    `yaml:"max_media_size"`
-	AuthCode     string `yaml:"auth_code"`
 	BotName      string `yaml:"bot_name"`
 }
 
@@ -331,9 +320,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Platforms.WeCom.WebSocketURL == "" {
 		cfg.Bee.Platforms.WeCom.WebSocketURL = "wss://openws.work.weixin.qq.com"
-	}
-	if cfg.Bee.Platforms.Telegram.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Telegram.MaxMediaSize = 50 * 1024 * 1024 // 50MB
 	}
 	if cfg.Bee.Platforms.Weixin.BaseURL == "" {
 		cfg.Bee.Platforms.Weixin.BaseURL = "https://ilinkai.weixin.qq.com"

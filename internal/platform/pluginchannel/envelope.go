@@ -24,11 +24,30 @@ func EncodeEnvelope(raw, messageID string, ctx json.RawMessage) string {
 }
 
 func DecodeEnvelope(s string) (raw, messageID string, ctx json.RawMessage) {
+	e, _ := parseEnvelope(s)
+	return e.Raw, e.MessageID, e.Context
+}
+
+func parseEnvelope(s string) (envelope, bool) {
 	var e envelope
 	if json.Unmarshal([]byte(s), &e) != nil || e.V != envelopeVersion {
-		return "", "", nil
+		return envelope{}, false
 	}
-	return e.Raw, e.MessageID, e.Context
+	return e, true
+}
+
+func replyTo(stored string) *ReplyTo {
+	if stored == "" {
+		return nil
+	}
+	e, ok := parseEnvelope(stored)
+	if !ok {
+		return &ReplyTo{Raw: stored}
+	}
+	if e.Raw == "" && e.MessageID == "" {
+		return nil
+	}
+	return &ReplyTo{MessageID: e.MessageID, Raw: e.Raw}
 }
 
 func ExtractContextFor(channelID string) func(raw string) string {

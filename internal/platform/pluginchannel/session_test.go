@@ -51,3 +51,11 @@ func TestExtractContextFor(t *testing.T) {
 	assert.Equal(t, "", extract(EncodeEnvelope("r", "m", nil)))
 	assert.Equal(t, "", extract("garbage"))
 }
+
+func TestReplyTo(t *testing.T) {
+	assert.Nil(t, replyTo(""))
+	assert.Nil(t, replyTo(EncodeEnvelope("", "", json.RawMessage(`{"a":1}`))))
+	assert.Equal(t, &ReplyTo{MessageID: "m1", Raw: "r1"}, replyTo(EncodeEnvelope("r1", "m1", nil)))
+	legacy := `{"update_id":7,"message":{"message_id":3,"chat":{"id":-100}}}`
+	assert.Equal(t, &ReplyTo{Raw: legacy}, replyTo(legacy))
+}

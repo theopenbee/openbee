@@ -6,11 +6,13 @@
 - Send messages to a session with `message send --session-key`.
 - Add external channel plugins over stdio JSON-RPC.
 - Add `openbee plugin` install, list and remove commands.
+- Add `migrate_chat` notification to the channel plugin protocol.
+- Let plugin config fields suggest a random default.
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
+- Move Telegram from a built-in channel to a channel plugin.
 - Give each Telegram forum topic its own session.
-- Switch Telegram integration to the go-telegram/bot library.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.

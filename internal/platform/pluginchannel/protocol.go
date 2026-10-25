@@ -61,6 +61,11 @@ type Attachment struct {
 	Name string `json:"name,omitempty"`
 }
 
+type MigrateChatParams struct {
+	FromChatID string `json:"from_chat_id"`
+	ToChatID   string `json:"to_chat_id"`
+}
+
 type LogParams struct {
 	Level   string         `json:"level"`
 	Message string         `json:"message"`

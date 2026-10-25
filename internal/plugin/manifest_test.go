@@ -104,13 +104,16 @@ func TestManifestValidate(t *testing.T) {
 		{"valid", func(m *Manifest) {}, ""},
 		{"protocol version", func(m *Manifest) { m.ProtocolVersion = 2 }, "protocol_version"},
 		{"uppercase id", func(m *Manifest) { m.ID = "Discord" }, "id"},
-		{"reserved id", func(m *Manifest) { m.ID = "telegram" }, "reserved"},
+		{"reserved id", func(m *Manifest) { m.ID = "feishu" }, "reserved"},
 		{"empty command", func(m *Manifest) { m.Command = nil }, "command"},
 		{"reserved key enabled", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "enabled", Type: FieldBool}) }, "enabled"},
 		{"reserved key bot_name", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "bot_name", Type: FieldString}) }, "bot_name"},
 		{"duplicate key", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "token", Type: FieldString}) }, "duplicate"},
 		{"unknown type", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "ratio", Type: "float"}) }, "float"},
 		{"empty key", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "", Type: FieldString}) }, "key"},
+		{"random default on secret", func(m *Manifest) {
+			m.Config = append(m.Config, ConfigField{Key: "code", Type: FieldSecret, RandomDefault: true})
+		}, "random_default"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,4 +137,13 @@ func TestValidateID(t *testing.T) {
 	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "feishu", "abcdefghijklmnopqrstuvwxyz0123456"} {
 		assert.Error(t, ValidateID(bad), bad)
 	}
+}
+
+func TestLoadManifest_RandomDefault(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, `{"protocol_version":1,"id":"chat","command":["node","x.js"],"config":[{"key":"code","type":"string","random_default":true}]}`)
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	require.Len(t, m.Config, 1)
+	assert.True(t, m.Config[0].RandomDefault)
 }

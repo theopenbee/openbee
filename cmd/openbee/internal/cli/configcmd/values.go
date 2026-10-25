@@ -32,11 +32,6 @@ type configValues struct {
 	WecomSecret  string
 	WecomBotName string
 
-	TelegramEnabled  bool
-	TelegramToken    string
-	TelegramAuthCode string
-	TelegramBotName  string
-
 	WeixinEnabled    bool
 	WeixinToken      string
 	WeixinBaseURL    string
@@ -112,10 +107,6 @@ func loadExistingConfig(path string) *configValues {
 		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
 		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
 		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
-		TelegramEnabled:        cfg.Bee.Platforms.Telegram.Enabled,
-		TelegramToken:          cfg.Bee.Platforms.Telegram.Token,
-		TelegramAuthCode:       cfg.Bee.Platforms.Telegram.AuthCode,
-		TelegramBotName:        cfg.Bee.Platforms.Telegram.BotName,
 		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
 		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
 		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,

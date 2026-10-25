@@ -77,7 +77,6 @@ type PromptMessages struct {
 	PlatformFeishu   string `yaml:"platform_feishu"`
 	PlatformDingTalk string `yaml:"platform_dingtalk"`
 	PlatformWeCom    string `yaml:"platform_wecom"`
-	PlatformTelegram string `yaml:"platform_telegram"`
 	PlatformWeixin   string `yaml:"platform_weixin"`
 	PlatformLinear   string `yaml:"platform_linear"`
 	// Survey hint text
@@ -88,8 +87,6 @@ type PromptMessages struct {
 	DingtalkClientSecret string `yaml:"dingtalk_client_secret"`
 	WecomBotID           string `yaml:"wecom_bot_id"`
 	WecomSecret          string `yaml:"wecom_secret"`
-	TelegramToken        string `yaml:"telegram_token"`
-	TelegramAuthCode     string `yaml:"telegram_auth_code"`
 	WeixinReacquire      string `yaml:"weixin_reacquire"` // contains %s placeholder
 	WeixinBotToken       string `yaml:"weixin_bot_token"`
 	WeixinUserID         string `yaml:"weixin_user_id"`
@@ -123,9 +120,6 @@ type PromptMessages struct {
 	// Survey options (used in both Options slice and switch cases)
 	OptionEnterManually  string `yaml:"option_enter_manually"`
 	OptionGenerateRandom string `yaml:"option_generate_random"`
-	// Telegram help text
-	TelegramTokenHelp    string `yaml:"telegram_token_help"`
-	TelegramAuthCodeHelp string `yaml:"telegram_auth_code_help"`
 	// Generic cancel
 	Cancelled string `yaml:"cancelled"`
 }

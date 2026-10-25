@@ -45,7 +45,7 @@ func newTestPlatform(t *testing.T, mode string) *Platform {
 		Command:   fakePluginCommand(),
 		Env:       fakePluginEnv(mode),
 		Init:      InitializeParams{ProtocolVersion: 1, ChannelID: "good"},
-	}, newTestMedia(t))
+	}, newTestMedia(t), nil)
 	p.sup.initialBackoff = 10 * time.Millisecond
 	return p
 }
@@ -154,4 +154,60 @@ func TestPlatform_SendRequiresContentOrMedia(t *testing.T) {
 	err := p.Sender().Send(context.Background(), platform.OutboundMessage{SessionKey: "good:c1:u1"})
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrNotRunning)
+}
+
+type migrationCall struct{ from, to string }
+
+type fakeMigrator struct {
+	mu    sync.Mutex
+	calls []migrationCall
+}
+
+func (m *fakeMigrator) MigrateSessionKeyPrefix(_ context.Context, from, to string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, migrationCall{from, to})
+	return 1, nil
+}
+
+func TestPlatform_MigrateChat(t *testing.T) {
+	m := &fakeMigrator{}
+	p := New(Spec{ChannelID: "good"}, newTestMedia(t), m)
+
+	p.handleNotify("migrate_chat", json.RawMessage(`{"from_chat_id":"-123","to_chat_id":"-100999"}`))
+	for _, bad := range []string{
+		`{"from_chat_id":"","to_chat_id":"-1"}`,
+		`{"from_chat_id":"-1","to_chat_id":"a:b"}`,
+		`{"from_chat_id":"-1","to_chat_id":"-1"}`,
+		`not json`,
+	} {
+		p.handleNotify("migrate_chat", json.RawMessage(bad))
+	}
+
+	assert.Equal(t, []migrationCall{{"good:-123:", "good:-100999:"}}, m.calls)
+}
+
+func TestPlatform_MigrateChatWithoutMigrator(t *testing.T) {
+	p := New(Spec{ChannelID: "good"}, newTestMedia(t), nil)
+	p.handleNotify("migrate_chat", json.RawMessage(`{"from_chat_id":"-1","to_chat_id":"-2"}`))
+}
+
+func TestPlatform_SendPassesLegacyRawThrough(t *testing.T) {
+	rec := &inboundRecorder{}
+	p := newTestPlatform(t, "ok")
+	startPlatform(t, p, rec)
+
+	legacy := `{"update_id":7,"message":{"message_id":3,"chat":{"id":-100}}}`
+	require.NoError(t, p.Sender().Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "good:c3:u3", Content: "hi",
+		ReplyTo: platform.InboundMessage{Platform: "good", SessionKey: "good:c3:u3", Raw: legacy},
+	}))
+	var echoes []platform.InboundMessage
+	require.Eventually(t, func() bool {
+		echoes = rec.matching(`"session_key":"good:c3:u3"`)
+		return len(echoes) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+	var got SendParams
+	require.NoError(t, json.Unmarshal([]byte(echoes[0].RawContent), &got))
+	assert.Equal(t, &ReplyTo{Raw: legacy}, got.ReplyTo)
 }

@@ -20,7 +20,6 @@ func platformSpecs(vals *configValues) []platformSpec {
 		{&vals.FeishuEnabled, i18n.M.Prompt.PlatformFeishu, configureFeishu},
 		{&vals.DingtalkEnabled, i18n.M.Prompt.PlatformDingTalk, configureDingtalk},
 		{&vals.WecomEnabled, i18n.M.Prompt.PlatformWeCom, configureWecom},
-		{&vals.TelegramEnabled, i18n.M.Prompt.PlatformTelegram, configureTelegram},
 		{&vals.WeixinEnabled, i18n.M.Prompt.PlatformWeixin, configureWeixin},
 		{&vals.LinearEnabled, i18n.M.Prompt.PlatformLinear, configureLinear},
 	}
@@ -72,27 +71,6 @@ func configureWecom(vals *configValues) error {
 		return handleSurveyErr(err)
 	}
 	return promptBotName(&vals.WecomBotName)
-}
-
-func configureTelegram(vals *configValues) error {
-	if err := survey.AskOne(&survey.Password{
-		Message: i18n.M.Prompt.TelegramToken,
-		Help:    i18n.M.Prompt.TelegramTokenHelp,
-	}, &vals.TelegramToken, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	authCodeDefault := vals.TelegramAuthCode
-	if authCodeDefault == "" {
-		authCodeDefault = randomHex(8)
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.TelegramAuthCode,
-		Default: authCodeDefault,
-		Help:    i18n.M.Prompt.TelegramAuthCodeHelp,
-	}, &vals.TelegramAuthCode); err != nil {
-		return handleSurveyErr(err)
-	}
-	return promptBotName(&vals.TelegramBotName)
 }
 
 func configureWeixin(vals *configValues) error {

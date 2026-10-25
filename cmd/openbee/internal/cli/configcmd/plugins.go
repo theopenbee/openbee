@@ -175,6 +175,9 @@ func promptPluginField(f plugin.ConfigField, lang string, current any) (any, err
 		return utils.SplitAndTrim(v), nil
 	default:
 		def, _ := current.(string)
+		if def == "" && f.RandomDefault {
+			def = randomHex(8)
+		}
 		var opts []survey.AskOpt
 		if f.Required {
 			opts = append(opts, survey.WithValidator(survey.Required))

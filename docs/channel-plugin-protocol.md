@@ -25,11 +25,11 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | Field | Rules |
 |---|---|
 | `protocol_version` | Must be `1`. |
-| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `feishu`, `dingtalk`, `wecom`, `telegram`, `weixin`, `linear` or `local`. |
+| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `feishu`, `dingtalk`, `wecom`, `weixin`, `linear` or `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. An absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
 | `version` | Optional. `package.json` `version` wins when present. |
-| `config[]` | Settings openbee asks for in `openbee config` and validates at startup. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `enabled` and `bot_name` are reserved keys and cannot be declared. |
+| `config[]` | Settings openbee asks for in `openbee config` and validates at startup. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes `openbee config` suggest a random value when the field is empty, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
 
 One plugin provides exactly one channel.
 
@@ -125,7 +125,7 @@ Errors:
 
 - At least one of `content` and `media` is present. When both are present, the plugin decides how to deliver them (for example text first, then the file).
 - `chat_id` and `session_scope` are split from the session key by openbee, so the plugin never has to parse it.
-- `reply_to` is omitted when there is nothing to reply to. `reply_to.message_id` is the plugin's own `message_id` (without the channel prefix); `reply_to.raw` is the plugin's own `raw`, returned unchanged.
+- `reply_to` is omitted when there is nothing to reply to. `reply_to.message_id` is the plugin's own `message_id` (without the channel prefix); `reply_to.raw` is the plugin's own `raw`, returned unchanged. If the channel id used to belong to a built-in channel, messages stored before the switch carry that channel's raw payload instead, without `message_id`.
 - `proactive: true` means openbee is starting the conversation (scheduled task results, notifications). The plugin should post to `chat_id` without quoting a message.
 - Reply `{}` or `{"platform_message_id": "..."}`. Error messages are passed to the caller (for example a worker running `openbee ctl message send`).
 - The deadline follows the caller and is capped at 120s; for replies sent through `openbee ctl` it is about 30s. When the caller gives up, openbee sends `$/cancelRequest`.
@@ -169,6 +169,14 @@ Disconnect from the platform, reply `{}`, then exit.
 | `time` | Optional Unix time in milliseconds; openbee uses its own clock when absent. |
 
 Invalid messages are logged and dropped. openbee renders attachments into the message text itself, so plugins do not need to know openbee's attachment markup.
+
+#### `migrate_chat` (notification)
+
+```json
+{ "from_chat_id": "-123", "to_chat_id": "-100123" }
+```
+
+Tells openbee that a chat got a new id (for example a Telegram group upgraded to a supergroup). openbee moves pending and running tasks from session keys starting with `<id>:<from_chat_id>:` to `<id>:<to_chat_id>:`, so scheduled results keep reaching the chat. Both ids follow the `chat_id` rules; invalid notifications are logged and dropped.
 
 #### `log` (notification)
 

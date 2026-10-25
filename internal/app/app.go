@@ -41,7 +41,6 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
-	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/plugin"
@@ -166,7 +165,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform[local.PlatformID] = localSender
 
 	mediaSvc := media.NewService()
-	channels, err := buildPlatforms(cfg.Bee, mediaSvc, s.taskStore)
+	channels, err := buildPlatforms(cfg.Bee, mediaSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +173,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	for _, b := range pluginchannel.BuildChannels(cfg.Bee.Platforms.Plugins, pluginchannel.BuildOptions{
 		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
 		MediaSvc: mediaSvc,
+		Migrator: s.taskStore,
 		Language: cfg.Language,
 	}) {
 		channels = append(channels, b.Channel)
@@ -363,7 +363,7 @@ func buildDispatcher(
 	)
 }
 
-func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service, tasks *store.TaskStore) ([]platform.Channel, error) {
+func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service) ([]platform.Channel, error) {
 	pc := bc.Platforms
 	var result []platform.Channel
 	if pc.Feishu.Enabled {
@@ -374,9 +374,6 @@ func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service, tasks *store.T
 	}
 	if pc.WeCom.Enabled {
 		result = append(result, platform.Channel{Platform: wecom.NewPlatform(pc.WeCom, mediaSvc), ExtractContext: wecom.ExtractContext})
-	}
-	if pc.Telegram.Enabled {
-		result = append(result, platform.Channel{Platform: telegram.NewPlatform(pc.Telegram, mediaSvc, tasks)})
 	}
 	if pc.Weixin.Enabled {
 		result = append(result, platform.Channel{Platform: weixin.NewPlatform(pc.Weixin, bc.Media, mediaSvc)})

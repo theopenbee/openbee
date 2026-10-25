@@ -15,7 +15,7 @@ const (
 	ProtocolVersion = 1
 )
 
-var ReservedIDs = []string{"feishu", "dingtalk", "wecom", "telegram", "weixin", "linear", "local"}
+var ReservedIDs = []string{"feishu", "dingtalk", "wecom", "weixin", "linear", "local"}
 
 var reservedConfigKeys = []string{"enabled", "bot_name"}
 
@@ -57,12 +57,13 @@ const (
 var fieldTypes = []FieldType{FieldString, FieldSecret, FieldBool, FieldInt, FieldList}
 
 type ConfigField struct {
-	Key      string        `json:"key"`
-	Type     FieldType     `json:"type"`
-	Required bool          `json:"required,omitempty"`
-	Default  any           `json:"default,omitempty"`
-	Label    LocalizedText `json:"label,omitempty"`
-	Help     LocalizedText `json:"help,omitempty"`
+	Key           string        `json:"key"`
+	Type          FieldType     `json:"type"`
+	Required      bool          `json:"required,omitempty"`
+	Default       any           `json:"default,omitempty"`
+	RandomDefault bool          `json:"random_default,omitempty"`
+	Label         LocalizedText `json:"label,omitempty"`
+	Help          LocalizedText `json:"help,omitempty"`
 }
 
 type Manifest struct {
@@ -147,6 +148,9 @@ func (m Manifest) Validate() error {
 		seen[f.Key] = true
 		if !slices.Contains(fieldTypes, f.Type) {
 			return fmt.Errorf("config field %q has unknown type %q", f.Key, f.Type)
+		}
+		if f.RandomDefault && f.Type != FieldString {
+			return fmt.Errorf("config field %q: random_default needs type %q", f.Key, FieldString)
 		}
 	}
 	return nil

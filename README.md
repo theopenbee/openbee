@@ -73,7 +73,7 @@ openbee config
 
 The wizard will guide you through:
 - Agent executable path
-- Platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) and their credentials
+- Platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Linear, plus installed channel plugins) and their credentials
 - Advanced options (can be skipped to use defaults)
 
 The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
@@ -91,7 +91,7 @@ openbee server -d
 ### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
-- Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
+- Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Linear, or a channel plugin such as Telegram) to interact with OpenBee
 
 ### Channel plugins
 
