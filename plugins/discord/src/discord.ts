@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, Partials, type Message } from "discord.js";
 import { ConfigError, type Attachment, type ChannelContext, type ChannelDefinition, type SendRequest } from "@theopenbee/channel-sdk";
 
-import { attachmentType, chunkText, decodeRaw, encodeRaw, planAttachments, stripMention } from "./helpers.js";
+import { attachmentType, chunkText, classifyLoginError, decodeRaw, encodeRaw, planAttachments, stripMention } from "./helpers.js";
 
 const DEFAULT_MAX_MEDIA_SIZE = 10 * 1024 * 1024;
 
@@ -17,10 +17,6 @@ function readConfig(raw: Record<string, unknown>): DiscordConfig {
   const allowedGuilds = Array.isArray(raw.allowed_guilds) ? raw.allowed_guilds.filter((g): g is string => typeof g === "string") : [];
   const maxMediaSize = typeof raw.max_media_size === "number" && raw.max_media_size > 0 ? raw.max_media_size : DEFAULT_MAX_MEDIA_SIZE;
   return { token, allowedGuilds, maxMediaSize };
-}
-
-function errorCode(err: unknown): string | undefined {
-  return typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : undefined;
 }
 
 function extension(name: string): string {
@@ -94,9 +90,9 @@ export function createDiscordChannel(): ChannelDefinition {
       try {
         await client.login(cfg.token);
       } catch (err) {
-        const code = errorCode(err);
-        if (code === "TokenInvalid") throw new ConfigError("Discord rejected the bot token");
-        if (code === "DisallowedIntents") throw new ConfigError("enable MESSAGE CONTENT INTENT for the bot in the Discord Developer Portal");
+        const problem = classifyLoginError(err);
+        if (problem === "token") throw new ConfigError("Discord rejected the bot token");
+        if (problem === "intents") throw new ConfigError("enable MESSAGE CONTENT INTENT for the bot in the Discord Developer Portal");
         throw err;
       }
       await ready;

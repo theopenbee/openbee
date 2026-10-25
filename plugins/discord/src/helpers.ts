@@ -63,3 +63,13 @@ export function planAttachments<T extends SizedAttachment>(list: T[], maxSize: n
   }
   return { keep, notes };
 }
+
+export type LoginProblem = "token" | "intents";
+
+export function classifyLoginError(err: unknown): LoginProblem | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const code = "code" in err ? String((err as { code: unknown }).code) : "";
+  if (code === "TokenInvalid" || /invalid token|authentication failed/i.test(err.message)) return "token";
+  if (code === "DisallowedIntents" || /disallowed intents/i.test(err.message)) return "intents";
+  return undefined;
+}

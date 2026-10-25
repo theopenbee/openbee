@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   attachmentType,
+  classifyLoginError,
   chunkText,
   decodeRaw,
   encodeRaw,
@@ -71,4 +72,14 @@ test("oversized attachment becomes placeholder", () => {
     ["a.png"],
   );
   assert.deepEqual(plan.notes, ["[attachment too large: big.zip]"]);
+});
+
+test("classifyLoginError detects config problems", () => {
+  const coded = Object.assign(new Error("An invalid token was provided."), { code: "TokenInvalid" });
+  assert.equal(classifyLoginError(coded), "token");
+  assert.equal(classifyLoginError(new Error("Used disallowed intents")), "intents");
+  assert.equal(classifyLoginError(Object.assign(new Error("x"), { code: "DisallowedIntents" })), "intents");
+  assert.equal(classifyLoginError(new Error("Authentication failed")), "token");
+  assert.equal(classifyLoginError(new Error("getaddrinfo ENOTFOUND discord.com")), undefined);
+  assert.equal(classifyLoginError("weird"), undefined);
 });
