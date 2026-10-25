@@ -20,6 +20,12 @@ cmd:
     short: "从备份文件恢复 openbee 数据"
   ctl:
     short: "控制运行中的 openbee 服务器"
+  plugin:
+    short: "管理渠道插件"
+    subs:
+      install: "从 npm 或本地目录安装渠道插件"
+      list: "列出已安装的渠道插件"
+      remove: "移除已安装的渠道插件"
   ctl_worker:
     short: "管理员工"
     subs:
@@ -213,6 +219,16 @@ output:
   daemon:
     started: "守护进程已启动（PID: %d）"
     already_running: "守护进程已在运行（PID: %d）"
+  plugin:
+    installed: "已安装插件 %s（版本 %s）"
+    trust_warning: "插件以当前用户权限运行，只安装你信任的插件。"
+    next_steps: "下一步：运行 'openbee config'，或在 config.yaml 中添加 bee.platforms.<id>，然后重启 openbee。"
+    list_header: "ID\t名称\t版本\t来源\t状态\t路径"
+    list_empty: "尚未安装任何渠道插件。"
+    removed: "已移除插件 %s"
+    still_enabled: "渠道 %s 在 config.yaml 中仍处于启用状态；请关闭它，否则 openbee 启动时会记录错误。"
+    status_enabled: "已启用"
+    status_disabled: "未启用"
   service:
     installed: "服务已安装：%s"
     uninstalled: "服务已卸载"

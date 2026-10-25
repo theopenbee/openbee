@@ -38,3 +38,21 @@ func TestLoad_unsupported_fallbacks_to_zh(t *testing.T) {
 func TestSupportedLangs(t *testing.T) {
 	assert.GreaterOrEqual(t, len(i18n.SupportedLangs), 2)
 }
+
+func TestLoad_pluginMessages(t *testing.T) {
+	for _, lang := range []string{"en", "zh"} {
+		require.NoError(t, i18n.Load(lang))
+		p := i18n.M.Output.Plugin
+		for name, v := range map[string]string{
+			"installed": p.Installed, "trust_warning": p.TrustWarning, "next_steps": p.NextSteps,
+			"list_header": p.ListHeader, "list_empty": p.ListEmpty, "removed": p.Removed,
+			"still_enabled": p.StillEnabled, "status_enabled": p.StatusEnabled, "status_disabled": p.StatusDisabled,
+		} {
+			assert.NotEmpty(t, v, "%s %s", lang, name)
+		}
+		for _, sub := range []string{"install", "list", "remove"} {
+			assert.NotEmpty(t, i18n.M.Cmd.Plugin.Sub(sub), "%s %s", lang, sub)
+		}
+		assert.NotEmpty(t, i18n.M.Cmd.Plugin.Short, lang)
+	}
+}

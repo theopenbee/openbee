@@ -40,6 +40,7 @@ type CmdMessages struct {
 	CtlSystem     CmdEntry   `yaml:"ctl_system"`
 	CtlMessage    CmdEntry   `yaml:"ctl_message"`
 	CtlDepartment CmdEntry   `yaml:"ctl_department"`
+	Plugin        CmdEntry   `yaml:"plugin"`
 	Service       ServiceCmd `yaml:"service"`
 }
 
@@ -163,6 +164,19 @@ type OutputMessages struct {
 	Weixin  WeixinOutput  `yaml:"weixin"`
 	Daemon  DaemonOutput  `yaml:"daemon"`
 	Service ServiceOutput `yaml:"service"`
+	Plugin  PluginOutput  `yaml:"plugin"`
+}
+
+type PluginOutput struct {
+	Installed      string `yaml:"installed"`
+	TrustWarning   string `yaml:"trust_warning"`
+	NextSteps      string `yaml:"next_steps"`
+	ListHeader     string `yaml:"list_header"`
+	ListEmpty      string `yaml:"list_empty"`
+	Removed        string `yaml:"removed"`
+	StillEnabled   string `yaml:"still_enabled"`
+	StatusEnabled  string `yaml:"status_enabled"`
+	StatusDisabled string `yaml:"status_disabled"`
 }
 
 // ServiceOutput maps to service command runtime output.

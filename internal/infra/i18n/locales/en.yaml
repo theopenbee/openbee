@@ -20,6 +20,12 @@ cmd:
     short: "Restore openbee data from a backup archive"
   ctl:
     short: "Control the running openbee server"
+  plugin:
+    short: "Manage channel plugins"
+    subs:
+      install: "Install a channel plugin from npm or a local directory"
+      list: "List installed channel plugins"
+      remove: "Remove an installed channel plugin"
   ctl_worker:
     short: "Manage workers"
     subs:
@@ -213,6 +219,16 @@ output:
   daemon:
     started: "Daemon started (PID: %d)"
     already_running: "daemon already running (PID: %d)"
+  plugin:
+    installed: "Installed plugin %s (version %s)"
+    trust_warning: "Plugins run with your user permissions. Only install plugins you trust."
+    next_steps: "Next: run 'openbee config' or add bee.platforms.<id> to config.yaml, then restart openbee."
+    list_header: "ID\tNAME\tVERSION\tSOURCE\tSTATUS\tPATH"
+    list_empty: "No channel plugins installed."
+    removed: "Removed plugin %s"
+    still_enabled: "Channel %s is still enabled in config.yaml; disable it or openbee will log an error on startup."
+    status_enabled: "enabled"
+    status_disabled: "disabled"
   service:
     installed: "service installed at %s"
     uninstalled: "service uninstalled"
