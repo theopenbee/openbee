@@ -138,6 +138,8 @@ type PlatformsConfig struct {
 	Telegram TelegramConfig `yaml:"telegram"`
 	Weixin   WeixinConfig   `yaml:"weixin"`
 	Linear   LinearConfig   `yaml:"linear"`
+
+	Plugins map[string]map[string]any `yaml:",inline"`
 }
 
 func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
@@ -150,6 +152,11 @@ func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
 		"weixin":   p.Weixin.BotName,
 	} {
 		if n != "" {
+			names[id] = n
+		}
+	}
+	for id, section := range p.Plugins {
+		if n, _ := section["bot_name"].(string); n != "" {
 			names[id] = n
 		}
 	}

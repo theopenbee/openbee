@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -282,4 +283,49 @@ func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
 	got := p.BotNamesByPlatform()
 	assert.Equal(t, map[string]string{"feishu": "FeishuBot", "telegram": "TgBot"}, got)
 	assert.ElementsMatch(t, []string{"FeishuBot", "TgBot"}, p.BotNames())
+}
+
+func TestPlatformsConfig_InlinePlugins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+server:
+  port: 8080
+bee:
+  platforms:
+    feishu:
+      enabled: true
+      app_id: "cli_x"
+      bot_name: "FeishuBot"
+    discord:
+      enabled: true
+      bot_name: DBot
+      token: x
+      allowed_guilds: ["1", "2"]
+    slack:
+      enabled: false
+      bot_name: SBot
+  feeder:
+    max_concurrent_bee: 3
+`), 0o644))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	p := cfg.Bee.Platforms
+	assert.True(t, p.Feishu.Enabled)
+	assert.Equal(t, "cli_x", p.Feishu.AppID)
+	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
+	require.Contains(t, p.Plugins, "discord")
+	assert.NotContains(t, p.Plugins, "feishu")
+	assert.Equal(t, "x", p.Plugins["discord"]["token"])
+	assert.Equal(t, true, p.Plugins["discord"]["enabled"])
+	assert.Equal(t, []any{"1", "2"}, p.Plugins["discord"]["allowed_guilds"])
+	assert.Equal(t, map[string]string{"feishu": "FeishuBot", "discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
+}
+
+func TestPlatformsConfig_NoPlugins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    telegram:\n      enabled: true\n"), 0o644))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Bee.Platforms.Plugins)
 }

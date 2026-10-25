@@ -40,9 +40,11 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/feishu"
 	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
+	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
 	"github.com/theopenbee/openbee/internal/platform/telegram"
 	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
+	"github.com/theopenbee/openbee/internal/plugin"
 	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 	webui "github.com/theopenbee/openbee/web"
@@ -50,10 +52,11 @@ import (
 
 // App holds all wired-up components and runs the server.
 type App struct {
-	db      *sql.DB
-	server  *routes.Server
-	runners []func(ctx context.Context)
-	addr    string
+	db             *sql.DB
+	server         *routes.Server
+	runners        []func(ctx context.Context)
+	waitOnShutdown []<-chan struct{}
+	addr           string
 }
 
 // Run starts all goroutines, waits for a signal, then shuts down gracefully.
@@ -90,6 +93,13 @@ func (a *App) Run() {
 	defer shutdownCancel()
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server shutdown error", zap.Error(err))
+	}
+	for _, done := range a.waitOnShutdown {
+		select {
+		case <-done:
+		case <-shutdownCtx.Done():
+			logger.Warn("timed out waiting for plugin channels to stop")
+		}
 	}
 
 	a.db.Close()
@@ -159,6 +169,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 	channels, err := buildPlatforms(cfg.Bee, mediaSvc, s.taskStore)
 	if err != nil {
 		return nil, err
+	}
+	var pluginDone []<-chan struct{}
+	for _, b := range pluginchannel.BuildChannels(cfg.Bee.Platforms.Plugins, pluginchannel.BuildOptions{
+		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
+		MediaSvc: mediaSvc,
+		Language: cfg.Language,
+	}) {
+		channels = append(channels, b.Channel)
+		pluginDone = append(pluginDone, b.Done)
 	}
 	for _, ch := range channels {
 		id := ch.Platform.ID()
@@ -251,7 +270,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	return &App{db: db, server: srv, runners: runners, addr: addr}, nil
+	return &App{db: db, server: srv, runners: runners, waitOnShutdown: pluginDone, addr: addr}, nil
 }
 
 // appStores groups all store instances for passing to sub-builders.
