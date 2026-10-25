@@ -57,7 +57,6 @@ func defaultValues() configValues {
 		RPCTokenTTL:            "48h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
-		FFmpegPath:             "ffmpeg",
 		AuthUsername:           "admin",
 		AuthAccessTTL:          "2h",
 		AuthRefreshTTL:         "168h",

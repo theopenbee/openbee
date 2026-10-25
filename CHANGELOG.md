@@ -8,15 +8,18 @@
 - Add `openbee plugin` install, list and remove commands.
 - Add `migrate_chat` notification to the channel plugin protocol.
 - Let plugin config fields suggest a random default.
+- Let channel plugins run an interactive setup step.
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
 - Move Telegram from a built-in channel to a channel plugin.
 - Move Lark, DingTalk and WeCom to channel plugins.
+- Move WeChat from a built-in channel to a channel plugin.
 - Give each Telegram forum topic its own session.
 
 ### Removed
 - Remove the unused `bee.media.ffprobe_path` setting.
+- Remove the `bee.media.ffmpeg_path` setting.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.

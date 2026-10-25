@@ -35,13 +35,6 @@ bee:
     token_secret: "{{.RPCTokenSecret}}"
     token_ttl: {{.RPCTokenTTL}}
   platforms:
-    weixin:
-      enabled: {{.WeixinEnabled}}
-      token: "{{.WeixinToken}}"
-      base_url: "{{.WeixinBaseURL}}"
-      cdn_base_url: "{{.WeixinCDNBaseURL}}"
-      user_id: "{{.WeixinUserID}}"
-      bot_name: "{{.WeixinBotName}}"
     linear:
       enabled: {{.LinearEnabled}}
       api_key: "{{.LinearAPIKey}}"
@@ -54,6 +47,4 @@ bee:
 {{.PluginPlatformsYAML}}{{end}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
-  media:
-    ffmpeg_path: {{.FFmpegPath}}
   message_debounce: {{.MessageDebounce}}

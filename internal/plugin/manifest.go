@@ -15,7 +15,7 @@ const (
 	ProtocolVersion = 1
 )
 
-var ReservedIDs = []string{"weixin", "linear", "local"}
+var ReservedIDs = []string{"linear", "local"}
 
 var reservedConfigKeys = []string{"enabled", "bot_name"}
 
@@ -66,12 +66,18 @@ type ConfigField struct {
 	Help          LocalizedText `json:"help,omitempty"`
 }
 
+type Setup struct {
+	Command []string      `json:"command"`
+	Label   LocalizedText `json:"label,omitempty"`
+}
+
 type Manifest struct {
 	ProtocolVersion int           `json:"protocol_version"`
 	ID              string        `json:"id"`
 	Name            LocalizedText `json:"name,omitempty"`
 	Description     LocalizedText `json:"description,omitempty"`
 	Command         []string      `json:"command"`
+	Setup           *Setup        `json:"setup,omitempty"`
 	Config          []ConfigField `json:"config,omitempty"`
 	Version         string        `json:"version,omitempty"`
 	Dir             string        `json:"-"`
@@ -133,6 +139,9 @@ func (m Manifest) Validate() error {
 	}
 	if len(m.Command) == 0 || m.Command[0] == "" {
 		return errors.New("manifest command must not be empty")
+	}
+	if m.Setup != nil && (len(m.Setup.Command) == 0 || m.Setup.Command[0] == "") {
+		return errors.New("manifest setup command must not be empty")
 	}
 	seen := make(map[string]bool, len(m.Config))
 	for _, f := range m.Config {

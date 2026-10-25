@@ -17,13 +17,6 @@ type configValues struct {
 	RPCTokenTTL     string
 	ServerEnvSecret string
 
-	WeixinEnabled    bool
-	WeixinToken      string
-	WeixinBaseURL    string
-	WeixinCDNBaseURL string
-	WeixinUserID     string
-	WeixinBotName    string
-
 	LinearEnabled      bool
 	LinearAPIKey       string
 	LinearLabelName    string
@@ -44,7 +37,6 @@ type configValues struct {
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
-	FFmpegPath             string
 
 	AuthUsername   string
 	AuthPassword   string
@@ -79,12 +71,6 @@ func loadExistingConfig(path string) *configValues {
 		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
 		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
 		ServerEnvSecret:        cfg.Server.EnvSecret,
-		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
-		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
-		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
-		WeixinCDNBaseURL:       cfg.Bee.Platforms.Weixin.CDNBaseURL,
-		WeixinUserID:           cfg.Bee.Platforms.Weixin.UserID,
-		WeixinBotName:          cfg.Bee.Platforms.Weixin.BotName,
 		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
 		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
 		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
@@ -103,7 +89,6 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
-		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
 		AuthUsername:           cfg.Server.Auth.Username,
 		AuthPassword:           cfg.Server.Auth.Password,
 		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,

@@ -1,6 +1,7 @@
 package configcmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 func renderToFile(t *testing.T, vals configValues) string {
@@ -23,8 +25,8 @@ func renderToFile(t *testing.T, vals configValues) string {
 
 func TestRenderConfig_WithPluginSection(t *testing.T) {
 	vals := defaultValues()
-	vals.WeixinEnabled = true
-	vals.WeixinUserID = "wx_x"
+	vals.LinearEnabled = true
+	vals.LinearAPIKey = "lin_x"
 	vals.FeederMaxConcurrentBee = 7
 	vals.PluginSections = map[string]map[string]any{
 		"discord": {"enabled": true, "bot_name": "DBot", "token": "x", "allowed_guilds": []string{"1", "22"}, "max_media_size": 1024},
@@ -32,8 +34,8 @@ func TestRenderConfig_WithPluginSection(t *testing.T) {
 
 	cfg, err := config.Load(renderToFile(t, vals))
 	require.NoError(t, err)
-	assert.True(t, cfg.Bee.Platforms.Weixin.Enabled)
-	assert.Equal(t, "wx_x", cfg.Bee.Platforms.Weixin.UserID)
+	assert.True(t, cfg.Bee.Platforms.Linear.Enabled)
+	assert.Equal(t, "lin_x", cfg.Bee.Platforms.Linear.APIKey)
 	assert.Equal(t, 7, cfg.Bee.Feeder.MaxConcurrentBee)
 	d := cfg.Bee.Platforms.Plugins["discord"]
 	assert.Equal(t, true, d["enabled"])
@@ -113,4 +115,70 @@ func TestApplyPluginSelection_DeselectedPluginKeepsValues(t *testing.T) {
 	assert.Equal(t, map[string]any{"enabled": false, "token": "x"}, vals.PluginSections["discord"])
 	assert.Equal(t, map[string]any{"enabled": false, "token": "y"}, vals.PluginSections["slack"])
 	assert.Equal(t, map[string]any{"enabled": true, "token": "z"}, vals.PluginSections["ghost"])
+}
+
+func setupTestManifest() plugin.Manifest {
+	return plugin.Manifest{
+		ID:    "weixin",
+		Setup: &plugin.Setup{Command: []string{"node", "setup.js"}},
+		Config: []plugin.ConfigField{
+			{Key: "token", Type: plugin.FieldSecret, Required: true},
+			{Key: "user_id", Type: plugin.FieldString},
+		},
+	}
+}
+
+func stubSetupCommand(t *testing.T, values map[string]any, err error) *int {
+	t.Helper()
+	calls := 0
+	orig := runPluginSetupCommand
+	runPluginSetupCommand = func(plugin.Manifest, string) (map[string]any, error) {
+		calls++
+		return values, err
+	}
+	t.Cleanup(func() { runPluginSetupCommand = orig })
+	return &calls
+}
+
+func TestRunPluginSetup_MergesValues(t *testing.T) {
+	calls := stubSetupCommand(t, map[string]any{"token": "tok", "user_id": "u1"}, nil)
+	section := map[string]any{"bot_name": "Bee"}
+
+	provided, err := runPluginSetup(setupTestManifest(), "en", section)
+	require.NoError(t, err)
+	assert.Equal(t, 1, *calls)
+	assert.Equal(t, map[string]any{"token": "tok", "user_id": "u1"}, provided)
+	assert.Equal(t, map[string]any{"bot_name": "Bee", "token": "tok", "user_id": "u1"}, section)
+}
+
+func TestRunPluginSetup_FailureFallsBackToPrompts(t *testing.T) {
+	stubSetupCommand(t, nil, errors.New("expired"))
+	section := map[string]any{}
+
+	provided, err := runPluginSetup(setupTestManifest(), "en", section)
+	require.NoError(t, err)
+	assert.Empty(t, provided)
+	assert.Empty(t, section)
+}
+
+func TestRunPluginSetup_NoSetup(t *testing.T) {
+	calls := stubSetupCommand(t, nil, nil)
+	m := setupTestManifest()
+	m.Setup = nil
+
+	provided, err := runPluginSetup(m, "en", map[string]any{})
+	require.NoError(t, err)
+	assert.Empty(t, provided)
+	assert.Equal(t, 0, *calls)
+}
+
+func TestPluginConfigured(t *testing.T) {
+	m := setupTestManifest()
+	assert.False(t, pluginConfigured(m, map[string]any{}))
+	assert.False(t, pluginConfigured(m, map[string]any{"enabled": false, "token": "", "user_id": "u1"}))
+	assert.True(t, pluginConfigured(m, map[string]any{"token": "tok"}))
+
+	m.Config = []plugin.ConfigField{{Key: "region", Type: plugin.FieldString}}
+	assert.False(t, pluginConfigured(m, map[string]any{"enabled": true}))
+	assert.True(t, pluginConfigured(m, map[string]any{"region": "cn"}))
 }

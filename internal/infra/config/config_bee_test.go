@@ -119,6 +119,11 @@ bee:
       enabled: true
       bot_id: "aib_x"
       websocket_url: "wss://example.com"
+    weixin:
+      enabled: true
+      token: "wx-token"
+      route_tag: 7
+      bot_name: "WxBot"
 `)
 	f.Close()
 
@@ -133,7 +138,10 @@ bee:
 	assert.Equal(t, false, p["dingtalk"]["enabled"])
 	assert.Equal(t, "ding_x", p["dingtalk"]["client_id"])
 	assert.Equal(t, "wss://example.com", p["wecom"]["websocket_url"])
+	assert.Equal(t, "wx-token", p["weixin"]["token"])
+	assert.Equal(t, 7, p["weixin"]["route_tag"])
 	assert.Equal(t, "FeishuBot", cfg.Bee.Platforms.BotNamesByPlatform()["feishu"])
+	assert.Equal(t, "WxBot", cfg.Bee.Platforms.BotNamesByPlatform()["weixin"])
 }
 
 func TestGetLang_fromFile(t *testing.T) {
@@ -283,9 +291,7 @@ bee:
 }
 
 func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
-	p := PlatformsConfig{Plugins: map[string]map[string]any{"beta": {"bot_name": "BetaBot"}}}
-	p.Weixin.BotName = "WxBot"
-	p.Weixin.Enabled = false
+	p := PlatformsConfig{Plugins: map[string]map[string]any{"beta": {"bot_name": "BetaBot"}, "weixin": {"enabled": false, "bot_name": "WxBot"}}}
 	got := p.BotNamesByPlatform()
 	assert.Equal(t, map[string]string{"beta": "BetaBot", "weixin": "WxBot"}, got)
 	assert.ElementsMatch(t, []string{"BetaBot", "WxBot"}, p.BotNames())
@@ -298,10 +304,9 @@ server:
   port: 8080
 bee:
   platforms:
-    weixin:
+    linear:
       enabled: true
-      user_id: "wx_x"
-      bot_name: "WxBot"
+      api_key: "lin_x"
     discord:
       enabled: true
       bot_name: DBot
@@ -317,20 +322,20 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Weixin.Enabled)
-	assert.Equal(t, "wx_x", p.Weixin.UserID)
+	assert.True(t, p.Linear.Enabled)
+	assert.Equal(t, "lin_x", p.Linear.APIKey)
 	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
 	require.Contains(t, p.Plugins, "discord")
-	assert.NotContains(t, p.Plugins, "weixin")
+	assert.NotContains(t, p.Plugins, "linear")
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.Equal(t, true, p.Plugins["discord"]["enabled"])
 	assert.Equal(t, []any{"1", "2"}, p.Plugins["discord"]["allowed_guilds"])
-	assert.Equal(t, map[string]string{"weixin": "WxBot", "discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
+	assert.Equal(t, map[string]string{"discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
 }
 
 func TestPlatformsConfig_NoPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    weixin:\n      enabled: true\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    linear:\n      enabled: true\n"), 0o644))
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Bee.Platforms.Plugins)
@@ -345,9 +350,9 @@ bee:
     notes: "old value"
     legacy: [a, b]
     empty:
-    weixin:
+    linear:
       enabled: true
-      user_id: "a"
+      api_key: "a"
     discord:
       enabled: true
       token: x
@@ -355,8 +360,8 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Weixin.Enabled)
-	assert.Equal(t, "a", p.Weixin.UserID)
+	assert.True(t, p.Linear.Enabled)
+	assert.Equal(t, "a", p.Linear.APIKey)
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.NotContains(t, p.Plugins, "stray")
 	assert.NotContains(t, p.Plugins, "notes")
@@ -365,7 +370,7 @@ bee:
 
 func TestPlatformsConfig_BuiltinTypeErrorsStillFail(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    weixin: true\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    linear: true\n"), 0o644))
 	_, err := Load(path)
 	assert.Error(t, err)
 }

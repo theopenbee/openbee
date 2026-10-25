@@ -2,8 +2,10 @@ package configcmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -77,12 +79,23 @@ func applyPluginSelection(vals *configValues, offered, selected []string) {
 	}
 }
 
+var runPluginSetupCommand = func(m plugin.Manifest, lang string) (map[string]any, error) {
+	return plugin.RunSetup(context.Background(), m, lang, os.Stdin, os.Stderr)
+}
+
 func promptPluginSection(m plugin.Manifest, lang string, current map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(current)+2)
 	for k, v := range current {
 		out[k] = v
 	}
+	provided, err := runPluginSetup(m, lang, out)
+	if err != nil {
+		return nil, err
+	}
 	for _, f := range m.Config {
+		if _, ok := provided[f.Key]; ok {
+			continue
+		}
 		v, err := promptPluginField(f, lang, out[f.Key])
 		if err != nil {
 			return nil, err
@@ -100,6 +113,49 @@ func promptPluginSection(m plugin.Manifest, lang string, current map[string]any)
 	out["bot_name"] = botName
 	out["enabled"] = true
 	return out, nil
+}
+
+func runPluginSetup(m plugin.Manifest, lang string, section map[string]any) (map[string]any, error) {
+	if m.Setup == nil {
+		return nil, nil
+	}
+	label := m.Setup.Label.Get(lang)
+	if label == "" {
+		label = i18n.M.Prompt.PluginSetup
+	}
+	if pluginConfigured(m, section) {
+		var again bool
+		if err := survey.AskOne(&survey.Confirm{Message: fmt.Sprintf(i18n.M.Prompt.PluginSetupRun, label)}, &again); err != nil {
+			return nil, handleSurveyErr(err)
+		}
+		if !again {
+			return nil, nil
+		}
+	}
+	values, err := runPluginSetupCommand(m, lang)
+	if err != nil {
+		fmt.Printf(i18n.M.Output.Config.PluginSetupFailed+"\n", label, err)
+		return nil, nil
+	}
+	for k, v := range values {
+		section[k] = v
+	}
+	return values, nil
+}
+
+func pluginConfigured(m plugin.Manifest, section map[string]any) bool {
+	configured := false
+	for _, f := range m.Config {
+		v := section[f.Key]
+		empty := v == nil || v == ""
+		if f.Required && empty {
+			return false
+		}
+		if !empty {
+			configured = true
+		}
+	}
+	return configured
 }
 
 func promptPluginField(f plugin.ConfigField, lang string, current any) (any, error) {

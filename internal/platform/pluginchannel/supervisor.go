@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 var ErrNotRunning = errors.New("plugin channel is not running")
@@ -118,16 +118,6 @@ func (s *Supervisor) Run(ctx context.Context) {
 	}
 }
 
-func resolveCommand(dir, name string) (string, error) {
-	switch {
-	case filepath.IsAbs(name):
-		return name, nil
-	case strings.HasPrefix(name, ".") || strings.ContainsRune(name, '/') || strings.ContainsRune(name, filepath.Separator):
-		return filepath.Join(dir, name), nil
-	}
-	return exec.LookPath(name)
-}
-
 type child struct {
 	proc     *ai.CmdProcess
 	stdin    io.WriteCloser
@@ -139,7 +129,7 @@ func (s *Supervisor) start() (*child, error) {
 	if len(s.spec.Command) == 0 {
 		return nil, &permanentError{errors.New("plugin command is empty")}
 	}
-	path, err := resolveCommand(s.spec.Dir, s.spec.Command[0])
+	path, err := plugin.ResolveCommand(s.spec.Dir, s.spec.Command[0])
 	if err != nil {
 		return nil, &permanentError{fmt.Errorf("resolve plugin command: %w", err)}
 	}

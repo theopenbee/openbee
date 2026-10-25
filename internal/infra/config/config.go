@@ -88,10 +88,6 @@ func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 
 func (e EnginesConfig) IsEnabled(name string) bool { return e.itemFor(name).Enabled }
 
-type MediaConfig struct {
-	FFmpegPath string `yaml:"ffmpeg_path"`
-}
-
 type BeeConfig struct {
 	MessageDebounce time.Duration       `yaml:"message_debounce"`
 	Engine          EngineDefaultConfig `yaml:"engine"`
@@ -99,7 +95,6 @@ type BeeConfig struct {
 	Feeder          FeederConfig        `yaml:"feeder"`
 	Platforms       PlatformsConfig     `yaml:"platforms"`
 	RPC             RPCConfig           `yaml:"rpc"`
-	Media           MediaConfig         `yaml:"media"`
 
 	RPCBaseURL string `yaml:"-"`
 }
@@ -131,14 +126,12 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 }
 
 type PlatformsConfig struct {
-	Weixin WeixinConfig `yaml:"weixin"`
 	Linear LinearConfig `yaml:"linear"`
 
 	Plugins map[string]map[string]any `yaml:",inline"`
 }
 
 var builtinPlatformKeys = map[string]bool{
-	"weixin": true,
 	"linear": true,
 }
 
@@ -161,9 +154,6 @@ func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
 
 func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
 	names := make(map[string]string)
-	if p.Weixin.BotName != "" {
-		names["weixin"] = p.Weixin.BotName
-	}
 	for id, section := range p.Plugins {
 		if n, _ := section["bot_name"].(string); n != "" {
 			names[id] = n
@@ -182,17 +172,6 @@ func (p PlatformsConfig) BotNames() []string {
 
 type FeederConfig struct {
 	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
-}
-
-type WeixinConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	Token        string `yaml:"token"`
-	BaseURL      string `yaml:"base_url"`
-	CDNBaseURL   string `yaml:"cdn_base_url"`
-	RouteTag     int    `yaml:"route_tag"`
-	UserID       string `yaml:"user_id"`
-	MaxMediaSize int    `yaml:"max_media_size"`
-	BotName      string `yaml:"bot_name"`
 }
 
 type LinearConfig struct {
@@ -271,18 +250,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Engines.Pi.Path == "" {
 		cfg.Bee.Engines.Pi.Path = "pi"
-	}
-	if cfg.Bee.Media.FFmpegPath == "" {
-		cfg.Bee.Media.FFmpegPath = "ffmpeg"
-	}
-	if cfg.Bee.Platforms.Weixin.BaseURL == "" {
-		cfg.Bee.Platforms.Weixin.BaseURL = "https://ilinkai.weixin.qq.com"
-	}
-	if cfg.Bee.Platforms.Weixin.CDNBaseURL == "" {
-		cfg.Bee.Platforms.Weixin.CDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-	}
-	if cfg.Bee.Platforms.Weixin.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Weixin.MaxMediaSize = 100 * 1024 * 1024 // 100MB
 	}
 	if cfg.Bee.Platforms.Linear.MaxMediaSize == 0 {
 		cfg.Bee.Platforms.Linear.MaxMediaSize = 50 * 1024 * 1024 // 50MB

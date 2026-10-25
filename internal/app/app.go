@@ -39,7 +39,6 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
-	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/plugin"
 	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/tokenstat"
@@ -363,9 +362,6 @@ func buildDispatcher(
 func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service) ([]platform.Channel, error) {
 	pc := bc.Platforms
 	var result []platform.Channel
-	if pc.Weixin.Enabled {
-		result = append(result, platform.Channel{Platform: weixin.NewPlatform(pc.Weixin, bc.Media, mediaSvc)})
-	}
 	if pc.Linear.Enabled {
 		p, err := linear.NewPlatform(pc.Linear, mediaSvc)
 		if err != nil {

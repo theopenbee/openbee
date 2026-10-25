@@ -106,7 +106,7 @@ func TestInstaller_RejectsConflicts(t *testing.T) {
 	t.Run("reserved id", func(t *testing.T) {
 		inst, _ := newTestInstaller(t, &fakeNpm{})
 		src := t.TempDir()
-		writePlugin(t, src, strings.Replace(validManifest, `"discord"`, `"weixin"`, 1))
+		writePlugin(t, src, strings.Replace(validManifest, `"discord"`, `"linear"`, 1))
 		_, _, err := inst.Install(context.Background(), src)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reserved")

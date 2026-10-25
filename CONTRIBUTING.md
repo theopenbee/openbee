@@ -100,7 +100,7 @@ openbee/
 │   ├── claude/        # Claude integration
 │   ├── config/        # Configuration loading
 │   ├── rpc/           # internal RPC for ctl/bee/worker callbacks
-│   ├── platform/      # Platform adapters (WeChat, Linear, channel plugins)
+│   ├── platform/      # Platform adapters (Linear, channel plugins)
 │   ├── store/         # Data persistence (SQLite)
 │   ├── task_dispatcher/ # Background task dispatch
 │   ├── task_scheduler/  # Task scheduling

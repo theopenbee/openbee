@@ -69,13 +69,6 @@ func runAdvancedPrompts(vals *configValues) error {
 		return handleSurveyErr(err)
 	}
 
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.FFmpegPath,
-		Default: vals.FFmpegPath,
-	}, &vals.FFmpegPath); err != nil {
-		return handleSurveyErr(err)
-	}
-
 	if err := maybeRegenSecret(&vals.AuthJWTSecret, i18n.M.Prompt.JWTRegenConfirm, i18n.M.Output.Config.JWTRegenerated, i18n.M.Output.Config.JWTGenerated, ""); err != nil {
 		return err
 	}

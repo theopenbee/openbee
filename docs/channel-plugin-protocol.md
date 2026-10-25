@@ -25,9 +25,10 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | Field | Rules |
 |---|---|
 | `protocol_version` | Must be `1`. |
-| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `weixin`, `linear` or `local`. |
+| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `linear` or `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. An absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
+| `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee config` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
 | `version` | Optional. `package.json` `version` wins when present. |
 | `config[]` | Settings openbee asks for in `openbee config` and validates at startup. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes `openbee config` suggest a random value when the field is empty, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
 
@@ -69,6 +70,14 @@ At startup openbee, for every section with `enabled: true` that is not a built-i
 3. Starts the plugin and sends the result as `initialize.config`.
 
 If any step fails, openbee logs an error and skips only that channel. `bot_name` behaves as for built-in channels: an `@bot_name` mention is stripped from incoming text, and no worker may use that name.
+
+## Setup
+
+When the user enables a plugin whose manifest declares `setup`, `openbee config` runs the setup command before asking for the `config[]` fields. If the section already has a value for every required field, it first asks whether to run the setup again.
+
+- The command runs in the plugin directory with stdin and stderr attached to the user's terminal, so it can show a QR code and ask questions there. `OPENBEE_LANGUAGE` holds the user's language (`en` or `zh`).
+- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. openbee stores the values in the channel's section and does not ask for those fields again.
+- On failure (non-zero exit or invalid output) openbee shows the error and asks for every field by hand.
 
 ## Process rules
 

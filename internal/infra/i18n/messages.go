@@ -74,13 +74,11 @@ type PromptMessages struct {
 	PlatformSelect string `yaml:"platform_select"`
 	PluginSuffix   string `yaml:"plugin_suffix"`
 	PluginListHint string `yaml:"plugin_list_hint"`
-	PlatformWeixin string `yaml:"platform_weixin"`
+	PluginSetup    string `yaml:"plugin_setup"`
+	PluginSetupRun string `yaml:"plugin_setup_run"`
 	PlatformLinear string `yaml:"platform_linear"`
 	// Survey hint text
 	MultiSelectHint    string `yaml:"multiselect_hint"`
-	WeixinReacquire    string `yaml:"weixin_reacquire"` // contains %s placeholder
-	WeixinBotToken     string `yaml:"weixin_bot_token"`
-	WeixinUserID       string `yaml:"weixin_user_id"`
 	LinearAPIKey       string `yaml:"linear_api_key"`
 	LinearAPIKeyHelp   string `yaml:"linear_api_key_help"`
 	LinearLabelName    string `yaml:"linear_label_name"`
@@ -104,7 +102,6 @@ type PromptMessages struct {
 	DBPath           string `yaml:"db_path"`
 	MaxConcurrentBee string `yaml:"max_concurrent_bee"`
 	MessageDebounce  string `yaml:"message_debounce"`
-	FFmpegPath       string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
 	// Survey options (used in both Options slice and switch cases)
@@ -147,7 +144,6 @@ type OutputMessages struct {
 	Backup  BackupOutput  `yaml:"backup"`
 	Restore RestoreOutput `yaml:"restore"`
 	Config  ConfigOutput  `yaml:"config"`
-	Weixin  WeixinOutput  `yaml:"weixin"`
 	Daemon  DaemonOutput  `yaml:"daemon"`
 	Service ServiceOutput `yaml:"service"`
 	Plugin  PluginOutput  `yaml:"plugin"`
@@ -254,11 +250,7 @@ type ConfigOutput struct {
 	RPCTokenSecretGenerated   string `yaml:"rpc_token_secret_generated"` // contains %s
 	RPCTokenSecretRegenerated string `yaml:"rpc_token_secret_regenerated"`
 	PasswordGenerated         string `yaml:"password_generated"` // contains %s
-	WeixinQRLogin             string `yaml:"weixin_qr_login"`
-	FetchingQR                string `yaml:"fetching_qr"`
-	QRFailed                  string `yaml:"qr_failed"` // contains %v
-	QRFallback                string `yaml:"qr_fallback"`
-	WeixinSuccess             string `yaml:"weixin_success"`
+	PluginSetupFailed         string `yaml:"plugin_setup_failed"`
 	ClaudeFound               string `yaml:"claude_found"` // contains %s
 	ClaudeManualEntry         string `yaml:"claude_manual_entry"`
 	CodexFound                string `yaml:"codex_found"` // contains %s
@@ -269,18 +261,6 @@ type ConfigOutput struct {
 	SkillUpdated              string `yaml:"skill_updated"`          // contains %s
 	SkillUpToDate             string `yaml:"skill_up_to_date"`       // contains %s
 	SkillsInstallWarning      string `yaml:"skills_install_warning"` // contains %v
-}
-
-// WeixinOutput maps to Weixin QR-code login flow output.
-type WeixinOutput struct {
-	ScanQR       string `yaml:"scan_qr"`
-	Waiting      string `yaml:"waiting"`
-	PollFailed   string `yaml:"poll_failed"`  // contains %d, %v
-	PollInvalid  string `yaml:"poll_invalid"` // contains %d, %v
-	Scanned      string `yaml:"scanned"`
-	StillWaiting string `yaml:"still_waiting"`
-	QRExpired    string `yaml:"qr_expired"`
-	QRTimeout    string `yaml:"qr_timeout"`
 }
 
 // DaemonOutput maps to daemon-related runtime output.

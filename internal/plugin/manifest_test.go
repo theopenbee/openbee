@@ -47,6 +47,21 @@ func TestLoadManifest_Valid(t *testing.T) {
 	assert.Equal(t, "机器人 Token", m.Config[0].Label.Get("zh"))
 }
 
+func TestLoadManifest_Setup(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(validManifest), &raw))
+	raw["setup"] = map[string]any{"command": []string{"node", "dist/setup.js"}, "label": map[string]string{"en": "QR code login", "zh": "扫码登录"}}
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	require.NotNil(t, m.Setup)
+	assert.Equal(t, []string{"node", "dist/setup.js"}, m.Setup.Command)
+	assert.Equal(t, "扫码登录", m.Setup.Label.Get("zh"))
+}
+
 func TestLoadManifest_VersionFromManifestWithoutPackageJSON(t *testing.T) {
 	dir := t.TempDir()
 	var raw map[string]any
@@ -104,8 +119,10 @@ func TestManifestValidate(t *testing.T) {
 		{"valid", func(m *Manifest) {}, ""},
 		{"protocol version", func(m *Manifest) { m.ProtocolVersion = 2 }, "protocol_version"},
 		{"uppercase id", func(m *Manifest) { m.ID = "Discord" }, "id"},
-		{"reserved id", func(m *Manifest) { m.ID = "weixin" }, "reserved"},
+		{"reserved id", func(m *Manifest) { m.ID = "linear" }, "reserved"},
 		{"empty command", func(m *Manifest) { m.Command = nil }, "command"},
+		{"setup", func(m *Manifest) { m.Setup = &Setup{Command: []string{"node", "setup.js"}} }, ""},
+		{"empty setup command", func(m *Manifest) { m.Setup = &Setup{} }, "setup"},
 		{"reserved key enabled", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "enabled", Type: FieldBool}) }, "enabled"},
 		{"reserved key bot_name", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "bot_name", Type: FieldString}) }, "bot_name"},
 		{"duplicate key", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "token", Type: FieldString}) }, "duplicate"},
@@ -131,10 +148,10 @@ func TestManifestValidate(t *testing.T) {
 }
 
 func TestValidateID(t *testing.T) {
-	for _, ok := range []string{"discord", "slack-bot", "qq_2", "ab"} {
+	for _, ok := range []string{"discord", "slack-bot", "qq_2", "ab", "weixin"} {
 		assert.NoError(t, ValidateID(ok), ok)
 	}
-	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "weixin", "abcdefghijklmnopqrstuvwxyz0123456"} {
+	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "linear", "abcdefghijklmnopqrstuvwxyz0123456"} {
 		assert.Error(t, ValidateID(bad), bad)
 	}
 }

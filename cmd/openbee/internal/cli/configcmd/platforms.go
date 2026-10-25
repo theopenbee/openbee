@@ -17,67 +17,8 @@ type platformSpec struct {
 
 func platformSpecs(vals *configValues) []platformSpec {
 	return []platformSpec{
-		{&vals.WeixinEnabled, i18n.M.Prompt.PlatformWeixin, configureWeixin},
 		{&vals.LinearEnabled, i18n.M.Prompt.PlatformLinear, configureLinear},
 	}
-}
-
-func configureWeixin(vals *configValues) error {
-	if err := weixinAcquireToken(vals); err != nil {
-		return err
-	}
-	if vals.WeixinBaseURL == "" {
-		vals.WeixinBaseURL = "https://ilinkai.weixin.qq.com"
-	}
-	vals.WeixinCDNBaseURL = "https://novac2c.cdn.weixin.qq.com/c2c"
-	return promptBotName(&vals.WeixinBotName)
-}
-
-func weixinAcquireToken(vals *configValues) error {
-	needQRLogin := true
-	if vals.WeixinToken != "" {
-		masked := vals.WeixinToken
-		if len(masked) > 6 {
-			masked = masked[:6] + "***"
-		}
-		var reacquire bool
-		if err := survey.AskOne(&survey.Confirm{
-			Message: fmt.Sprintf(i18n.M.Prompt.WeixinReacquire, masked),
-			Default: false,
-		}, &reacquire); err != nil {
-			return handleSurveyErr(err)
-		}
-		needQRLogin = reacquire
-	}
-	if !needQRLogin {
-		return nil
-	}
-
-	fmt.Println(i18n.M.Output.Config.WeixinQRLogin)
-	fmt.Println(i18n.M.Output.Config.FetchingQR)
-
-	token, userID, baseURL, err := runWeixinQRLogin()
-	if err == nil {
-		vals.WeixinToken = token
-		vals.WeixinUserID = userID
-		if baseURL != "" {
-			vals.WeixinBaseURL = baseURL
-		}
-		fmt.Println(i18n.M.Output.Config.WeixinSuccess)
-		return nil
-	}
-
-	fmt.Printf(i18n.M.Output.Config.QRFailed+"\n", err)
-	fmt.Println(i18n.M.Output.Config.QRFallback)
-	if err := survey.AskOne(&survey.Password{
-		Message: i18n.M.Prompt.WeixinBotToken,
-	}, &vals.WeixinToken, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	return handleSurveyErr(survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.WeixinUserID,
-		Default: vals.WeixinUserID,
-	}, &vals.WeixinUserID, survey.WithValidator(survey.Required)))
 }
 
 func configureLinear(vals *configValues) error {
