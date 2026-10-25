@@ -132,3 +132,19 @@ func TestPluginRemove_NotInstalled(t *testing.T) {
 func firstLine(s string) string {
 	return strings.SplitN(s, "\n", 2)[0]
 }
+
+func TestPluginList_YAMLStyleEnabled(t *testing.T) {
+	reg := newRegistry(t)
+	_, err := run(t, reg, "install", writePlugin(t, "discord", "Discord", "0.1.0"))
+	require.NoError(t, err)
+	_, err = run(t, reg, "install", writePlugin(t, "slack", "Slack", "0.2.0"))
+	require.NoError(t, err)
+	cfg := writeConfig(t, "bee:\n  platforms:\n    discord:\n      enabled: yes\n    slack:\n      enabled: maybe\n")
+
+	out, err := run(t, reg, "list", "-c", cfg)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	require.Len(t, lines, 3)
+	assert.Contains(t, lines[1], i18n.M.Output.Plugin.StatusEnabled)
+	assert.Contains(t, lines[2], i18n.M.Output.Plugin.StatusInvalid)
+}

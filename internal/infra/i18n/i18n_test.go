@@ -46,7 +46,7 @@ func TestLoad_pluginMessages(t *testing.T) {
 		for name, v := range map[string]string{
 			"installed": p.Installed, "trust_warning": p.TrustWarning, "next_steps": p.NextSteps,
 			"list_header": p.ListHeader, "list_empty": p.ListEmpty, "removed": p.Removed,
-			"still_enabled": p.StillEnabled, "status_enabled": p.StatusEnabled, "status_disabled": p.StatusDisabled,
+			"still_enabled": p.StillEnabled, "status_enabled": p.StatusEnabled, "status_disabled": p.StatusDisabled, "status_invalid": p.StatusInvalid,
 		} {
 			assert.NotEmpty(t, v, "%s %s", lang, name)
 		}

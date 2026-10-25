@@ -34,7 +34,12 @@ func BuildChannels(sections map[string]map[string]any, opts BuildOptions) []Buil
 	var out []BuiltChannel
 	for _, id := range ids {
 		section := sections[id]
-		if enabled, _ := section["enabled"].(bool); !enabled {
+		enabled, err := plugin.SectionEnabled(section)
+		if err != nil {
+			log.Error("plugin channel skipped", zap.String("channel", id), zap.Error(err))
+			continue
+		}
+		if !enabled {
 			continue
 		}
 		p, err := buildOne(id, section, opts)

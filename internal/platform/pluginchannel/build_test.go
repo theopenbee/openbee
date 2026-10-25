@@ -86,3 +86,15 @@ func TestBuildChannels_SortedAndEmpty(t *testing.T) {
 
 	assert.Empty(t, BuildChannels(nil, BuildOptions{Registry: reg, MediaSvc: newTestMedia(t)}))
 }
+
+func TestBuildChannels_YAMLStyleEnabled(t *testing.T) {
+	reg := plugin.OpenRegistry(filepath.Join(t.TempDir(), "plugins"))
+	installTestPlugin(t, reg, "yesplug", "yesplug")
+	installTestPlugin(t, reg, "badplug", "badplug")
+	built := BuildChannels(map[string]map[string]any{
+		"yesplug": {"enabled": "yes", "token": "x"},
+		"badplug": {"enabled": "maybe", "token": "x"},
+	}, BuildOptions{Registry: reg, MediaSvc: newTestMedia(t)})
+	require.Len(t, built, 1)
+	assert.Equal(t, "yesplug", built[0].Channel.Platform.ID())
+}

@@ -71,7 +71,9 @@ func newCommand(d deps) *cobra.Command {
 					name = m.DisplayName(lang)
 				}
 				status := i18n.M.Output.Plugin.StatusDisabled
-				if enabled(sections, e.ID) {
+				if on, err := plugin.SectionEnabled(sections[e.ID]); err != nil {
+					status = i18n.M.Output.Plugin.StatusInvalid
+				} else if on {
 					status = i18n.M.Output.Plugin.StatusEnabled
 				}
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.ID, name, displayVersion(e.Version), e.Source, status, e.Path)
@@ -108,7 +110,7 @@ func loadSections(cfgPath string) (map[string]map[string]any, string) {
 }
 
 func enabled(sections map[string]map[string]any, id string) bool {
-	on, _ := sections[id]["enabled"].(bool)
+	on, _ := plugin.SectionEnabled(sections[id])
 	return on
 }
 

@@ -231,6 +231,7 @@ output:
     still_enabled: "渠道 %s 在 config.yaml 中仍处于启用状态；请关闭它，否则 openbee 启动时会记录错误。"
     status_enabled: "已启用"
     status_disabled: "未启用"
+    status_invalid: "enabled 取值无效"
   service:
     installed: "服务已安装：%s"
     uninstalled: "服务已卸载"

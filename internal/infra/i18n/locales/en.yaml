@@ -231,6 +231,7 @@ output:
     still_enabled: "Channel %s is still enabled in config.yaml; disable it or openbee will log an error on startup."
     status_enabled: "enabled"
     status_disabled: "disabled"
+    status_invalid: "invalid enabled value"
   service:
     installed: "service installed at %s"
     uninstalled: "service uninstalled"

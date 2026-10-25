@@ -205,7 +205,7 @@ func runPlatformStep(vals *configValues) error {
 	}
 	for _, po := range plugins {
 		options = append(options, po.Label)
-		if on, _ := vals.PluginSections[po.Manifest.ID]["enabled"].(bool); on {
+		if on, _ := plugin.SectionEnabled(vals.PluginSections[po.Manifest.ID]); on {
 			defaults = append(defaults, po.Label)
 		}
 	}
