@@ -329,3 +329,37 @@ func TestPlatformsConfig_NoPlugins(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Bee.Platforms.Plugins)
 }
+
+func TestPlatformsConfig_IgnoresNonMappingUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+bee:
+  platforms:
+    stray: true
+    notes: "old value"
+    legacy: [a, b]
+    empty:
+    telegram:
+      enabled: true
+      token: "t"
+    discord:
+      enabled: true
+      token: x
+`), 0o644))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	p := cfg.Bee.Platforms
+	assert.True(t, p.Telegram.Enabled)
+	assert.Equal(t, "t", p.Telegram.Token)
+	assert.Equal(t, "x", p.Plugins["discord"]["token"])
+	assert.NotContains(t, p.Plugins, "stray")
+	assert.NotContains(t, p.Plugins, "notes")
+	assert.NotContains(t, p.Plugins, "legacy")
+}
+
+func TestPlatformsConfig_BuiltinTypeErrorsStillFail(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    telegram: true\n"), 0o644))
+	_, err := Load(path)
+	assert.Error(t, err)
+}

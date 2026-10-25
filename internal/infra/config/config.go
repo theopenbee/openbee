@@ -142,6 +142,32 @@ type PlatformsConfig struct {
 	Plugins map[string]map[string]any `yaml:",inline"`
 }
 
+var builtinPlatformKeys = map[string]bool{
+	"feishu":   true,
+	"dingtalk": true,
+	"wecom":    true,
+	"telegram": true,
+	"weixin":   true,
+	"linear":   true,
+}
+
+func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
+	type plain PlatformsConfig
+	if value.Kind == yaml.MappingNode {
+		filtered := *value
+		filtered.Content = make([]*yaml.Node, 0, len(value.Content))
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			key, val := value.Content[i], value.Content[i+1]
+			if !builtinPlatformKeys[key.Value] && val.Kind != yaml.MappingNode && val.Kind != yaml.AliasNode {
+				continue
+			}
+			filtered.Content = append(filtered.Content, key, val)
+		}
+		value = &filtered
+	}
+	return value.Decode((*plain)(p))
+}
+
 func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
 	names := make(map[string]string)
 	for id, n := range map[string]string{
