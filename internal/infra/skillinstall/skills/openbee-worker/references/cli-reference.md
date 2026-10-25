@@ -13,6 +13,7 @@ openbee ctl message list-outbound [--session-key <key>] [--platform <platform>] 
 # --stdin and --media-path can be used independently or together (text first, then media)
 # --message-id replies to that message; --session-key sends a new message to the conversation
 # Use the target your task_meta provides: message_id (immediate tasks) or session_key (scheduled / countdown tasks)
+# Send tabular files as .xlsx, not .csv: DingTalk cannot preview .csv in-app (see "File Format for Attachments" in SKILL.md)
 
 # Send plain text
 openbee ctl message send --message-id <id> --stdin << 'EOF'
@@ -23,7 +24,7 @@ EOF
 openbee ctl message send --message-id <id> --media-path /tmp/chart.png
 
 # Send text and file together
-openbee ctl message send --message-id <id> --stdin --media-path /tmp/output.csv << 'EOF'
+openbee ctl message send --message-id <id> --stdin --media-path /tmp/output.xlsx << 'EOF'
 See attachment for details.
 EOF
 

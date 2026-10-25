@@ -121,13 +121,19 @@ openbee ctl message send --message-id <id> --stdin << 'EOF'
 2 files total, sending in order.
 EOF
 openbee ctl message send --message-id <id> --media-path /tmp/file1.png
-openbee ctl message send --message-id <id> --media-path /tmp/file2.csv
+openbee ctl message send --message-id <id> --media-path /tmp/file2.xlsx
 
 # Scheduled / countdown task: deliver to the conversation from task_meta.session_key
 openbee ctl message send --session-key <session_key> --stdin << 'EOF'
 Daily report: all services healthy.
 EOF
 ```
+
+### File Format for Attachments
+
+- Send tables and spreadsheets as `.xlsx`, not `.csv`. DingTalk previews only `.xlsx`, `.pdf`, `.doc`, `.docx`, `.zip` and `.rar` attachments in-app; anything else (including `.csv`) opens as a browser download named `<random-id>.file`
+- This applies whenever the conversation may be on DingTalk: `session_key` starts with `dingtalk:`, or the platform is unknown (immediate tasks do not reveal it). `.xlsx` works on every platform, so default to it for tabular data
+- If you cannot produce `.xlsx`, send a `.pdf` rendering instead, or wrap the file in a `.zip`
 
 ---
 
