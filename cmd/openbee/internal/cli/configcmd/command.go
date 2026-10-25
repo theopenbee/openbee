@@ -42,8 +42,8 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
-func runConfig() error {
-	vals := configValues{
+func defaultValues() configValues {
+	return configValues{
 		ServerPort:             "8080",
 		ServerHost:             "localhost",
 		DBPath:                 "./data/openbee.db",
@@ -64,6 +64,32 @@ func runConfig() error {
 		AuthRefreshTTL:         "168h",
 		LinearMaxMediaSize:     strconv.Itoa(50 * 1024 * 1024),
 	}
+}
+
+func renderConfig(vals configValues) ([]byte, error) {
+	tmpl, err := template.New("config").Parse(configTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("parse template: %w", err)
+	}
+	pluginYAML, err := renderPluginSections(vals.PluginSections)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	render := configRenderData{
+		configValues:        vals,
+		LinearProjectsYAML:  renderInlineYAMLList(vals.LinearProjects),
+		LinearStatesYAML:    renderInlineYAMLList(vals.LinearStates),
+		PluginPlatformsYAML: pluginYAML,
+	}
+	if err := tmpl.Execute(&buf, render); err != nil {
+		return nil, fmt.Errorf("render template: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func runConfig() error {
+	vals := defaultValues()
 
 	// If an existing config file exists, load its values as defaults silently
 	// (do NOT print anything yet — language hasn't been selected).
@@ -268,22 +294,12 @@ func runConfig() error {
 		return nil
 	}
 
-	tmpl, err := template.New("config").Parse(configTemplate)
+	rendered, err := renderConfig(vals)
 	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
+		return err
 	}
 
-	var buf bytes.Buffer
-	render := configRenderData{
-		configValues:       vals,
-		LinearProjectsYAML: renderInlineYAMLList(vals.LinearProjects),
-		LinearStatesYAML:   renderInlineYAMLList(vals.LinearStates),
-	}
-	if err := tmpl.Execute(&buf, render); err != nil {
-		return fmt.Errorf("render template: %w", err)
-	}
-
-	if err := os.WriteFile(configOutputPath, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(configOutputPath, rendered, 0644); err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
 

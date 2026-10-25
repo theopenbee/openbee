@@ -90,6 +90,8 @@ prompt:
   codex_path: "Codex executable path:"
   pi_path: "Pi executable path:"
   platform_select: "Which platforms to enable?"
+  plugin_suffix: " (plugin)"
+  plugin_list_hint: "Separate multiple values with commas"
   platform_feishu: "Feishu"
   platform_dingtalk: "DingTalk"
   platform_wecom: "WeCom"

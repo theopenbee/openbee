@@ -90,6 +90,8 @@ prompt:
   codex_path: "Codex 可执行文件路径："
   pi_path: "Pi 可执行文件路径："
   platform_select: "选择要启用的平台："
+  plugin_suffix: "（插件）"
+  plugin_list_hint: "多个值用英文逗号分隔"
   platform_feishu: "飞书"
   platform_dingtalk: "钉钉"
   platform_wecom: "企业微信"

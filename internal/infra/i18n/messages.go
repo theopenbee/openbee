@@ -72,6 +72,8 @@ type PromptMessages struct {
 	PiPath string `yaml:"pi_path"`
 	// Platform
 	PlatformSelect   string `yaml:"platform_select"`
+	PluginSuffix     string `yaml:"plugin_suffix"`
+	PluginListHint   string `yaml:"plugin_list_hint"`
 	PlatformFeishu   string `yaml:"platform_feishu"`
 	PlatformDingTalk string `yaml:"platform_dingtalk"`
 	PlatformWeCom    string `yaml:"platform_wecom"`

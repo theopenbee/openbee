@@ -70,6 +70,8 @@ bee:
       projects: [{{.LinearProjectsYAML}}]
       states: [{{.LinearStatesYAML}}]
       max_media_size: {{.LinearMaxMediaSize}}
+{{- if .PluginPlatformsYAML}}
+{{.PluginPlatformsYAML}}{{end}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   media:

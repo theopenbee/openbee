@@ -2,9 +2,11 @@ package configcmd
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 type platformSpec struct {
@@ -189,6 +191,7 @@ func configureLinear(vals *configValues) error {
 // runPlatformStep runs the multi-select prompt and per-platform configuration.
 func runPlatformStep(vals *configValues) error {
 	specs := platformSpecs(vals)
+	plugins := loadPluginOptions(plugin.OpenRegistry(plugin.DefaultDir()), vals.Language)
 
 	var defaults []string
 	for _, s := range specs {
@@ -196,9 +199,15 @@ func runPlatformStep(vals *configValues) error {
 			defaults = append(defaults, s.label)
 		}
 	}
-	options := make([]string, len(specs))
-	for i, s := range specs {
-		options[i] = s.label
+	options := make([]string, 0, len(specs)+len(plugins))
+	for _, s := range specs {
+		options = append(options, s.label)
+	}
+	for _, po := range plugins {
+		options = append(options, po.Label)
+		if on, _ := vals.PluginSections[po.Manifest.ID]["enabled"].(bool); on {
+			defaults = append(defaults, po.Label)
+		}
 	}
 
 	var selected []string
@@ -227,6 +236,34 @@ func runPlatformStep(vals *configValues) error {
 		if err := spec.configure(vals); err != nil {
 			return err
 		}
+	}
+	return configurePlugins(vals, plugins, selected)
+}
+
+func configurePlugins(vals *configValues, plugins []pluginOption, selectedLabels []string) error {
+	offered := make([]string, 0, len(plugins))
+	var selected []string
+	for _, po := range plugins {
+		offered = append(offered, po.Manifest.ID)
+		if slices.Contains(selectedLabels, po.Label) {
+			selected = append(selected, po.Manifest.ID)
+		}
+	}
+	applyPluginSelection(vals, offered, selected)
+	for _, po := range plugins {
+		id := po.Manifest.ID
+		if !slices.Contains(selected, id) {
+			continue
+		}
+		fmt.Println(po.Label)
+		section, err := promptPluginSection(po.Manifest, vals.Language, vals.PluginSections[id])
+		if err != nil {
+			return err
+		}
+		if vals.PluginSections == nil {
+			vals.PluginSections = map[string]map[string]any{}
+		}
+		vals.PluginSections[id] = section
 	}
 	return nil
 }
