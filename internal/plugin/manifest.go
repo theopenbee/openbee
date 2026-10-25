@@ -15,7 +15,7 @@ const (
 	ProtocolVersion = 1
 )
 
-var ReservedIDs = []string{"linear", "local"}
+var ReservedIDs = []string{"local"}
 
 var reservedConfigKeys = []string{"enabled", "bot_name"}
 

@@ -35,7 +35,7 @@ func loadPluginOptions(reg *plugin.Registry, lang string) []pluginOption {
 		if err != nil || m.ID != e.ID {
 			continue
 		}
-		out = append(out, pluginOption{Manifest: m, Label: m.DisplayName(lang) + i18n.M.Prompt.PluginSuffix})
+		out = append(out, pluginOption{Manifest: m, Label: m.DisplayName(lang)})
 	}
 	return out
 }

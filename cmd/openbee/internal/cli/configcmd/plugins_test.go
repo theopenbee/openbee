@@ -25,8 +25,6 @@ func renderToFile(t *testing.T, vals configValues) string {
 
 func TestRenderConfig_WithPluginSection(t *testing.T) {
 	vals := defaultValues()
-	vals.LinearEnabled = true
-	vals.LinearAPIKey = "lin_x"
 	vals.FeederMaxConcurrentBee = 7
 	vals.PluginSections = map[string]map[string]any{
 		"discord": {"enabled": true, "bot_name": "DBot", "token": "x", "allowed_guilds": []string{"1", "22"}, "max_media_size": 1024},
@@ -34,8 +32,6 @@ func TestRenderConfig_WithPluginSection(t *testing.T) {
 
 	cfg, err := config.Load(renderToFile(t, vals))
 	require.NoError(t, err)
-	assert.True(t, cfg.Bee.Platforms.Linear.Enabled)
-	assert.Equal(t, "lin_x", cfg.Bee.Platforms.Linear.APIKey)
 	assert.Equal(t, 7, cfg.Bee.Feeder.MaxConcurrentBee)
 	d := cfg.Bee.Platforms.Plugins["discord"]
 	assert.Equal(t, true, d["enabled"])
@@ -87,7 +83,10 @@ func TestRenderPluginSections_Empty(t *testing.T) {
 	vals := defaultValues()
 	rendered, err := renderConfig(vals)
 	require.NoError(t, err)
-	assert.Contains(t, string(rendered), "max_media_size: "+vals.LinearMaxMediaSize+"\n  feeder:")
+	assert.Contains(t, string(rendered), "  platforms: {}\n  feeder:")
+	cfg, err := config.Load(renderToFile(t, vals))
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Bee.Platforms.Plugins)
 }
 
 func TestRenderPluginSections_Indentation(t *testing.T) {

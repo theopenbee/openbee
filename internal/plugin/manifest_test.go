@@ -119,7 +119,7 @@ func TestManifestValidate(t *testing.T) {
 		{"valid", func(m *Manifest) {}, ""},
 		{"protocol version", func(m *Manifest) { m.ProtocolVersion = 2 }, "protocol_version"},
 		{"uppercase id", func(m *Manifest) { m.ID = "Discord" }, "id"},
-		{"reserved id", func(m *Manifest) { m.ID = "linear" }, "reserved"},
+		{"reserved id", func(m *Manifest) { m.ID = "local" }, "reserved"},
 		{"empty command", func(m *Manifest) { m.Command = nil }, "command"},
 		{"setup", func(m *Manifest) { m.Setup = &Setup{Command: []string{"node", "setup.js"}} }, ""},
 		{"empty setup command", func(m *Manifest) { m.Setup = &Setup{} }, "setup"},
@@ -151,7 +151,7 @@ func TestValidateID(t *testing.T) {
 	for _, ok := range []string{"discord", "slack-bot", "qq_2", "ab", "weixin"} {
 		assert.NoError(t, ValidateID(ok), ok)
 	}
-	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "linear", "abcdefghijklmnopqrstuvwxyz0123456"} {
+	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "abcdefghijklmnopqrstuvwxyz0123456"} {
 		assert.Error(t, ValidateID(bad), bad)
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 // originalMultiSelectTemplate holds the unmodified survey template so we can
@@ -108,15 +107,4 @@ func handleSurveyErr(err error) error {
 		return errInterrupted
 	}
 	return err
-}
-
-// renderInlineYAMLList formats a comma-separated string into an inline YAML
-// array body, e.g. `"a", "b"`. Empty input returns "".
-func renderInlineYAMLList(csv string) string {
-	parts := utils.SplitAndTrim(csv)
-	out := make([]string, len(parts))
-	for i, p := range parts {
-		out[i] = fmt.Sprintf("%q", p)
-	}
-	return strings.Join(out, ", ")
 }

@@ -73,7 +73,7 @@ openbee config
 
 向导将引导你完成以下配置：
 - agent 可执行文件路径
-- 启用的平台（Linear，以及已安装的渠道插件）及对应凭证
+- 启用的平台（已安装的渠道插件）及对应凭证
 - 高级选项（可跳过，使用默认值）
 
 配置文件默认写入当前目录的 `config.yaml`，如需指定路径，使用 `-o` 参数：
@@ -91,11 +91,11 @@ openbee server -d
 ### 第四步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
-- 在已配置的平台（Linear，或微信、飞书、钉钉、企微、Telegram 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+- 在已配置的平台（微信、飞书、钉钉、企微、Telegram、Linear 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
 
 ### 渠道插件
 
-其他聊天平台可以通过插件接入，无需重新编译 OpenBee：执行 `openbee plugin install <npm 包或本地目录>`，再在 `openbee config` 中启用该渠道。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
+聊天平台通过插件接入，无需重新编译 OpenBee：执行 `openbee plugin install <npm 包或本地目录>`，再在 `openbee config` 中启用该渠道。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
 
 ## 🌟 Star History
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -60,7 +59,6 @@ func defaultValues() configValues {
 		AuthUsername:           "admin",
 		AuthAccessTTL:          "2h",
 		AuthRefreshTTL:         "168h",
-		LinearMaxMediaSize:     strconv.Itoa(50 * 1024 * 1024),
 	}
 }
 
@@ -76,8 +74,6 @@ func renderConfig(vals configValues) ([]byte, error) {
 	var buf bytes.Buffer
 	render := configRenderData{
 		configValues:        vals,
-		LinearProjectsYAML:  renderInlineYAMLList(vals.LinearProjects),
-		LinearStatesYAML:    renderInlineYAMLList(vals.LinearStates),
 		PluginPlatformsYAML: pluginYAML,
 	}
 	if err := tmpl.Execute(&buf, render); err != nil {

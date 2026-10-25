@@ -2,7 +2,6 @@ package configcmd
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
@@ -16,14 +15,6 @@ type configValues struct {
 	RPCTokenSecret  string
 	RPCTokenTTL     string
 	ServerEnvSecret string
-
-	LinearEnabled      bool
-	LinearAPIKey       string
-	LinearLabelName    string
-	LinearPollInterval string
-	LinearProjects     string
-	LinearStates       string
-	LinearMaxMediaSize string
 
 	EngineDefault       string
 	EngineTimeoutBee    string
@@ -50,8 +41,6 @@ type configValues struct {
 // configRenderData wraps configValues with fields derived solely for template rendering.
 type configRenderData struct {
 	configValues
-	LinearProjectsYAML  string
-	LinearStatesYAML    string
 	PluginPlatformsYAML string
 }
 
@@ -71,13 +60,6 @@ func loadExistingConfig(path string) *configValues {
 		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
 		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
 		ServerEnvSecret:        cfg.Server.EnvSecret,
-		LinearEnabled:          cfg.Bee.Platforms.Linear.Enabled,
-		LinearAPIKey:           cfg.Bee.Platforms.Linear.APIKey,
-		LinearLabelName:        cfg.Bee.Platforms.Linear.LabelName,
-		LinearPollInterval:     cfg.Bee.Platforms.Linear.PollInterval.String(),
-		LinearProjects:         strings.Join(cfg.Bee.Platforms.Linear.Projects, ","),
-		LinearStates:           strings.Join(cfg.Bee.Platforms.Linear.States, ","),
-		LinearMaxMediaSize:     strconv.Itoa(cfg.Bee.Platforms.Linear.MaxMediaSize),
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),

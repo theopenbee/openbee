@@ -15,6 +15,7 @@
 - Move Telegram from a built-in channel to a channel plugin.
 - Move Lark, DingTalk and WeCom to channel plugins.
 - Move WeChat from a built-in channel to a channel plugin.
+- Move Linear from a built-in channel to a channel plugin.
 - Give each Telegram forum topic its own session.
 
 ### Removed

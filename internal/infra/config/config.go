@@ -126,13 +126,7 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 }
 
 type PlatformsConfig struct {
-	Linear LinearConfig `yaml:"linear"`
-
 	Plugins map[string]map[string]any `yaml:",inline"`
-}
-
-var builtinPlatformKeys = map[string]bool{
-	"linear": true,
 }
 
 func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -142,7 +136,7 @@ func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
 		filtered.Content = make([]*yaml.Node, 0, len(value.Content))
 		for i := 0; i+1 < len(value.Content); i += 2 {
 			key, val := value.Content[i], value.Content[i+1]
-			if !builtinPlatformKeys[key.Value] && val.Kind != yaml.MappingNode && val.Kind != yaml.AliasNode {
+			if val.Kind != yaml.MappingNode && val.Kind != yaml.AliasNode {
 				continue
 			}
 			filtered.Content = append(filtered.Content, key, val)
@@ -172,16 +166,6 @@ func (p PlatformsConfig) BotNames() []string {
 
 type FeederConfig struct {
 	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
-}
-
-type LinearConfig struct {
-	Enabled      bool          `yaml:"enabled"`
-	APIKey       string        `yaml:"api_key"`
-	LabelName    string        `yaml:"label_name"`
-	PollInterval time.Duration `yaml:"poll_interval"`
-	Projects     []string      `yaml:"projects"`
-	States       []string      `yaml:"states"`
-	MaxMediaSize int           `yaml:"max_media_size"`
 }
 
 type RPCConfig struct {
@@ -251,9 +235,6 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Engines.Pi.Path == "" {
 		cfg.Bee.Engines.Pi.Path = "pi"
 	}
-	if cfg.Bee.Platforms.Linear.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Linear.MaxMediaSize = 50 * 1024 * 1024 // 50MB
-	}
 	if cfg.Server.Auth.Username == "" {
 		cfg.Server.Auth.Username = "admin"
 	}
@@ -271,12 +252,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.RPC.TokenTTL == 0 {
 		cfg.Bee.RPC.TokenTTL = 48 * time.Hour
-	}
-	if cfg.Bee.Platforms.Linear.LabelName == "" {
-		cfg.Bee.Platforms.Linear.LabelName = "openbee"
-	}
-	if cfg.Bee.Platforms.Linear.PollInterval == 0 {
-		cfg.Bee.Platforms.Linear.PollInterval = 10 * time.Second
 	}
 	return nil
 }

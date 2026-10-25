@@ -53,16 +53,6 @@ server:
 				assert.NotEmpty(t, cfg.RPC.TokenSecret, "TokenSecret should be auto-generated when not set")
 			},
 		},
-		{
-			name: "LinearDefaults",
-			yaml: `
-server:
-  port: 8080
-`,
-			check: func(t *testing.T, cfg BeeConfig) {
-				assert.Equal(t, 50*1024*1024, cfg.Platforms.Linear.MaxMediaSize)
-			},
-		},
 	}
 
 	for _, tc := range cases {
@@ -124,6 +114,14 @@ bee:
       token: "wx-token"
       route_tag: 7
       bot_name: "WxBot"
+    linear:
+      enabled: true
+      api_key: "lin_test"
+      label_name: "openbee"
+      poll_interval: 10s
+      projects: ["Core"]
+      states: ["Todo", "In Progress"]
+      max_media_size: 10485760
 `)
 	f.Close()
 
@@ -140,6 +138,11 @@ bee:
 	assert.Equal(t, "wss://example.com", p["wecom"]["websocket_url"])
 	assert.Equal(t, "wx-token", p["weixin"]["token"])
 	assert.Equal(t, 7, p["weixin"]["route_tag"])
+	assert.Equal(t, "lin_test", p["linear"]["api_key"])
+	assert.Equal(t, "10s", p["linear"]["poll_interval"])
+	assert.Equal(t, []any{"Core"}, p["linear"]["projects"])
+	assert.Equal(t, []any{"Todo", "In Progress"}, p["linear"]["states"])
+	assert.Equal(t, 10485760, p["linear"]["max_media_size"])
 	assert.Equal(t, "FeishuBot", cfg.Bee.Platforms.BotNamesByPlatform()["feishu"])
 	assert.Equal(t, "WxBot", cfg.Bee.Platforms.BotNamesByPlatform()["weixin"])
 }
@@ -234,28 +237,6 @@ bee:
 	assert.Nil(t, cfg.Bee.Engines.Codex.Env)
 }
 
-func TestBeeConfig_LinearLoad(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`
-server:
-  port: 8080
-bee:
-  platforms:
-    linear:
-      enabled: true
-      api_key: "lin_test"
-      max_media_size: 10485760
-`)
-	f.Close()
-
-	cfg, err := Load(f.Name())
-	require.NoError(t, err)
-	lc := cfg.Bee.Platforms.Linear
-	assert.True(t, lc.Enabled)
-	assert.Equal(t, "lin_test", lc.APIKey)
-	assert.Equal(t, 10485760, lc.MaxMediaSize)
-}
-
 func TestEngineConfigRawFor_IncludesEnv(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`
@@ -304,9 +285,6 @@ server:
   port: 8080
 bee:
   platforms:
-    linear:
-      enabled: true
-      api_key: "lin_x"
     discord:
       enabled: true
       bot_name: DBot
@@ -322,11 +300,8 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Linear.Enabled)
-	assert.Equal(t, "lin_x", p.Linear.APIKey)
 	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
 	require.Contains(t, p.Plugins, "discord")
-	assert.NotContains(t, p.Plugins, "linear")
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.Equal(t, true, p.Plugins["discord"]["enabled"])
 	assert.Equal(t, []any{"1", "2"}, p.Plugins["discord"]["allowed_guilds"])
@@ -335,10 +310,11 @@ bee:
 
 func TestPlatformsConfig_NoPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    linear:\n      enabled: true\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms: {}\n  feeder:\n    max_concurrent_bee: 2\n"), 0o644))
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Bee.Platforms.Plugins)
+	assert.Equal(t, 2, cfg.Bee.Feeder.MaxConcurrentBee)
 }
 
 func TestPlatformsConfig_IgnoresNonMappingUnknownKeys(t *testing.T) {
@@ -350,9 +326,6 @@ bee:
     notes: "old value"
     legacy: [a, b]
     empty:
-    linear:
-      enabled: true
-      api_key: "a"
     discord:
       enabled: true
       token: x
@@ -360,17 +333,8 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Linear.Enabled)
-	assert.Equal(t, "a", p.Linear.APIKey)
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.NotContains(t, p.Plugins, "stray")
 	assert.NotContains(t, p.Plugins, "notes")
 	assert.NotContains(t, p.Plugins, "legacy")
-}
-
-func TestPlatformsConfig_BuiltinTypeErrorsStillFail(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    linear: true\n"), 0o644))
-	_, err := Load(path)
-	assert.Error(t, err)
 }

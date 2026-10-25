@@ -55,7 +55,7 @@ func TestLoggingPlatformSenderAdapter_SendsTextWithMedia(t *testing.T) {
 	defer db.Close()
 	outboundStore := store.NewOutboundMessageStore(db)
 
-	combined := store.NewLoggingPlatformSenderAdapter(&combinedRecordingSender{}, outboundStore, "linear")
+	combined := store.NewLoggingPlatformSenderAdapter(&combinedRecordingSender{}, outboundStore, "alpha")
 	plain := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "beta")
 
 	assert.True(t, platform.SendsTextWithMedia(combined))

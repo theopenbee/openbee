@@ -34,17 +34,8 @@ bee:
   rpc:
     token_secret: "{{.RPCTokenSecret}}"
     token_ttl: {{.RPCTokenTTL}}
-  platforms:
-    linear:
-      enabled: {{.LinearEnabled}}
-      api_key: "{{.LinearAPIKey}}"
-      label_name: "{{.LinearLabelName}}"
-      poll_interval: {{.LinearPollInterval}}
-      projects: [{{.LinearProjectsYAML}}]
-      states: [{{.LinearStatesYAML}}]
-      max_media_size: {{.LinearMaxMediaSize}}
-{{- if .PluginPlatformsYAML}}
-{{.PluginPlatformsYAML}}{{end}}
+  platforms:{{if .PluginPlatformsYAML}}
+{{.PluginPlatformsYAML}}{{else}} {}{{end}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   message_debounce: {{.MessageDebounce}}

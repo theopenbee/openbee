@@ -25,7 +25,7 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | Field | Rules |
 |---|---|
 | `protocol_version` | Must be `1`. |
-| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `linear` or `local`. |
+| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. An absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
 | `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee config` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |

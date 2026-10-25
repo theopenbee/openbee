@@ -72,21 +72,13 @@ type PromptMessages struct {
 	PiPath string `yaml:"pi_path"`
 	// Platform
 	PlatformSelect string `yaml:"platform_select"`
-	PluginSuffix   string `yaml:"plugin_suffix"`
+	PlatformNone   string `yaml:"platform_none"`
 	PluginListHint string `yaml:"plugin_list_hint"`
 	PluginSetup    string `yaml:"plugin_setup"`
 	PluginSetupRun string `yaml:"plugin_setup_run"`
-	PlatformLinear string `yaml:"platform_linear"`
 	// Survey hint text
-	MultiSelectHint    string `yaml:"multiselect_hint"`
-	LinearAPIKey       string `yaml:"linear_api_key"`
-	LinearAPIKeyHelp   string `yaml:"linear_api_key_help"`
-	LinearLabelName    string `yaml:"linear_label_name"`
-	LinearProjects     string `yaml:"linear_projects"`
-	LinearProjectsHelp string `yaml:"linear_projects_help"`
-	LinearStates       string `yaml:"linear_states"`
-	LinearStatesHelp   string `yaml:"linear_states_help"`
-	BotName            string `yaml:"bot_name"`
+	MultiSelectHint string `yaml:"multiselect_hint"`
+	BotName         string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`

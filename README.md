@@ -73,7 +73,7 @@ openbee config
 
 The wizard will guide you through:
 - Agent executable path
-- Platform(s) to enable (Linear, plus installed channel plugins) and their credentials
+- Platform(s) to enable (installed channel plugins) and their credentials
 - Advanced options (can be skipped to use defaults)
 
 The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
@@ -91,11 +91,11 @@ openbee server -d
 ### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
-- Send messages directly in any configured platform (Linear, or a channel plugin such as WeChat, Lark, DingTalk, WeCom or Telegram) to interact with OpenBee
+- Send messages directly in any configured platform (a channel plugin such as WeChat, Lark, DingTalk, WeCom, Telegram or Linear) to interact with OpenBee
 
 ### Channel plugins
 
-Other chat platforms can be added as plugins without rebuilding OpenBee: `openbee plugin install <npm package or directory>`, then enable the channel in `openbee config`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
+Chat platforms are added as plugins without rebuilding OpenBee: `openbee plugin install <npm package or directory>`, then enable the channel in `openbee config`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
 
 ## 🌟 Star History
 

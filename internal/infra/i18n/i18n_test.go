@@ -54,5 +54,6 @@ func TestLoad_pluginMessages(t *testing.T) {
 			assert.NotEmpty(t, i18n.M.Cmd.Plugin.Sub(sub), "%s %s", lang, sub)
 		}
 		assert.NotEmpty(t, i18n.M.Cmd.Plugin.Short, lang)
+		assert.NotEmpty(t, i18n.M.Prompt.PlatformNone, lang)
 	}
 }

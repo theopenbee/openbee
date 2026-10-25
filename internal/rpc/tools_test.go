@@ -387,17 +387,17 @@ func TestCallTool_SendMessage(t *testing.T) {
 			},
 		},
 		{
-			name:     "LinearContentAndMediaSentTogether",
-			senderID: "linear",
+			name:     "CombinedSenderGetsContentAndMediaTogether",
+			senderID: "alpha",
 			combined: true,
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
-				ms.Create(ctx, "msg-linear-media", "linear:ENG:ENG-42", "linear", "hello", `{"issue_id":"I1"}`, "", 0) //nolint
-				return ctx, map[string]any{"message_id": "msg-linear-media", "content": "see attached", "media_path": "/tmp/snap.png"}
+				ms.Create(ctx, "msg-combined-media", "alpha:chat1:userA", "alpha", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-combined-media", "content": "see attached", "media_path": "/tmp/snap.png"}
 			},
 			check: func(t *testing.T, sent []platform.OutboundMessage) {
-				require.Len(t, sent, 1, "expected one combined send for Linear")
+				require.Len(t, sent, 1, "expected one combined send")
 				assert.Equal(t, "see attached", sent[0].Content)
 				assert.Equal(t, "/tmp/snap.png", sent[0].MediaPath)
 			},

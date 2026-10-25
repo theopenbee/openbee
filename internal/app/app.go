@@ -36,7 +36,6 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
 	"github.com/theopenbee/openbee/internal/plugin"
@@ -161,10 +160,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform[local.PlatformID] = localSender
 
 	mediaSvc := media.NewService()
-	channels, err := buildPlatforms(cfg.Bee, mediaSvc)
-	if err != nil {
-		return nil, err
-	}
+	var channels []platform.Channel
 	var pluginDone []<-chan struct{}
 	for _, b := range pluginchannel.BuildChannels(cfg.Bee.Platforms.Plugins, pluginchannel.BuildOptions{
 		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
@@ -357,19 +353,6 @@ func buildDispatcher(
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
 	)
-}
-
-func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service) ([]platform.Channel, error) {
-	pc := bc.Platforms
-	var result []platform.Channel
-	if pc.Linear.Enabled {
-		p, err := linear.NewPlatform(pc.Linear, mediaSvc)
-		if err != nil {
-			return nil, fmt.Errorf("init linear platform: %w", err)
-		}
-		result = append(result, platform.Channel{Platform: p})
-	}
-	return result, nil
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
