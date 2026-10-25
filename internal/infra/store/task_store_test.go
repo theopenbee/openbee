@@ -629,3 +629,28 @@ func TestTaskStore_ClaimDueTasks_DoesNotRequireOriginMessage(t *testing.T) {
 	assert.Equal(t, "feishu:oc_1:ou_1", tasks[0].SessionKey)
 	assert.Equal(t, "feishu", tasks[0].Platform)
 }
+
+func TestTaskStore_MigrateSessionKeyPrefix(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+	ctx := context.Background()
+
+	scheduled := seedTask(t, ts, model.Task{SessionKey: "telegram:-100:42", Type: model.TaskTypeScheduled, CronExpr: "0 9 * * *"})
+	topic := seedTask(t, ts, model.Task{SessionKey: "telegram:-100:7:42", Status: model.TaskStatusRunning})
+	done := seedTask(t, ts, model.Task{SessionKey: "telegram:-100:42", Status: model.TaskStatusCompleted})
+	similar := seedTask(t, ts, model.Task{SessionKey: "telegram:-1000:42"})
+
+	n, err := ts.MigrateSessionKeyPrefix(ctx, "telegram:-100:", "telegram:-1009:")
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, n)
+
+	for id, want := range map[string]string{
+		scheduled: "telegram:-1009:42",
+		topic:     "telegram:-1009:7:42",
+		done:      "telegram:-100:42",
+		similar:   "telegram:-1000:42",
+	} {
+		got, err := ts.GetByID(ctx, id)
+		require.NoError(t, err)
+		assert.Equal(t, want, got.SessionKey)
+	}
+}

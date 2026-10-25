@@ -1,9 +1,11 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +16,8 @@ import (
 	"sync"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -25,6 +28,11 @@ import (
 
 const PlatformID = "telegram"
 
+const (
+	pollTimeout = time.Minute
+	httpTimeout = 5 * time.Minute
+)
+
 var log = logger.With(zap.String("component", "telegram"))
 
 // ─── Platform ─────────────────────────────────────────────────────────────────
@@ -34,33 +42,51 @@ type TelegramPlatform struct {
 	sender   *TelegramSender
 }
 
-func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service) platform.Platform {
-	bot, err := tgbotapi.NewBotAPI(cfg.Token)
-	if err != nil {
-		panic(fmt.Sprintf("telegram: invalid token: %v", err))
-	}
+type SessionKeyMigrator interface {
+	MigrateSessionKeyPrefix(ctx context.Context, from, to string) (int64, error)
+}
+
+func NewPlatform(cfg config.TelegramConfig, mediaSvc *media.Service, migrator SessionKeyMigrator) platform.Platform {
 	var authStore *AuthStore
 	if cfg.AuthCode != "" {
 		authStore = newAuthStore()
 	}
 
-	setupBotCommands(bot)
-
 	p := &TelegramPlatform{}
 	p.receiver = &TelegramReceiver{
-		cfg: cfg, mediaSvc: mediaSvc, bot: bot, authStore: authStore,
+		cfg: cfg, mediaSvc: mediaSvc, authStore: authStore, migrator: migrator,
 		unauthReplyLast: make(map[string]time.Time),
 	}
-	p.sender = &TelegramSender{cfg: cfg, bot: bot}
+	b, err := newBot(cfg.Token, p.receiver.handleUpdate)
+	if err != nil {
+		panic(fmt.Sprintf("telegram: invalid token: %v", err))
+	}
+	p.receiver.bot = b
+	p.sender = &TelegramSender{cfg: cfg, bot: b, migrator: migrator}
+
+	setupBotCommands(b)
 	return p
 }
 
+func newBot(token string, handler bot.HandlerFunc, opts ...bot.Option) (*bot.Bot, error) {
+	return bot.New(token, append([]bot.Option{
+		bot.WithDefaultHandler(handler),
+		bot.WithNotAsyncHandlers(),
+		bot.WithHTTPClient(pollTimeout, &http.Client{Timeout: httpTimeout}),
+		bot.WithErrorsHandler(func(err error) {
+			log.Error("telegram bot error", zap.Error(err))
+		}),
+	}, opts...)...)
+}
+
 // setupBotCommands registers the bot's menu commands with Telegram.
-func setupBotCommands(bot *tgbotapi.BotAPI) {
-	commands := []tgbotapi.BotCommand{
+func setupBotCommands(b *bot.Bot) {
+	commands := []models.BotCommand{
 		{Command: "clear", Description: "Clear conversation history"},
 	}
-	if err := bot.SetMyCommands(commands); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: commands}); err != nil {
 		log.Error("failed to set bot commands", zap.Error(err))
 		return
 	}
@@ -73,11 +99,30 @@ func (p *TelegramPlatform) Sender() platform.PlatformSenderAdapter      { return
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-func buildSessionKey(chatID, senderID int64) string {
+func buildSessionKey(chatID int64, threadID int, senderID int64) string {
+	if threadID != 0 {
+		return fmt.Sprintf("telegram:%d:%d:%d", chatID, threadID, senderID)
+	}
 	return fmt.Sprintf("telegram:%d:%d", chatID, senderID)
 }
 
-func buildPlatformMessageID(updateID int, messageID int) string {
+func sessionChatPrefix(chatID int64) string {
+	return fmt.Sprintf("telegram:%d:", chatID)
+}
+
+func migrateChat(ctx context.Context, migrator SessionKeyMigrator, from, to int64) {
+	if migrator == nil || from == to {
+		return
+	}
+	n, err := migrator.MigrateSessionKeyPrefix(ctx, sessionChatPrefix(from), sessionChatPrefix(to))
+	if err != nil {
+		log.Error("migrate chat sessions failed", zap.Int64("from", from), zap.Int64("to", to), zap.Error(err))
+		return
+	}
+	log.Info("migrated chat sessions", zap.Int64("from", from), zap.Int64("to", to), zap.Int64("tasks", n))
+}
+
+func buildPlatformMessageID(updateID int64, messageID int) string {
 	return fmt.Sprintf("%d:%d", updateID, messageID)
 }
 
@@ -88,22 +133,66 @@ func escapeHTML(s string) string {
 	return s
 }
 
+type target struct {
+	chatID    int64
+	threadID  int
+	replyToID int
+}
+
+func (t target) replyParameters() *models.ReplyParameters {
+	if t.replyToID == 0 {
+		return nil
+	}
+	return &models.ReplyParameters{MessageID: t.replyToID}
+}
+
+func topicThreadID(m *models.Message) int {
+	if m.IsTopicMessage {
+		return m.MessageThreadID
+	}
+	return 0
+}
+
 type telegramRaw struct {
 	UpdateID int `json:"update_id"`
 	Message  struct {
-		MessageID int `json:"message_id"`
-		Chat      struct {
+		MessageID       int  `json:"message_id"`
+		MessageThreadID int  `json:"message_thread_id"`
+		IsTopicMessage  bool `json:"is_topic_message"`
+		Chat            struct {
 			ID int64 `json:"id"`
 		} `json:"chat"`
 	} `json:"message"`
 }
 
-func parseRaw(raw string) (chatID int64, messageID int, err error) {
+func parseRaw(raw string) (target, error) {
 	var r telegramRaw
-	if err = json.Unmarshal([]byte(raw), &r); err != nil {
-		return 0, 0, fmt.Errorf("parse telegram raw: %w", err)
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		return target{}, fmt.Errorf("parse telegram raw: %w", err)
 	}
-	return r.Message.Chat.ID, r.Message.MessageID, nil
+	t := target{chatID: r.Message.Chat.ID, replyToID: r.Message.MessageID}
+	if r.Message.IsTopicMessage {
+		t.threadID = r.Message.MessageThreadID
+	}
+	return t, nil
+}
+
+func parseSessionKey(key string) (target, error) {
+	chat, err := platform.SessionChatID(key, PlatformID)
+	if err != nil {
+		return target{}, err
+	}
+	chatID, err := strconv.ParseInt(chat, 10, 64)
+	if err != nil {
+		return target{}, fmt.Errorf("parse telegram chat id %q: %w", chat, err)
+	}
+	t := target{chatID: chatID}
+	if parts := strings.Split(key, ":"); len(parts) == 4 {
+		if t.threadID, err = strconv.Atoi(parts[2]); err != nil {
+			return target{}, fmt.Errorf("parse telegram thread id %q: %w", parts[2], err)
+		}
+	}
+	return t, nil
 }
 
 func mediaTypeFromTelegram(msgType string) string {
@@ -126,8 +215,10 @@ func mediaTypeFromTelegram(msgType string) string {
 type TelegramReceiver struct {
 	cfg       config.TelegramConfig
 	mediaSvc  *media.Service
-	bot       *tgbotapi.BotAPI
+	bot       *bot.Bot
 	authStore *AuthStore // nil when auth_code is empty (no auth required)
+	migrator  SessionKeyMigrator
+	dispatch  func(platform.InboundMessage)
 
 	// Rate-limit unauthorized reply: at most one per sender per 60s.
 	unauthReplyMu   sync.Mutex
@@ -135,83 +226,85 @@ type TelegramReceiver struct {
 }
 
 func (r *TelegramReceiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
-	bot := r.bot
-	log.Info("Telegram bot started", zap.String("username", bot.Self.UserName))
+	r.dispatch = dispatch
+	log.Info("Telegram bot started", zap.Int64("botID", r.bot.ID()))
+	r.bot.Start(ctx)
+	return nil
+}
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 30
+func (r *TelegramReceiver) handleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
+	m := update.Message
+	if m == nil {
+		return
+	}
 
-	for {
-		if ctx.Err() != nil {
-			return nil
-		}
+	if r.handleMigration(ctx, m) {
+		return
+	}
 
-		updates, err := bot.GetUpdates(u)
-		if err != nil {
-			log.Error("getUpdates error, retrying in 5s", zap.Error(err))
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(5 * time.Second):
-				continue
-			}
-		}
-
-		for _, update := range updates {
-			u.Offset = update.UpdateID + 1
-
-			if update.Message == nil {
-				continue
-			}
-
-			// Handle auth if enabled.
-			if r.authStore != nil && update.Message.From != nil {
-				senderID := strconv.FormatInt(int64(update.Message.From.ID), 10)
-				if r.handleAuth(bot, update.Message, senderID) {
-					continue
-				}
-			}
-
-			go func(chatID int64) {
-				action := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
-				if _, err := bot.Send(action); err != nil {
-					log.Warn("send typing action failed", zap.Error(err))
-				}
-			}(update.Message.Chat.ID)
-
-			msg := r.buildInboundMessage(ctx, bot, update)
-			if msg == nil {
-				continue
-			}
-			dispatch(*msg)
+	// Handle auth if enabled.
+	if r.authStore != nil && m.From != nil {
+		senderID := strconv.FormatInt(m.From.ID, 10)
+		if r.handleAuth(ctx, b, m, senderID) {
+			return
 		}
 	}
+
+	go sendTyping(ctx, b, target{chatID: m.Chat.ID, threadID: topicThreadID(m)})
+
+	msg := r.buildInboundMessage(ctx, update)
+	if msg == nil {
+		return
+	}
+	r.dispatch(*msg)
+}
+
+func sendTyping(ctx context.Context, b *bot.Bot, t target) {
+	if _, err := b.SendChatAction(ctx, &bot.SendChatActionParams{
+		ChatID:          t.chatID,
+		MessageThreadID: t.threadID,
+		Action:          models.ChatActionTyping,
+	}); err != nil {
+		log.Warn("send typing action failed", zap.Error(err))
+	}
+}
+
+func (r *TelegramReceiver) handleMigration(ctx context.Context, m *models.Message) bool {
+	switch {
+	case m.MigrateToChatID != 0:
+		migrateChat(ctx, r.migrator, m.Chat.ID, m.MigrateToChatID)
+	case m.MigrateFromChatID != 0:
+		migrateChat(ctx, r.migrator, m.MigrateFromChatID, m.Chat.ID)
+	default:
+		return false
+	}
+	return true
 }
 
 // handleAuth processes auth commands and blocks unauthorized users.
 // Returns true if the message was consumed (either an auth command or unauthorized).
-func (r *TelegramReceiver) handleAuth(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) bool {
+func (r *TelegramReceiver) handleAuth(ctx context.Context, b *bot.Bot, m *models.Message, senderID string) bool {
 	parts := strings.Fields(strings.TrimSpace(m.Text))
 
 	// Match "/auth" exactly (also handles Telegram's "/auth@botname" form).
 	if len(parts) > 0 && (parts[0] == "/auth" || strings.HasPrefix(parts[0], "/auth@")) {
 		if len(parts) < 2 {
-			replyText(bot, m, "Usage: /auth <code>")
+			replyText(ctx, b, m, "Usage: /auth <code>")
 			return true
 		}
 		if subtle.ConstantTimeCompare([]byte(parts[1]), []byte(r.cfg.AuthCode)) == 1 {
 			r.authStore.Authorize(senderID)
-			replyText(bot, m, "✅ Authorization successful.")
+			replyText(ctx, b, m, "✅ Authorization successful.")
 			log.Info("user authorized", zap.String("senderID", senderID))
 		} else {
-			replyText(bot, m, "❌ Invalid authorization code.")
+			replyText(ctx, b, m, "❌ Invalid authorization code.")
 			log.Warn("auth failed: invalid code", zap.String("senderID", senderID))
 		}
 		return true
 	}
 
 	if !r.authStore.IsAuthorized(senderID) {
-		r.replyUnauthorized(bot, m, senderID)
+		r.replyUnauthorized(ctx, b, m, senderID)
 		return true
 	}
 
@@ -221,7 +314,7 @@ func (r *TelegramReceiver) handleAuth(bot *tgbotapi.BotAPI, m *tgbotapi.Message,
 const unauthReplyCooldown = 60 * time.Second
 
 // replyUnauthorized sends an unauthorized hint at most once per sender per cooldown period.
-func (r *TelegramReceiver) replyUnauthorized(bot *tgbotapi.BotAPI, m *tgbotapi.Message, senderID string) {
+func (r *TelegramReceiver) replyUnauthorized(ctx context.Context, b *bot.Bot, m *models.Message, senderID string) {
 	r.unauthReplyMu.Lock()
 	last := r.unauthReplyLast[senderID]
 	now := time.Now()
@@ -232,26 +325,25 @@ func (r *TelegramReceiver) replyUnauthorized(bot *tgbotapi.BotAPI, m *tgbotapi.M
 	r.unauthReplyLast[senderID] = now
 	r.unauthReplyMu.Unlock()
 
-	replyText(bot, m, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
+	replyText(ctx, b, m, "🔒 Unauthorized. Please use /auth <code> to authenticate.")
 }
 
-func replyText(bot *tgbotapi.BotAPI, m *tgbotapi.Message, text string) {
-	reply := tgbotapi.NewMessage(m.Chat.ID, text)
-	reply.ReplyToMessageID = m.MessageID
-	if _, err := bot.Send(reply); err != nil {
+func replyText(ctx context.Context, b *bot.Bot, m *models.Message, text string) {
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:          m.Chat.ID,
+		MessageThreadID: topicThreadID(m),
+		Text:            text,
+		ReplyParameters: &models.ReplyParameters{MessageID: m.ID},
+	}); err != nil {
 		log.Warn("send auth reply failed", zap.Error(err))
 	}
 }
 
-func (r *TelegramReceiver) buildInboundMessage(
-	ctx context.Context,
-	bot *tgbotapi.BotAPI,
-	update tgbotapi.Update,
-) *platform.InboundMessage {
+func (r *TelegramReceiver) buildInboundMessage(ctx context.Context, update *models.Update) *platform.InboundMessage {
 	m := update.Message
 	senderID := int64(0)
 	if m.From != nil {
-		senderID = int64(m.From.ID)
+		senderID = m.From.ID
 	}
 	if senderID == 0 {
 		log.Warn("skipping message with no sender")
@@ -263,17 +355,17 @@ func (r *TelegramReceiver) buildInboundMessage(
 	case m.Text != "":
 		content = m.Text
 	case m.Photo != nil:
-		content = r.downloadLargestPhoto(ctx, bot, *m.Photo)
+		content = r.downloadLargestPhoto(ctx, m.Photo)
 	case m.Document != nil:
-		content = r.downloadFile(ctx, bot, m.Document.FileID, m.Document.FileName, "document")
+		content = r.downloadFile(ctx, m.Document.FileID, m.Document.FileName, "document")
 	case m.Audio != nil:
-		content = r.downloadFile(ctx, bot, m.Audio.FileID, "", "audio")
+		content = r.downloadFile(ctx, m.Audio.FileID, "", "audio")
 	case m.Voice != nil:
-		content = r.downloadFile(ctx, bot, m.Voice.FileID, "voice.ogg", "audio")
+		content = r.downloadFile(ctx, m.Voice.FileID, "voice.ogg", "audio")
 	case m.Video != nil:
-		content = r.downloadFile(ctx, bot, m.Video.FileID, "video.mp4", "video")
+		content = r.downloadFile(ctx, m.Video.FileID, "video.mp4", "video")
 	case m.Sticker != nil:
-		content = r.downloadFile(ctx, bot, m.Sticker.FileID, "sticker.webp", "sticker")
+		content = r.downloadFile(ctx, m.Sticker.FileID, "sticker.webp", "sticker")
 	default:
 		log.Warn("skipping unsupported message type")
 		return nil
@@ -292,39 +384,31 @@ func (r *TelegramReceiver) buildInboundMessage(
 	return &platform.InboundMessage{
 		Platform:          PlatformID,
 		SenderID:          strconv.FormatInt(senderID, 10),
-		SessionKey:        buildSessionKey(m.Chat.ID, senderID),
+		SessionKey:        buildSessionKey(m.Chat.ID, topicThreadID(m), senderID),
 		Content:           content,
 		RawContent:        content,
 		Raw:               string(rawBytes),
-		PlatformMessageID: buildPlatformMessageID(update.UpdateID, m.MessageID),
+		PlatformMessageID: buildPlatformMessageID(update.ID, m.ID),
 		MessageTime:       int64(m.Date) * 1000,
 	}
 }
 
-func (r *TelegramReceiver) downloadLargestPhoto(
-	ctx context.Context,
-	bot *tgbotapi.BotAPI,
-	photos []tgbotapi.PhotoSize,
-) string {
+func (r *TelegramReceiver) downloadLargestPhoto(ctx context.Context, photos []models.PhotoSize) string {
 	if len(photos) == 0 {
 		return r.mediaSvc.BuildPlaceholder("image", "", "")
 	}
 	largest := photos[len(photos)-1]
-	return r.downloadFile(ctx, bot, largest.FileID, "photo.jpg", "image")
+	return r.downloadFile(ctx, largest.FileID, "photo.jpg", "image")
 }
 
-func (r *TelegramReceiver) downloadFile(
-	ctx context.Context,
-	bot *tgbotapi.BotAPI,
-	fileID, fileName, mediaType string,
-) string {
-	fc, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
+func (r *TelegramReceiver) downloadFile(ctx context.Context, fileID, fileName, mediaType string) string {
+	f, err := r.bot.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
 	if err != nil {
 		log.Error("get file info failed", zap.String("fileID", fileID), zap.Error(err))
 		return r.mediaSvc.BuildPlaceholder(mediaType, "", fileName)
 	}
 
-	url := fc.Link(r.cfg.Token)
+	url := r.bot.FileDownloadLink(f)
 
 	dlCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
@@ -372,56 +456,58 @@ func (r *TelegramReceiver) downloadFile(
 // ─── Sender ───────────────────────────────────────────────────────────────────
 
 type TelegramSender struct {
-	cfg config.TelegramConfig
-	bot *tgbotapi.BotAPI
+	cfg      config.TelegramConfig
+	bot      *bot.Bot
+	migrator SessionKeyMigrator
 }
 
 func (s *TelegramSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
-	bot := s.bot
-	chatID, replyToID, err := sendTarget(msg)
+	t, err := sendTarget(msg)
 	if err != nil {
 		return err
 	}
+	err = s.deliver(ctx, t, msg)
+	var migrateErr *bot.MigrateError
+	if !errors.As(err, &migrateErr) {
+		return err
+	}
+	to := int64(migrateErr.MigrateToChatID)
+	migrateChat(ctx, s.migrator, t.chatID, to)
+	return s.deliver(ctx, target{chatID: to}, msg)
+}
 
+func (s *TelegramSender) deliver(ctx context.Context, t target, msg platform.OutboundMessage) error {
 	if msg.MediaPath != "" {
-		return s.sendMedia(bot, chatID, replyToID, msg.MediaPath)
+		return s.sendMedia(ctx, t, msg.MediaPath)
 	}
-	return s.sendText(bot, chatID, replyToID, msg.Content)
+	return s.sendText(ctx, t, msg.Content)
 }
 
-func sendTarget(msg platform.OutboundMessage) (int64, int, error) {
+func sendTarget(msg platform.OutboundMessage) (target, error) {
 	if !msg.Proactive {
-		chatID, replyToID, err := parseRaw(msg.ReplyTo.Raw)
+		t, err := parseRaw(msg.ReplyTo.Raw)
 		if err != nil {
-			return 0, 0, fmt.Errorf("parse reply context: %w", err)
+			return target{}, fmt.Errorf("parse reply context: %w", err)
 		}
-		return chatID, replyToID, nil
+		return t, nil
 	}
-	chat, err := platform.SessionChatID(msg.SessionKey, PlatformID)
-	if err != nil {
-		return 0, 0, err
-	}
-	chatID, err := strconv.ParseInt(chat, 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("parse telegram chat id %q: %w", chat, err)
-	}
-	return chatID, 0, nil
+	return parseSessionKey(msg.SessionKey)
 }
 
-func (s *TelegramSender) sendText(bot *tgbotapi.BotAPI, chatID int64, replyToID int, text string) error {
-	outMsg := tgbotapi.NewMessage(chatID, escapeHTML(text))
-	outMsg.ParseMode = tgbotapi.ModeHTML
-	if replyToID != 0 {
-		outMsg.ReplyToMessageID = replyToID
-	}
-	_, err := bot.Send(outMsg)
-	if err != nil {
+func (s *TelegramSender) sendText(ctx context.Context, t target, text string) error {
+	if _, err := s.bot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:          t.chatID,
+		MessageThreadID: t.threadID,
+		Text:            escapeHTML(text),
+		ParseMode:       models.ParseModeHTML,
+		ReplyParameters: t.replyParameters(),
+	}); err != nil {
 		return fmt.Errorf("send text: %w", err)
 	}
 	return nil
 }
 
-func (s *TelegramSender) sendMedia(bot *tgbotapi.BotAPI, chatID int64, replyToID int, mediaPath string) error {
+func (s *TelegramSender) sendMedia(ctx context.Context, t target, mediaPath string) error {
 	data, err := os.ReadFile(mediaPath)
 	if err != nil {
 		return fmt.Errorf("read media file: %w", err)
@@ -432,44 +518,32 @@ func (s *TelegramSender) sendMedia(bot *tgbotapi.BotAPI, chatID int64, replyToID
 	}
 
 	fileName := platform.SanitizeFileName(filepath.Base(mediaPath))
-	ext := strings.ToLower(filepath.Ext(mediaPath))
-	fileBytes := tgbotapi.FileBytes{Name: fileName, Bytes: data}
+	file := &models.InputFileUpload{Filename: fileName, Data: bytes.NewReader(data)}
+	reply := t.replyParameters()
 
-	var chattable tgbotapi.Chattable
-	switch ext {
+	switch strings.ToLower(filepath.Ext(mediaPath)) {
 	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
-		photo := tgbotapi.NewPhotoUpload(chatID, fileBytes)
-		if replyToID != 0 {
-			photo.ReplyToMessageID = replyToID
-		}
-		chattable = photo
+		_, err = s.bot.SendPhoto(ctx, &bot.SendPhotoParams{
+			ChatID: t.chatID, MessageThreadID: t.threadID, Photo: file, ReplyParameters: reply,
+		})
 	case ".mp4", ".mov", ".avi":
-		video := tgbotapi.NewVideoUpload(chatID, fileBytes)
-		if replyToID != 0 {
-			video.ReplyToMessageID = replyToID
-		}
-		chattable = video
+		_, err = s.bot.SendVideo(ctx, &bot.SendVideoParams{
+			ChatID: t.chatID, MessageThreadID: t.threadID, Video: file, ReplyParameters: reply,
+		})
 	case ".mp3", ".wav", ".flac", ".m4a", ".aac":
-		audio := tgbotapi.NewAudioUpload(chatID, fileBytes)
-		if replyToID != 0 {
-			audio.ReplyToMessageID = replyToID
-		}
-		chattable = audio
+		_, err = s.bot.SendAudio(ctx, &bot.SendAudioParams{
+			ChatID: t.chatID, MessageThreadID: t.threadID, Audio: file, ReplyParameters: reply,
+		})
 	case ".ogg", ".opus":
-		voice := tgbotapi.NewVoiceUpload(chatID, fileBytes)
-		if replyToID != 0 {
-			voice.ReplyToMessageID = replyToID
-		}
-		chattable = voice
+		_, err = s.bot.SendVoice(ctx, &bot.SendVoiceParams{
+			ChatID: t.chatID, MessageThreadID: t.threadID, Voice: file, ReplyParameters: reply,
+		})
 	default:
-		doc := tgbotapi.NewDocumentUpload(chatID, fileBytes)
-		if replyToID != 0 {
-			doc.ReplyToMessageID = replyToID
-		}
-		chattable = doc
+		_, err = s.bot.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID: t.chatID, MessageThreadID: t.threadID, Document: file, ReplyParameters: reply,
+		})
 	}
-
-	if _, err := bot.Send(chattable); err != nil {
+	if err != nil {
 		return fmt.Errorf("send media: %w", err)
 	}
 	return nil

@@ -158,7 +158,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	platforms, err := buildPlatforms(
 		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
 		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
-		cfg.Bee.Media,
+		cfg.Bee.Media, s.taskStore,
 	)
 	if err != nil {
 		return nil, err
@@ -357,6 +357,7 @@ func buildPlatforms(
 	wxc config.WeixinConfig,
 	lc config.LinearConfig,
 	mc config.MediaConfig,
+	tasks *store.TaskStore,
 ) ([]platform.Platform, error) {
 	mediaSvc := media.NewService()
 	var result []platform.Platform
@@ -373,7 +374,7 @@ func buildPlatforms(
 		result = append(result, wecom.NewPlatform(wc, mediaSvc))
 	}
 	if tc.Enabled {
-		result = append(result, telegram.NewPlatform(tc, mediaSvc))
+		result = append(result, telegram.NewPlatform(tc, mediaSvc, tasks))
 	}
 	if wxc.Enabled {
 		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))

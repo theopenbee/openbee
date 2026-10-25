@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -417,6 +418,19 @@ func (s *TaskStore) CountScheduledActive(ctx context.Context) (int, error) {
 		model.TaskTypeScheduled, model.TaskStatusPending,
 	).Scan(&count)
 	return count, err
+}
+
+func (s *TaskStore) MigrateSessionKeyPrefix(ctx context.Context, from, to string) (int64, error) {
+	n := utf8.RuneCountInString(from)
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_tasks SET session_key = ? || substr(session_key, ?), updated_at = ?
+		 WHERE substr(session_key, 1, ?) = ? AND status IN (?, ?)`,
+		to, n+1, time.Now().UnixMilli(), n, from,
+		model.TaskStatusPending, model.TaskStatusRunning)
+	if err != nil {
+		return 0, fmt.Errorf("migrate session key prefix: %w", err)
+	}
+	return res.RowsAffected()
 }
 
 // nullInt64Ptr converts a sql.NullInt64 to a *int64; returns nil if not valid.
