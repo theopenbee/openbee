@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -432,6 +433,40 @@ func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
 	assert.Equal(t, "msg-origin", got.MessageID)
 	assert.Equal(t, "feishu:oc_1:ou_1", got.SessionKey)
 	assert.Equal(t, "feishu", got.Platform)
+}
+
+func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"Immediate", map[string]any{"type": "immediate"}},
+		{"Countdown", map[string]any{"type": "countdown", "scheduled_at": time.Now().Add(time.Minute).UnixMilli()}},
+		{"Scheduled", map[string]any{"type": "scheduled", "cron_expr": "0 9 * * *"}},
+		{"ScheduledInvalidCron", map[string]any{"type": "scheduled", "cron_expr": "not a cron"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db := setupServerWithSender(t, "feishu", &mockSender{})
+			ctx := context.Background()
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, "msg-unknown-worker", "feishu:oc_1:ou_1", "feishu", "hi", `{}`, "", 0) //nolint
+			mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			args := map[string]any{"message_id": "msg-unknown-worker", "worker_id": "worker-typo", "instruction": "go"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			_, err := s.CallTool(ctx, "create_task", mustMarshal(t, args))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "worker-typo")
+			assert.Contains(t, err.Error(), "list_workers")
+
+			count, err := store.NewTaskStore(db).CountTasks(ctx, store.TaskFilter{MessageID: "msg-unknown-worker"})
+			require.NoError(t, err)
+			assert.Zero(t, count)
+		})
+	}
 }
 
 func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {

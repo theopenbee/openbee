@@ -364,6 +364,13 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 			model.TaskTypeImmediate, model.TaskTypeCountdown, model.TaskTypeScheduled)
 	}
 
+	if _, err := s.workerStore.GetByID(params.WorkerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("worker %q not found, call list_workers to get a valid worker_id", params.WorkerID)
+		}
+		return nil, fmt.Errorf("get worker: %w", err)
+	}
+
 	origin, err := s.messageStore.GetByID(ctx, params.MessageID)
 	if err != nil {
 		return nil, fmt.Errorf("get message: %w", err)
