@@ -311,7 +311,7 @@ DB 只存一列 `Raw`。代理 Platform 存的是一个信封：`{"v":1,"raw":"<
 ### 6.7 代码位置（建议）
 
 - `internal/plugin/`：清单解析与校验、`plugins.json` 登记表、npm 安装/卸载（CLI 和 app 共用）。
-- `internal/platform/plugin/`：代理 Platform（实现 `Platform` / receiver / sender / `CombinedSender`）、JSON-RPC 连接、子进程监管。
+- `internal/platform/pluginchannel/`：代理 Platform（实现 `Platform` / receiver / sender / `CombinedSender`）、JSON-RPC 连接、子进程监管。
 - `cmd/openbee/internal/cli/plugincmd/`：`openbee plugin ...` 子命令。
 - `sdk/channel-node/`：Node/TS SDK。
 - `plugins/<name>/`：示例插件。
