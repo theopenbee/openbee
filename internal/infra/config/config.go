@@ -89,8 +89,7 @@ func (e EnginesConfig) itemFor(name string) EngineItemConfig {
 func (e EnginesConfig) IsEnabled(name string) bool { return e.itemFor(name).Enabled }
 
 type MediaConfig struct {
-	FFprobePath string `yaml:"ffprobe_path"`
-	FFmpegPath  string `yaml:"ffmpeg_path"`
+	FFmpegPath string `yaml:"ffmpeg_path"`
 }
 
 type BeeConfig struct {
@@ -132,21 +131,15 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 }
 
 type PlatformsConfig struct {
-	Feishu   FeishuConfig   `yaml:"feishu"`
-	DingTalk DingTalkConfig `yaml:"dingtalk"`
-	WeCom    WeComConfig    `yaml:"wecom"`
-	Weixin   WeixinConfig   `yaml:"weixin"`
-	Linear   LinearConfig   `yaml:"linear"`
+	Weixin WeixinConfig `yaml:"weixin"`
+	Linear LinearConfig `yaml:"linear"`
 
 	Plugins map[string]map[string]any `yaml:",inline"`
 }
 
 var builtinPlatformKeys = map[string]bool{
-	"feishu":   true,
-	"dingtalk": true,
-	"wecom":    true,
-	"weixin":   true,
-	"linear":   true,
+	"weixin": true,
+	"linear": true,
 }
 
 func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -168,15 +161,8 @@ func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
 
 func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
 	names := make(map[string]string)
-	for id, n := range map[string]string{
-		"feishu":   p.Feishu.BotName,
-		"dingtalk": p.DingTalk.BotName,
-		"wecom":    p.WeCom.BotName,
-		"weixin":   p.Weixin.BotName,
-	} {
-		if n != "" {
-			names[id] = n
-		}
+	if p.Weixin.BotName != "" {
+		names["weixin"] = p.Weixin.BotName
 	}
 	for id, section := range p.Plugins {
 		if n, _ := section["bot_name"].(string); n != "" {
@@ -196,29 +182,6 @@ func (p PlatformsConfig) BotNames() []string {
 
 type FeederConfig struct {
 	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
-}
-
-type FeishuConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	AppID        string `yaml:"app_id"`
-	AppSecret    string `yaml:"app_secret"`
-	MaxMediaSize int    `yaml:"max_media_size"`
-	BotName      string `yaml:"bot_name"`
-}
-
-type DingTalkConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"`
-	BotName      string `yaml:"bot_name"`
-}
-
-type WeComConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	BotID        string `yaml:"bot_id"`
-	Secret       string `yaml:"secret"`
-	WebSocketURL string `yaml:"websocket_url"`
-	BotName      string `yaml:"bot_name"`
 }
 
 type WeixinConfig struct {
@@ -309,17 +272,8 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Bee.Engines.Pi.Path == "" {
 		cfg.Bee.Engines.Pi.Path = "pi"
 	}
-	if cfg.Bee.Media.FFprobePath == "" {
-		cfg.Bee.Media.FFprobePath = "ffprobe"
-	}
 	if cfg.Bee.Media.FFmpegPath == "" {
 		cfg.Bee.Media.FFmpegPath = "ffmpeg"
-	}
-	if cfg.Bee.Platforms.Feishu.MaxMediaSize == 0 {
-		cfg.Bee.Platforms.Feishu.MaxMediaSize = 100 * 1024 * 1024 // 100MB
-	}
-	if cfg.Bee.Platforms.WeCom.WebSocketURL == "" {
-		cfg.Bee.Platforms.WeCom.WebSocketURL = "wss://openws.work.weixin.qq.com"
 	}
 	if cfg.Bee.Platforms.Weixin.BaseURL == "" {
 		cfg.Bee.Platforms.Weixin.BaseURL = "https://ilinkai.weixin.qq.com"

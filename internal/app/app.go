@@ -36,12 +36,9 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
-	"github.com/theopenbee/openbee/internal/platform/dingtalk"
-	"github.com/theopenbee/openbee/internal/platform/feishu"
 	"github.com/theopenbee/openbee/internal/platform/linear"
 	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
-	"github.com/theopenbee/openbee/internal/platform/wecom"
 	"github.com/theopenbee/openbee/internal/platform/weixin"
 	"github.com/theopenbee/openbee/internal/plugin"
 	"github.com/theopenbee/openbee/internal/rpc"
@@ -366,15 +363,6 @@ func buildDispatcher(
 func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service) ([]platform.Channel, error) {
 	pc := bc.Platforms
 	var result []platform.Channel
-	if pc.Feishu.Enabled {
-		result = append(result, platform.Channel{Platform: feishu.NewPlatform(pc.Feishu, mediaSvc), ExtractContext: feishu.ExtractContext})
-	}
-	if pc.DingTalk.Enabled {
-		result = append(result, platform.Channel{Platform: dingtalk.NewPlatform(pc.DingTalk, bc.Media, mediaSvc), ExtractContext: dingtalk.ExtractContext})
-	}
-	if pc.WeCom.Enabled {
-		result = append(result, platform.Channel{Platform: wecom.NewPlatform(pc.WeCom, mediaSvc), ExtractContext: wecom.ExtractContext})
-	}
 	if pc.Weixin.Enabled {
 		result = append(result, platform.Channel{Platform: weixin.NewPlatform(pc.Weixin, bc.Media, mediaSvc)})
 	}

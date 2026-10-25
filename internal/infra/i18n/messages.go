@@ -71,33 +71,24 @@ type PromptMessages struct {
 	// Pi setup
 	PiPath string `yaml:"pi_path"`
 	// Platform
-	PlatformSelect   string `yaml:"platform_select"`
-	PluginSuffix     string `yaml:"plugin_suffix"`
-	PluginListHint   string `yaml:"plugin_list_hint"`
-	PlatformFeishu   string `yaml:"platform_feishu"`
-	PlatformDingTalk string `yaml:"platform_dingtalk"`
-	PlatformWeCom    string `yaml:"platform_wecom"`
-	PlatformWeixin   string `yaml:"platform_weixin"`
-	PlatformLinear   string `yaml:"platform_linear"`
+	PlatformSelect string `yaml:"platform_select"`
+	PluginSuffix   string `yaml:"plugin_suffix"`
+	PluginListHint string `yaml:"plugin_list_hint"`
+	PlatformWeixin string `yaml:"platform_weixin"`
+	PlatformLinear string `yaml:"platform_linear"`
 	// Survey hint text
-	MultiSelectHint      string `yaml:"multiselect_hint"`
-	FeishuAppID          string `yaml:"feishu_app_id"`
-	FeishuAppSecret      string `yaml:"feishu_app_secret"`
-	DingtalkClientID     string `yaml:"dingtalk_client_id"`
-	DingtalkClientSecret string `yaml:"dingtalk_client_secret"`
-	WecomBotID           string `yaml:"wecom_bot_id"`
-	WecomSecret          string `yaml:"wecom_secret"`
-	WeixinReacquire      string `yaml:"weixin_reacquire"` // contains %s placeholder
-	WeixinBotToken       string `yaml:"weixin_bot_token"`
-	WeixinUserID         string `yaml:"weixin_user_id"`
-	LinearAPIKey         string `yaml:"linear_api_key"`
-	LinearAPIKeyHelp     string `yaml:"linear_api_key_help"`
-	LinearLabelName      string `yaml:"linear_label_name"`
-	LinearProjects       string `yaml:"linear_projects"`
-	LinearProjectsHelp   string `yaml:"linear_projects_help"`
-	LinearStates         string `yaml:"linear_states"`
-	LinearStatesHelp     string `yaml:"linear_states_help"`
-	BotName              string `yaml:"bot_name"`
+	MultiSelectHint    string `yaml:"multiselect_hint"`
+	WeixinReacquire    string `yaml:"weixin_reacquire"` // contains %s placeholder
+	WeixinBotToken     string `yaml:"weixin_bot_token"`
+	WeixinUserID       string `yaml:"weixin_user_id"`
+	LinearAPIKey       string `yaml:"linear_api_key"`
+	LinearAPIKeyHelp   string `yaml:"linear_api_key_help"`
+	LinearLabelName    string `yaml:"linear_label_name"`
+	LinearProjects     string `yaml:"linear_projects"`
+	LinearProjectsHelp string `yaml:"linear_projects_help"`
+	LinearStates       string `yaml:"linear_states"`
+	LinearStatesHelp   string `yaml:"linear_states_help"`
+	BotName            string `yaml:"bot_name"`
 	// Auth
 	Username              string `yaml:"username"`
 	PasswordChangeConfirm string `yaml:"password_change_confirm"`
@@ -113,7 +104,6 @@ type PromptMessages struct {
 	DBPath           string `yaml:"db_path"`
 	MaxConcurrentBee string `yaml:"max_concurrent_bee"`
 	MessageDebounce  string `yaml:"message_debounce"`
-	FFprobePath      string `yaml:"ffprobe_path"`
 	FFmpegPath       string `yaml:"ffmpeg_path"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
@@ -303,8 +293,6 @@ type DaemonOutput struct {
 // platform placeholders, etc.) that must respond to the language setting.
 type RuntimeMessages struct {
 	FailureNotifier FailureNotifierMessages   `yaml:"failure_notifier"`
-	Feishu          FeishuRuntimeMessages     `yaml:"feishu"`
-	WeCom           WeComRuntimeMessages      `yaml:"wecom"`
 	RPC             RPCRuntimeMessages        `yaml:"rpc"`
 	Department      DepartmentRuntimeMessages `yaml:"department"`
 	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
@@ -402,16 +390,6 @@ type FailureNotifierMessages struct {
 	ParseFailed   string `yaml:"parse_failed"`   // worker-line when message parse failed; contains leading \n
 	WorkerLine    string `yaml:"worker_line"`    // worker-line template when worker name is known; contains leading \n and %s
 	Failed        string `yaml:"failed"`         // error suffix template; contains %s
-}
-
-// FeishuRuntimeMessages holds Feishu platform runtime text.
-type FeishuRuntimeMessages struct {
-	RichTextFallback string `yaml:"rich_text_fallback"` // placeholder when rich-text cannot be parsed
-}
-
-// WeComRuntimeMessages holds WeCom platform runtime text.
-type WeComRuntimeMessages struct {
-	FileSent string `yaml:"file_sent"` // notification after a file is sent to WeCom
 }
 
 // RPCRuntimeMessages holds RPC tool runtime text sent back to the bee agent.

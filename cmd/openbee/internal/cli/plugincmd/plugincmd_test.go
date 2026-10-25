@@ -75,7 +75,7 @@ func TestPluginInstall_LocalPath(t *testing.T) {
 
 func TestPluginInstall_Invalid(t *testing.T) {
 	reg := newRegistry(t)
-	dir := writePlugin(t, "feishu", "Feishu", "0.1.0")
+	dir := writePlugin(t, "weixin", "Weixin", "0.1.0")
 	_, err := run(t, reg, "install", dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reserved")

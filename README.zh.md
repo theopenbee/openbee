@@ -73,7 +73,7 @@ openbee config
 
 向导将引导你完成以下配置：
 - agent 可执行文件路径
-- 启用的平台（飞书 / 钉钉 / 企微 / 微信 / Linear，以及已安装的渠道插件）及对应凭证
+- 启用的平台（微信 / Linear，以及已安装的渠道插件）及对应凭证
 - 高级选项（可跳过，使用默认值）
 
 配置文件默认写入当前目录的 `config.yaml`，如需指定路径，使用 `-o` 参数：
@@ -91,7 +91,7 @@ openbee server -d
 ### 第四步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
-- 在已配置的平台（飞书 / 钉钉 / 企微 / 微信 / Linear，或 Telegram 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+- 在已配置的平台（微信 / Linear，或飞书、钉钉、企微、Telegram 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
 
 ### 渠道插件
 

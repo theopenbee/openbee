@@ -15,7 +15,7 @@ const (
 	ProtocolVersion = 1
 )
 
-var ReservedIDs = []string{"feishu", "dingtalk", "wecom", "weixin", "linear", "local"}
+var ReservedIDs = []string{"weixin", "linear", "local"}
 
 var reservedConfigKeys = []string{"enabled", "bot_name"}
 

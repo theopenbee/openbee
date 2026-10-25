@@ -12,7 +12,11 @@
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
 - Move Telegram from a built-in channel to a channel plugin.
+- Move Lark, DingTalk and WeCom to channel plugins.
 - Give each Telegram forum topic its own session.
+
+### Removed
+- Remove the unused `bee.media.ffprobe_path` setting.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.

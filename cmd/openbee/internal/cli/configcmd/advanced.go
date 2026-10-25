@@ -70,13 +70,6 @@ func runAdvancedPrompts(vals *configValues) error {
 	}
 
 	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.FFprobePath,
-		Default: vals.FFprobePath,
-	}, &vals.FFprobePath); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
 		Message: i18n.M.Prompt.FFmpegPath,
 		Default: vals.FFmpegPath,
 	}, &vals.FFmpegPath); err != nil {

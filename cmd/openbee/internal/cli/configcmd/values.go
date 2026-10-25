@@ -17,21 +17,6 @@ type configValues struct {
 	RPCTokenTTL     string
 	ServerEnvSecret string
 
-	FeishuEnabled   bool
-	FeishuAppID     string
-	FeishuAppSecret string
-	FeishuBotName   string
-
-	DingtalkEnabled      bool
-	DingtalkClientID     string
-	DingtalkClientSecret string
-	DingtalkBotName      string
-
-	WecomEnabled bool
-	WecomBotID   string
-	WecomSecret  string
-	WecomBotName string
-
 	WeixinEnabled    bool
 	WeixinToken      string
 	WeixinBaseURL    string
@@ -59,7 +44,6 @@ type configValues struct {
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
-	FFprobePath            string
 	FFmpegPath             string
 
 	AuthUsername   string
@@ -95,18 +79,6 @@ func loadExistingConfig(path string) *configValues {
 		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
 		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
 		ServerEnvSecret:        cfg.Server.EnvSecret,
-		FeishuEnabled:          cfg.Bee.Platforms.Feishu.Enabled,
-		FeishuAppID:            cfg.Bee.Platforms.Feishu.AppID,
-		FeishuAppSecret:        cfg.Bee.Platforms.Feishu.AppSecret,
-		FeishuBotName:          cfg.Bee.Platforms.Feishu.BotName,
-		DingtalkEnabled:        cfg.Bee.Platforms.DingTalk.Enabled,
-		DingtalkClientID:       cfg.Bee.Platforms.DingTalk.ClientID,
-		DingtalkClientSecret:   cfg.Bee.Platforms.DingTalk.ClientSecret,
-		DingtalkBotName:        cfg.Bee.Platforms.DingTalk.BotName,
-		WecomEnabled:           cfg.Bee.Platforms.WeCom.Enabled,
-		WecomBotID:             cfg.Bee.Platforms.WeCom.BotID,
-		WecomSecret:            cfg.Bee.Platforms.WeCom.Secret,
-		WecomBotName:           cfg.Bee.Platforms.WeCom.BotName,
 		WeixinEnabled:          cfg.Bee.Platforms.Weixin.Enabled,
 		WeixinToken:            cfg.Bee.Platforms.Weixin.Token,
 		WeixinBaseURL:          cfg.Bee.Platforms.Weixin.BaseURL,
@@ -131,7 +103,6 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
-		FFprobePath:            cfg.Bee.Media.FFprobePath,
 		FFmpegPath:             cfg.Bee.Media.FFmpegPath,
 		AuthUsername:           cfg.Server.Auth.Username,
 		AuthPassword:           cfg.Server.Auth.Password,

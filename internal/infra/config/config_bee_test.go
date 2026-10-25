@@ -96,7 +96,7 @@ bee:
 	assert.Equal(t, 30*time.Minute, cfg.Bee.Engine.Timeout.Worker)
 }
 
-func TestBeeConfig_TelegramSectionIsPluginConfig(t *testing.T) {
+func TestBeeConfig_FormerBuiltinSectionsArePluginConfig(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`
 server:
@@ -107,16 +107,33 @@ bee:
       enabled: true
       token: "test-token"
       max_media_size: 10485760
+    feishu:
+      enabled: true
+      app_id: "cli_x"
+      app_secret: "s"
+      bot_name: "FeishuBot"
+    dingtalk:
+      enabled: false
+      client_id: "ding_x"
+    wecom:
+      enabled: true
+      bot_id: "aib_x"
+      websocket_url: "wss://example.com"
 `)
 	f.Close()
 
 	cfg, err := Load(f.Name())
 	require.NoError(t, err)
 
-	tc := cfg.Bee.Platforms.Plugins["telegram"]
-	assert.Equal(t, true, tc["enabled"])
-	assert.Equal(t, "test-token", tc["token"])
-	assert.Equal(t, 10485760, tc["max_media_size"])
+	p := cfg.Bee.Platforms.Plugins
+	assert.Equal(t, true, p["telegram"]["enabled"])
+	assert.Equal(t, "test-token", p["telegram"]["token"])
+	assert.Equal(t, 10485760, p["telegram"]["max_media_size"])
+	assert.Equal(t, "cli_x", p["feishu"]["app_id"])
+	assert.Equal(t, false, p["dingtalk"]["enabled"])
+	assert.Equal(t, "ding_x", p["dingtalk"]["client_id"])
+	assert.Equal(t, "wss://example.com", p["wecom"]["websocket_url"])
+	assert.Equal(t, "FeishuBot", cfg.Bee.Platforms.BotNamesByPlatform()["feishu"])
 }
 
 func TestGetLang_fromFile(t *testing.T) {
@@ -266,8 +283,7 @@ bee:
 }
 
 func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
-	p := PlatformsConfig{}
-	p.Feishu.BotName = "FeishuBot"
+	p := PlatformsConfig{Plugins: map[string]map[string]any{"feishu": {"bot_name": "FeishuBot"}}}
 	p.Weixin.BotName = "WxBot"
 	p.Weixin.Enabled = false
 	got := p.BotNamesByPlatform()
@@ -282,10 +298,10 @@ server:
   port: 8080
 bee:
   platforms:
-    feishu:
+    weixin:
       enabled: true
-      app_id: "cli_x"
-      bot_name: "FeishuBot"
+      user_id: "wx_x"
+      bot_name: "WxBot"
     discord:
       enabled: true
       bot_name: DBot
@@ -301,20 +317,20 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Feishu.Enabled)
-	assert.Equal(t, "cli_x", p.Feishu.AppID)
+	assert.True(t, p.Weixin.Enabled)
+	assert.Equal(t, "wx_x", p.Weixin.UserID)
 	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
 	require.Contains(t, p.Plugins, "discord")
-	assert.NotContains(t, p.Plugins, "feishu")
+	assert.NotContains(t, p.Plugins, "weixin")
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.Equal(t, true, p.Plugins["discord"]["enabled"])
 	assert.Equal(t, []any{"1", "2"}, p.Plugins["discord"]["allowed_guilds"])
-	assert.Equal(t, map[string]string{"feishu": "FeishuBot", "discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
+	assert.Equal(t, map[string]string{"weixin": "WxBot", "discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
 }
 
 func TestPlatformsConfig_NoPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    feishu:\n      enabled: true\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    weixin:\n      enabled: true\n"), 0o644))
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.Bee.Platforms.Plugins)
@@ -329,9 +345,9 @@ bee:
     notes: "old value"
     legacy: [a, b]
     empty:
-    feishu:
+    weixin:
       enabled: true
-      app_id: "a"
+      user_id: "a"
     discord:
       enabled: true
       token: x
@@ -339,8 +355,8 @@ bee:
 	cfg, err := Load(path)
 	require.NoError(t, err)
 	p := cfg.Bee.Platforms
-	assert.True(t, p.Feishu.Enabled)
-	assert.Equal(t, "a", p.Feishu.AppID)
+	assert.True(t, p.Weixin.Enabled)
+	assert.Equal(t, "a", p.Weixin.UserID)
 	assert.Equal(t, "x", p.Plugins["discord"]["token"])
 	assert.NotContains(t, p.Plugins, "stray")
 	assert.NotContains(t, p.Plugins, "notes")
@@ -349,7 +365,7 @@ bee:
 
 func TestPlatformsConfig_BuiltinTypeErrorsStillFail(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    feishu: true\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms:\n    weixin: true\n"), 0o644))
 	_, err := Load(path)
 	assert.Error(t, err)
 }

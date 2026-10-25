@@ -23,8 +23,8 @@ func renderToFile(t *testing.T, vals configValues) string {
 
 func TestRenderConfig_WithPluginSection(t *testing.T) {
 	vals := defaultValues()
-	vals.FeishuEnabled = true
-	vals.FeishuAppID = "cli_x"
+	vals.WeixinEnabled = true
+	vals.WeixinUserID = "wx_x"
 	vals.FeederMaxConcurrentBee = 7
 	vals.PluginSections = map[string]map[string]any{
 		"discord": {"enabled": true, "bot_name": "DBot", "token": "x", "allowed_guilds": []string{"1", "22"}, "max_media_size": 1024},
@@ -32,8 +32,8 @@ func TestRenderConfig_WithPluginSection(t *testing.T) {
 
 	cfg, err := config.Load(renderToFile(t, vals))
 	require.NoError(t, err)
-	assert.True(t, cfg.Bee.Platforms.Feishu.Enabled)
-	assert.Equal(t, "cli_x", cfg.Bee.Platforms.Feishu.AppID)
+	assert.True(t, cfg.Bee.Platforms.Weixin.Enabled)
+	assert.Equal(t, "wx_x", cfg.Bee.Platforms.Weixin.UserID)
 	assert.Equal(t, 7, cfg.Bee.Feeder.MaxConcurrentBee)
 	d := cfg.Bee.Platforms.Plugins["discord"]
 	assert.Equal(t, true, d["enabled"])
@@ -58,6 +58,11 @@ bee:
         level: 2
         tags: [a, b]
       ratio: 1.5
+    feishu:
+      enabled: true
+      app_id: "cli_x"
+      app_secret: "s"
+      bot_name: "FeishuBot"
 `), 0o644))
 	original, err := config.Load(path)
 	require.NoError(t, err)
@@ -68,6 +73,8 @@ bee:
 	require.NoError(t, err)
 	assert.Equal(t, original.Bee.Platforms.Plugins["ghost"], reloaded.Bee.Platforms.Plugins["ghost"])
 	assert.Equal(t, "007", reloaded.Bee.Platforms.Plugins["ghost"]["token"])
+	assert.Equal(t, original.Bee.Platforms.Plugins["feishu"], reloaded.Bee.Platforms.Plugins["feishu"])
+	assert.Equal(t, "cli_x", reloaded.Bee.Platforms.Plugins["feishu"]["app_id"])
 }
 
 func TestRenderPluginSections_Empty(t *testing.T) {

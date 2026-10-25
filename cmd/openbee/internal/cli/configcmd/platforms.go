@@ -17,60 +17,9 @@ type platformSpec struct {
 
 func platformSpecs(vals *configValues) []platformSpec {
 	return []platformSpec{
-		{&vals.FeishuEnabled, i18n.M.Prompt.PlatformFeishu, configureFeishu},
-		{&vals.DingtalkEnabled, i18n.M.Prompt.PlatformDingTalk, configureDingtalk},
-		{&vals.WecomEnabled, i18n.M.Prompt.PlatformWeCom, configureWecom},
 		{&vals.WeixinEnabled, i18n.M.Prompt.PlatformWeixin, configureWeixin},
 		{&vals.LinearEnabled, i18n.M.Prompt.PlatformLinear, configureLinear},
 	}
-}
-
-func configureFeishu(vals *configValues) error {
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.FeishuAppID,
-		Default: vals.FeishuAppID,
-	}, &vals.FeishuAppID, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.FeishuAppSecret,
-		Default: vals.FeishuAppSecret,
-	}, &vals.FeishuAppSecret, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	return promptBotName(&vals.FeishuBotName)
-}
-
-func configureDingtalk(vals *configValues) error {
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.DingtalkClientID,
-		Default: vals.DingtalkClientID,
-	}, &vals.DingtalkClientID, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.DingtalkClientSecret,
-		Default: vals.DingtalkClientSecret,
-	}, &vals.DingtalkClientSecret, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	return promptBotName(&vals.DingtalkBotName)
-}
-
-func configureWecom(vals *configValues) error {
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.WecomBotID,
-		Default: vals.WecomBotID,
-	}, &vals.WecomBotID, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.WecomSecret,
-		Default: vals.WecomSecret,
-	}, &vals.WecomSecret, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-	return promptBotName(&vals.WecomBotName)
 }
 
 func configureWeixin(vals *configValues) error {

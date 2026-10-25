@@ -104,7 +104,7 @@ func TestManifestValidate(t *testing.T) {
 		{"valid", func(m *Manifest) {}, ""},
 		{"protocol version", func(m *Manifest) { m.ProtocolVersion = 2 }, "protocol_version"},
 		{"uppercase id", func(m *Manifest) { m.ID = "Discord" }, "id"},
-		{"reserved id", func(m *Manifest) { m.ID = "feishu" }, "reserved"},
+		{"reserved id", func(m *Manifest) { m.ID = "weixin" }, "reserved"},
 		{"empty command", func(m *Manifest) { m.Command = nil }, "command"},
 		{"reserved key enabled", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "enabled", Type: FieldBool}) }, "enabled"},
 		{"reserved key bot_name", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "bot_name", Type: FieldString}) }, "bot_name"},
@@ -134,7 +134,7 @@ func TestValidateID(t *testing.T) {
 	for _, ok := range []string{"discord", "slack-bot", "qq_2", "ab"} {
 		assert.NoError(t, ValidateID(ok), ok)
 	}
-	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "feishu", "abcdefghijklmnopqrstuvwxyz0123456"} {
+	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "weixin", "abcdefghijklmnopqrstuvwxyz0123456"} {
 		assert.Error(t, ValidateID(bad), bad)
 	}
 }
