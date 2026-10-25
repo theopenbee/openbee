@@ -472,6 +472,8 @@ const (
 	maxVoiceUploadSize = 2 * 1024 * 1024   // 2MB — voice limit per DingTalk spec
 )
 
+const conversationTypeSingle = "1"
+
 func (s *DingTalkSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	if msg.Proactive && msg.ReplyTo.Raw == "" {
 		return fmt.Errorf("dingtalk: no conversation context for session %q", msg.SessionKey)
@@ -576,9 +578,9 @@ func isWebhookExpired(data *chatbot.BotCallbackDataModel) bool {
 }
 
 // proactiveEndpoint returns the appropriate DingTalk API endpoint for proactive
-// message sending based on conversation type ("1" = group, "2" = single).
+// message sending based on conversation type.
 func proactiveEndpoint(conversationType string) string {
-	if conversationType == "2" {
+	if conversationType == conversationTypeSingle {
 		return "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend"
 	}
 	return "https://api.dingtalk.com/v1.0/robot/groupMessages/send"
@@ -595,7 +597,7 @@ func buildProactiveTextPayload(cfg config.DingTalkConfig, data *chatbot.BotCallb
 		"msgKey":    "sampleMarkdown",
 		"msgParam":  string(msgParam),
 	}
-	if data.ConversationType == "2" {
+	if data.ConversationType == conversationTypeSingle {
 		payload["userIds"] = []string{data.SenderStaffId}
 	} else {
 		payload["openConversationId"] = data.ConversationId
@@ -651,7 +653,7 @@ func buildProactiveMediaPayload(cfg config.DingTalkConfig, data *chatbot.BotCall
 		"msgKey":    msgKey,
 		"msgParam":  msgParam,
 	}
-	if data.ConversationType == "2" {
+	if data.ConversationType == conversationTypeSingle {
 		payload["userIds"] = []string{data.SenderStaffId}
 	} else {
 		payload["openConversationId"] = data.ConversationId

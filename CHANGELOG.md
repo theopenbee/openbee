@@ -7,6 +7,7 @@
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.
+- Fix DingTalk proactive sends swapping direct and group chats.
 
 ## [0.0.45] - 2026-10-12
 
