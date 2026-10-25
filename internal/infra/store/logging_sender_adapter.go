@@ -83,3 +83,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 
 	return sendErr
 }
+
+func (a *LoggingPlatformSenderAdapter) SendsTextWithMedia() bool {
+	return platform.SendsTextWithMedia(a.inner)
+}

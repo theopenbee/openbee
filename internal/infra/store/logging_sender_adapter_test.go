@@ -42,3 +42,22 @@ func TestLoggingPlatformSenderAdapter_SharesIDWithInnerSender(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, id, msgs[0].ID)
 }
+
+type combinedRecordingSender struct {
+	recordingSender
+}
+
+func (s *combinedRecordingSender) SendsTextWithMedia() bool { return true }
+
+func TestLoggingPlatformSenderAdapter_SendsTextWithMedia(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+
+	combined := store.NewLoggingPlatformSenderAdapter(&combinedRecordingSender{}, outboundStore, "linear")
+	plain := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "feishu")
+
+	assert.True(t, platform.SendsTextWithMedia(combined))
+	assert.False(t, platform.SendsTextWithMedia(plain))
+}

@@ -335,6 +335,8 @@ type LinearSender struct {
 	uploader *uploader
 }
 
+func (s *LinearSender) SendsTextWithMedia() bool { return true }
+
 func (s *LinearSender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	var target replyTarget
 	if err := json.Unmarshal([]byte(msg.ReplyTo.Raw), &target); err != nil {

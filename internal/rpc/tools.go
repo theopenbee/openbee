@@ -21,7 +21,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
-	"github.com/theopenbee/openbee/internal/platform/linear"
+	"github.com/theopenbee/openbee/internal/platform"
 )
 
 // CallTool is exported for testing only.
@@ -586,12 +586,12 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	base.SourceType = sourceType
 	base.SourceID = sourceID
 
-	if base.ReplyTo.Platform == linear.PlatformID && params.Content != "" && params.MediaPath != "" {
+	if platform.SendsTextWithMedia(sender) && params.Content != "" && params.MediaPath != "" {
 		outbound := base
 		outbound.Content = params.Content
 		outbound.MediaPath = params.MediaPath
 		if err := sender.Send(ctx, outbound); err != nil {
-			return nil, fmt.Errorf("send linear message: %w", err)
+			return nil, fmt.Errorf("send message: %w", err)
 		}
 		return map[string]string{"status": "sent"}, nil
 	}

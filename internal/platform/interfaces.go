@@ -45,3 +45,12 @@ type Platform interface {
 	Receiver() PlatformReceiverAdapter
 	Sender() PlatformSenderAdapter
 }
+
+type CombinedSender interface {
+	SendsTextWithMedia() bool
+}
+
+func SendsTextWithMedia(s PlatformSenderAdapter) bool {
+	c, ok := s.(CombinedSender)
+	return ok && c.SendsTextWithMedia()
+}

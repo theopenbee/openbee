@@ -50,6 +50,12 @@ func (s *mockSender) Send(_ context.Context, msg platform.OutboundMessage) error
 	return nil
 }
 
+type combinedMockSender struct {
+	*mockSender
+}
+
+func (s *combinedMockSender) SendsTextWithMedia() bool { return true }
+
 // --- Mock implementations for clear_session ---
 
 type mockExecStopper struct {
@@ -271,6 +277,7 @@ func TestCallTool_SendMessage(t *testing.T) {
 	cases := []struct {
 		name     string
 		senderID string
+		combined bool
 		setup    func(t *testing.T, db *sql.DB) (context.Context, map[string]any)
 		check    func(t *testing.T, sent []platform.OutboundMessage)
 	}{
@@ -382,6 +389,7 @@ func TestCallTool_SendMessage(t *testing.T) {
 		{
 			name:     "LinearContentAndMediaSentTogether",
 			senderID: "linear",
+			combined: true,
 			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
 				ctx := context.Background()
 				ms := store.NewMessageStore(db)
@@ -394,11 +402,48 @@ func TestCallTool_SendMessage(t *testing.T) {
 				assert.Equal(t, "/tmp/snap.png", sent[0].MediaPath)
 			},
 		},
+		{
+			name:     "NonCombinedSenderSplitsTextAndMedia",
+			senderID: "feishu",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-split", "feishu:chat1:userA", "feishu", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-split", "content": "a", "media_path": "/tmp/x.png"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 2)
+				assert.Equal(t, "a", sent[0].Content)
+				assert.Empty(t, sent[0].MediaPath)
+				assert.Equal(t, "/tmp/x.png", sent[1].MediaPath)
+				assert.Empty(t, sent[1].Content)
+			},
+		},
+		{
+			name:     "CombinedSenderOnAnyPlatform",
+			senderID: "discord",
+			combined: true,
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-discord", "discord:c1:u1", "discord", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-discord", "content": "a", "media_path": "/tmp/x.png"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.Equal(t, "a", sent[0].Content)
+				assert.Equal(t, "/tmp/x.png", sent[0].MediaPath)
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			mock := &mockSender{}
-			s, db := setupServerWithSender(t, tc.senderID, mock)
+			var sender platform.PlatformSenderAdapter = mock
+			if tc.combined {
+				sender = &combinedMockSender{mock}
+			}
+			s, db := setupServerWithSender(t, tc.senderID, sender)
 			ctx, args := tc.setup(t, db)
 
 			result, err := s.CallTool(ctx, "send_message", mustMarshal(t, args))
