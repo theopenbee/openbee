@@ -1,6 +1,6 @@
 # @theopenbee/channel-sdk
 
-Node.js SDK for building openbee channel plugins. It implements the stdio JSON-RPC protocol described in [`docs/channel-plugin-protocol.md`](../../docs/channel-plugin-protocol.md), so a plugin only has to connect to its chat platform.
+Node.js SDK for building openbee channel plugins. It implements the stdio JSON-RPC protocol described in [`docs/channel-plugin-protocol.md`](https://github.com/theopenbee/openbee/blob/main/docs/channel-plugin-protocol.md), so a plugin only has to connect to its chat platform.
 
 Requires Node.js 20 or newer.
 

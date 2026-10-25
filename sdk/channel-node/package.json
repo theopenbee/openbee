@@ -1,9 +1,14 @@
 {
   "name": "@theopenbee/channel-sdk",
   "version": "0.1.0",
-  "private": true,
   "description": "SDK for building openbee channel plugins",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theopenbee/openbee.git",
+    "directory": "sdk/channel-node"
+  },
+  "homepage": "https://github.com/theopenbee/openbee/tree/main/sdk/channel-node",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,9 +24,14 @@
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
