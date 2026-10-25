@@ -20,9 +20,16 @@ type Service struct {
 // NewService creates a Service with baseDir at ~/.openbee/media and ensures inbound/ exists.
 func NewService() *Service {
 	home, _ := os.UserHomeDir()
-	baseDir := filepath.Join(home, ".openbee", "media")
+	return NewServiceAt(filepath.Join(home, ".openbee", "media"))
+}
+
+func NewServiceAt(baseDir string) *Service {
 	os.MkdirAll(filepath.Join(baseDir, "inbound"), 0o755)
 	return &Service{baseDir: baseDir}
+}
+
+func (s *Service) InboundDir() string {
+	return filepath.Join(s.baseDir, "inbound")
 }
 
 // SaveInbound writes data to ~/.openbee/media/inbound/<timestamp>-<uuid>.<ext> and returns the path.

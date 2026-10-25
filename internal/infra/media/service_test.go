@@ -112,3 +112,12 @@ func TestSaveInbound(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(data))
 }
+
+func TestNewServiceAt_InboundDir(t *testing.T) {
+	dir := t.TempDir()
+	s := NewServiceAt(dir)
+	assert.Equal(t, filepath.Join(dir, "inbound"), s.InboundDir())
+	info, err := os.Stat(s.InboundDir())
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+}

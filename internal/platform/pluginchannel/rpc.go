@@ -218,6 +218,11 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 		}
 	case <-ctx.Done():
 		c.forget(id)
+		go func() {
+			if <-written == nil {
+				c.cancelRemote(id)
+			}
+		}()
 		return ctx.Err()
 	}
 
@@ -237,9 +242,13 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 		return nil
 	case <-ctx.Done():
 		c.forget(id)
-		go func() { _ = c.Notify("$/cancelRequest", map[string]int64{"id": id}) }()
+		go c.cancelRemote(id)
 		return ctx.Err()
 	}
+}
+
+func (c *Conn) cancelRemote(id int64) {
+	_ = c.Notify("$/cancelRequest", map[string]int64{"id": id})
 }
 
 func (c *Conn) forget(id int64) {
