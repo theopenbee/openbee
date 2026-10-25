@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.0.46] - 2026-10-25
 
 ### Added
 - Send messages to a session with `message send --session-key`.
