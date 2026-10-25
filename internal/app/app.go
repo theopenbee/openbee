@@ -155,16 +155,17 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform[local.PlatformID] = localSender
 
-	platforms, err := buildPlatforms(
-		cfg.Bee.Platforms.Feishu, cfg.Bee.Platforms.DingTalk, cfg.Bee.Platforms.WeCom,
-		cfg.Bee.Platforms.Telegram, cfg.Bee.Platforms.Weixin, cfg.Bee.Platforms.Linear,
-		cfg.Bee.Media, s.taskStore,
-	)
+	mediaSvc := media.NewService()
+	channels, err := buildPlatforms(cfg.Bee, mediaSvc, s.taskStore)
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range platforms {
-		sendersByPlatform[p.ID()] = store.NewLoggingPlatformSenderAdapter(p.Sender(), s.outboundMsgStore, p.ID())
+	for _, ch := range channels {
+		id := ch.Platform.ID()
+		if ch.ExtractContext != nil {
+			platform.RegisterExtractor(id, ch.ExtractContext)
+		}
+		sendersByPlatform[id] = store.NewLoggingPlatformSenderAdapter(ch.Platform.Sender(), s.outboundMsgStore, id)
 	}
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
@@ -194,13 +195,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
-		msgingest.WithPlatformBotNames(map[string]string{
-			feishu.PlatformID:   cfg.Bee.Platforms.Feishu.BotName,
-			dingtalk.PlatformID: cfg.Bee.Platforms.DingTalk.BotName,
-			wecom.PlatformID:    cfg.Bee.Platforms.WeCom.BotName,
-			telegram.PlatformID: cfg.Bee.Platforms.Telegram.BotName,
-			weixin.PlatformID:   cfg.Bee.Platforms.Weixin.BotName,
-		}))
+		msgingest.WithPlatformBotNames(cfg.Bee.Platforms.BotNamesByPlatform()))
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
@@ -234,8 +229,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { reconciler.Run(ctx) },
 		func(ctx context.Context) { tokenSyncer.Run(ctx) },
 	}
-	for _, p := range platforms {
-		recv := p.Receiver()
+	for _, ch := range channels {
+		recv := ch.Platform.Receiver()
 		runners = append(runners, func(ctx context.Context) {
 			if err := recv.Start(ctx, ingest.Dispatch); err != nil {
 				logger.Error("platform receiver error", zap.Error(err))
@@ -349,42 +344,30 @@ func buildDispatcher(
 	)
 }
 
-func buildPlatforms(
-	fc config.FeishuConfig,
-	dc config.DingTalkConfig,
-	wc config.WeComConfig,
-	tc config.TelegramConfig,
-	wxc config.WeixinConfig,
-	lc config.LinearConfig,
-	mc config.MediaConfig,
-	tasks *store.TaskStore,
-) ([]platform.Platform, error) {
-	mediaSvc := media.NewService()
-	var result []platform.Platform
-	if fc.Enabled {
-		platform.RegisterExtractor(feishu.PlatformID, feishu.ExtractContext)
-		result = append(result, feishu.NewPlatform(fc, mediaSvc))
+func buildPlatforms(bc config.BeeConfig, mediaSvc *media.Service, tasks *store.TaskStore) ([]platform.Channel, error) {
+	pc := bc.Platforms
+	var result []platform.Channel
+	if pc.Feishu.Enabled {
+		result = append(result, platform.Channel{Platform: feishu.NewPlatform(pc.Feishu, mediaSvc), ExtractContext: feishu.ExtractContext})
 	}
-	if dc.Enabled {
-		platform.RegisterExtractor(dingtalk.PlatformID, dingtalk.ExtractContext)
-		result = append(result, dingtalk.NewPlatform(dc, mc, mediaSvc))
+	if pc.DingTalk.Enabled {
+		result = append(result, platform.Channel{Platform: dingtalk.NewPlatform(pc.DingTalk, bc.Media, mediaSvc), ExtractContext: dingtalk.ExtractContext})
 	}
-	if wc.Enabled {
-		platform.RegisterExtractor(wecom.PlatformID, wecom.ExtractContext)
-		result = append(result, wecom.NewPlatform(wc, mediaSvc))
+	if pc.WeCom.Enabled {
+		result = append(result, platform.Channel{Platform: wecom.NewPlatform(pc.WeCom, mediaSvc), ExtractContext: wecom.ExtractContext})
 	}
-	if tc.Enabled {
-		result = append(result, telegram.NewPlatform(tc, mediaSvc, tasks))
+	if pc.Telegram.Enabled {
+		result = append(result, platform.Channel{Platform: telegram.NewPlatform(pc.Telegram, mediaSvc, tasks)})
 	}
-	if wxc.Enabled {
-		result = append(result, weixin.NewPlatform(wxc, mc, mediaSvc))
+	if pc.Weixin.Enabled {
+		result = append(result, platform.Channel{Platform: weixin.NewPlatform(pc.Weixin, bc.Media, mediaSvc)})
 	}
-	if lc.Enabled {
-		p, err := linear.NewPlatform(lc, mediaSvc)
+	if pc.Linear.Enabled {
+		p, err := linear.NewPlatform(pc.Linear, mediaSvc)
 		if err != nil {
 			return nil, fmt.Errorf("init linear platform: %w", err)
 		}
-		result = append(result, p)
+		result = append(result, platform.Channel{Platform: p})
 	}
 	return result, nil
 }

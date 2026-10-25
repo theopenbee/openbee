@@ -273,3 +273,13 @@ bee:
 	envCodex, _ := rawCodex["env"].(map[string]string)
 	assert.Empty(t, envCodex)
 }
+
+func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
+	p := PlatformsConfig{}
+	p.Feishu.BotName = "FeishuBot"
+	p.Telegram.BotName = "TgBot"
+	p.Telegram.Enabled = false
+	got := p.BotNamesByPlatform()
+	assert.Equal(t, map[string]string{"feishu": "FeishuBot", "telegram": "TgBot"}, got)
+	assert.ElementsMatch(t, []string{"FeishuBot", "TgBot"}, p.BotNames())
+}

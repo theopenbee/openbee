@@ -140,18 +140,26 @@ type PlatformsConfig struct {
 	Linear   LinearConfig   `yaml:"linear"`
 }
 
-func (p PlatformsConfig) BotNames() []string {
-	var names []string
-	for _, n := range []string{
-		p.Feishu.BotName,
-		p.DingTalk.BotName,
-		p.WeCom.BotName,
-		p.Telegram.BotName,
-		p.Weixin.BotName,
+func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
+	names := make(map[string]string)
+	for id, n := range map[string]string{
+		"feishu":   p.Feishu.BotName,
+		"dingtalk": p.DingTalk.BotName,
+		"wecom":    p.WeCom.BotName,
+		"telegram": p.Telegram.BotName,
+		"weixin":   p.Weixin.BotName,
 	} {
 		if n != "" {
-			names = append(names, n)
+			names[id] = n
 		}
+	}
+	return names
+}
+
+func (p PlatformsConfig) BotNames() []string {
+	var names []string
+	for _, n := range p.BotNamesByPlatform() {
+		names = append(names, n)
 	}
 	return names
 }
