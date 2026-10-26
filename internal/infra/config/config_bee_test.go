@@ -252,3 +252,17 @@ func TestLoad_EnvSecretGeneratedFlag(t *testing.T) {
 	assert.False(t, cfg.Server.EnvSecretGenerated)
 	assert.Equal(t, secret, cfg.Server.EnvSecret)
 }
+
+func TestLoad_TokenSecretGeneratedFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 8080\n"), 0o644))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.True(t, cfg.Bee.RPC.TokenSecretGenerated)
+
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  rpc:\n    token_secret: \"abc\"\n"), 0o644))
+	cfg, err = Load(path)
+	require.NoError(t, err)
+	assert.False(t, cfg.Bee.RPC.TokenSecretGenerated)
+	assert.Equal(t, "abc", cfg.Bee.RPC.TokenSecret)
+}
