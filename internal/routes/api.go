@@ -68,17 +68,6 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/system-configs", rp(auth.PermSystemConfigRead), s.SystemConfigs.Get)
 	r.PUT("/system-configs/:key", rp(auth.PermSystemConfigWrite), s.SystemConfigs.Set)
 
-	r.GET("/plugins", rp(auth.PermPluginsRead), s.Plugins.List)
-	r.GET("/plugins/catalog", rp(auth.PermPluginsRead), s.Plugins.Catalog)
-	r.POST("/plugins/install", rp(auth.PermPluginsWrite), s.Plugins.Install)
-	r.GET("/plugins/operations/:id", rp(auth.PermPluginsRead), s.Plugins.Operation)
-	r.GET("/plugins/:id", rp(auth.PermPluginsRead), s.Plugins.Get)
-	r.PUT("/plugins/:id/settings", rp(auth.PermPluginsWrite), s.Plugins.UpdateSettings)
-	r.POST("/plugins/:id/enable", rp(auth.PermPluginsWrite), s.Plugins.Enable)
-	r.POST("/plugins/:id/disable", rp(auth.PermPluginsWrite), s.Plugins.Disable)
-	r.POST("/plugins/:id/restart", rp(auth.PermPluginsWrite), s.Plugins.Restart)
-	r.DELETE("/plugins/:id", rp(auth.PermPluginsWrite), s.Plugins.Uninstall)
-
 	// User & role administration
 	r.GET("/users", rp(auth.PermUsersManage), s.Users.List)
 	r.POST("/users", rp(auth.PermUsersManage), s.Users.Create)
@@ -95,4 +84,18 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.POST("/roles", rp(auth.PermRolesManage), s.Roles.Create)
 	r.PUT("/roles/:id", rp(auth.PermRolesManage), s.Roles.Update)
 	r.DELETE("/roles/:id", rp(auth.PermRolesManage), s.Roles.Delete)
+}
+
+func (s *Server) registerPluginRoutes(r *gin.RouterGroup) {
+	rp := func(perms ...string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perms...) }
+	r.GET("", rp(auth.PermPluginsRead), s.Plugins.List)
+	r.GET("/catalog", rp(auth.PermPluginsRead), s.Plugins.Catalog)
+	r.POST("/install", rp(auth.PermPluginsWrite), s.Plugins.Install)
+	r.GET("/operations/:id", rp(auth.PermPluginsRead), s.Plugins.Operation)
+	r.GET("/:id", rp(auth.PermPluginsRead), s.Plugins.Get)
+	r.PUT("/:id/settings", rp(auth.PermPluginsWrite), s.Plugins.UpdateSettings)
+	r.POST("/:id/enable", rp(auth.PermPluginsWrite), s.Plugins.Enable)
+	r.POST("/:id/disable", rp(auth.PermPluginsWrite), s.Plugins.Disable)
+	r.POST("/:id/restart", rp(auth.PermPluginsWrite), s.Plugins.Restart)
+	r.DELETE("/:id", rp(auth.PermPluginsWrite), s.Plugins.Uninstall)
 }

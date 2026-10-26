@@ -32,6 +32,7 @@ type ServerParams struct {
 	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
 	AuthMiddleware    gin.HandlerFunc
+	PluginsAuth       gin.HandlerFunc
 	Resolver          *auth.PermissionResolver
 }
 
@@ -62,6 +63,8 @@ func (s *Server) setupRoutes() error {
 	s.router.GET("/api/config", s.Config.Get)
 	s.router.GET("/api/setup/status", s.Setup.Status)
 	s.router.POST("/api/setup", s.Setup.Create)
+
+	s.registerPluginRoutes(s.router.Group("/api/plugins", s.PluginsAuth))
 
 	apiGroup := s.router.Group("/api")
 	apiGroup.Use(s.AuthMiddleware)

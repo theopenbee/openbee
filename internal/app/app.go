@@ -366,6 +366,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
 		AuthMiddleware:    authMiddleware,
+		PluginsAuth:       auth.PluginsAuth(jwtSvc, s.userStore, rpcCfg.TokenSecret),
 		Resolver:          resolver,
 	})
 }

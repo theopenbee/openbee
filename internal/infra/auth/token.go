@@ -10,6 +10,7 @@ import (
 const (
 	TokenTypeBee    = "bee"
 	TokenTypeWorker = "worker"
+	TokenTypeAdmin  = "admin"
 )
 
 // RPCClaims are the JWT claims embedded in every RPC token.
@@ -34,6 +35,15 @@ func GenerateWorkerToken(secret, workerID string, scopes []string, ttl time.Dura
 		Type:     TokenTypeWorker,
 		WorkerID: workerID,
 		Scopes:   scopes,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+		},
+	}, secret)
+}
+
+func GenerateAdminToken(secret string, ttl time.Duration) (string, error) {
+	return signToken(RPCClaims{
+		Type: TokenTypeAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},

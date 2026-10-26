@@ -42,11 +42,35 @@ func AuthMiddleware(jwtSvc *JWTService, users UserAuthStateLoader) gin.HandlerFu
 	}
 }
 
+const ctxKeyAdminToken = "auth.admin_token"
+
+func PluginsAuth(jwtSvc *JWTService, users UserAuthStateLoader, rpcSecret string) gin.HandlerFunc {
+	userAuth := AuthMiddleware(jwtSvc, users)
+	return func(c *gin.Context) {
+		key := c.GetHeader("X-API-Key")
+		if key == "" {
+			userAuth(c)
+			return
+		}
+		claims, err := ValidateToken(key, rpcSecret)
+		if err != nil || claims.Type != TokenTypeAdmin {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		c.Set(ctxKeyAdminToken, true)
+		c.Next()
+	}
+}
+
 // RequirePermission aborts with 403 unless the current user holds at least one
 // of perms. Multiple perms are OR-ed (any one grants access); pass a single
 // perm for the common case.
 func RequirePermission(resolver *PermissionResolver, perms ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.GetBool(ctxKeyAdminToken) {
+			c.Next()
+			return
+		}
 		uid := UserID(c)
 		if uid == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
