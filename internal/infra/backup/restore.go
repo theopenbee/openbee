@@ -1,12 +1,17 @@
 package backup
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 const encExt = ".enc"
@@ -84,6 +89,18 @@ func Restore(opts RestoreOptions) error {
 	if err := os.MkdirAll(filepath.Dir(opts.DBPath), 0755); err != nil {
 		return fmt.Errorf("create db dir: %w", err)
 	}
+	if err := ensureDatabaseIdle(opts.DBPath); err != nil {
+		return err
+	}
+	dbFile := opts.DBPath
+	if resolved, err := resolvePath(opts.DBPath); err == nil {
+		dbFile = resolved
+	}
+	for _, suffix := range dbSidecarSuffixes {
+		if err := os.Remove(dbFile + suffix); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove stale %s: %w", filepath.Base(dbFile+suffix), err)
+		}
+	}
 	if err := utils.CopyFile(filepath.Join(extractDir, "openbee.db"), opts.DBPath); err != nil {
 		return fmt.Errorf("restore database: %w", err)
 	}
@@ -95,9 +112,30 @@ func Restore(opts RestoreOptions) error {
 		return fmt.Errorf("restore config: %w", err)
 	}
 
-	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir); err != nil {
+	if err := copyDir(filepath.Join(extractDir, "dot-openbee"), opts.StateDir, databaseFiles(opts.StateDir, opts.DBPath)); err != nil {
 		return fmt.Errorf("restore state dir: %w", err)
 	}
 
+	return nil
+}
+
+func ensureDatabaseIdle(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(0)&_pragma=locking_mode(EXCLUSIVE)")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	_, err = db.Exec(`BEGIN EXCLUSIVE`)
+	var serr *sqlite.Error
+	if errors.As(err, &serr) && (serr.Code()&0xff == sqlite3.SQLITE_BUSY || serr.Code()&0xff == sqlite3.SQLITE_LOCKED) {
+		return fmt.Errorf("database %s is in use by another process (is openbee running?); stop it first", path)
+	}
+	if err == nil {
+		db.Exec(`ROLLBACK`)
+	}
 	return nil
 }

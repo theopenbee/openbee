@@ -102,7 +102,7 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 // List returns tasks matching the given filter. Results are ordered by created_at DESC.
 func (s *TaskStore) List(ctx context.Context, f TaskFilter) ([]model.Task, error) {
 	q, args := buildFilterWhere(`SELECT `+taskColumns+` FROM bee_tasks t`, f)
-	q += ` ORDER BY t.created_at DESC`
+	q += ` ORDER BY t.created_at DESC, t.rowid DESC`
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, f.Limit)

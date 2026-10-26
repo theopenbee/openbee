@@ -545,7 +545,7 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
 	if err != nil {
 		return nil, err
 	}
