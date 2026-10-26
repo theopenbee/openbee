@@ -91,6 +91,7 @@ func (s *Server) registerPluginRoutes(r *gin.RouterGroup) {
 	r.GET("", rp(auth.PermPluginsRead), s.Plugins.List)
 	r.GET("/catalog", rp(auth.PermPluginsRead), s.Plugins.Catalog)
 	r.POST("/install", rp(auth.PermPluginsWrite), s.Plugins.Install)
+	r.GET("/operations", rp(auth.PermPluginsRead), s.Plugins.Operations)
 	r.GET("/operations/:id", rp(auth.PermPluginsRead), s.Plugins.Operation)
 	r.GET("/:id", rp(auth.PermPluginsRead), s.Plugins.Get)
 	r.PUT("/:id/settings", rp(auth.PermPluginsWrite), s.Plugins.UpdateSettings)

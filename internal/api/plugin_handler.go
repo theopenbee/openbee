@@ -21,6 +21,7 @@ type pluginService interface {
 	Install(spec string) pluginmgr.Operation
 	Uninstall(ctx context.Context, id string) (pluginmgr.Operation, error)
 	Operation(id string) (pluginmgr.Operation, bool)
+	Operations() []pluginmgr.Operation
 	UpdateSettings(ctx context.Context, id string, botName *string, config map[string]any) error
 	Enable(ctx context.Context, id string) error
 	Disable(ctx context.Context, id string) error
@@ -180,6 +181,15 @@ func (h *PluginHandler) Install(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, toOperationView(h.svc.Install(spec)))
+}
+
+func (h *PluginHandler) Operations(c *gin.Context) {
+	ops := h.svc.Operations()
+	out := make([]operationView, 0, len(ops))
+	for _, op := range ops {
+		out = append(out, toOperationView(op))
+	}
+	c.JSON(http.StatusOK, gin.H{"operations": out})
 }
 
 func (h *PluginHandler) Operation(c *gin.Context) {

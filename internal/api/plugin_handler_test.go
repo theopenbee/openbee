@@ -62,6 +62,14 @@ func (f *fakePluginService) Uninstall(_ context.Context, id string) (pluginmgr.O
 	return pluginmgr.Operation{ID: "op2", Kind: "uninstall", PluginID: id, Status: pluginmgr.OpQueued}, nil
 }
 
+func (f *fakePluginService) Operations() []pluginmgr.Operation {
+	out := make([]pluginmgr.Operation, 0, len(f.ops))
+	for _, op := range f.ops {
+		out = append(out, op)
+	}
+	return out
+}
+
 func (f *fakePluginService) Operation(id string) (pluginmgr.Operation, bool) {
 	op, ok := f.ops[id]
 	return op, ok
@@ -276,4 +284,18 @@ func TestPluginHandler_Uninstall(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, w.Code)
 	assert.Equal(t, "uninstall", body["kind"])
 	assert.Equal(t, "telegram", body["plugin_id"])
+}
+
+func TestPluginHandler_Operations(t *testing.T) {
+	svc := &fakePluginService{ops: map[string]pluginmgr.Operation{"op1": {ID: "op1", Kind: "install", Spec: "x@1", Status: pluginmgr.OpRunning}}}
+	r := newPluginRouter(svc)
+	r.GET("/api/plugins/operations", NewPluginHandler(svc).Operations)
+	w, _ := doJSON(t, r, http.MethodGet, "/api/plugins/operations", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Operations []map[string]any `json:"operations"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Len(t, body.Operations, 1)
+	assert.Equal(t, "running", body.Operations[0]["status"])
 }

@@ -300,3 +300,16 @@ func TestManager_NoStartAfterShutdown(t *testing.T) {
 	assert.Error(t, h.m.Enable(context.Background(), "telegram"))
 	assert.Equal(t, 0, h.factory.startCount("telegram"))
 }
+
+func TestManager_OperationsNewestFirst(t *testing.T) {
+	h := newHarness(t)
+	h.start()
+	first := h.m.Install("@theopenbee/channel-telegram@0.1.0")
+	second := h.m.Install("@theopenbee/channel-discord@0.1.0")
+	h.waitOp(first.ID)
+	h.waitOp(second.ID)
+	ops := h.m.Operations()
+	require.Len(t, ops, 2)
+	assert.Equal(t, second.ID, ops[0].ID)
+	assert.Equal(t, first.ID, ops[1].ID)
+}

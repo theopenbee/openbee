@@ -76,6 +76,16 @@ func (m *Manager) finishOp(id string, err error) {
 	})
 }
 
+func (m *Manager) Operations() []Operation {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Operation, 0, len(m.ops))
+	for i := len(m.ops) - 1; i >= 0; i-- {
+		out = append(out, *m.ops[i])
+	}
+	return out
+}
+
 func (m *Manager) Operation(id string) (Operation, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
