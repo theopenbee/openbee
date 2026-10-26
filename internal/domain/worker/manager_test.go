@@ -83,7 +83,7 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		engines:         engines,
 		engineCfg:       enginecfg.NewStore(defaultEngine),
 		envService:      envSvc,
-		botNamesLower:   botNames,
+		botNames:        func() []string { return botNames },
 		activeProcesses: make(map[string]ai.Process),
 	}
 	return m
@@ -457,4 +457,20 @@ func TestCreateWorker_WorkDir_BlankFallsBackToDefault(t *testing.T) {
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-blank", WorkDir: "   ", Engine: ai.EngineClaude})
 	require.NoError(t, err)
 	require.Equal(t, m.workerBaseDir, filepath.Dir(w.WorkDir))
+}
+
+func TestManager_ValidateWorkerNameUsesBotNameSource(t *testing.T) {
+	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+	mgr := newTestManager(t, engines, ai.EngineClaude)
+	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "gamma"})
+	require.NoError(t, err)
+
+	names := []string{" Delta "}
+	mgr.SetBotNameSource(func() []string { return names })
+	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "delta"})
+	require.ErrorIs(t, err, ErrValidation)
+
+	names = nil
+	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "delta"})
+	require.NoError(t, err)
 }

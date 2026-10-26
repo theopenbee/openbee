@@ -34,7 +34,7 @@ type Manager struct {
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
 	sysConfigStore systemConfigReader
-	botNamesLower  []string
+	botNames       func() []string
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -50,11 +50,6 @@ func NewManager(
 	envService *env.Service,
 	sysConfigStore systemConfigReader,
 ) *Manager {
-	rawBotNames := bc.Platforms.BotNames()
-	botNames := make([]string, len(rawBotNames))
-	for i, n := range rawBotNames {
-		botNames[i] = strings.ToLower(strings.TrimSpace(n))
-	}
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.RPC.TokenSecret,
@@ -66,7 +61,6 @@ func NewManager(
 		engineCfg:       engineCfg,
 		envService:      envService,
 		sysConfigStore:  sysConfigStore,
-		botNamesLower:   botNames,
 		activeProcesses: make(map[string]ai.Process),
 	}
 }
@@ -148,4 +142,26 @@ func (m *Manager) ValidateEngine(name string) error {
 		return fmt.Errorf("engine %q is not enabled", name)
 	}
 	return nil
+}
+
+func (m *Manager) SetBotNameSource(fn func() []string) {
+	m.mu.Lock()
+	m.botNames = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) conflictsWithBotName(name string) bool {
+	m.mu.RLock()
+	fn := m.botNames
+	m.mu.RUnlock()
+	if fn == nil {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(name))
+	for _, n := range fn() {
+		if strings.ToLower(strings.TrimSpace(n)) == lower {
+			return true
+		}
+	}
+	return false
 }

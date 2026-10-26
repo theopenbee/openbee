@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -116,8 +115,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 	if name == "" {
 		return fmt.Errorf("worker name cannot be empty: %w", ErrValidation)
 	}
-	lower := strings.ToLower(name)
-	if slices.Contains(m.botNamesLower, lower) {
+	if m.conflictsWithBotName(name) {
 		return fmt.Errorf("worker name %q conflicts with bot name: %w", name, ErrValidation)
 	}
 	exists, err := m.workerStore.ExistsByName(name, excludeID)

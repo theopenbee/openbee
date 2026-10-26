@@ -61,6 +61,7 @@ type Gateway struct {
 	cmdCh          chan commandTask  // serialized command dispatch queue
 	commandHandler CommandHandler   // intercepts slash commands before DB write
 	botNameREs     map[string]*regexp.Regexp // platform → compiled @mention regex
+	botMu          sync.RWMutex
 }
 
 // Option configures a Gateway.
@@ -69,17 +70,31 @@ type Option func(*Gateway)
 // WithPlatformBotNames sets a per-platform bot display name whose @mention is stripped
 // from message content before command matching, debounce accumulation, and DB storage.
 func WithPlatformBotNames(names map[string]string) Option {
+	res := compileBotNames(names)
+	return func(g *Gateway) { g.botNameREs = res }
+}
+
+func compileBotNames(names map[string]string) map[string]*regexp.Regexp {
 	res := make(map[string]*regexp.Regexp, len(names))
 	for platform, name := range names {
 		if name != "" {
 			res[platform] = regexp.MustCompile(`\s*@` + regexp.QuoteMeta(name) + `\s*`)
 		}
 	}
-	return func(g *Gateway) { g.botNameREs = res }
+	return res
+}
+
+func (g *Gateway) SetPlatformBotNames(names map[string]string) {
+	res := compileBotNames(names)
+	g.botMu.Lock()
+	g.botNameREs = res
+	g.botMu.Unlock()
 }
 
 func (g *Gateway) stripBotMention(content, platform string) string {
+	g.botMu.RLock()
 	re, ok := g.botNameREs[platform]
+	g.botMu.RUnlock()
 	if !ok || !strings.Contains(content, "@") {
 		return content
 	}

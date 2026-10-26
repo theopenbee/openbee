@@ -20,3 +20,10 @@ func TestExtractContext_Unregistered(t *testing.T) {
 	got := platform.ExtractContext("no-such-platform", "{}")
 	assert.Empty(t, got)
 }
+
+func TestUnregisterExtractor(t *testing.T) {
+	platform.RegisterExtractor("removable", func(_ string) string { return `{"removable":1}` })
+	assert.NotEmpty(t, platform.ExtractContext("removable", "raw"))
+	platform.UnregisterExtractor("removable")
+	assert.Empty(t, platform.ExtractContext("removable", "raw"))
+}

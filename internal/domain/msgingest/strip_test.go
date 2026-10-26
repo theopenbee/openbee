@@ -150,3 +150,28 @@ func TestStripBotMention(t *testing.T) {
 		})
 	}
 }
+
+func TestGateway_SetPlatformBotNamesStripsMention(t *testing.T) {
+	g := &Gateway{}
+	assert.Equal(t, "@bee hi", g.stripBotMention("@bee hi", "telegram"))
+	g.SetPlatformBotNames(map[string]string{"telegram": "bee"})
+	assert.Equal(t, "hi", g.stripBotMention("@bee hi", "telegram"))
+	g.SetPlatformBotNames(map[string]string{"discord": "bee"})
+	assert.Equal(t, "@bee hi", g.stripBotMention("@bee hi", "telegram"))
+	assert.Equal(t, "hi", g.stripBotMention("@bee hi", "discord"))
+}
+
+func TestGateway_SetPlatformBotNamesConcurrent(t *testing.T) {
+	g := &Gateway{}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 500; i++ {
+			g.SetPlatformBotNames(map[string]string{"telegram": "bee"})
+		}
+	}()
+	for i := 0; i < 500; i++ {
+		g.stripBotMention("@bee hi", "telegram")
+	}
+	<-done
+}

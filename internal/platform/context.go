@@ -33,3 +33,9 @@ func ExtractContext(platformName, raw string) string {
 	}
 	return fn(raw)
 }
+
+func UnregisterExtractor(name string) {
+	extractorsMu.Lock()
+	delete(extractors, name)
+	extractorsMu.Unlock()
+}
