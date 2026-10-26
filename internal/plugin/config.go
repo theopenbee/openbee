@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"strings"
 )
 
 func ResolveConfig(m Manifest, section map[string]any) (map[string]any, error) {
@@ -95,23 +94,4 @@ func isEmpty(v any) bool {
 		return len(x) == 0
 	}
 	return false
-}
-
-func SectionEnabled(section map[string]any) (bool, error) {
-	v, ok := section["enabled"]
-	if !ok || v == nil {
-		return false, nil
-	}
-	switch x := v.(type) {
-	case bool:
-		return x, nil
-	case string:
-		switch strings.ToLower(strings.TrimSpace(x)) {
-		case "true", "yes", "y", "on":
-			return true, nil
-		case "false", "no", "n", "off":
-			return false, nil
-		}
-	}
-	return false, fmt.Errorf("enabled must be true or false, got %v", v)
 }

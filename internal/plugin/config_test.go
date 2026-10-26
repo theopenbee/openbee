@@ -123,36 +123,3 @@ func TestResolveConfig_RequiredList(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ids")
 }
-
-func TestSectionEnabled(t *testing.T) {
-	cases := []struct {
-		name    string
-		section map[string]any
-		want    bool
-		wantErr bool
-	}{
-		{"absent", map[string]any{"token": "x"}, false, false},
-		{"nil section", nil, false, false},
-		{"bool true", map[string]any{"enabled": true}, true, false},
-		{"bool false", map[string]any{"enabled": false}, false, false},
-		{"yes", map[string]any{"enabled": "yes"}, true, false},
-		{"On", map[string]any{"enabled": "On"}, true, false},
-		{"quoted true", map[string]any{"enabled": "true"}, true, false},
-		{"no", map[string]any{"enabled": "no"}, false, false},
-		{"off", map[string]any{"enabled": "off"}, false, false},
-		{"garbage", map[string]any{"enabled": "maybe"}, false, true},
-		{"number", map[string]any{"enabled": 1}, false, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := SectionEnabled(tc.section)
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "enabled")
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}

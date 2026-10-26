@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
+	"github.com/theopenbee/openbee/internal/domain/pluginmgr"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -37,8 +39,8 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
-	"github.com/theopenbee/openbee/internal/platform/pluginchannel"
 	"github.com/theopenbee/openbee/internal/plugin"
+	"github.com/theopenbee/openbee/internal/plugin/catalog"
 	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/tokenstat"
 	webui "github.com/theopenbee/openbee/web"
@@ -46,11 +48,11 @@ import (
 
 // App holds all wired-up components and runs the server.
 type App struct {
-	db             *sql.DB
-	server         *routes.Server
-	runners        []func(ctx context.Context)
-	waitOnShutdown []<-chan struct{}
-	addr           string
+	db      *sql.DB
+	server  *routes.Server
+	runners []func(ctx context.Context)
+	plugins *pluginmgr.Manager
+	addr    string
 }
 
 // Run starts all goroutines, waits for a signal, then shuts down gracefully.
@@ -88,12 +90,8 @@ func (a *App) Run() {
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server shutdown error", zap.Error(err))
 	}
-	for _, done := range a.waitOnShutdown {
-		select {
-		case <-done:
-		case <-shutdownCtx.Done():
-			logger.Warn("timed out waiting for plugin channels to stop")
-		}
+	if err := a.plugins.Wait(shutdownCtx); err != nil {
+		logger.Warn("timed out waiting for plugin channels to stop")
 	}
 
 	a.db.Close()
@@ -158,30 +156,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform.Set(local.PlatformID, localSender)
 
-	mediaSvc := media.NewService()
-	pluginRuntime := plugin.NewRuntimeResolver()
-	pluginRuntime.OnInstall = func(version, dir string) {
-		logger.Info("no usable bun or node found, installing bun for plugins", zap.String("version", version), zap.String("dir", dir))
+	if len(cfg.Bee.LegacyPlatforms) > 0 {
+		logger.Warn("bee.platforms is no longer used; manage plugins with openbee plugin or the web UI")
 	}
-	var channels []platform.Channel
-	var pluginDone []<-chan struct{}
-	for _, b := range pluginchannel.BuildChannels(nil, pluginchannel.BuildOptions{
-		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
-		Runtime:  pluginRuntime,
-		MediaSvc: mediaSvc,
-		Migrator: s.taskStore,
-		Language: cfg.Language,
-	}) {
-		channels = append(channels, b.Channel)
-		pluginDone = append(pluginDone, b.Done)
+	pluginMgr, err := buildPluginManager(cfg, s, sendersByPlatform)
+	if err != nil {
+		return nil, err
 	}
-	for _, ch := range channels {
-		id := ch.Platform.ID()
-		if ch.ExtractContext != nil {
-			platform.RegisterExtractor(id, ch.ExtractContext)
-		}
-		sendersByPlatform.Set(id, store.NewLoggingPlatformSenderAdapter(ch.Platform.Sender(), s.outboundMsgStore, id))
-	}
+	mgr.SetBotNameSource(pluginMgr.BotNameList)
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
@@ -243,14 +225,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 		func(ctx context.Context) { reconciler.Run(ctx) },
 		func(ctx context.Context) { tokenSyncer.Run(ctx) },
 	}
-	for _, ch := range channels {
-		recv := ch.Platform.Receiver()
-		runners = append(runners, func(ctx context.Context) {
-			if err := recv.Start(ctx, ingest.Dispatch); err != nil {
-				logger.Error("platform receiver error", zap.Error(err))
-			}
-		})
-	}
+	runners = append(runners, func(ctx context.Context) {
+		pluginMgr.Start(ctx, ingest.Dispatch, ingest.SetPlatformBotNames)
+	})
 
 	localChatHandler := api.NewLocalChatHandler(
 		localReceiver, localHub,
@@ -259,13 +236,13 @@ func BuildApp(cfg config.Config) (*App, error) {
 		localMediaRoot,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, disp)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, disp, pluginMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	return &App{db: db, server: srv, runners: runners, waitOnShutdown: pluginDone, addr: addr}, nil
+	return &App{db: db, server: srv, runners: runners, plugins: pluginMgr, addr: addr}, nil
 }
 
 // appStores groups all store instances for passing to sub-builders.
@@ -285,6 +262,7 @@ type appStores struct {
 	tokenStatsStore   *store.TokenStatsStore
 	userStore         *store.UserStore
 	roleStore         *store.RoleStore
+	pluginSettings    *store.PluginSettingsStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -307,6 +285,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		tokenStatsStore:   store.NewTokenStatsStore(db),
 		userStore:         store.NewUserStore(db),
 		roleStore:         store.NewRoleStore(db),
+		pluginSettings:    store.NewPluginSettingsStore(db),
 	}, nil
 }
 
@@ -358,7 +337,7 @@ func buildDispatcher(
 	)
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller, plugins *pluginmgr.Manager) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -382,10 +361,42 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Users:             api.NewUserHandler(s.userStore, resolver),
 		Roles:             api.NewRoleHandler(s.roleStore, resolver),
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
+		Plugins:           api.NewPluginHandler(plugins),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
 		AuthMiddleware:    authMiddleware,
 		Resolver:          resolver,
 	})
+}
+
+func buildPluginManager(cfg config.Config, s appStores, senders *platform.SenderRegistry) (*pluginmgr.Manager, error) {
+	codec, err := pluginmgr.NewCodec(cfg.Server.EnvSecret, !cfg.Server.EnvSecretGenerated)
+	if err != nil {
+		return nil, fmt.Errorf("init plugin settings codec: %w", err)
+	}
+	runtime := plugin.NewRuntimeResolver()
+	runtime.OnInstall = func(version, dir string) {
+		logger.Info("no usable bun or node found, installing bun for plugins", zap.String("version", version), zap.String("dir", dir))
+	}
+	registry := plugin.OpenRegistry(plugin.DefaultDir())
+	return pluginmgr.New(pluginmgr.Deps{
+		Registry:  registry,
+		Installer: &plugin.Installer{Registry: registry, Runtime: runtime, Run: plugin.ExecRunner},
+		Store:     s.pluginSettings,
+		Codec:     codec,
+		Senders:   senders,
+		WrapSender: func(id string, sender platform.PlatformSenderAdapter) platform.PlatformSenderAdapter {
+			return store.NewLoggingPlatformSenderAdapter(sender, s.outboundMsgStore, id)
+		},
+		Factory: pluginmgr.PluginChannelFactory(runtime, media.NewService(), s.taskStore, cfg.Language),
+		WorkerNameTaken: func(name string) (bool, error) {
+			return s.workerStore.ExistsByName(name, "")
+		},
+		Catalog: catalog.NewClient(catalog.Options{
+			CachePath: filepath.Join(plugin.DefaultDir(), "catalog.json"),
+			Override:  os.Getenv("OPENBEE_PLUGIN_CATALOG"),
+		}),
+		Version: buildinfo.Version,
+	}), nil
 }

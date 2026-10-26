@@ -25,7 +25,7 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | Field | Rules |
 |---|---|
 | `protocol_version` | Must be `1`. |
-| `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
+| `id` | Channel id and session key prefix. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
 | `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee config` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
@@ -45,7 +45,7 @@ openbee plugin remove <id>
 - A directory argument is registered in place and loaded from that directory on every start.
 - Anything else is installed into `~/.openbee/plugins` by the package manager of the [runtime](#runtime): `npm install --save` on Node.js, `bun add` on Bun (any spec npm accepts: `name@version`, `github:owner/repo`, a tarball URL).
 - Installed plugins are recorded in `~/.openbee/plugins/plugins.json`. Each plugin gets a private writable directory `~/.openbee/plugins/data/<id>/`.
-- Installing or removing a plugin takes effect after openbee restarts.
+- A running openbee installs, upgrades and removes plugins without restarting; see [Configuration](#configuration).
 
 Plugins run with the user's permissions. Only install plugins you trust.
 
@@ -64,32 +64,25 @@ The local Bun is private to openbee: `PATH` and shell profiles are not changed, 
 
 ## Configuration
 
-Plugin channels are configured next to the built-in ones:
+openbee stores each plugin's settings in its database, encrypted with `server.env_secret`. `config.yaml` no longer holds plugin settings; a leftover `bee.platforms` section is ignored. A running openbee manages plugins through its HTTP API (`/api/plugins`, permissions `plugins:read` and `plugins:write`):
 
-```yaml
-bee:
-  platforms:
-    discord:
-      enabled: true
-      bot_name: OpenBee
-      token: "..."
-      allowed_guilds: ["123"]
-```
+| Request | Effect |
+|---|---|
+| `POST /api/plugins/install` `{"spec": "..."}` | Installs or upgrades in the background and returns an operation; poll `GET /api/plugins/operations/<id>`. An upgrade stops the running plugin, installs, and starts it again. |
+| `PUT /api/plugins/<id>/settings` `{"bot_name": "...", "config": {...}}` | Validates against `config[]` and saves. A `secret` field sent empty keeps its stored value. A `random_default` field that has no value gets a random one. Restarts only this plugin when it is enabled. |
+| `POST /api/plugins/<id>/enable`, `/disable`, `/restart` | Starts or stops only this plugin. |
+| `DELETE /api/plugins/<id>` | Stops the plugin, removes the package, and deletes its settings and `~/.openbee/plugins/data/<id>/`. |
+| `GET /api/plugins`, `GET /api/plugins/<id>` | Lists plugins with their state (`not_configured`, `disabled`, `starting`, `running`, `retrying`, `failed`) and last error. Secret values are masked. |
+| `GET /api/plugins/catalog` | Reads the plugin catalog `@theopenbee/plugins` from npm (npmmirror as a fallback, cached for 10 minutes). `OPENBEE_PLUGIN_CATALOG` can point to a local `catalog.json` file or URL. |
 
-At startup openbee, for every section with `enabled: true` that is not a built-in channel:
-
-1. Finds the installed plugin with that id.
-2. Applies manifest defaults, checks required fields and types, and removes `enabled` and `bot_name`.
-3. Starts the plugin and sends the result as `initialize.config`.
-
-If any step fails, openbee logs an error and skips only that channel. `bot_name` behaves as for built-in channels: an `@bot_name` mention is stripped from incoming text, and no worker may use that name.
+When openbee starts it starts every enabled plugin. Before it sends `initialize.config` it applies manifest defaults, checks required fields and types, and leaves out `bot_name`. A plugin that fails to start is marked `failed`; other channels are not affected. `bot_name` behaves as for built-in channels: an `@bot_name` mention is stripped from incoming text, and no worker may use that name.
 
 ## Setup
 
-When the user enables a plugin whose manifest declares `setup`, `openbee config` runs the setup command before asking for the `config[]` fields. If the section already has a value for every required field, it first asks whether to run the setup again.
+A client that configures a plugin whose manifest declares `setup` runs the setup command on the machine where openbee runs, before asking for the `config[]` fields, and saves the result as the plugin's settings.
 
 - The command runs in the plugin directory with stdin and stderr attached to the user's terminal, so it can show a QR code and ask questions there. `OPENBEE_LANGUAGE` holds the user's language (`en` or `zh`).
-- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. openbee stores the values in the channel's section and does not ask for those fields again.
+- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. The client saves the values and does not ask for those fields again.
 - On failure (non-zero exit or invalid output) openbee shows the error and asks for every field by hand.
 
 ## Process rules
