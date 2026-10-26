@@ -24,8 +24,6 @@ type ServerParams struct {
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
-	Users             *api.UserHandler
-	Roles             *api.RoleHandler
 	Setup             *api.SetupHandler
 	Plugins           *api.PluginHandler
 	BeeRPC            *rpc.Server
@@ -33,7 +31,6 @@ type ServerParams struct {
 	StaticFS          fs.FS
 	AuthMiddleware    gin.HandlerFunc
 	PluginsAuth       gin.HandlerFunc
-	Resolver          *auth.PermissionResolver
 }
 
 type Server struct {

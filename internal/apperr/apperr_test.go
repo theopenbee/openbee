@@ -11,9 +11,9 @@ import (
 )
 
 func TestCodeAndMessage(t *testing.T) {
-	err := apperr.New("last_super_admin", "cannot remove last super-admin")
-	require.Equal(t, "last_super_admin", apperr.Code(err))
-	require.Equal(t, "cannot remove last super-admin", err.Error())
+	err := apperr.New("department_has_sub", "department has sub-departments")
+	require.Equal(t, "department_has_sub", apperr.Code(err))
+	require.Equal(t, "department has sub-departments", err.Error())
 }
 
 func TestParams(t *testing.T) {

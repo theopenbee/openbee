@@ -1,7 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom"
 import { AppSidebar } from "@/components/app-sidebar"
 import { AppTopbar } from "@/components/app-topbar"
-import { ForbiddenBoundary } from "@/components/guard"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
@@ -41,11 +40,7 @@ export function Layout() {
               fullBleed ? "flex flex-col overflow-hidden" : "overflow-auto p-4 md:p-6"
             )}
           >
-            {/* Keyed by path so navigating away from a forbidden page clears the
-                boundary's caught-error state. */}
-            <ForbiddenBoundary key={pathname}>
-              <Outlet />
-            </ForbiddenBoundary>
+            <Outlet />
           </main>
         </SidebarInset>
       </div>

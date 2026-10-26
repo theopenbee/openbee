@@ -238,24 +238,7 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 }
 
 func TestMigration_BackfillsTaskSessionTarget(t *testing.T) {
-	db, err := sql.Open("sqlite", t.TempDir()+"/pre51.db")
-	require.NoError(t, err)
-	defer db.Close()
-
-	_, err = db.Exec(`CREATE TABLE bee_migrations (
-		version    INTEGER PRIMARY KEY,
-		name       TEXT NOT NULL,
-		applied_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-	)`)
-	require.NoError(t, err)
-
-	var before []migration
-	for _, m := range migrations {
-		if m.version < 51 {
-			before = append(before, m)
-		}
-	}
-	require.NoError(t, applyMigrations(db, before))
+	db := openPreMigrationDB(t, 51)
 
 	for _, q := range []string{
 		seedWorkerSQL("w1"),
@@ -277,4 +260,96 @@ func TestMigration_BackfillsTaskSessionTarget(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT session_key, platform FROM bee_tasks WHERE id = 't-orphan'`).Scan(&sessionKey, &platform))
 	assert.Empty(t, sessionKey)
 	assert.Empty(t, platform)
+}
+
+func openPreMigrationDB(t *testing.T, version int) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", t.TempDir()+"/pre.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	_, err = db.Exec(`CREATE TABLE bee_migrations (
+		version    INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		applied_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+	)`)
+	require.NoError(t, err)
+
+	var before []migration
+	for _, m := range migrations {
+		if m.version < version {
+			before = append(before, m)
+		}
+	}
+	require.NoError(t, applyMigrations(db, before))
+	return db
+}
+
+func seedLegacyUser(t *testing.T, db *sql.DB, id, status string, createdAt int64, roleIDs ...string) {
+	t.Helper()
+	_, err := db.Exec(`INSERT INTO bee_users (id, username, password_hash, status, created_at, updated_at) VALUES (?, ?, 'x', ?, ?, ?)`,
+		id, id, status, createdAt, createdAt)
+	require.NoError(t, err)
+	for _, rid := range roleIDs {
+		_, err := db.Exec(`INSERT INTO bee_user_roles (user_id, role_id, created_at) VALUES (?, ?, 1)`, id, rid)
+		require.NoError(t, err)
+	}
+}
+
+func remainingUserIDs(t *testing.T, db *sql.DB) []string {
+	t.Helper()
+	rows, err := db.Query(`SELECT id FROM bee_users ORDER BY id`)
+	require.NoError(t, err)
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		require.NoError(t, rows.Scan(&id))
+		ids = append(ids, id)
+	}
+	require.NoError(t, rows.Err())
+	return ids
+}
+
+func TestMigration_DropsRBACAndKeepsFirstActiveSuperAdmin(t *testing.T) {
+	db := openPreMigrationDB(t, 53)
+	_, err := db.Exec(`INSERT INTO bee_roles (id, name, created_at, updated_at) VALUES ('r-ops', 'ops', 1, 1)`)
+	require.NoError(t, err)
+	seedLegacyUser(t, db, "operator", "active", 1, "r-ops")
+	seedLegacyUser(t, db, "disabled-admin", "disabled", 2, "sysrole_superadmin")
+	seedLegacyUser(t, db, "first-admin", "active", 3, "sysrole_superadmin")
+	seedLegacyUser(t, db, "later-admin", "active", 4, "sysrole_superadmin")
+
+	require.NoError(t, migrate(db))
+
+	assert.Equal(t, []string{"first-admin"}, remainingUserIDs(t, db))
+	for _, table := range []string{"bee_roles", "bee_role_permissions", "bee_user_roles"} {
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&n))
+		assert.Zero(t, n, table)
+	}
+	for _, column := range []string{"status", "created_by"} {
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('bee_users') WHERE name=?`, column).Scan(&n))
+		assert.Zero(t, n, column)
+	}
+}
+
+func TestMigration_DropRBACFallsBackToEarliestActiveUser(t *testing.T) {
+	db := openPreMigrationDB(t, 53)
+	seedLegacyUser(t, db, "disabled", "disabled", 1)
+	seedLegacyUser(t, db, "active", "active", 2)
+	seedLegacyUser(t, db, "later", "active", 3)
+
+	require.NoError(t, migrate(db))
+
+	assert.Equal(t, []string{"active"}, remainingUserIDs(t, db))
+}
+
+func TestMigration_DropRBACOnEmptyUsers(t *testing.T) {
+	db := openPreMigrationDB(t, 53)
+
+	require.NoError(t, migrate(db))
+
+	assert.Empty(t, remainingUserIDs(t, db))
 }

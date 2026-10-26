@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom"
 import { useTranslation, Trans } from "react-i18next"
 import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
-import { useCan } from "@/hooks/use-can"
-import { Perm } from "@/lib/permissions"
 import { useDepartments, useFlatDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative, formatTimestamp } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -60,7 +58,6 @@ type WorkerRowAction = {
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const canWrite = useCan(Perm.ContactsWrite)
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
   const { data: departments = [] } = useDepartments()
@@ -140,13 +137,11 @@ export function Workers() {
                 </p>
               )}
             </div>
-            {canWrite && (
-              <div className="flex shrink-0 items-center gap-2">
-                <Button onClick={() => navigate("/workers/create")}>
-                  {t("workers.createWorker")}
-                </Button>
-              </div>
-            )}
+            <div className="flex shrink-0 items-center gap-2">
+              <Button onClick={() => navigate("/workers/create")}>
+                {t("workers.createWorker")}
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center border-b px-4 py-2 lg:hidden">
@@ -188,7 +183,7 @@ export function Workers() {
           title={activeDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
           description={activeDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
           action={
-            activeDeptId === null && canWrite ? (
+            activeDeptId === null ? (
               <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
             ) : undefined
           }
@@ -208,12 +203,8 @@ export function Workers() {
               {displayedWorkers.map((w) => {
                 const rowActions: WorkerRowAction[] = [
                   { key: "view", icon: EyeIcon, label: t("common.view"), onClick: () => navigate(`/workers/${w.id}`) },
-                  ...(canWrite
-                    ? [
-                        { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
-                        { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
-                      ]
-                    : []),
+                  { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
+                  { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
                 ]
                 return (
                 <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">

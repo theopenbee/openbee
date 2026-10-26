@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Removed
+- Remove user and role management; keep one admin account.
+
 ### Fixed
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.

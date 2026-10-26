@@ -88,7 +88,7 @@ func TestSetup_ClaimsLegacyChatForFirstAdmin(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	ownerID, ok, err := us.FirstActiveSuperAdminID()
+	ownerID, ok, err := us.AdminID()
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, []string{ownerID}, claimed)

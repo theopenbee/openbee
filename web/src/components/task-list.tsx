@@ -26,9 +26,7 @@ import { PaginationControls } from "@/components/pagination-controls"
 import { StatusBadge } from "@/components/status-badge"
 import { WorkerLink } from "@/components/worker-link"
 import type { Task } from "@/lib/types"
-import { useCan } from "@/hooks/use-can"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Perm } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { formatTimestamp, STATUS_ROW_BORDER } from "@/lib/format"
@@ -76,7 +74,6 @@ export function TaskList({
   onPageChange,
 }: TaskListProps) {
   const { t } = useTranslation()
-  const canWrite = useCan(Perm.TasksWrite)
   const isMobile = useIsMobile()
   const [internalPage, setInternalPage] = useState(1)
   const page = controlledPage ?? internalPage
@@ -92,11 +89,11 @@ export function TaskList({
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize))
 
   const mutationError = cancelTask.error || cancelAll.error
-  const canCancel = (task: Task) => task.status === "pending" && canWrite
+  const canCancel = (task: Task) => task.status === "pending"
 
   return (
     <div>
-      {workerId && canWrite && !isLoading && tasks.length > 0 && (
+      {workerId && !isLoading && tasks.length > 0 && (
         <div className="flex justify-end mb-4">
           <Button
             variant="outline"

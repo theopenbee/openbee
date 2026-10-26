@@ -20,21 +20,17 @@ import {
 
 // A leaf is a direct link (icon + label). A group is a collapsible header
 // (icon + label + chevron) whose children are plain, indented text links.
-// An optional `perm` marks the entry as permission-gated; gating itself is
-// applied by the caller (see app-sidebar) before items reach this component.
-export type NavSubItem = { title: string; url: string; perm?: string; section?: string }
+export type NavSubItem = { title: string; url: string; section?: string }
 
 export type NavLeaf = {
   title: string
   url: string
   icon: React.ReactNode
-  perm?: string
 }
 
 export type NavGroupItem = {
   title: string
   icon: React.ReactNode
-  perm?: string
   items: NavSubItem[]
 }
 
@@ -47,10 +43,10 @@ function isGroup(item: NavEntry): item is NavGroupItem {
 type IsActive = (url: string) => boolean
 
 // A collapsible group. Its open state is controlled so it can follow the active
-// route: when navigation lands on one of its children (e.g. a post-login
-// redirect to /departments), the group auto-opens. The `defaultOpen` prop alone
-// wouldn't cover this — it's read once at mount, before in-app redirects change
-// the route. Adjusting state during render (rather than in an effect) opens the
+// route: when navigation lands on one of its children (e.g. a dashboard quick
+// link to /departments), the group auto-opens. The `defaultOpen` prop alone
+// wouldn't cover this — it's read once at mount, before in-app navigation
+// changes the route. Adjusting state during render (rather than in an effect) opens the
 // group synchronously, with no collapsed flash.
 function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }) {
   const childActive = item.items.some((sub) => isActive(sub.url))
@@ -80,8 +76,8 @@ function NavGroup({ item, isActive }: { item: NavGroupItem; isActive: IsActive }
         <SidebarMenuSub className="mx-0 gap-1 border-l-0 px-0 pl-[2.125rem]">
           {item.items.map((sub, i) => {
             // Render a small section header whenever this sub-item's
-            // section differs from the previous (already permission-
-            // filtered) one. Sub-items without a section render plain.
+            // section differs from the previous one. Sub-items without a
+            // section render plain.
             const showSection =
               sub.section && sub.section !== item.items[i - 1]?.section
             return (

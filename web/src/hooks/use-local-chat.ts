@@ -47,7 +47,7 @@ export function useSendMessage() {
 }
 
 // Stop reconnecting after this many consecutive failures so an unrecoverable
-// error (revoked permission, server down) can't spin a reconnect loop forever.
+// error (expired session, server down) can't spin a reconnect loop forever.
 const MAX_RECONNECT_ATTEMPTS = 5
 
 // Calls onReply on each new reply event and re-fetches history on reconnect.
@@ -91,7 +91,7 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
       es.onerror = () => {
         es.close()
         clearTimeout(reconnectTimer)
-        // A connection that never opened (e.g. a 403) has no gap to backfill and
+        // A connection that never opened (e.g. a 401) has no gap to backfill and
         // would only spawn another failing request — only re-fetch history after
         // a real disconnect from a previously-open stream.
         if (everConnected) {

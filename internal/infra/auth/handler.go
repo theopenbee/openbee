@@ -9,21 +9,20 @@ import (
 
 // UserAuthenticator authenticates credentials and loads user data.
 type UserAuthenticator interface {
-	Authenticate(username, password string) (model.UserWithRoles, error)
-	GetByID(id string) (model.UserWithRoles, error)
+	Authenticate(username, password string) (model.User, error)
+	GetByID(id string) (model.User, error)
 	SetPassword(id, plainPassword string) error
-	UserAuthState(userID string) (status string, passwordChangedAt int64, err error)
+	PasswordChangedAt(userID string) (int64, error)
 }
 
 type AuthHandler struct {
 	users       UserAuthenticator
 	jwtSvc      *JWTService
 	rateLimiter *LoginRateLimiter
-	resolver    *PermissionResolver
 }
 
-func NewAuthHandler(users UserAuthenticator, jwtSvc *JWTService, rateLimiter *LoginRateLimiter, resolver *PermissionResolver) *AuthHandler {
-	return &AuthHandler{users: users, jwtSvc: jwtSvc, rateLimiter: rateLimiter, resolver: resolver}
+func NewAuthHandler(users UserAuthenticator, jwtSvc *JWTService, rateLimiter *LoginRateLimiter) *AuthHandler {
+	return &AuthHandler{users: users, jwtSvc: jwtSvc, rateLimiter: rateLimiter}
 }
 
 type loginRequest struct {
@@ -82,9 +81,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 	// A refresh token minted before the user's last password change must not mint
 	// new access tokens — otherwise a stale session could refresh indefinitely
-	// after the password was changed or reset. This path bypasses AuthMiddleware,
+	// after the password was changed. This path bypasses AuthMiddleware,
 	// so the same check is repeated here.
-	_, passwordChangedAt, err := h.users.UserAuthState(uid)
+	passwordChangedAt, err := h.users.PasswordChangedAt(uid)
 	if err != nil || TokenPredatesPasswordChange(issuedAt, passwordChangedAt) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
@@ -97,25 +96,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, refreshResponse{AccessToken: accessToken, ExpiresIn: expiresIn})
 }
 
-type meResponse struct {
-	model.UserWithRoles
-	Permissions []string `json:"permissions"`
-}
-
-// Me returns the current user with resolved permissions.
 func (h *AuthHandler) Me(c *gin.Context) {
-	uid := UserID(c)
-	user, err := h.users.GetByID(uid)
+	user, err := h.users.GetByID(UserID(c))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-	perms, err := h.resolver.PermissionsFor(uid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve permissions"})
-		return
-	}
-	c.JSON(http.StatusOK, meResponse{UserWithRoles: user, Permissions: perms})
+	c.JSON(http.StatusOK, user)
 }
 
 type changePasswordRequest struct {

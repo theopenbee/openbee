@@ -6,43 +6,10 @@ type User struct {
 	Username     string `json:"username" db:"username"`
 	PasswordHash string `json:"-" db:"password_hash"`
 	DisplayName  string `json:"display_name" db:"display_name"`
-	Status       string `json:"status" db:"status"`
-	CreatedBy    string `json:"created_by" db:"created_by"`
 	CreatedAt    int64  `json:"created_at" db:"created_at"`
 	UpdatedAt    int64  `json:"updated_at" db:"updated_at"`
 	// PasswordChangedAt is the millisecond timestamp (floored to the second) of
 	// the last password change. Access/refresh tokens issued before this instant
-	// are rejected, forcing a re-login after any password change or admin reset.
+	// are rejected, forcing a re-login after any password change.
 	PasswordChangedAt int64 `json:"-" db:"password_changed_at"`
 }
-
-// UserWithRoles is a user plus its assigned roles, for list/detail responses.
-type UserWithRoles struct {
-	User
-	Roles []Role `json:"roles"`
-}
-
-// Role is an RBAC role.
-type Role struct {
-	ID          string `json:"id" db:"id"`
-	Name        string `json:"name" db:"name"`
-	Description string `json:"description" db:"description"`
-	IsSystem    bool   `json:"is_system" db:"is_system"`
-	CreatedAt   int64  `json:"created_at" db:"created_at"`
-	UpdatedAt   int64  `json:"updated_at" db:"updated_at"`
-}
-
-// RoleWithPermissions is a role plus its permission keys.
-type RoleWithPermissions struct {
-	Role
-	Permissions []string `json:"permissions"`
-}
-
-// User status constants.
-const (
-	UserStatusActive   = "active"
-	UserStatusDisabled = "disabled"
-)
-
-// RoleIDSuperAdmin is the sole seed system role (inserted by migration v47).
-const RoleIDSuperAdmin = "sysrole_superadmin"

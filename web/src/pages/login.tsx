@@ -32,10 +32,9 @@ export function Login() {
     setLoading(false)
 
     if (result.success) {
-      // Backstop against stale per-user cache: any logout path that funnels
-      // through this form (including a forced 401 redirect) starts the new
-      // session with an empty cache, so we never read the previous user's
-      // permissions/me.
+      // Backstop against stale cache: any logout path that funnels through this
+      // form (including a forced 401 redirect) starts the new session with an
+      // empty cache, so we never read the previous session's data.
       queryClient.clear()
       navigate("/", { replace: true })
     } else if (result.status === 401) {

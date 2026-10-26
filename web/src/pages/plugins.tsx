@@ -28,8 +28,6 @@ import {
   useUninstallPlugin,
   type PluginAction,
 } from "@/hooks/use-plugins"
-import { useCan } from "@/hooks/use-can"
-import { Perm } from "@/lib/permissions"
 import { filterCatalog, formatElapsed, localize, marketAction, pendingInstalls } from "@/lib/plugins"
 import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
 import { cn, getErrorMessage } from "@/lib/utils"
@@ -101,7 +99,6 @@ export function Plugins() {
 function Market({ operations }: { operations: PluginOperation[] }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const canWrite = useCan(Perm.PluginsWrite)
   const catalog = usePluginCatalog()
   const install = useInstallPlugin()
   const [query, setQuery] = useState("")
@@ -219,7 +216,6 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                     plugin={p}
                     op={op}
                     now={now}
-                    canWrite={canWrite}
                     onInstall={() => startInstall(p)}
                     onConfigure={() => navigate(`/plugins/${p.id}`)}
                   />
@@ -246,7 +242,6 @@ function MarketButton({
   plugin,
   op,
   now,
-  canWrite,
   onInstall,
   onConfigure,
 }: {
@@ -254,7 +249,6 @@ function MarketButton({
   plugin: CatalogPlugin
   op?: PluginOperation
   now: number
-  canWrite: boolean
   onInstall: () => void
   onConfigure: () => void
 }) {
@@ -275,7 +269,7 @@ function MarketButton({
       )
     case "update":
       return (
-        <Button size="sm" variant="outline" disabled={!canWrite} onClick={onInstall}>
+        <Button size="sm" variant="outline" onClick={onInstall}>
           {t("plugins.action.update", { version: plugin.version })}
         </Button>
       )
@@ -287,7 +281,7 @@ function MarketButton({
       )
     default:
       return (
-        <Button size="sm" disabled={!canWrite} onClick={onInstall}>
+        <Button size="sm" onClick={onInstall}>
           {t("plugins.action.install")}
         </Button>
       )
@@ -297,7 +291,6 @@ function MarketButton({
 function Installed({ onBrowse }: { onBrowse: () => void }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const canWrite = useCan(Perm.PluginsWrite)
   const plugins = usePlugins()
   const action = usePluginAction()
   const uninstall = useUninstallPlugin()
@@ -362,44 +355,40 @@ function Installed({ onBrowse }: { onBrowse: () => void }) {
               <Button size="sm" variant="outline" onClick={() => navigate(`/plugins/${p.id}`)}>
                 {t("plugins.action.configure")}
               </Button>
-              {canWrite && (
-                <>
-                  {p.enabled ? (
-                    <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run(p, "disable")}>
-                      {t("plugins.action.disable")}
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={action.isPending || p.state === "not_configured"}
-                      onClick={() => run(p, "enable")}
-                    >
-                      {t("plugins.action.enable")}
-                    </Button>
-                  )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t("plugins.action.more")} />}>
-                      <MoreHorizontalIcon className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-36">
-                      {p.enabled && (
-                        <Fragment>
-                          <DropdownMenuItem onClick={() => run(p, "restart")}>
-                            <RotateCwIcon className="size-4" />
-                            {t("plugins.action.restart")}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                        </Fragment>
-                      )}
-                      <DropdownMenuItem variant="destructive" onClick={() => setTarget(p)}>
-                        <Trash2Icon className="size-4" />
-                        {t("plugins.action.uninstall")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
+              {p.enabled ? (
+                <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run(p, "disable")}>
+                  {t("plugins.action.disable")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={action.isPending || p.state === "not_configured"}
+                  onClick={() => run(p, "enable")}
+                >
+                  {t("plugins.action.enable")}
+                </Button>
               )}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={t("plugins.action.more")} />}>
+                  <MoreHorizontalIcon className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-36">
+                  {p.enabled && (
+                    <Fragment>
+                      <DropdownMenuItem onClick={() => run(p, "restart")}>
+                        <RotateCwIcon className="size-4" />
+                        {t("plugins.action.restart")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </Fragment>
+                  )}
+                  <DropdownMenuItem variant="destructive" onClick={() => setTarget(p)}>
+                    <Trash2Icon className="size-4" />
+                    {t("plugins.action.uninstall")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         ))}

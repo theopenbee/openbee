@@ -45,9 +45,7 @@ import { observeResize } from "@/lib/resize-observer"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
 import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
-import { useMe } from "@/hooks/use-me"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { hasPermission, Perm } from "@/lib/permissions"
 import { MentionTextarea } from "@/components/mention-textarea"
 
 const EMPTY_WORKERS: Worker[] = []
@@ -327,12 +325,7 @@ export function LocalChat() {
   }, [])
   useLocalChatStream(handleReply)
 
-  // @mention autocomplete is an enhancement gated on workers:read. Users who can
-  // chat but cannot browse the worker directory simply get no mention list — we
-  // skip the request entirely so it never 403s and tears down the whole page.
-  const { data: me } = useMe()
-  const canMention = hasPermission(me?.permissions, Perm.ContactsRead)
-  const { data: workersData } = useWorkers(undefined, { enabled: canMention })
+  const { data: workersData } = useWorkers()
 
   useEffect(() => {
     const container = scrollContainerRef.current

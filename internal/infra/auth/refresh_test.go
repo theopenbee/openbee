@@ -14,17 +14,17 @@ import (
 )
 
 type fakeAuthenticator struct {
-	user model.UserWithRoles
+	user model.User
 	err  error
 }
 
-func (f fakeAuthenticator) Authenticate(string, string) (model.UserWithRoles, error) {
+func (f fakeAuthenticator) Authenticate(string, string) (model.User, error) {
 	return f.user, f.err
 }
-func (f fakeAuthenticator) GetByID(string) (model.UserWithRoles, error) { return f.user, f.err }
-func (f fakeAuthenticator) SetPassword(string, string) error            { return nil }
-func (f fakeAuthenticator) UserAuthState(string) (string, int64, error) {
-	return f.user.Status, f.user.PasswordChangedAt, f.err
+func (f fakeAuthenticator) GetByID(string) (model.User, error) { return f.user, f.err }
+func (f fakeAuthenticator) SetPassword(string, string) error   { return nil }
+func (f fakeAuthenticator) PasswordChangedAt(string) (int64, error) {
+	return f.user.PasswordChangedAt, f.err
 }
 
 func serveRefresh(h *AuthHandler, refreshToken string) *httptest.ResponseRecorder {
@@ -45,14 +45,14 @@ func TestRefresh_RejectsRefreshTokenIssuedBeforePasswordChange(t *testing.T) {
 
 	// Password changed after the refresh token was minted -> refresh must fail so
 	// the stale session cannot keep minting access tokens.
-	changed := model.UserWithRoles{User: model.User{ID: "u1", PasswordChangedAt: time.Now().Add(time.Hour).UnixMilli()}}
-	h := NewAuthHandler(fakeAuthenticator{user: changed}, jwt, nil, nil)
+	changed := model.User{ID: "u1", PasswordChangedAt: time.Now().Add(time.Hour).UnixMilli()}
+	h := NewAuthHandler(fakeAuthenticator{user: changed}, jwt, nil)
 	rec := serveRefresh(h, pair.RefreshToken)
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 
 	// Password change in the past -> the refresh token still works.
-	ok := model.UserWithRoles{User: model.User{ID: "u1", PasswordChangedAt: time.Now().Add(-time.Hour).UnixMilli()}}
-	h2 := NewAuthHandler(fakeAuthenticator{user: ok}, jwt, nil, nil)
+	ok := model.User{ID: "u1", PasswordChangedAt: time.Now().Add(-time.Hour).UnixMilli()}
+	h2 := NewAuthHandler(fakeAuthenticator{user: ok}, jwt, nil)
 	rec2 := serveRefresh(h2, pair.RefreshToken)
 	require.Equal(t, http.StatusOK, rec2.Code)
 }

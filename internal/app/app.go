@@ -197,7 +197,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
 
-	if err := legacyChat.Restore(context.Background(), s.userStore.FirstActiveSuperAdminID); err != nil {
+	if err := legacyChat.Restore(context.Background(), s.userStore.AdminID); err != nil {
 		logger.Error("restore legacy local chat", zap.Error(err))
 	}
 
@@ -262,7 +262,6 @@ type appStores struct {
 	statsStore        *store.StatsStore
 	tokenStatsStore   *store.TokenStatsStore
 	userStore         *store.UserStore
-	roleStore         *store.RoleStore
 	pluginSettings    *store.PluginSettingsStore
 }
 
@@ -285,7 +284,6 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		statsStore:        store.NewStatsStore(db),
 		tokenStatsStore:   store.NewTokenStatsStore(db),
 		userStore:         store.NewUserStore(db),
-		roleStore:         store.NewRoleStore(db),
 		pluginSettings:    store.NewPluginSettingsStore(db),
 	}, nil
 }
@@ -342,8 +340,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
-	resolver := auth.NewPermissionResolver(s.userStore.PermissionsForUser)
-	authHandler := auth.NewAuthHandler(s.userStore, jwtSvc, rateLimiter, resolver)
+	authHandler := auth.NewAuthHandler(s.userStore, jwtSvc, rateLimiter)
 	authMiddleware := auth.AuthMiddleware(jwtSvc, s.userStore)
 	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 
@@ -359,8 +356,6 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
-		Users:             api.NewUserHandler(s.userStore, resolver),
-		Roles:             api.NewRoleHandler(s.roleStore, resolver),
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
 		Plugins:           api.NewPluginHandler(plugins),
 		BeeRPC:            beeRPCSrv,
@@ -368,7 +363,6 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		StaticFS:          webui.DistFS,
 		AuthMiddleware:    authMiddleware,
 		PluginsAuth:       auth.PluginsAuth(jwtSvc, s.userStore, rpcCfg.TokenSecret),
-		Resolver:          resolver,
 	})
 }
 

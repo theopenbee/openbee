@@ -13,19 +13,17 @@ import (
 
 	"github.com/theopenbee/openbee/internal/api"
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 type activeUsers struct{}
 
-func (activeUsers) UserAuthState(string) (string, int64, error) {
-	return model.UserStatusActive, 0, nil
+func (activeUsers) PasswordChangedAt(string) (int64, error) {
+	return 0, nil
 }
 
 func TestServer_AdminTokenReachesOnlyPluginRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	jwt := auth.NewJWTService("s", time.Hour, time.Hour)
-	resolver := auth.NewPermissionResolver(func(string) ([]string, error) { return nil, nil })
 	s, err := NewServer(ServerParams{
 		Plugins:        api.NewPluginHandler(nil),
 		Workers:        &api.WorkerHandler{},
@@ -33,7 +31,6 @@ func TestServer_AdminTokenReachesOnlyPluginRoutes(t *testing.T) {
 		PluginsAuth: func(c *gin.Context) {
 			c.AbortWithStatus(http.StatusTeapot)
 		},
-		Resolver: resolver,
 		StaticFS: fstest.MapFS{"dist/index.html": {Data: []byte("ok")}},
 	})
 	require.NoError(t, err)

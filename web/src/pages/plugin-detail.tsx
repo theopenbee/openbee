@@ -25,9 +25,7 @@ import {
   useUpdatePluginSettings,
   type PluginAction,
 } from "@/hooks/use-plugins"
-import { useCan } from "@/hooks/use-can"
 import { ApiError } from "@/lib/api"
-import { Perm } from "@/lib/permissions"
 import { buildSettingsPayload, initialFormValues, invalidIntFields, localize, pendingInstalls, type FormValues } from "@/lib/plugins"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { cn, getErrorMessage } from "@/lib/utils"
@@ -37,7 +35,6 @@ export function PluginDetail() {
   const { id = "" } = useParams()
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
-  const canWrite = useCan(Perm.PluginsWrite)
   const detail = usePlugin(id)
   const catalog = usePluginCatalog()
   const action = usePluginAction()
@@ -95,25 +92,23 @@ export function PluginDetail() {
                 {[d.package, d.id].filter(Boolean).join(" · ")}
               </div>
             </div>
-            {canWrite && (
-              <div className="flex flex-wrap gap-2">
-                {d.enabled ? (
-                  <Button variant="outline" size="sm" disabled={action.isPending} onClick={() => run("disable")}>
-                    {t("plugins.action.disable")}
-                  </Button>
-                ) : (
-                  <Button size="sm" disabled={action.isPending || d.state === "not_configured"} onClick={() => run("enable")}>
-                    {t("plugins.action.enable")}
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" disabled={action.isPending || !d.enabled} onClick={() => run("restart")}>
-                  {t("plugins.action.restart")}
+            <div className="flex flex-wrap gap-2">
+              {d.enabled ? (
+                <Button variant="outline" size="sm" disabled={action.isPending} onClick={() => run("disable")}>
+                  {t("plugins.action.disable")}
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => setConfirmUninstall(true)}>
-                  {t("plugins.action.uninstall")}
+              ) : (
+                <Button size="sm" disabled={action.isPending || d.state === "not_configured"} onClick={() => run("enable")}>
+                  {t("plugins.action.enable")}
                 </Button>
-              </div>
-            )}
+              )}
+              <Button variant="outline" size="sm" disabled={action.isPending || !d.enabled} onClick={() => run("restart")}>
+                {t("plugins.action.restart")}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setConfirmUninstall(true)}>
+                {t("plugins.action.uninstall")}
+              </Button>
+            </div>
           </div>
         </DetailHero>
 
@@ -132,7 +127,7 @@ export function PluginDetail() {
                   <div className="text-sm font-medium">{setupLabel}</div>
                   <div className="text-xs text-muted-foreground">{t("plugins.setup.cardHint")}</div>
                 </div>
-                <Button size="sm" disabled={!canWrite} onClick={() => setSetupOpen(true)}>
+                <Button size="sm" onClick={() => setSetupOpen(true)}>
                   <QrCodeIcon />
                   {t("plugins.setup.start")}
                 </Button>
@@ -142,14 +137,12 @@ export function PluginDetail() {
               key={`${resetKey}:${JSON.stringify(d.config)}:${d.bot_name}`}
               detail={d}
               name={name}
-              canWrite={canWrite}
               onReset={() => setResetKey((k) => k + 1)}
             />
           </Panel>
           <InfoPanel
             detail={d}
             entry={entry}
-            canWrite={canWrite}
             installing={install.isPending || Boolean(entry && pendingInstalls(operations.data ?? [])[entry.package])}
             onUpdate={(spec) => install.mutate(spec, { onError: (err) => toast.error(getErrorMessage(err)) })}
           />
@@ -199,7 +192,7 @@ function Field({ label, htmlFor, required, help, children }: { label: string; ht
   )
 }
 
-function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; name: string; canWrite: boolean; onReset: () => void }) {
+function SettingsForm({ detail, name, onReset }: { detail: Detail; name: string; onReset: () => void }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language
   const save = useUpdatePluginSettings(detail.id)
@@ -239,7 +232,7 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
     switch (f.type) {
       case "bool":
         return (
-          <Switch id={id} checked={Boolean(value)} disabled={!canWrite} onCheckedChange={(checked) => set(f.key, checked)} />
+          <Switch id={id} checked={Boolean(value)} onCheckedChange={(checked) => set(f.key, checked)} />
         )
       case "list":
         return (
@@ -248,7 +241,6 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
             rows={3}
             className="rounded-sm font-mono"
             value={String(value ?? "")}
-            disabled={!canWrite}
             placeholder={t("plugins.detail.listHelp")}
             onChange={(e) => set(f.key, e.target.value)}
           />
@@ -262,7 +254,6 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
             autoComplete="new-password"
             className="rounded-sm"
             value={String(value ?? "")}
-            disabled={!canWrite}
             placeholder={mask ? t("plugins.detail.secretSaved", { mask }) : defaultHint}
             onChange={(e) => set(f.key, e.target.value)}
           />
@@ -276,7 +267,6 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
             aria-invalid={invalid.includes(f.key) || undefined}
             className={cn("rounded-sm", f.type === "int" && "font-mono")}
             value={String(value ?? "")}
-            disabled={!canWrite}
             placeholder={defaultHint}
             onChange={(e) => set(f.key, e.target.value)}
           />
@@ -292,7 +282,6 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
         submit()
       }}
     >
-      {!canWrite && <p className="text-sm text-muted-foreground">{t("plugins.detail.readonly")}</p>}
       {detail.fields.map((f) => (
         <Field key={f.key} htmlFor={`plugin-field-${f.key}`} label={labelOf(f)} required={f.required} help={localize(f.help, lang) || undefined}>
           {input(f)}
@@ -303,20 +292,17 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
           id="plugin-bot-name"
           className="rounded-sm"
           value={botName}
-          disabled={!canWrite}
           onChange={(e) => setBotName(e.target.value)}
         />
       </Field>
-      {canWrite && (
-        <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-4">
-          <Button type="button" variant="ghost" size="sm" onClick={onReset}>
-            {t("plugins.detail.reset")}
-          </Button>
-          <Button type="submit" size="sm" disabled={save.isPending}>
-            {t("common.save")}
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-4">
+        <Button type="button" variant="ghost" size="sm" onClick={onReset}>
+          {t("plugins.detail.reset")}
+        </Button>
+        <Button type="submit" size="sm" disabled={save.isPending}>
+          {t("common.save")}
+        </Button>
+      </div>
     </form>
   )
 }
@@ -324,13 +310,11 @@ function SettingsForm({ detail, name, canWrite, onReset }: { detail: Detail; nam
 function InfoPanel({
   detail,
   entry,
-  canWrite,
   installing,
   onUpdate,
 }: {
   detail: Detail
   entry?: CatalogPlugin
-  canWrite: boolean
   installing: boolean
   onUpdate: (spec: string) => void
 }) {
@@ -353,7 +337,7 @@ function InfoPanel({
                   </span>
                 )}
               </div>
-              {entry?.update_available && entry.installable && canWrite && (
+              {entry?.update_available && entry.installable && (
                 <Button size="sm" variant="outline" disabled={installing} onClick={() => onUpdate(`${entry.package}@${entry.version}`)}>
                   {t("plugins.action.update", { version: entry.version })}
                 </Button>

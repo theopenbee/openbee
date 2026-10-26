@@ -2,7 +2,6 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/theopenbee/openbee/internal/infra/auth"
 )
 
 func (s *Server) registerAuthRoutes() {
@@ -12,95 +11,74 @@ func (s *Server) registerAuthRoutes() {
 }
 
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
-	rp := func(perms ...string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perms...) }
-
-	// Current-user endpoints (any authenticated user)
+	// Current-user endpoints
 	r.GET("/me", s.Auth.Me)
 	r.POST("/me/password", s.Auth.ChangePassword)
 
 	// Workers
-	r.POST("/workers", rp(auth.PermContactsWrite), s.Workers.Create)
-	r.GET("/workers", rp(auth.PermContactsRead), s.Workers.List)
-	r.GET("/workers/random-name", rp(auth.PermContactsRead), s.Workers.RandomName)
-	r.GET("/workers/:id", rp(auth.PermContactsRead), s.Workers.Get)
-	r.PUT("/workers/:id", rp(auth.PermContactsWrite), s.Workers.Update)
-	r.DELETE("/workers/:id", rp(auth.PermContactsWrite), s.Workers.Delete)
+	r.POST("/workers", s.Workers.Create)
+	r.GET("/workers", s.Workers.List)
+	r.GET("/workers/random-name", s.Workers.RandomName)
+	r.GET("/workers/:id", s.Workers.Get)
+	r.PUT("/workers/:id", s.Workers.Update)
+	r.DELETE("/workers/:id", s.Workers.Delete)
 
 	// Sessions
-	r.GET("/sessions", rp(auth.PermSessionsRead), s.Executions.List)
-	r.GET("/sessions/:id", rp(auth.PermSessionsRead), s.Executions.GetSession)
-	r.GET("/sessions/:id/logs", rp(auth.PermSessionsRead), s.Executions.GetLogs)
+	r.GET("/sessions", s.Executions.List)
+	r.GET("/sessions/:id", s.Executions.GetSession)
+	r.GET("/sessions/:id/logs", s.Executions.GetLogs)
 
 	// Tasks
-	r.GET("/tasks", rp(auth.PermTasksRead), s.Tasks.List)
-	r.DELETE("/tasks/:id", rp(auth.PermTasksWrite), s.Tasks.Cancel)
-	r.POST("/workers/:id/tasks/cancel-all", rp(auth.PermTasksWrite), s.Tasks.CancelByWorker)
+	r.GET("/tasks", s.Tasks.List)
+	r.DELETE("/tasks/:id", s.Tasks.Cancel)
+	r.POST("/workers/:id/tasks/cancel-all", s.Tasks.CancelByWorker)
 
 	// Departments
-	r.POST("/departments", rp(auth.PermContactsWrite), s.Departments.Create)
-	r.GET("/departments", rp(auth.PermContactsRead), s.Departments.List)
-	r.PUT("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Update)
-	r.DELETE("/departments/:id", rp(auth.PermContactsWrite), s.Departments.Delete)
-	r.PUT("/workers/:id/departments", rp(auth.PermContactsWrite), s.Departments.SetWorkerDepartments)
+	r.POST("/departments", s.Departments.Create)
+	r.GET("/departments", s.Departments.List)
+	r.PUT("/departments/:id", s.Departments.Update)
+	r.DELETE("/departments/:id", s.Departments.Delete)
+	r.PUT("/workers/:id/departments", s.Departments.SetWorkerDepartments)
 
-	// Local chat & messages — gated by a single chat:write capability
-	// (view + send), decoupled from worker-management permissions.
-	r.POST("/local/messages", rp(auth.PermChatWrite), s.LocalChat.SendMessage)
-	r.GET("/local/messages", rp(auth.PermChatWrite), s.LocalChat.GetMessages)
-	r.POST("/local/media", rp(auth.PermChatWrite), s.LocalChat.UploadMedia)
-	r.GET("/local/media/:filename", rp(auth.PermChatWrite), s.LocalChat.ServeMedia)
-	r.GET("/local/stream", rp(auth.PermChatWrite), s.LocalChat.StreamReplies)
+	// Local chat & messages
+	r.POST("/local/messages", s.LocalChat.SendMessage)
+	r.GET("/local/messages", s.LocalChat.GetMessages)
+	r.POST("/local/media", s.LocalChat.UploadMedia)
+	r.GET("/local/media/:filename", s.LocalChat.ServeMedia)
+	r.GET("/local/stream", s.LocalChat.StreamReplies)
 
-	// Version (any authenticated user)
+	// Version
 	r.GET("/version", s.Version.Get)
 
 	// Stats
-	r.GET("/stats/overview", rp(auth.PermDashboardRead), s.Stats.GetOverview)
-	r.GET("/stats/token-trend", rp(auth.PermDashboardRead), s.Stats.GetTokenTrend)
+	r.GET("/stats/overview", s.Stats.GetOverview)
+	r.GET("/stats/token-trend", s.Stats.GetTokenTrend)
 
 	// Env
-	r.GET("/envs", rp(auth.PermEnvRead), s.Envs.List)
-	r.POST("/envs", rp(auth.PermEnvWrite), s.Envs.Create)
-	r.PUT("/envs/:id", rp(auth.PermEnvWrite), s.Envs.Update)
-	r.DELETE("/envs/:id", rp(auth.PermEnvWrite), s.Envs.Delete)
+	r.GET("/envs", s.Envs.List)
+	r.POST("/envs", s.Envs.Create)
+	r.PUT("/envs/:id", s.Envs.Update)
+	r.DELETE("/envs/:id", s.Envs.Delete)
 
 	// System configs
-	r.GET("/system-configs", rp(auth.PermSystemConfigRead), s.SystemConfigs.Get)
-	r.PUT("/system-configs/:key", rp(auth.PermSystemConfigWrite), s.SystemConfigs.Set)
-
-	// User & role administration
-	r.GET("/users", rp(auth.PermUsersManage), s.Users.List)
-	r.POST("/users", rp(auth.PermUsersManage), s.Users.Create)
-	r.PUT("/users/:id/profile", rp(auth.PermUsersManage), s.Users.UpdateProfile)
-	r.PUT("/users/:id/roles", rp(auth.PermUsersManage), s.Users.SetRoles)
-	r.PUT("/users/:id/status", rp(auth.PermUsersManage), s.Users.SetStatus)
-	r.POST("/users/:id/password", rp(auth.PermUsersManage), s.Users.ResetPassword)
-	r.DELETE("/users/:id", rp(auth.PermUsersManage), s.Users.Delete)
-
-	r.GET("/permissions", rp(auth.PermRolesManage), s.Roles.Catalog)
-	// User management needs to read the role catalog to assign roles, so the
-	// list is readable by user-managers too; mutations stay roles:manage-only.
-	r.GET("/roles", rp(auth.PermRolesManage, auth.PermUsersManage), s.Roles.List)
-	r.POST("/roles", rp(auth.PermRolesManage), s.Roles.Create)
-	r.PUT("/roles/:id", rp(auth.PermRolesManage), s.Roles.Update)
-	r.DELETE("/roles/:id", rp(auth.PermRolesManage), s.Roles.Delete)
+	r.GET("/system-configs", s.SystemConfigs.Get)
+	r.PUT("/system-configs/:key", s.SystemConfigs.Set)
 }
 
 func (s *Server) registerPluginRoutes(r *gin.RouterGroup) {
-	rp := func(perms ...string) gin.HandlerFunc { return auth.RequirePermission(s.Resolver, perms...) }
-	r.GET("", rp(auth.PermPluginsRead), s.Plugins.List)
-	r.GET("/catalog", rp(auth.PermPluginsRead), s.Plugins.Catalog)
-	r.POST("/install", rp(auth.PermPluginsWrite), s.Plugins.Install)
-	r.GET("/operations", rp(auth.PermPluginsRead), s.Plugins.Operations)
-	r.GET("/operations/:id", rp(auth.PermPluginsRead), s.Plugins.Operation)
-	r.GET("/:id", rp(auth.PermPluginsRead), s.Plugins.Get)
-	r.PUT("/:id/settings", rp(auth.PermPluginsWrite), s.Plugins.UpdateSettings)
-	r.POST("/:id/enable", rp(auth.PermPluginsWrite), s.Plugins.Enable)
-	r.POST("/:id/disable", rp(auth.PermPluginsWrite), s.Plugins.Disable)
-	r.POST("/:id/restart", rp(auth.PermPluginsWrite), s.Plugins.Restart)
-	r.DELETE("/:id", rp(auth.PermPluginsWrite), s.Plugins.Uninstall)
-	r.POST("/:id/setup", rp(auth.PermPluginsWrite), s.Plugins.StartSetup)
-	r.GET("/setup/:sid/events", rp(auth.PermPluginsRead), s.Plugins.SetupEvents)
-	r.POST("/setup/:sid/input", rp(auth.PermPluginsWrite), s.Plugins.SetupInput)
-	r.DELETE("/setup/:sid", rp(auth.PermPluginsWrite), s.Plugins.CancelSetup)
+	r.GET("", s.Plugins.List)
+	r.GET("/catalog", s.Plugins.Catalog)
+	r.POST("/install", s.Plugins.Install)
+	r.GET("/operations", s.Plugins.Operations)
+	r.GET("/operations/:id", s.Plugins.Operation)
+	r.GET("/:id", s.Plugins.Get)
+	r.PUT("/:id/settings", s.Plugins.UpdateSettings)
+	r.POST("/:id/enable", s.Plugins.Enable)
+	r.POST("/:id/disable", s.Plugins.Disable)
+	r.POST("/:id/restart", s.Plugins.Restart)
+	r.DELETE("/:id", s.Plugins.Uninstall)
+	r.POST("/:id/setup", s.Plugins.StartSetup)
+	r.GET("/setup/:sid/events", s.Plugins.SetupEvents)
+	r.POST("/setup/:sid/input", s.Plugins.SetupInput)
+	r.DELETE("/setup/:sid", s.Plugins.CancelSetup)
 }

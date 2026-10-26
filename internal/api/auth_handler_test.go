@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/theopenbee/openbee/internal/infra/auth"
-	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
@@ -21,12 +20,11 @@ func newAuthTestServer(t *testing.T, maxAttempts int) (*gin.Engine, *store.UserS
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	us := store.NewUserStore(db)
-	_, err = us.Create("alice", "s3cret", "Alice", "", []string{model.RoleIDSuperAdmin})
+	_, err = us.CreateFirst("alice", "s3cret", "Alice")
 	require.NoError(t, err)
 	jwtSvc := auth.NewJWTService("secret", time.Hour, 24*time.Hour)
 	rl := auth.NewLoginRateLimiter(maxAttempts, time.Minute)
-	resolver := auth.NewPermissionResolver(us.PermissionsForUser)
-	h := auth.NewAuthHandler(us, jwtSvc, rl, resolver)
+	h := auth.NewAuthHandler(us, jwtSvc, rl)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -78,4 +76,36 @@ func TestAuthHandler_RepeatedFailuresRateLimited(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, login(t, r, "alice", "wrong"), "failed login %d", i+1)
 	}
 	require.Equal(t, http.StatusTooManyRequests, login(t, r, "alice", "wrong"), "expected 429 after exhausting attempts")
+}
+
+func TestAuthHandler_MeReturnsUserWithoutRoles(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	us := store.NewUserStore(db)
+	u, err := us.CreateFirst("alice", "s3cret", "Alice")
+	require.NoError(t, err)
+	jwtSvc := auth.NewJWTService("secret", time.Hour, 24*time.Hour)
+	h := auth.NewAuthHandler(us, jwtSvc, auth.NewLoginRateLimiter(5, time.Minute))
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/api/me", auth.AuthMiddleware(jwtSvc, us), h.Me)
+
+	pair, err := jwtSvc.GenerateUserTokenPair(u.ID)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, u.ID, body["id"])
+	require.Equal(t, "alice", body["username"])
+	require.Equal(t, "Alice", body["display_name"])
+	for _, key := range []string{"roles", "permissions", "status", "created_by", "password_hash"} {
+		require.NotContains(t, body, key)
+	}
 }

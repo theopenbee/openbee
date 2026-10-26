@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/logger"
-	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"go.uber.org/zap"
 )
@@ -39,7 +38,7 @@ type setupRequest struct {
 	DisplayName string `json:"display_name"`
 }
 
-// Create provisions the first super-admin. Only works while no users exist.
+// Create provisions the admin account. Only works while no users exist.
 func (h *SetupHandler) Create(c *gin.Context) {
 	n, err := h.users.Count()
 	if err != nil {
@@ -55,7 +54,7 @@ func (h *SetupHandler) Create(c *gin.Context) {
 		respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	user, err := h.users.CreateFirst(req.Username, req.Password, req.DisplayName, []string{model.RoleIDSuperAdmin})
+	user, err := h.users.CreateFirst(req.Username, req.Password, req.DisplayName)
 	if errors.Is(err, store.ErrAlreadyInitialized) {
 		c.JSON(http.StatusConflict, gin.H{"error": "system already initialized"})
 		return

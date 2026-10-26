@@ -502,6 +502,24 @@ CREATE INDEX IF NOT EXISTS idx_tasks_session_key ON bee_tasks(session_key);`,
 	updated_at INTEGER NOT NULL
 )`,
 	},
+	{
+		version: 53,
+		name:    "drop_rbac_tables_and_keep_single_admin",
+		sql: `
+DELETE FROM bee_users WHERE id <> COALESCE(
+    (SELECT u.id FROM bee_users u JOIN bee_user_roles ur ON ur.user_id = u.id
+      WHERE ur.role_id = 'sysrole_superadmin' AND u.status = 'active'
+      ORDER BY u.created_at, u.id LIMIT 1),
+    (SELECT id FROM bee_users WHERE status = 'active' ORDER BY created_at, id LIMIT 1),
+    (SELECT id FROM bee_users ORDER BY created_at, id LIMIT 1)
+);
+DROP TABLE IF EXISTS bee_user_roles;
+DROP TABLE IF EXISTS bee_role_permissions;
+DROP TABLE IF EXISTS bee_roles;
+ALTER TABLE bee_users DROP COLUMN status;
+ALTER TABLE bee_users DROP COLUMN created_by;
+`,
+	},
 }
 
 type whereBuilder struct {

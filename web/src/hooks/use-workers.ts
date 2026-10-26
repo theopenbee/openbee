@@ -2,11 +2,10 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "@/lib/api"
 import type { Worker, Engine } from "@/lib/types"
 
-export function useWorkers(departmentId?: string, options?: { enabled?: boolean }) {
+export function useWorkers(departmentId?: string) {
   return useQuery({
     queryKey: ["workers", { departmentId }],
     queryFn: () => api.workers.list(departmentId),
-    enabled: options?.enabled ?? true,
   })
 }
 
@@ -14,7 +13,6 @@ export function useWorker(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["workers", id],
     queryFn: () => api.workers.get(id),
-    enabled: options?.enabled ?? true,
   })
 }
 
@@ -69,7 +67,6 @@ export function useWorkerExecutions(
     queryKey: ["workers", workerId, "executions", page, pageSize],
     queryFn: () => api.sessions.list(page, pageSize, workerId),
     placeholderData: keepPreviousData,
-    enabled: options?.enabled ?? true,
   })
 }
 
