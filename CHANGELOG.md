@@ -9,6 +9,7 @@
 - Add `migrate_chat` notification to the channel plugin protocol.
 - Let plugin config fields suggest a random default.
 - Let channel plugins run an interactive setup step.
+- Run plugins on Bun or Node.js, installing Bun locally.
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.

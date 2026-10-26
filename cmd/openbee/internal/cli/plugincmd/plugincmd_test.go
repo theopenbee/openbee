@@ -43,7 +43,7 @@ func run(t *testing.T, reg *plugin.Registry, args ...string) (string, error) {
 	require.NoError(t, i18n.Load("en"))
 	var out bytes.Buffer
 	cmd := newCommand(deps{
-		Installer: &plugin.Installer{Registry: reg, Run: func(context.Context, string, string, ...string) ([]byte, error) {
+		Installer: &plugin.Installer{Registry: reg, Run: func(context.Context, string, []string, string, ...string) ([]byte, error) {
 			return nil, nil
 		}},
 		Out: &out,

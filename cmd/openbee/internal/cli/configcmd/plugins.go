@@ -80,7 +80,11 @@ func applyPluginSelection(vals *configValues, offered, selected []string) {
 }
 
 var runPluginSetupCommand = func(m plugin.Manifest, lang string) (map[string]any, error) {
-	return plugin.RunSetup(context.Background(), m, lang, os.Stdin, os.Stderr)
+	rt := plugin.NewRuntimeResolver()
+	rt.OnInstall = func(version, dir string) {
+		fmt.Fprintf(os.Stderr, i18n.M.Output.Plugin.InstallingBun+"\n", version, dir)
+	}
+	return plugin.RunSetup(context.Background(), rt, m, lang, os.Stdin, os.Stderr)
 }
 
 func promptPluginSection(m plugin.Manifest, lang string, current map[string]any) (map[string]any, error) {

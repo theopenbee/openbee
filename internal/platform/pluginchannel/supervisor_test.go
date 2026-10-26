@@ -4,15 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 type noteRecorder struct {
@@ -152,4 +160,37 @@ func TestSupervisor_CallBeforeRun(t *testing.T) {
 	err := s.Call(context.Background(), "send", nil, nil)
 	assert.True(t, errors.Is(err, ErrNotRunning))
 	assert.Contains(t, err.Error(), "fake")
+}
+
+func TestSupervisor_NodeCommandRunsOnResolvedRuntime(t *testing.T) {
+	s := testSupervisor(t, "ok", nil)
+	bin := s.spec.Command[0]
+	s.spec.Command = append([]string{plugin.NodeCommand}, s.spec.Command[1:]...)
+	s.spec.Runtime = &plugin.RuntimeResolver{Dir: t.TempDir(), LookPath: func(name string) (string, error) {
+		if name == "bun" {
+			return bin, nil
+		}
+		return "", exec.ErrNotFound
+	}}
+	runSupervisor(t, s)
+	waitRunning(t, s)
+}
+
+func TestSupervisor_RuntimeInstallFailureRetries(t *testing.T) {
+	if !slices.Contains([]string{"amd64", "arm64"}, runtime.GOARCH) {
+		t.Skip("no Bun build for " + runtime.GOARCH)
+	}
+	srv := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(srv.Close)
+	s := testSupervisor(t, "ok", nil)
+	s.spec.Command = []string{plugin.NodeCommand, "index.js"}
+	var lookups atomic.Int32
+	s.spec.Runtime = &plugin.RuntimeResolver{Dir: t.TempDir(), Mirror: srv.URL, LookPath: func(name string) (string, error) {
+		if name == "bun" {
+			lookups.Add(1)
+		}
+		return "", exec.ErrNotFound
+	}}
+	runSupervisor(t, s)
+	require.Eventually(t, func() bool { return lookups.Load() >= 3 }, 10*time.Second, 20*time.Millisecond)
 }

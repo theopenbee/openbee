@@ -193,6 +193,7 @@ output:
     status_enabled: "enabled"
     status_disabled: "disabled"
     status_invalid: "invalid enabled value"
+    installing_bun: "No usable Bun or Node.js found; installing Bun %s into %s ..."
   service:
     installed: "service installed at %s"
     uninstalled: "service uninstalled"

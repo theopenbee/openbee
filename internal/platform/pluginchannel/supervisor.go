@@ -27,6 +27,7 @@ type Spec struct {
 	Dir       string
 	Command   []string
 	Env       []string
+	Runtime   *plugin.RuntimeResolver
 	Init      InitializeParams
 }
 
@@ -125,17 +126,20 @@ type child struct {
 	waitDone chan error
 }
 
-func (s *Supervisor) start() (*child, error) {
+func (s *Supervisor) start(ctx context.Context) (*child, error) {
 	if len(s.spec.Command) == 0 {
 		return nil, &permanentError{errors.New("plugin command is empty")}
 	}
-	path, err := plugin.ResolveCommand(s.spec.Dir, s.spec.Command[0])
+	inv, err := s.spec.Runtime.Invocation(ctx, s.spec.Dir, s.spec.Command)
+	if errors.Is(err, plugin.ErrBunDownload) {
+		return nil, fmt.Errorf("resolve plugin command: %w", err)
+	}
 	if err != nil {
 		return nil, &permanentError{fmt.Errorf("resolve plugin command: %w", err)}
 	}
-	cmd := exec.Command(path, s.spec.Command[1:]...)
+	cmd := exec.Command(inv.Path, inv.Args...)
 	cmd.Dir = s.spec.Dir
-	cmd.Env = append(os.Environ(), s.spec.Env...)
+	cmd.Env = append(append(os.Environ(), inv.Env...), s.spec.Env...)
 	ai.ConfigureCmd(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -179,7 +183,7 @@ func (s *Supervisor) start() (*child, error) {
 }
 
 func (s *Supervisor) runOnce(ctx context.Context) error {
-	c, err := s.start()
+	c, err := s.start(ctx)
 	if err != nil {
 		return err
 	}

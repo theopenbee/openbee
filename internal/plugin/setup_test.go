@@ -40,11 +40,27 @@ echo "lang=$OPENBEE_LANGUAGE code=$code dir=$(pwd)" 1>&2
 printf '{"token": "tok-%s", "max_media_size": 1024, "user_id": null}\n' "$code"
 `)
 	var stderr bytes.Buffer
-	values, err := RunSetup(context.Background(), m, "zh", strings.NewReader("42\n"), &stderr)
+	values, err := RunSetup(context.Background(), nil, m, "zh", strings.NewReader("42\n"), &stderr)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"token": "tok-42", "max_media_size": 1024}, values)
 	dir, _ := filepath.EvalSymlinks(m.Dir)
 	assert.Contains(t, stderr.String(), "lang=zh code=42 dir="+dir)
+}
+
+func TestRunSetup_NodeCommandUsesRuntime(t *testing.T) {
+	m := setupManifest(t, `echo "cache=$BUN_RUNTIME_TRANSPILER_CACHE_PATH" 1>&2; echo '{"token": "t"}'`)
+	m.Setup.Command = []string{"node", "./setup.sh"}
+	rt := &RuntimeResolver{Dir: t.TempDir(), LookPath: onPath()}
+	require.NoError(t, os.MkdirAll(filepath.Dir(rt.bunExe()), 0o755))
+	sh, err := exec.LookPath("sh")
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(sh, rt.bunExe()))
+
+	var stderr bytes.Buffer
+	values, err := RunSetup(context.Background(), rt, m, "en", strings.NewReader(""), &stderr)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"token": "t"}, values)
+	assert.Contains(t, stderr.String(), "cache="+filepath.Join(rt.Dir, "bun-"+BunVersion, "transpiler-cache"))
 }
 
 func TestRunSetup_Errors(t *testing.T) {
@@ -62,7 +78,7 @@ func TestRunSetup_Errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := setupManifest(t, tc.script)
-			_, err := RunSetup(context.Background(), m, "en", strings.NewReader(""), &bytes.Buffer{})
+			_, err := RunSetup(context.Background(), nil, m, "en", strings.NewReader(""), &bytes.Buffer{})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
@@ -70,7 +86,7 @@ func TestRunSetup_Errors(t *testing.T) {
 }
 
 func TestRunSetup_NoSetup(t *testing.T) {
-	_, err := RunSetup(context.Background(), Manifest{ID: "discord"}, "en", strings.NewReader(""), &bytes.Buffer{})
+	_, err := RunSetup(context.Background(), nil, Manifest{ID: "discord"}, "en", strings.NewReader(""), &bytes.Buffer{})
 	require.Error(t, err)
 }
 

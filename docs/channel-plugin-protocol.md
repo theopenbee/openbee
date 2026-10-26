@@ -27,7 +27,7 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | `protocol_version` | Must be `1`. |
 | `id` | Channel id, session key prefix and `config.yaml` key. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
-| `command` | Program and arguments, run with the plugin directory as working directory. An absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
+| `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
 | `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee config` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
 | `version` | Optional. `package.json` `version` wins when present. |
 | `config[]` | Settings openbee asks for in `openbee config` and validates at startup. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes `openbee config` suggest a random value when the field is empty, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
@@ -43,11 +43,24 @@ openbee plugin remove <id>
 ```
 
 - A directory argument is registered in place and loaded from that directory on every start.
-- Anything else is passed to `npm install --save` inside `~/.openbee/plugins` (any spec npm accepts: `name@version`, `github:owner/repo`, a tarball URL).
+- Anything else is installed into `~/.openbee/plugins` by the package manager of the [runtime](#runtime): `npm install --save` on Node.js, `bun add` on Bun (any spec npm accepts: `name@version`, `github:owner/repo`, a tarball URL).
 - Installed plugins are recorded in `~/.openbee/plugins/plugins.json`. Each plugin gets a private writable directory `~/.openbee/plugins/data/<id>/`.
 - Installing or removing a plugin takes effect after openbee restarts.
 
 Plugins run with the user's permissions. Only install plugins you trust.
+
+## Runtime
+
+A `command` (or `setup.command`) starting with `node` runs on the first runtime found:
+
+1. `bun` on `PATH`.
+2. The Bun openbee installed in `~/.openbee/runtime/bun-1.4.4`.
+3. `node` on `PATH`.
+4. None of these: openbee downloads Bun 1.4.4 for the current OS and CPU into `~/.openbee/runtime/bun-1.4.4` and uses it.
+
+`openbee plugin install` and `remove` pick a package manager the same way, except that step 3 needs `npm` next to `node`: `bun add`/`bun remove` on Bun, `npm install`/`npm uninstall` on Node.js. Plugins should therefore work on both Node.js and Bun.
+
+The local Bun is private to openbee: `PATH` and shell profiles are not changed, and Bun's package and transpiler caches stay in its directory. It is downloaded from GitHub releases, falling back to npmmirror, and checked against a SHA-256 built into openbee. Set `OPENBEE_BUN_MIRROR` to download from another mirror with the same layout. An openbee release that pins a newer Bun installs it the next time it needs a local Bun and removes the older versions.
 
 ## Configuration
 

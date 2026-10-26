@@ -193,6 +193,7 @@ output:
     status_enabled: "已启用"
     status_disabled: "未启用"
     status_invalid: "enabled 取值无效"
+    installing_bun: "未找到可用的 Bun 或 Node.js，正在安装 Bun %s 到 %s ……"
   service:
     installed: "服务已安装：%s"
     uninstalled: "服务已卸载"

@@ -19,8 +19,12 @@ type deps struct {
 }
 
 func NewCommand() *cobra.Command {
+	rt := plugin.NewRuntimeResolver()
+	rt.OnInstall = func(version, dir string) {
+		fmt.Fprintf(os.Stdout, i18n.M.Output.Plugin.InstallingBun+"\n", version, dir)
+	}
 	return newCommand(deps{
-		Installer: &plugin.Installer{Registry: plugin.OpenRegistry(plugin.DefaultDir()), Run: plugin.ExecRunner},
+		Installer: &plugin.Installer{Registry: plugin.OpenRegistry(plugin.DefaultDir()), Runtime: rt, Run: plugin.ExecRunner},
 		Out:       os.Stdout,
 	})
 }

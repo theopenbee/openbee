@@ -95,7 +95,7 @@ openbee server -d
 
 ### Channel plugins
 
-Chat platforms are added as plugins without rebuilding OpenBee: `openbee plugin install <npm package or directory>`, then enable the channel in `openbee config`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
+Chat platforms are added as plugins without rebuilding OpenBee: `openbee plugin install <npm package or directory>`, then enable the channel in `openbee config`. Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
 
 ## 🌟 Star History
 

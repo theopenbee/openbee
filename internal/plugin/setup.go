@@ -23,18 +23,18 @@ func ResolveCommand(dir, name string) (string, error) {
 	return exec.LookPath(name)
 }
 
-func RunSetup(ctx context.Context, m Manifest, lang string, stdin io.Reader, stderr io.Writer) (map[string]any, error) {
+func RunSetup(ctx context.Context, rt *RuntimeResolver, m Manifest, lang string, stdin io.Reader, stderr io.Writer) (map[string]any, error) {
 	if m.Setup == nil || len(m.Setup.Command) == 0 {
 		return nil, fmt.Errorf("plugin %s has no setup command", m.ID)
 	}
-	path, err := ResolveCommand(m.Dir, m.Setup.Command[0])
+	inv, err := rt.Invocation(ctx, m.Dir, m.Setup.Command)
 	if err != nil {
 		return nil, fmt.Errorf("resolve setup command: %w", err)
 	}
 	var stdout bytes.Buffer
-	cmd := exec.CommandContext(ctx, path, m.Setup.Command[1:]...)
+	cmd := exec.CommandContext(ctx, inv.Path, inv.Args...)
 	cmd.Dir = m.Dir
-	cmd.Env = append(os.Environ(), "OPENBEE_LANGUAGE="+lang)
+	cmd.Env = append(append(os.Environ(), inv.Env...), "OPENBEE_LANGUAGE="+lang)
 	cmd.Stdin = stdin
 	cmd.Stdout = &stdout
 	cmd.Stderr = stderr

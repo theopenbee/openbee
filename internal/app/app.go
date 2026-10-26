@@ -160,10 +160,15 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform[local.PlatformID] = localSender
 
 	mediaSvc := media.NewService()
+	pluginRuntime := plugin.NewRuntimeResolver()
+	pluginRuntime.OnInstall = func(version, dir string) {
+		logger.Info("no usable bun or node found, installing bun for plugins", zap.String("version", version), zap.String("dir", dir))
+	}
 	var channels []platform.Channel
 	var pluginDone []<-chan struct{}
 	for _, b := range pluginchannel.BuildChannels(cfg.Bee.Platforms.Plugins, pluginchannel.BuildOptions{
 		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
+		Runtime:  pluginRuntime,
 		MediaSvc: mediaSvc,
 		Migrator: s.taskStore,
 		Language: cfg.Language,

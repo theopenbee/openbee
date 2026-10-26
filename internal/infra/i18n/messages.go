@@ -152,6 +152,7 @@ type PluginOutput struct {
 	StatusEnabled  string `yaml:"status_enabled"`
 	StatusDisabled string `yaml:"status_disabled"`
 	StatusInvalid  string `yaml:"status_invalid"`
+	InstallingBun  string `yaml:"installing_bun"`
 }
 
 // ServiceOutput maps to service command runtime output.

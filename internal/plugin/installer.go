@@ -9,19 +9,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-var (
-	ErrNpmNotFound  = errors.New("npm not found on PATH")
-	ErrNotInstalled = errors.New("plugin not installed")
-)
+var ErrNotInstalled = errors.New("plugin not installed")
 
-type Runner func(ctx context.Context, dir string, name string, args ...string) ([]byte, error)
+type Runner func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error)
 
-func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+func ExecRunner(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -37,6 +38,7 @@ func ExecRunner(ctx context.Context, dir string, name string, args ...string) ([
 
 type Installer struct {
 	Registry *Registry
+	Runtime  *RuntimeResolver
 	Run      Runner
 }
 
@@ -67,15 +69,16 @@ func (i *Installer) installNpm(ctx context.Context, spec string) (Entry, Manifes
 	if err := ensureNpmProject(dir); err != nil {
 		return Entry{}, Manifest{}, err
 	}
-	name, err := i.packageName(ctx, dir, spec)
+	entries, err := i.Registry.List()
 	if err != nil {
 		return Entry{}, Manifest{}, err
 	}
-	previous, hadPrevious, err := i.registeredPackage(name)
+	pm, err := i.packageManager(ctx)
 	if err != nil {
 		return Entry{}, Manifest{}, err
 	}
-	if _, err := i.npm(ctx, dir, "install", "--save", spec); err != nil {
+	name, err := pm.add(ctx, dir, spec)
+	if err != nil {
 		return Entry{}, Manifest{}, err
 	}
 	m, err := LoadManifest(filepath.Join(dir, "node_modules", filepath.FromSlash(name)))
@@ -87,31 +90,90 @@ func (i *Installer) installNpm(ctx context.Context, spec string) (Entry, Manifes
 			}
 		}
 	}
-	rollback := []string{"uninstall", "--save", name}
-	if hadPrevious && previous.Version != "" {
-		rollback = []string{"install", "--save", name + "@" + previous.Version}
+	var rerr error
+	if previous, ok := registeredPackage(entries, name); ok && previous.Version != "" {
+		rerr = pm.install(ctx, dir, name+"@"+previous.Version)
+	} else {
+		rerr = pm.remove(ctx, dir, name)
 	}
-	if _, rerr := i.npm(ctx, dir, rollback...); rerr != nil {
+	if rerr != nil {
 		return Entry{}, Manifest{}, fmt.Errorf("%w (rollback failed: %v)", err, rerr)
 	}
 	return Entry{}, Manifest{}, err
 }
 
-func (i *Installer) registeredPackage(name string) (Entry, bool, error) {
-	entries, err := i.Registry.List()
-	if err != nil {
-		return Entry{}, false, err
-	}
+func registeredPackage(entries []Entry, name string) (Entry, bool) {
 	for _, e := range entries {
 		if e.Source == SourceNpm && e.Package == name {
-			return e, true, nil
+			return e, true
 		}
 	}
-	return Entry{}, false, nil
+	return Entry{}, false
 }
 
-func (i *Installer) packageName(ctx context.Context, dir, spec string) (string, error) {
-	out, err := i.npm(ctx, dir, "pack", "--dry-run", "--json", spec)
+func (i *Installer) packageManager(ctx context.Context) (packageManager, error) {
+	rt, err := i.Runtime.ResolvePackageManager(ctx)
+	if err != nil {
+		return packageManager{}, err
+	}
+	return packageManager{rt: rt, run: i.Run}, nil
+}
+
+type packageManager struct {
+	rt  Runtime
+	run Runner
+}
+
+func (p packageManager) invoke(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	exe := p.rt.Npm
+	if p.rt.Kind == RuntimeBun {
+		exe = p.rt.Exe
+	}
+	return p.run(ctx, dir, p.rt.Env, exe, args...)
+}
+
+func (p packageManager) install(ctx context.Context, dir, spec string) error {
+	args := []string{"install", "--save", spec}
+	if p.rt.Kind == RuntimeBun {
+		args = []string{"add", spec}
+	}
+	_, err := p.invoke(ctx, dir, args...)
+	return err
+}
+
+func (p packageManager) remove(ctx context.Context, dir, name string) error {
+	args := []string{"uninstall", "--save", name}
+	if p.rt.Kind == RuntimeBun {
+		args = []string{"remove", name}
+	}
+	_, err := p.invoke(ctx, dir, args...)
+	return err
+}
+
+func (p packageManager) add(ctx context.Context, dir, spec string) (string, error) {
+	if p.rt.Kind != RuntimeBun {
+		name, err := p.npmPackageName(ctx, dir, spec)
+		if err != nil {
+			return "", err
+		}
+		return name, p.install(ctx, dir, spec)
+	}
+	before, err := dependencies(dir)
+	if err != nil {
+		return "", err
+	}
+	if err := p.install(ctx, dir, spec); err != nil {
+		return "", err
+	}
+	after, err := dependencies(dir)
+	if err != nil {
+		return "", err
+	}
+	return addedPackage(before, after, spec)
+}
+
+func (p packageManager) npmPackageName(ctx context.Context, dir, spec string) (string, error) {
+	out, err := p.invoke(ctx, dir, "pack", "--dry-run", "--json", spec)
 	if err != nil {
 		return "", err
 	}
@@ -124,12 +186,43 @@ func (i *Installer) packageName(ctx context.Context, dir, spec string) (string, 
 	return packs[0].Name, nil
 }
 
-func (i *Installer) npm(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	out, err := i.Run(ctx, dir, "npm", args...)
-	if errors.Is(err, exec.ErrNotFound) {
-		return nil, ErrNpmNotFound
+var registrySpec = regexp.MustCompile(`^((?:@[a-z0-9][\w.-]*/)?[a-z0-9][\w.-]*)(?:@.*)?$`)
+
+func addedPackage(before, after map[string]string, spec string) (string, error) {
+	var changed []string
+	for name, v := range after {
+		if before[name] != v {
+			changed = append(changed, name)
+		}
 	}
-	return out, err
+	if len(changed) == 1 {
+		return changed[0], nil
+	}
+	for name, v := range after {
+		if v == spec {
+			return name, nil
+		}
+	}
+	if m := registrySpec.FindStringSubmatch(spec); m != nil {
+		if _, ok := after[m[1]]; ok {
+			return m[1], nil
+		}
+	}
+	return "", fmt.Errorf("cannot determine package name for %q", spec)
+}
+
+func dependencies(dir string) (map[string]string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return nil, err
+	}
+	var pkg struct {
+		Dependencies map[string]string `json:"dependencies"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return nil, fmt.Errorf("parse package.json: %w", err)
+	}
+	return pkg.Dependencies, nil
 }
 
 func (i *Installer) checkConflict(e Entry) error {
@@ -163,7 +256,11 @@ func (i *Installer) Remove(ctx context.Context, id string) (Entry, error) {
 		return Entry{}, fmt.Errorf("%w: %s", ErrNotInstalled, id)
 	}
 	if entry.Source == SourceNpm && entry.Package != "" {
-		if _, err := i.npm(ctx, i.Registry.Dir(), "uninstall", "--save", entry.Package); err != nil {
+		pm, err := i.packageManager(ctx)
+		if err != nil {
+			return Entry{}, err
+		}
+		if err := pm.remove(ctx, i.Registry.Dir(), entry.Package); err != nil {
 			return Entry{}, err
 		}
 	}

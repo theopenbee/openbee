@@ -15,6 +15,7 @@ import (
 
 type BuildOptions struct {
 	Registry *plugin.Registry
+	Runtime  *plugin.RuntimeResolver
 	MediaSvc *media.Service
 	Migrator SessionKeyMigrator
 	Language string
@@ -87,6 +88,7 @@ func buildOne(id string, section map[string]any, opts BuildOptions) (*Platform, 
 		ChannelID: id,
 		Dir:       m.Dir,
 		Command:   m.Command,
+		Runtime:   opts.Runtime,
 		Init: InitializeParams{
 			ProtocolVersion: ProtocolVersion,
 			OpenbeeVersion:  buildinfo.Version,
