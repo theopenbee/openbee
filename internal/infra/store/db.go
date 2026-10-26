@@ -491,6 +491,17 @@ UPDATE bee_tasks
  WHERE EXISTS (SELECT 1 FROM bee_platform_messages pm WHERE pm.id = bee_tasks.message_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_session_key ON bee_tasks(session_key);`,
 	},
+	{
+		version: 52,
+		name:    "create_table_bee_plugin_settings",
+		sql: `CREATE TABLE IF NOT EXISTS bee_plugin_settings (
+	id         TEXT PRIMARY KEY,
+	enabled    INTEGER NOT NULL DEFAULT 0,
+	bot_name   TEXT NOT NULL DEFAULT '',
+	config     TEXT NOT NULL DEFAULT '',
+	updated_at INTEGER NOT NULL
+)`,
+	},
 }
 
 type whereBuilder struct {
