@@ -32,6 +32,15 @@ type fakePluginService struct {
 	botName    *string
 	config     map[string]any
 	calls      []string
+	setup      *fakeSetup
+}
+
+type fakeSetup struct {
+	pluginID  string
+	history   []pluginmgr.SetupEvent
+	live      chan pluginmgr.SetupEvent
+	inputs    []string
+	cancelled bool
 }
 
 func (f *fakePluginService) List(context.Context) ([]pluginmgr.Status, error) {
@@ -95,6 +104,47 @@ func (f *fakePluginService) Restart(_ context.Context, id string) error {
 	return f.err
 }
 
+func (f *fakePluginService) StartSetup(_ context.Context, id string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	f.setup = &fakeSetup{pluginID: id, live: make(chan pluginmgr.SetupEvent, 8)}
+	return "sid1", nil
+}
+
+func (f *fakePluginService) findSetup(sid string) (*fakeSetup, error) {
+	if f.setup == nil || sid != "sid1" {
+		return nil, apperr.New(pluginmgr.CodeSetupNotFound, "setup session not found")
+	}
+	return f.setup, nil
+}
+
+func (f *fakePluginService) SubscribeSetup(sid string) ([]pluginmgr.SetupEvent, <-chan pluginmgr.SetupEvent, func(), error) {
+	s, err := f.findSetup(sid)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return s.history, s.live, func() {}, nil
+}
+
+func (f *fakePluginService) SetupInput(sid, text string) error {
+	s, err := f.findSetup(sid)
+	if err != nil {
+		return err
+	}
+	s.inputs = append(s.inputs, text)
+	return nil
+}
+
+func (f *fakePluginService) CancelSetup(sid string) error {
+	s, err := f.findSetup(sid)
+	if err != nil {
+		return err
+	}
+	s.cancelled = true
+	return nil
+}
+
 func newPluginRouter(svc *fakePluginService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	h := NewPluginHandler(svc)
@@ -110,6 +160,10 @@ func newPluginRouter(svc *fakePluginService) *gin.Engine {
 	g.POST("/plugins/:id/disable", h.Disable)
 	g.POST("/plugins/:id/restart", h.Restart)
 	g.DELETE("/plugins/:id", h.Uninstall)
+	g.POST("/plugins/:id/setup", h.StartSetup)
+	g.GET("/plugins/setup/:sid/events", h.SetupEvents)
+	g.POST("/plugins/setup/:sid/input", h.SetupInput)
+	g.DELETE("/plugins/setup/:sid", h.CancelSetup)
 	return r
 }
 
@@ -298,4 +352,65 @@ func TestPluginHandler_Operations(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	require.Len(t, body.Operations, 1)
 	assert.Equal(t, "running", body.Operations[0]["status"])
+}
+
+func TestPluginHandler_StartSetup(t *testing.T) {
+	svc := &fakePluginService{}
+	w, body := doJSON(t, newPluginRouter(svc), http.MethodPost, "/api/plugins/weixin/setup", nil)
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	assert.Equal(t, "sid1", body["id"])
+	assert.Equal(t, "weixin", svc.setup.pluginID)
+}
+
+func TestPluginHandler_StartSetupWithoutSetupStep(t *testing.T) {
+	svc := &fakePluginService{err: apperr.New(pluginmgr.CodeNoSetup, "no setup")}
+	w, body := doJSON(t, newPluginRouter(svc), http.MethodPost, "/api/plugins/telegram/setup", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, pluginmgr.CodeNoSetup, body["code"])
+}
+
+func TestPluginHandler_SetupEventsStream(t *testing.T) {
+	svc := &fakePluginService{}
+	r := newPluginRouter(svc)
+	doJSON(t, r, http.MethodPost, "/api/plugins/weixin/setup", nil)
+	svc.setup.history = []pluginmgr.SetupEvent{{Type: "line", Text: "scan"}}
+	svc.setup.live <- pluginmgr.SetupEvent{Type: "line", Text: "https://example.com/q"}
+	svc.setup.live <- pluginmgr.SetupEvent{Type: "done", OK: true}
+	close(svc.setup.live)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/plugins/setup/sid1/events", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
+	assert.Equal(t,
+		"data: {\"type\":\"line\",\"text\":\"scan\"}\n\n"+
+			"data: {\"type\":\"line\",\"text\":\"https://example.com/q\"}\n\n"+
+			"data: {\"type\":\"done\",\"ok\":true}\n\n",
+		w.Body.String())
+}
+
+func TestPluginHandler_SetupInputAndCancel(t *testing.T) {
+	svc := &fakePluginService{}
+	r := newPluginRouter(svc)
+	doJSON(t, r, http.MethodPost, "/api/plugins/weixin/setup", nil)
+
+	w, _ := doJSON(t, r, http.MethodPost, "/api/plugins/setup/sid1/input", map[string]string{"text": "1234"})
+	require.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, []string{"1234"}, svc.setup.inputs)
+
+	w, _ = doJSON(t, r, http.MethodDelete, "/api/plugins/setup/sid1", nil)
+	require.Equal(t, http.StatusNoContent, w.Code)
+	assert.True(t, svc.setup.cancelled)
+}
+
+func TestPluginHandler_UnknownSetupSession404(t *testing.T) {
+	svc := &fakePluginService{}
+	r := newPluginRouter(svc)
+	w, body := doJSON(t, r, http.MethodGet, "/api/plugins/setup/nope/events", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, pluginmgr.CodeSetupNotFound, body["code"])
+	w, _ = doJSON(t, r, http.MethodPost, "/api/plugins/setup/nope/input", map[string]string{"text": "1"})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	w, _ = doJSON(t, r, http.MethodDelete, "/api/plugins/setup/nope", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }

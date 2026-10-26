@@ -23,7 +23,7 @@ func ResolveCommand(dir, name string) (string, error) {
 	return exec.LookPath(name)
 }
 
-func RunSetup(ctx context.Context, rt *RuntimeResolver, m Manifest, lang string, stdin io.Reader, stderr io.Writer) (map[string]any, error) {
+func SetupCommand(ctx context.Context, rt *RuntimeResolver, m Manifest, lang string) (*exec.Cmd, error) {
 	if m.Setup == nil || len(m.Setup.Command) == 0 {
 		return nil, fmt.Errorf("plugin %s has no setup command", m.ID)
 	}
@@ -31,20 +31,28 @@ func RunSetup(ctx context.Context, rt *RuntimeResolver, m Manifest, lang string,
 	if err != nil {
 		return nil, fmt.Errorf("resolve setup command: %w", err)
 	}
-	var stdout bytes.Buffer
 	cmd := exec.CommandContext(ctx, inv.Path, inv.Args...)
 	cmd.Dir = m.Dir
 	cmd.Env = append(append(os.Environ(), inv.Env...), "OPENBEE_LANGUAGE="+lang)
+	return cmd, nil
+}
+
+func RunSetup(ctx context.Context, rt *RuntimeResolver, m Manifest, lang string, stdin io.Reader, stderr io.Writer) (map[string]any, error) {
+	cmd, err := SetupCommand(ctx, rt, m, lang)
+	if err != nil {
+		return nil, err
+	}
+	var stdout bytes.Buffer
 	cmd.Stdin = stdin
 	cmd.Stdout = &stdout
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("setup command: %w", err)
 	}
-	return parseSetupOutput(m, stdout.Bytes())
+	return ParseSetupOutput(m, stdout.Bytes())
 }
 
-func parseSetupOutput(m Manifest, data []byte) (map[string]any, error) {
+func ParseSetupOutput(m Manifest, data []byte) (map[string]any, error) {
 	var raw map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(data), &raw); err != nil || raw == nil {
 		return nil, errors.New("setup output must be a JSON object")

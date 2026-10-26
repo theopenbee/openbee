@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -63,6 +64,8 @@ type Deps struct {
 	WorkerNameTaken func(name string) (bool, error)
 	Catalog         CatalogSource
 	Version         string
+	SetupCommand    func(ctx context.Context, man plugin.Manifest, lang string) (*exec.Cmd, error)
+	Language        string
 }
 
 type Status struct {
@@ -113,6 +116,9 @@ type Manager struct {
 	ops       []*Operation
 	opsWG     sync.WaitGroup
 	upgrading map[string]bool
+
+	setups        map[string]*setupSession
+	setupByPlugin map[string]*setupSession
 }
 
 func New(d Deps) *Manager {
@@ -123,6 +129,9 @@ func New(d Deps) *Manager {
 		locks:     make(map[string]*sync.Mutex),
 		botNames:  make(map[string]string),
 		upgrading: make(map[string]bool),
+
+		setups:        make(map[string]*setupSession),
+		setupByPlugin: make(map[string]*setupSession),
 	}
 }
 

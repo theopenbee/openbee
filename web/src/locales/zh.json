@@ -581,6 +581,9 @@
     "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
     "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
     "plugin_operation_not_found": "找不到该插件操作",
-    "plugin_catalog_unavailable": "暂时无法获取插件目录"
+    "plugin_catalog_unavailable": "暂时无法获取插件目录",
+    "plugin_no_setup": "插件 {{id}} 没有登录步骤",
+    "plugin_setup_not_found": "登录会话已结束，请重新开始",
+    "plugin_setup_finished": "登录会话已经结束"
   }
 }

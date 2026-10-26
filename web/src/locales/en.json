@@ -582,6 +582,9 @@
     "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
     "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
     "plugin_operation_not_found": "Plugin operation not found",
-    "plugin_catalog_unavailable": "The plugin catalog is unavailable right now"
+    "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
+    "plugin_no_setup": "Plugin {{id}} has no login step",
+    "plugin_setup_not_found": "The login session has ended, start again",
+    "plugin_setup_finished": "The login session has already finished"
   }
 }

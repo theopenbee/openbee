@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -399,5 +400,9 @@ func buildPluginManager(cfg config.Config, s appStores, senders *platform.Sender
 			Override:  os.Getenv("OPENBEE_PLUGIN_CATALOG"),
 		}),
 		Version: buildinfo.Version,
+		SetupCommand: func(ctx context.Context, man plugin.Manifest, lang string) (*exec.Cmd, error) {
+			return plugin.SetupCommand(ctx, runtime, man, lang)
+		},
+		Language: cfg.Language,
 	}), nil
 }

@@ -245,6 +245,7 @@ func (m *Manager) runUninstall(opID, id string) {
 	defer m.pkgMu.Unlock()
 	m.updateOp(opID, func(op *Operation) { op.Status = OpRunning })
 	ctx := m.opContext()
+	m.cancelSetup(id)
 	unlock := m.lockID(id)
 	defer unlock()
 

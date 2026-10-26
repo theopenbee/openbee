@@ -15,6 +15,9 @@ const (
 	CodeBotNameConflict    = "plugin_bot_name_conflict"
 	CodeOperationNotFound  = "plugin_operation_not_found"
 	CodeCatalogUnavailable = "plugin_catalog_unavailable"
+	CodeNoSetup            = "plugin_no_setup"
+	CodeSetupNotFound      = "plugin_setup_not_found"
+	CodeSetupFinished      = "plugin_setup_finished"
 )
 
 func errNotFound(id string) error {
@@ -43,4 +46,16 @@ func errBotNameConflict(name string) error {
 
 func errCatalogUnavailable(err error) error {
 	return apperr.New(CodeCatalogUnavailable, fmt.Sprintf("plugin catalog is unavailable: %v", err)).WithParams(map[string]any{"reason": err.Error()})
+}
+
+func errNoSetup(id string) error {
+	return apperr.New(CodeNoSetup, fmt.Sprintf("plugin %q has no setup step", id)).WithParams(map[string]any{"id": id})
+}
+
+func errSetupNotFound(sid string) error {
+	return apperr.New(CodeSetupNotFound, "setup session not found").WithParams(map[string]any{"id": sid})
+}
+
+func errSetupFinished(sid string) error {
+	return apperr.New(CodeSetupFinished, "setup session has finished").WithParams(map[string]any{"id": sid})
 }

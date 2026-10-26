@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -26,7 +28,13 @@ type pluginService interface {
 	Enable(ctx context.Context, id string) error
 	Disable(ctx context.Context, id string) error
 	Restart(ctx context.Context, id string) error
+	StartSetup(ctx context.Context, id string) (string, error)
+	SubscribeSetup(sid string) ([]pluginmgr.SetupEvent, <-chan pluginmgr.SetupEvent, func(), error)
+	SetupInput(sid, text string) error
+	CancelSetup(sid string) error
 }
+
+const setupKeepAlive = 15 * time.Second
 
 type PluginHandler struct {
 	svc pluginService
@@ -103,11 +111,13 @@ func toOperationView(op pluginmgr.Operation) operationView {
 
 func pluginErrorStatus(err error) int {
 	switch apperr.Code(err) {
-	case pluginmgr.CodeNotFound, pluginmgr.CodeOperationNotFound:
+	case pluginmgr.CodeNotFound, pluginmgr.CodeOperationNotFound, pluginmgr.CodeSetupNotFound:
 		return http.StatusNotFound
 	case pluginmgr.CodeConfigInvalid, pluginmgr.CodeUnknownField, pluginmgr.CodeBotNameConflict,
-		pluginmgr.CodeEnvSecretMissing, pluginmgr.CodeNotConfigured:
+		pluginmgr.CodeEnvSecretMissing, pluginmgr.CodeNotConfigured, pluginmgr.CodeNoSetup:
 		return http.StatusBadRequest
+	case pluginmgr.CodeSetupFinished:
+		return http.StatusConflict
 	case pluginmgr.CodeCatalogUnavailable:
 		return http.StatusBadGateway
 	}
@@ -237,4 +247,78 @@ func (h *PluginHandler) Uninstall(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, toOperationView(op))
+}
+
+func (h *PluginHandler) StartSetup(c *gin.Context) {
+	sid, err := h.svc.StartSetup(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		respondPluginError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": sid})
+}
+
+func (h *PluginHandler) SetupEvents(c *gin.Context) {
+	history, ch, unsubscribe, err := h.svc.SubscribeSetup(c.Param("sid"))
+	if err != nil {
+		respondPluginError(c, err)
+		return
+	}
+	defer unsubscribe()
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+	write := func(ev pluginmgr.SetupEvent) {
+		data, _ := json.Marshal(ev)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+	}
+	for _, ev := range history {
+		write(ev)
+	}
+	c.Writer.Flush()
+
+	ping := time.NewTicker(setupKeepAlive)
+	defer ping.Stop()
+	ctx := c.Request.Context()
+	for {
+		select {
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			write(ev)
+			c.Writer.Flush()
+		case <-ping.C:
+			fmt.Fprint(c.Writer, ": ping\n\n")
+			c.Writer.Flush()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (h *PluginHandler) SetupInput(c *gin.Context) {
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := h.svc.SetupInput(c.Param("sid"), req.Text); err != nil {
+		respondPluginError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *PluginHandler) CancelSetup(c *gin.Context) {
+	if err := h.svc.CancelSetup(c.Param("sid")); err != nil {
+		respondPluginError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

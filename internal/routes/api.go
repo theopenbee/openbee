@@ -99,4 +99,8 @@ func (s *Server) registerPluginRoutes(r *gin.RouterGroup) {
 	r.POST("/:id/disable", rp(auth.PermPluginsWrite), s.Plugins.Disable)
 	r.POST("/:id/restart", rp(auth.PermPluginsWrite), s.Plugins.Restart)
 	r.DELETE("/:id", rp(auth.PermPluginsWrite), s.Plugins.Uninstall)
+	r.POST("/:id/setup", rp(auth.PermPluginsWrite), s.Plugins.StartSetup)
+	r.GET("/setup/:sid/events", rp(auth.PermPluginsRead), s.Plugins.SetupEvents)
+	r.POST("/setup/:sid/input", rp(auth.PermPluginsWrite), s.Plugins.SetupInput)
+	r.DELETE("/setup/:sid", rp(auth.PermPluginsWrite), s.Plugins.CancelSetup)
 }

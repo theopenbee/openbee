@@ -86,11 +86,14 @@ When openbee starts it starts every enabled plugin. Before it sends `initialize.
 
 ## Setup
 
-`openbee plugin configure <id>` runs the setup command of a plugin whose manifest declares `setup`, on the machine where openbee runs, before asking for the `config[]` fields, and saves the result as the plugin's settings.
+A plugin whose manifest declares `setup` can be set up from the terminal or from the web console. Both run the same setup command on the machine where openbee runs and save the result as the plugin's settings.
 
-- The command runs in the plugin directory with stdin and stderr attached to the user's terminal, so it can show a QR code and ask questions there. `OPENBEE_LANGUAGE` holds the user's language (`en` or `zh`).
-- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. `openbee plugin configure` saves the values and does not ask for those fields again.
-- On failure (non-zero exit or invalid output) openbee shows the error and asks for every field by hand.
+- `openbee plugin configure <id>` runs the command before asking for the `config[]` fields, with stdin and stderr attached to the user's terminal.
+- The web console starts the command on the server and streams its stderr to the browser line by line. A line still waiting for input (no trailing newline) is shown after a short pause. ANSI escape codes are removed and lines made only of block characters (a QR code drawn in the terminal) are not shown. The browser renders the latest line that is a link (`https://...`) as a QR code and sends what the user types to stdin as one line. A session ends after 10 minutes.
+- The command runs in the plugin directory. `OPENBEE_LANGUAGE` holds the user's language (`en` or `zh`).
+- Print the QR code content (the link) on a line of its own, so the web console can draw it. Print a new link when the code expires.
+- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. The values are saved right away even if other required fields are still empty; an enabled plugin is restarted, a disabled one stays disabled. `openbee plugin configure` does not ask for those fields again.
+- On failure (non-zero exit or invalid output) openbee shows the last stderr line or the error and saves nothing. `openbee plugin configure` then asks for every field by hand.
 
 ## Process rules
 

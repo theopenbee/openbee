@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -143,6 +144,7 @@ func (f *fakeFactory) spec(id string) InstanceSpec {
 }
 
 type harness struct {
+	scripts  map[string]string
 	t        *testing.T
 	m        *Manager
 	inst     *fakeInstaller
@@ -190,7 +192,14 @@ func newHarness(t *testing.T) *harness {
 		botNames: make(chan map[string]string, 256),
 	}
 	h.inst = &fakeInstaller{h: h}
+	h.scripts = map[string]string{}
 	h.m = New(Deps{
+		SetupCommand: func(ctx context.Context, man plugin.Manifest, lang string) (*exec.Cmd, error) {
+			cmd := exec.CommandContext(ctx, "sh", "-c", h.scripts[man.ID])
+			cmd.Env = append(os.Environ(), "OPENBEE_LANGUAGE="+lang)
+			return cmd, nil
+		},
+		Language:   "zh",
 		Registry:   h.reg,
 		Installer:  h.inst,
 		Store:      h.store,
