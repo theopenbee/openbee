@@ -20,6 +20,8 @@ const (
 	PermSystemConfigWrite = "system_config:write"
 	PermUsersManage       = "users:manage"
 	PermRolesManage       = "roles:manage"
+	PermPluginsRead       = "plugins:read"
+	PermPluginsWrite      = "plugins:write"
 )
 
 // PermissionGroup groups permissions by resource for the catalog endpoint.
@@ -38,6 +40,7 @@ func PermissionCatalog() []PermissionGroup {
 		{Resource: "dashboard", Permissions: []string{PermDashboardRead}},
 		{Resource: "env", Permissions: []string{PermEnvRead, PermEnvWrite}},
 		{Resource: "system_config", Permissions: []string{PermSystemConfigRead, PermSystemConfigWrite}},
+		{Resource: "plugins", Permissions: []string{PermPluginsRead, PermPluginsWrite}},
 		{Resource: "administration", Permissions: []string{PermUsersManage, PermRolesManage}},
 	}
 }

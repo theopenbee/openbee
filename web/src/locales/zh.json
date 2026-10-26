@@ -439,6 +439,7 @@
       "dashboard": "仪表盘",
       "env": "环境变量",
       "system_config": "系统配置",
+      "plugins": "插件",
       "administration": "管理"
     },
     "permissionItems": {
@@ -449,6 +450,7 @@
       "dashboard": { "read": "查看仪表盘" },
       "env": { "read": "查看环境变量", "write": "编辑环境变量" },
       "system_config": { "read": "查看系统配置", "write": "修改系统配置" },
+      "plugins": { "read": "查看插件", "write": "安装和管理插件" },
       "users": { "manage": "管理用户" },
       "roles": { "manage": "管理角色" }
     },
@@ -571,6 +573,14 @@
     "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee、department 或 worker 之一",
     "env_reserved_key": "{{key}} 为保留键，不可设置",
     "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id",
-    "old_password_incorrect": "当前密码不正确。"
+    "old_password_incorrect": "当前密码不正确。",
+    "plugin_not_found": "插件 {{id}} 未安装",
+    "plugin_config_invalid": "插件配置无效：{{reason}}",
+    "plugin_unknown_field": "{{key}} 不是该插件的配置项",
+    "plugin_env_secret_missing": "保存插件配置前，请先在 config.yaml 中设置 server.env_secret",
+    "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
+    "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
+    "plugin_operation_not_found": "找不到该插件操作",
+    "plugin_catalog_unavailable": "暂时无法获取插件目录"
   }
 }

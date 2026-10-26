@@ -440,6 +440,7 @@
       "dashboard": "Dashboard",
       "env": "Environment",
       "system_config": "System Config",
+      "plugins": "Plugins",
       "administration": "Administration"
     },
     "permissionItems": {
@@ -450,6 +451,7 @@
       "dashboard": { "read": "View dashboard" },
       "env": { "read": "View environment variables", "write": "Edit environment variables" },
       "system_config": { "read": "View system config", "write": "Edit system config" },
+      "plugins": { "read": "View plugins", "write": "Install & manage plugins" },
       "users": { "manage": "Manage users" },
       "roles": { "manage": "Manage roles" }
     },
@@ -572,6 +574,14 @@
     "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
     "env_reserved_key": "{{key}} is reserved and cannot be set",
     "env_scope_id_required": "scope_id is required for scope {{scope}}",
-    "old_password_incorrect": "The current password is incorrect."
+    "old_password_incorrect": "The current password is incorrect.",
+    "plugin_not_found": "Plugin {{id}} is not installed",
+    "plugin_config_invalid": "Invalid plugin settings: {{reason}}",
+    "plugin_unknown_field": "{{key}} is not a setting of this plugin",
+    "plugin_env_secret_missing": "Set server.env_secret in config.yaml before saving plugin settings",
+    "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
+    "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
+    "plugin_operation_not_found": "Plugin operation not found",
+    "plugin_catalog_unavailable": "The plugin catalog is unavailable right now"
   }
 }

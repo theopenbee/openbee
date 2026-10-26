@@ -77,3 +77,10 @@ func TestCatalogGroupsCoverAllPermissions(t *testing.T) {
 func TestMessagesReadRetired(t *testing.T) {
 	require.False(t, IsAssignablePermission("messages:read"), "messages:read should be retired (merged into chat:write)")
 }
+
+func TestPluginPermissionsAssignable(t *testing.T) {
+	require.True(t, IsAssignablePermission(PermPluginsRead))
+	require.True(t, IsAssignablePermission(PermPluginsWrite))
+	require.Equal(t, "plugins:read", PermPluginsRead)
+	require.Equal(t, "plugins:write", PermPluginsWrite)
+}

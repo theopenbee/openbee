@@ -68,6 +68,17 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/system-configs", rp(auth.PermSystemConfigRead), s.SystemConfigs.Get)
 	r.PUT("/system-configs/:key", rp(auth.PermSystemConfigWrite), s.SystemConfigs.Set)
 
+	r.GET("/plugins", rp(auth.PermPluginsRead), s.Plugins.List)
+	r.GET("/plugins/catalog", rp(auth.PermPluginsRead), s.Plugins.Catalog)
+	r.POST("/plugins/install", rp(auth.PermPluginsWrite), s.Plugins.Install)
+	r.GET("/plugins/operations/:id", rp(auth.PermPluginsRead), s.Plugins.Operation)
+	r.GET("/plugins/:id", rp(auth.PermPluginsRead), s.Plugins.Get)
+	r.PUT("/plugins/:id/settings", rp(auth.PermPluginsWrite), s.Plugins.UpdateSettings)
+	r.POST("/plugins/:id/enable", rp(auth.PermPluginsWrite), s.Plugins.Enable)
+	r.POST("/plugins/:id/disable", rp(auth.PermPluginsWrite), s.Plugins.Disable)
+	r.POST("/plugins/:id/restart", rp(auth.PermPluginsWrite), s.Plugins.Restart)
+	r.DELETE("/plugins/:id", rp(auth.PermPluginsWrite), s.Plugins.Uninstall)
+
 	// User & role administration
 	r.GET("/users", rp(auth.PermUsersManage), s.Users.List)
 	r.POST("/users", rp(auth.PermUsersManage), s.Users.Create)

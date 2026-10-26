@@ -15,6 +15,8 @@ export const Perm = {
   SystemConfigWrite: "system_config:write",
   UsersManage: "users:manage",
   RolesManage: "roles:manage",
+  PluginsRead: "plugins:read",
+  PluginsWrite: "plugins:write",
 } as const
 
 export type PermKey = (typeof Perm)[keyof typeof Perm]

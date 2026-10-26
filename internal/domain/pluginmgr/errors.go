@@ -15,7 +15,6 @@ const (
 	CodeBotNameConflict    = "plugin_bot_name_conflict"
 	CodeOperationNotFound  = "plugin_operation_not_found"
 	CodeCatalogUnavailable = "plugin_catalog_unavailable"
-	CodeBusy               = "plugin_busy"
 )
 
 func errNotFound(id string) error {
@@ -40,10 +39,6 @@ func errNotConfigured(id string, err error) error {
 
 func errBotNameConflict(name string) error {
 	return apperr.New(CodeBotNameConflict, fmt.Sprintf("bot name %q is already used by a worker", name)).WithParams(map[string]any{"name": name})
-}
-
-func errOperationNotFound(id string) error {
-	return apperr.New(CodeOperationNotFound, fmt.Sprintf("operation %q not found", id)).WithParams(map[string]any{"id": id})
 }
 
 func errCatalogUnavailable(err error) error {

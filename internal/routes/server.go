@@ -27,6 +27,7 @@ type ServerParams struct {
 	Users             *api.UserHandler
 	Roles             *api.RoleHandler
 	Setup             *api.SetupHandler
+	Plugins           *api.PluginHandler
 	BeeRPC            *rpc.Server
 	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS
