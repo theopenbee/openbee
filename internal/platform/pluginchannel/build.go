@@ -1,6 +1,7 @@
 package pluginchannel
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -45,6 +46,9 @@ func BuildChannels(sections map[string]map[string]any, opts BuildOptions) []Buil
 			continue
 		}
 		p, err := buildOne(id, section, opts)
+		if errors.Is(err, plugin.ErrNotInstalled) {
+			continue
+		}
 		if err != nil {
 			log.Error("plugin channel skipped", zap.String("channel", id), zap.Error(err))
 			continue
@@ -63,7 +67,7 @@ func buildOne(id string, section map[string]any, opts BuildOptions) (*Platform, 
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("plugin %q is not installed; run `openbee plugin install`", id)
+		return nil, fmt.Errorf("%w: %s", plugin.ErrNotInstalled, id)
 	}
 	m, err := plugin.LoadManifest(entry.Path)
 	if err != nil {

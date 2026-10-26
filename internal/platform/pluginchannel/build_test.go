@@ -98,3 +98,9 @@ func TestBuildChannels_YAMLStyleEnabled(t *testing.T) {
 	require.Len(t, built, 1)
 	assert.Equal(t, "yesplug", built[0].Channel.Platform.ID())
 }
+
+func TestBuildOne_NotInstalled(t *testing.T) {
+	reg := plugin.OpenRegistry(filepath.Join(t.TempDir(), "plugins"))
+	_, err := buildOne("missing", map[string]any{"enabled": true, "token": "x"}, BuildOptions{Registry: reg, MediaSvc: newTestMedia(t)})
+	assert.ErrorIs(t, err, plugin.ErrNotInstalled)
+}
