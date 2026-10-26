@@ -101,6 +101,21 @@ func TestTaskStore_List_ByMessageIDFilter(t *testing.T) {
 	assert.Len(t, tasks, 2)
 }
 
+func TestTaskStore_List_SameCreatedAtNewestFirst(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+	for _, ins := range []string{"first", "second", "third"} {
+		seedTask(t, ts, model.Task{Instruction: ins})
+	}
+	_, err := ts.db.Exec(`UPDATE bee_tasks SET created_at = 1`)
+	require.NoError(t, err)
+
+	tasks, err := ts.List(context.Background(), TaskFilter{MessageID: "m1", Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, tasks, 2)
+	assert.Equal(t, "third", tasks[0].Instruction)
+	assert.Equal(t, "second", tasks[1].Instruction)
+}
+
 func TestTaskStore_UpdateStatus(t *testing.T) {
 	ctx := context.Background()
 	cases := []struct {

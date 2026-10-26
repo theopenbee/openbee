@@ -1,13 +1,16 @@
 package backup
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"golang.org/x/sync/errgroup"
+	_ "modernc.org/sqlite"
 )
 
 // BackupOptions configures a Backup call.
@@ -33,8 +36,8 @@ func Backup(opts BackupOptions) (string, error) {
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		if err := utils.CopyFile(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
-			return fmt.Errorf("copy database: %w", err)
+		if err := snapshotDB(opts.DBPath, filepath.Join(tmp, "openbee.db")); err != nil {
+			return fmt.Errorf("snapshot database: %w", err)
 		}
 		return nil
 	})
@@ -45,7 +48,7 @@ func Backup(opts BackupOptions) (string, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee")); err != nil {
+		if err := copyDir(opts.StateDir, filepath.Join(tmp, "dot-openbee"), databaseFiles(opts.StateDir, opts.DBPath)); err != nil {
 			return fmt.Errorf("copy state dir: %w", err)
 		}
 		return nil
@@ -99,9 +102,59 @@ func Backup(opts BackupOptions) (string, error) {
 	return finalName, nil
 }
 
+func snapshotDB(src, dst string) error {
+	if _, err := os.Stat(src); err != nil {
+		return err
+	}
+	db, err := sql.Open("sqlite", src+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec(`VACUUM INTO ?`, dst)
+	return err
+}
+
+var dbSidecarSuffixes = []string{"-wal", "-shm", "-journal"}
+
+func databaseFiles(stateDir, dbPath string) map[string]bool {
+	dir, err := resolvePath(stateDir)
+	if err != nil {
+		return nil
+	}
+	db, err := resolvePath(dbPath)
+	if err != nil {
+		return nil
+	}
+	rel, err := filepath.Rel(dir, db)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil
+	}
+	files := map[string]bool{rel: true}
+	for _, suffix := range dbSidecarSuffixes {
+		files[rel+suffix] = true
+	}
+	return files
+}
+
+func resolvePath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved, nil
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return abs, nil
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
+}
+
 // copyDir recursively copies srcDir to dstDir.
 // Symlinks are copied as symlinks; their targets are not followed.
-func copyDir(srcDir, dstDir string) error {
+func copyDir(srcDir, dstDir string, skip map[string]bool) error {
 	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -109,6 +162,9 @@ func copyDir(srcDir, dstDir string) error {
 		rel, err := filepath.Rel(srcDir, path)
 		if err != nil {
 			return err
+		}
+		if skip[rel] {
+			return nil
 		}
 		dst := filepath.Join(dstDir, rel)
 		if info.IsDir() {
