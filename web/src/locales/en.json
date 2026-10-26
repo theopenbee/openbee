@@ -605,7 +605,8 @@
       "botName": "Bot name"
     },
     "installedTitle": "Installed plugins",
-    "installedSummary": "{{count}} plugins, {{running}} running",
+    "installedSummary_one": "{{count}} plugin, {{running}} running",
+    "installedSummary_other": "{{count}} plugins, {{running}} running",
     "emptyInstalled": {
       "title": "No plugins installed",
       "description": "Install a channel plugin from the marketplace to connect a chat platform.",
@@ -663,7 +664,8 @@
       "again": "Get a new code",
       "reconnecting": "Reconnecting…",
       "success": "Signed in, settings saved",
-      "failed": "Sign-in failed: {{error}}"
+      "failed": "Sign-in failed: {{error}}",
+      "lost": "Lost the connection to the sign-in session. Get a new code to try again."
     }
   },
   "errors": {

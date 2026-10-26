@@ -106,8 +106,9 @@ function Market({ operations }: { operations: PluginOperation[] }) {
   const install = useInstallPlugin()
   const [query, setQuery] = useState("")
   const [tag, setTag] = useState<string | null>(null)
+  const [requested, setRequested] = useState<Set<string>>(() => new Set())
   const pending = useMemo(() => pendingInstalls(operations), [operations])
-  const now = useNow(Object.keys(pending).length > 0)
+  const now = useNow(Object.keys(pending).length > 0 || requested.size > 0)
   const lang = i18n.language
 
   if (catalog.isLoading) {
@@ -132,8 +133,18 @@ function Market({ operations }: { operations: PluginOperation[] }) {
   const tags = catalog.data.tags.filter((v) => usedTags.has(v.id))
   const list = filterCatalog(catalog.data.plugins, query, tag)
 
-  const startInstall = (p: CatalogPlugin) =>
-    install.mutate(`${p.package}@${p.version}`, { onError: (err) => toast.error(getErrorMessage(err)) })
+  const startInstall = (p: CatalogPlugin) => {
+    setRequested((prev) => new Set(prev).add(p.package))
+    install.mutate(`${p.package}@${p.version}`, {
+      onError: (err) => toast.error(getErrorMessage(err)),
+      onSettled: () =>
+        setRequested((prev) => {
+          const next = new Set(prev)
+          next.delete(p.package)
+          return next
+        }),
+    })
+  }
 
   return (
     <>
@@ -172,7 +183,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {list.map((p) => {
             const op = pending[p.package]
-            const action = marketAction(p, Boolean(op))
+            const action = marketAction(p, Boolean(op) || requested.has(p.package))
             const name = localize(p.name, lang) || p.id
             const deprecated = localize(p.deprecated, lang)
             return (

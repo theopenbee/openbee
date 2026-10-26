@@ -119,9 +119,11 @@ export interface SetupState {
   lines: string[]
   done: PluginSetupEvent | null
   connected: boolean
+  starting: boolean
+  lost: boolean
 }
 
-const IDLE_SETUP: SetupState = { sessionId: null, lines: [], done: null, connected: false }
+const IDLE_SETUP: SetupState = { sessionId: null, lines: [], done: null, connected: false, starting: false, lost: false }
 
 export function usePluginSetup(pluginId: string, onDone?: (ev: PluginSetupEvent) => void) {
   const queryClient = useQueryClient()
@@ -166,8 +168,12 @@ export function usePluginSetup(pluginId: string, onDone?: (ev: PluginSetupEvent)
       }
       es.onerror = () => {
         es?.close()
+        if (closed) return
+        if (attempts >= MAX_SETUP_RECONNECTS) {
+          setState((s) => (s.sessionId === sessionId ? { ...s, connected: false, lost: true } : s))
+          return
+        }
         setState((s) => (s.sessionId === sessionId ? { ...s, connected: false } : s))
-        if (closed || attempts >= MAX_SETUP_RECONNECTS) return
         attempts += 1
         timer = setTimeout(async () => {
           if (getRefreshToken()) await refreshAccessToken().catch(() => null)
@@ -187,13 +193,27 @@ export function usePluginSetup(pluginId: string, onDone?: (ev: PluginSetupEvent)
   const stateRef = useRef(state)
   stateRef.current = state
 
+  const generation = useRef(0)
+
   const start = useCallback(async () => {
-    const { id } = await api.plugins.startSetup(pluginId)
-    setState({ ...IDLE_SETUP, sessionId: id })
-    return id
+    const gen = ++generation.current
+    setState({ ...IDLE_SETUP, starting: true })
+    try {
+      const { id } = await api.plugins.startSetup(pluginId)
+      if (gen !== generation.current) {
+        await api.plugins.cancelSetup(id).catch(() => undefined)
+        return null
+      }
+      setState({ ...IDLE_SETUP, sessionId: id })
+      return id
+    } catch (err) {
+      if (gen === generation.current) setState(IDLE_SETUP)
+      throw err
+    }
   }, [pluginId])
 
   const cancel = useCallback(async () => {
+    generation.current++
     const { sessionId: sid, done } = stateRef.current
     setState(IDLE_SETUP)
     if (sid && !done) await api.plugins.cancelSetup(sid).catch(() => undefined)

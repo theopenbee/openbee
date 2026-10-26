@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -122,6 +123,9 @@ func (s *setupSession) wasStopped() bool {
 
 func cleanSetupLine(line string) (string, bool) {
 	line = strings.TrimRight(ansiPattern.ReplaceAllString(line, ""), "\r \t")
+	if i := strings.LastIndexByte(line, '\r'); i >= 0 {
+		line = line[i+1:]
+	}
 	if strings.TrimSpace(line) == "" {
 		return "", false
 	}
@@ -136,6 +140,8 @@ func cleanSetupLine(line string) (string, bool) {
 }
 
 func (m *Manager) StartSetup(ctx context.Context, id string) (string, error) {
+	m.setupMu.Lock()
+	defer m.setupMu.Unlock()
 	e, err := m.entry(id)
 	if err != nil {
 		return "", err
@@ -174,15 +180,13 @@ func (m *Manager) StartSetup(ctx context.Context, id string) (string, error) {
 		cancel()
 		return "", err
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		cancel()
-		return "", err
-	}
+	stderrR, stderrW := io.Pipe()
+	cmd.Stderr = stderrW
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	if err := cmd.Start(); err != nil {
 		cancel()
+		_ = stderrW.Close()
 		return "", fmt.Errorf("start setup: %w", err)
 	}
 
@@ -201,8 +205,15 @@ func (m *Manager) StartSetup(ctx context.Context, id string) (string, error) {
 
 	go func() {
 		defer cancel()
-		lastLine := m.pumpSetupOutput(s, stderr)
+		lastLine := make(chan string, 1)
+		go func() { lastLine <- m.pumpSetupOutput(s, stderrR) }()
 		waitErr := cmd.Wait()
+		_ = stderrW.Close()
+		_ = proc.Stop()
+		last := <-lastLine
+		if errors.Is(waitErr, exec.ErrWaitDelay) {
+			waitErr = nil
+		}
 		ev := SetupEvent{Type: "done"}
 		switch {
 		case s.wasStopped():
@@ -210,7 +221,7 @@ func (m *Manager) StartSetup(ctx context.Context, id string) (string, error) {
 		case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 			ev.Error = "setup timed out"
 		case waitErr != nil:
-			ev.Error = strings.TrimSpace(lastLine)
+			ev.Error = strings.TrimSpace(last)
 			if ev.Error == "" {
 				ev.Error = waitErr.Error()
 			}
@@ -261,6 +272,7 @@ func (m *Manager) pumpSetupOutput(s *setupSession, r io.Reader) string {
 	}
 	timer := time.NewTimer(time.Hour)
 	timer.Stop()
+	armed := false
 	for {
 		select {
 		case chunk, ok := <-chunks:
@@ -282,10 +294,12 @@ func (m *Manager) pumpSetupOutput(s *setupSession, r io.Reader) string {
 			}
 			pending.Reset()
 			pending.WriteString(text)
-			if pending.Len() > 0 {
+			if pending.Len() > 0 && !armed {
 				timer.Reset(setupPartialFlush)
+				armed = true
 			}
 		case <-timer.C:
+			armed = false
 			if pending.Len() > 0 {
 				emit(pending.String())
 				pending.Reset()
@@ -384,5 +398,8 @@ func (m *Manager) SaveSetupValues(ctx context.Context, id string, values map[str
 		return nil
 	}
 	m.stopLocked(id)
-	return m.startLocked(ctx, id)
+	if err := m.startLocked(ctx, id); err != nil {
+		log.Warn("restart plugin after setup", zap.String("plugin", id), zap.Error(err))
+	}
+	return nil
 }

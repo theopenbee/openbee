@@ -604,7 +604,7 @@
       "botName": "机器人名称"
     },
     "installedTitle": "已安装的插件",
-    "installedSummary": "{{count}} 个插件，{{running}} 个运行中",
+    "installedSummary_other": "{{count}} 个插件，{{running}} 个运行中",
     "emptyInstalled": {
       "title": "还没有安装插件",
       "description": "去插件市场安装一个渠道插件，就能接入聊天平台。",
@@ -662,7 +662,8 @@
       "again": "重新获取",
       "reconnecting": "正在重新连接…",
       "success": "登录成功，配置已保存",
-      "failed": "登录失败：{{error}}"
+      "failed": "登录失败：{{error}}",
+      "lost": "与登录会话的连接已断开，请点击“重新获取”重试。"
     }
   },
   "errors": {

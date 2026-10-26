@@ -62,7 +62,7 @@ export function PluginSetupDialog({
   const progress = setup.lines.filter((line) => !isLink(line)).slice(-VISIBLE_LINES)
   const failed = setup.done && !setup.done.ok ? setup.done.error || "" : null
   const active = Boolean(setup.sessionId) && !setup.done
-  const stopped = Boolean(startError) || failed !== null
+  const stopped = Boolean(startError) || failed !== null || setup.lost
 
   const send = async () => {
     if (!text.trim()) return
@@ -108,11 +108,13 @@ export function PluginSetupDialog({
             ))}
           </div>
         )}
-        {active && !setup.connected && setup.lines.length > 0 && (
+        {active && !setup.connected && !setup.lost && setup.lines.length > 0 && (
           <p className="text-xs text-muted-foreground">{t("plugins.setup.reconnecting")}</p>
         )}
-        {(startError || failed !== null) && (
-          <div className={ALERT_DESTRUCTIVE}>{startError ?? t("plugins.setup.failed", { error: failed })}</div>
+        {(startError || failed !== null || setup.lost) && (
+          <div className={ALERT_DESTRUCTIVE}>
+            {startError ?? (failed !== null ? t("plugins.setup.failed", { error: failed }) : t("plugins.setup.lost"))}
+          </div>
         )}
 
         <form
@@ -139,7 +141,7 @@ export function PluginSetupDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button variant="outline" onClick={begin}>
+          <Button variant="outline" disabled={setup.starting} onClick={begin}>
             <RefreshCwIcon />
             {t("plugins.setup.again")}
           </Button>

@@ -117,6 +117,7 @@ type Manager struct {
 	opsWG     sync.WaitGroup
 	upgrading map[string]bool
 
+	setupMu       sync.Mutex
 	setups        map[string]*setupSession
 	setupByPlugin map[string]*setupSession
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -234,11 +235,11 @@ func TestSetup_SecondStartCancelsFirst(t *testing.T) {
 func TestSetup_DropsTerminalQRLines(t *testing.T) {
 	h := newHarness(t)
 	h.installWithSetup("weixin")
-	h.scripts["weixin"] = `printf '\033[32mgreen text\033[0m\n' >&2; printf '█▀▀▀█ ▄▄ █▀▀▀█\n' >&2; printf '▀▀▀▀▀ ▀▀ ▀▀▀▀▀\n' >&2; printf '\n' >&2; echo "real line" >&2; printf '{"token":"t"}'`
+	h.scripts["weixin"] = `printf '\033[32mgreen text\033[0m\n' >&2; printf '█▀▀▀█ ▄▄ █▀▀▀█\n' >&2; printf '▀▀▀▀▀ ▀▀ ▀▀▀▀▀\n' >&2; printf '\n' >&2; echo "real line" >&2; printf 'spin 1\rspin 2\rspinning done\n' >&2; printf '{"token":"t"}'`
 	h.start()
 	sid, err := h.m.StartSetup(context.Background(), "weixin")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"green text", "real line"}, lines(collect(t, h.m, sid, 5*time.Second)))
+	assert.Equal(t, []string{"green text", "real line", "spinning done"}, lines(collect(t, h.m, sid, 5*time.Second)))
 }
 
 func TestSetup_PluginWithoutSetup(t *testing.T) {
@@ -279,4 +280,66 @@ func TestSetup_ShutdownStopsSetup(t *testing.T) {
 	h.cancel()
 	events := collect(t, h.m, sid, 4*time.Second)
 	assert.False(t, events[len(events)-1].OK)
+}
+
+func TestSetup_ConcurrentStartsKeepOneSession(t *testing.T) {
+	h := newHarness(t)
+	h.installWithSetup("weixin")
+	h.scripts["weixin"] = `sleep 30`
+	h.start()
+
+	ids := make([]string, 3)
+	var wg sync.WaitGroup
+	for i := range ids {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sid, err := h.m.StartSetup(context.Background(), "weixin")
+			assert.NoError(t, err)
+			ids[i] = sid
+		}(i)
+	}
+	wg.Wait()
+
+	running := 0
+	for _, sid := range ids {
+		history, _, unsubscribe, err := h.m.SubscribeSetup(sid)
+		require.NoError(t, err)
+		unsubscribe()
+		if len(history) == 0 || history[len(history)-1].Type != "done" {
+			running++
+		}
+	}
+	assert.Equal(t, 1, running)
+}
+
+func TestSetup_BackgroundChildDoesNotBlockResult(t *testing.T) {
+	h := newHarness(t)
+	h.installWithSetup("weixin")
+	h.scripts["weixin"] = `sleep 30 >&2 & printf '{"token":"t"}'`
+	h.start()
+	sid, err := h.m.StartSetup(context.Background(), "weixin")
+	require.NoError(t, err)
+	events := collect(t, h.m, sid, 6*time.Second)
+	done := events[len(events)-1]
+	assert.True(t, done.OK, done.Error)
+}
+
+func TestSetup_SavedValuesReportSuccessWhenRestartFails(t *testing.T) {
+	h := newHarness(t)
+	h.installWithSetup("weixin")
+	h.save("weixin", true, "", map[string]any{"token": "old"})
+	h.scripts["weixin"] = `printf '{"token":"new"}'`
+	h.start()
+
+	sid, err := h.m.StartSetup(context.Background(), "weixin")
+	require.NoError(t, err)
+	events := collect(t, h.m, sid, 5*time.Second)
+	done := events[len(events)-1]
+	assert.True(t, done.OK, done.Error)
+	row, _, err := h.store.Get(context.Background(), "weixin")
+	require.NoError(t, err)
+	settings, err := h.codec.Decode(row)
+	require.NoError(t, err)
+	assert.Equal(t, "new", settings.Config["token"])
 }
