@@ -206,7 +206,7 @@ func (s *WorkerStore) ListFiltered(ctx context.Context, filter WorkerFilter, lim
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC LIMIT ? OFFSET ?",
+		"SELECT "+workerColumns+" FROM bee_workers"+where+" ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?",
 		appendPaginationArgs(args, limit, offset)...,
 	)
 	if err != nil {

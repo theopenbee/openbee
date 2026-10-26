@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Actually enable SQLite WAL mode and the busy timeout.
+- Back up the database consistently while openbee is running.
+- Refuse to restore over a database that is in use.
+
 ## [0.0.46] - 2026-10-25
 
 ### Added

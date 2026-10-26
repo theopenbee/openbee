@@ -3,7 +3,9 @@ package store
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,6 +28,45 @@ func TestInitDB(t *testing.T) {
 	}
 
 	_ = os.Remove(dbPath)
+}
+
+func TestInitDB_AppliesPragmas(t *testing.T) {
+	db, err := InitDB(filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+	defer db.Close()
+
+	var mode string
+	require.NoError(t, db.QueryRow("PRAGMA journal_mode").Scan(&mode))
+	assert.Equal(t, "wal", mode)
+	var timeout int
+	require.NoError(t, db.QueryRow("PRAGMA busy_timeout").Scan(&timeout))
+	assert.Equal(t, 5000, timeout)
+}
+
+func TestInitDB_WaitsForAnotherWriter(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := InitDB(dbPath)
+	require.NoError(t, err)
+	defer db.Close()
+	_, err = db.Exec(`CREATE TABLE lock_probe (v TEXT)`)
+	require.NoError(t, err)
+
+	other, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	defer other.Close()
+	tx, err := other.Begin()
+	require.NoError(t, err)
+	_, err = tx.Exec(`INSERT INTO lock_probe (v) VALUES ('held')`)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		done <- tx.Commit()
+	}()
+
+	_, err = db.Exec(`INSERT INTO lock_probe (v) VALUES ('waiting')`)
+	require.NoError(t, err)
+	require.NoError(t, <-done)
 }
 
 func TestInitDB_PlatformMessagesTable(t *testing.T) {

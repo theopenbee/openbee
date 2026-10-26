@@ -370,7 +370,7 @@ func (s *MessageStore) ListFiltered(ctx context.Context, f MessageFilter, limit,
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, session_key, platform, content, status, received_at
-		 FROM bee_platform_messages`+where+` ORDER BY received_at DESC LIMIT ? OFFSET ?`,
+		 FROM bee_platform_messages`+where+` ORDER BY received_at DESC, rowid DESC LIMIT ? OFFSET ?`,
 		appendPaginationArgs(args, limit, offset)...,
 	)
 	if err != nil {
