@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
+import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -268,6 +268,32 @@ export const api = {
     update: (id: string, data: { name?: string; description?: string; permissions?: string[] }) =>
       fetchAPI<Role>(`/roles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) => fetchAPI(`/roles/${id}`, { method: "DELETE" }),
+  },
+  plugins: {
+    list: async () => {
+      const res = await fetchAPI<{ plugins: PluginStatus[] | null }>("/plugins")
+      return Array.isArray(res?.plugins) ? res.plugins : []
+    },
+    get: (id: string) => fetchAPI<PluginDetail>(`/plugins/${encodeURIComponent(id)}`),
+    catalog: (refresh = false) => fetchAPI<PluginCatalog>(`/plugins/catalog${refresh ? "?refresh=1" : ""}`),
+    install: (spec: string) =>
+      fetchAPI<PluginOperation>("/plugins/install", { method: "POST", body: JSON.stringify({ spec }) }),
+    operations: async () => {
+      const res = await fetchAPI<{ operations: PluginOperation[] | null }>("/plugins/operations")
+      return Array.isArray(res?.operations) ? res.operations : []
+    },
+    updateSettings: (id: string, data: PluginSettingsUpdate) =>
+      fetchAPI(`/plugins/${encodeURIComponent(id)}/settings`, { method: "PUT", body: JSON.stringify(data) }),
+    enable: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/enable`, { method: "POST" }),
+    disable: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/disable`, { method: "POST" }),
+    restart: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/restart`, { method: "POST" }),
+    uninstall: (id: string) => fetchAPI<PluginOperation>(`/plugins/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    startSetup: (id: string) =>
+      fetchAPI<{ id: string }>(`/plugins/${encodeURIComponent(id)}/setup`, { method: "POST" }),
+    setupInput: (sid: string, text: string) =>
+      fetchAPI(`/plugins/setup/${encodeURIComponent(sid)}/input`, { method: "POST", body: JSON.stringify({ text }) }),
+    cancelSetup: (sid: string) => fetchAPI(`/plugins/setup/${encodeURIComponent(sid)}`, { method: "DELETE" }),
+    setupEventsUrl: (sid: string) => `${API_BASE}/plugins/setup/${encodeURIComponent(sid)}/events`,
   },
   permissions: {
     list: async () => {

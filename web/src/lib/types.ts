@@ -209,3 +209,99 @@ export interface TokenResponse {
   refresh_token: string
   expires_in: number
 }
+
+export type LocalizedText = Record<string, string>
+
+export type PluginState = "not_configured" | "disabled" | "starting" | "running" | "retrying" | "failed"
+
+export type PluginFieldType = "string" | "secret" | "bool" | "int" | "list"
+
+export interface PluginConfigField {
+  key: string
+  type: PluginFieldType
+  required?: boolean
+  default?: unknown
+  random_default?: boolean
+  label?: LocalizedText
+  help?: LocalizedText
+}
+
+export interface PluginStatus {
+  id: string
+  package?: string
+  source: string
+  version?: string
+  path: string
+  name: LocalizedText
+  description?: LocalizedText
+  enabled: boolean
+  bot_name: string
+  state: PluginState
+  error?: string
+  has_setup: boolean
+}
+
+export interface PluginDetail extends PluginStatus {
+  config: Record<string, unknown>
+  fields: PluginConfigField[]
+  setup_label?: LocalizedText
+}
+
+export interface CatalogVocab {
+  id: string
+  name: LocalizedText
+}
+
+export interface CatalogPlugin {
+  category: string
+  id: string
+  package: string
+  version: string
+  official: boolean
+  name: LocalizedText
+  description?: LocalizedText
+  protocol_version: number
+  license: string
+  repository: string
+  maintainers: string[]
+  tags: string[]
+  min_openbee_version?: string
+  deprecated?: LocalizedText
+  published_at?: string
+  installed: boolean
+  installed_version?: string
+  update_available: boolean
+  installable: boolean
+}
+
+export interface PluginCatalog {
+  schema_version: number
+  categories: CatalogVocab[]
+  tags: CatalogVocab[]
+  plugins: CatalogPlugin[]
+}
+
+export type PluginOperationStatus = "queued" | "running" | "succeeded" | "failed"
+
+export interface PluginOperation {
+  id: string
+  kind: "install" | "uninstall"
+  spec?: string
+  plugin_id?: string
+  status: PluginOperationStatus
+  error?: string
+  created_at: string
+  finished_at?: string
+}
+
+export interface PluginSetupEvent {
+  type: "line" | "done"
+  text?: string
+  ok?: boolean
+  error?: string
+}
+
+export interface PluginSettingsUpdate {
+  bot_name?: string
+  config: Record<string, unknown>
+}
