@@ -140,6 +140,7 @@ func (f *fakeFactory) spec(id string) InstanceSpec {
 type harness struct {
 	t        *testing.T
 	m        *Manager
+	inst     *fakeInstaller
 	reg      *fakeRegistry
 	store    *store.PluginSettingsStore
 	codec    *Codec
@@ -181,10 +182,12 @@ func newHarness(t *testing.T) *harness {
 		factory:  newFakeFactory(),
 		senders:  platform.NewSenderRegistry(),
 		workers:  map[string]bool{},
-		botNames: make(chan map[string]string, 64),
+		botNames: make(chan map[string]string, 256),
 	}
+	h.inst = &fakeInstaller{h: h}
 	h.m = New(Deps{
 		Registry:   h.reg,
+		Installer:  h.inst,
 		Store:      h.store,
 		Codec:      h.codec,
 		Senders:    h.senders,

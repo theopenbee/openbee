@@ -106,6 +106,10 @@ type Manager struct {
 	botNames   map[string]string
 	gen        int
 	wg         sync.WaitGroup
+
+	pkgMu sync.Mutex
+	ops   []*Operation
+	opsWG sync.WaitGroup
 }
 
 func New(d Deps) *Manager {
@@ -152,6 +156,7 @@ func (m *Manager) Wait(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {
 		m.wg.Wait()
+		m.opsWG.Wait()
 		close(done)
 	}()
 	select {
