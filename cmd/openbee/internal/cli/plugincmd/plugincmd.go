@@ -56,6 +56,7 @@ func newCommand(dd deps) *cobra.Command {
 		d.newSearchCommand(client),
 		d.newInstallCommand(client),
 		d.newUpdateCommand(client),
+		d.newConfigureCommand(client),
 	)
 	return root
 }

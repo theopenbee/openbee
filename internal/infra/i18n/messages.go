@@ -166,6 +166,26 @@ type PluginOutput struct {
 	StatusUnavailable string `yaml:"status_unavailable"`
 	UpdateNone        string `yaml:"update_none"`
 	UpdateAllFlag     string `yaml:"update_all_flag"`
+	SetInvalid        string `yaml:"set_invalid"`
+	SetType           string `yaml:"set_type"`
+	SetupRun          string `yaml:"setup_run"`
+	SetupFailed       string `yaml:"setup_failed"`
+	KeepSecret        string `yaml:"keep_secret"`
+	RandomDefault     string `yaml:"random_default"`
+	FieldRequired     string `yaml:"field_required"`
+	IntInvalid        string `yaml:"int_invalid"`
+	BotNamePrompt     string `yaml:"bot_name_prompt"`
+	BotNameHelp       string `yaml:"bot_name_help"`
+	NeedTerminal      string `yaml:"need_terminal"`
+	Saved             string `yaml:"saved"`
+	EnableNow         string `yaml:"enable_now"`
+	EnableLater       string `yaml:"enable_later"`
+	Started           string `yaml:"started"`
+	StartFailed       string `yaml:"start_failed"`
+	StillStarting     string `yaml:"still_starting"`
+	SetFlag           string `yaml:"set_flag"`
+	BotNameFlag       string `yaml:"bot_name_flag"`
+	EnableFlag        string `yaml:"enable_flag"`
 }
 
 // ServiceOutput maps to service command runtime output.
