@@ -61,6 +61,8 @@ type Deps struct {
 	WrapSender      func(id string, s platform.PlatformSenderAdapter) platform.PlatformSenderAdapter
 	Factory         Factory
 	WorkerNameTaken func(name string) (bool, error)
+	Catalog         CatalogSource
+	Version         string
 }
 
 type Status struct {
