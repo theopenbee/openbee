@@ -170,7 +170,6 @@ type PluginOutput struct {
 	SetupRun          string            `yaml:"setup_run"`
 	SetupFailed       string            `yaml:"setup_failed"`
 	KeepSecret        string            `yaml:"keep_secret"`
-	RandomDefault     string            `yaml:"random_default"`
 	FieldRequired     string            `yaml:"field_required"`
 	IntInvalid        string            `yaml:"int_invalid"`
 	BotNamePrompt     string            `yaml:"bot_name_prompt"`

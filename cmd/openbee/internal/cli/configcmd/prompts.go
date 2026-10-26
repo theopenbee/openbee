@@ -5,30 +5,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
+
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/surveyhint"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
-
-// originalMultiSelectTemplate holds the unmodified survey template so we can
-// replace the hint text cleanly after each language selection.
-var originalMultiSelectTemplate = survey.MultiSelectQuestionTemplate
-
-// multiSelectHintOld is the exact hint fragment to replace inside the template.
-const multiSelectHintOld = `[Use arrows to move, space to select,{{- if not .Config.RemoveSelectAll }} <right> to all,{{end}}{{- if not .Config.RemoveSelectNone }} <left> to none,{{end}} type to filter{{- if and .Help (not .ShowHelp)}}, {{ .Config.HelpInput }} for more help{{end}}]`
-
-// applySurveyTemplates patches the survey MultiSelect hint text to use the
-// currently loaded i18n locale. Must be called after i18n.Load().
-func applySurveyTemplates() {
-	survey.MultiSelectQuestionTemplate = strings.Replace(
-		originalMultiSelectTemplate,
-		multiSelectHintOld,
-		i18n.M.Prompt.MultiSelectHint,
-		1,
-	)
-}
 
 const (
 	langOptEnglish = "English"
@@ -61,7 +44,7 @@ func runLanguageStep(existingLang string) (string, error) {
 	if err := i18n.Load(lang); err != nil {
 		return "", fmt.Errorf("load i18n: %w", err)
 	}
-	applySurveyTemplates()
+	surveyhint.Apply()
 	return lang, nil
 }
 

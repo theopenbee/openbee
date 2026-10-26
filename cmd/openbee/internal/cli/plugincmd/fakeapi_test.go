@@ -172,6 +172,7 @@ type fakePrompter struct {
 	interactive bool
 	answers     []any
 	asked       []string
+	defaults    map[string]string
 }
 
 func (p *fakePrompter) next(kind, message string) any {
@@ -190,7 +191,11 @@ func (p *fakePrompter) Confirm(message string, _ bool) (bool, error) {
 	return p.next("confirm", message).(bool), nil
 }
 
-func (p *fakePrompter) Input(message, _, _ string, validate func(string) error) (string, error) {
+func (p *fakePrompter) Input(message, _, def string, validate func(string) error) (string, error) {
+	if p.defaults == nil {
+		p.defaults = map[string]string{}
+	}
+	p.defaults[message] = def
 	v := p.next("input", message).(string)
 	if validate != nil {
 		if err := validate(v); err != nil {

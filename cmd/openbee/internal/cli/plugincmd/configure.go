@@ -2,6 +2,8 @@ package plugincmd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -130,8 +132,8 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 		if _, done := cfg[f.Key]; done {
 			continue
 		}
-		current, hasCur := d.Config[f.Key]
-		hasCur = hasCur && hasValue(current)
+		current, present := d.Config[f.Key]
+		hasCur := present && hasValue(current)
 		label := fieldLabel(f, lang)
 		help := f.Help.Get(lang)
 		switch f.Type {
@@ -195,11 +197,13 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 			}
 		default:
 			def := textDefault(current)
-			if !hasCur && !f.RandomDefault {
+			switch {
+			case hasCur:
+			case f.RandomDefault && !present:
+				def = randomHex(8)
+			case present:
+			default:
 				def = textDefault(f.Default)
-			}
-			if f.RandomDefault && !hasCur {
-				help = strings.TrimSpace(help + " " + m.RandomDefault)
 			}
 			required := f.Required && !hasCur
 			v, err := p.Input(label, help, def, func(s string) error {
@@ -211,7 +215,7 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 			if err != nil {
 				return nil, nil, err
 			}
-			if v != "" || hasCur {
+			if v != "" || present || f.RandomDefault {
 				cfg[f.Key] = v
 			}
 		}
@@ -317,4 +321,10 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 	cmd.Flags().StringVar(&botName, "bot-name", "", i18n.M.Output.Plugin.BotNameFlag)
 	cmd.Flags().BoolVar(&enable, "enable", false, i18n.M.Output.Plugin.EnableFlag)
 	return cmd
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

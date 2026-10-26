@@ -217,7 +217,6 @@ output:
     setup_run: "现在运行 %s 吗？"
     setup_failed: "%s 失败：%v。请手动填写配置。"
     keep_secret: "直接回车保留当前值（%s）。"
-    random_default: "直接回车由 openbee 自动生成。"
     field_required: "%s 必填"
     int_invalid: "请输入整数"
     bot_name_prompt: "机器人名称"

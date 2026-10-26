@@ -46,13 +46,14 @@ func TestParseSets(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCollectSettings_KeepsSecretAndOmitsRandomDefault(t *testing.T) {
+func TestCollectSettings_KeepsSecretAndClearedRandomDefaultIsEmpty(t *testing.T) {
 	require.NoError(t, i18n.Load("en"))
 	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", "TBot"}}
 	bot, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd"}), p, "en", noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.NotContains(t, cfg, "token")
-	assert.NotContains(t, cfg, "auth_code")
+	assert.Equal(t, "", cfg["auth_code"])
+	assert.Regexp(t, `^[0-9a-f]{16}$`, p.defaults["auth_code"])
 	assert.NotContains(t, cfg, "allowed")
 	assert.Equal(t, 10, cfg["max_media_size"])
 	assert.Equal(t, false, cfg["debug"])
@@ -166,4 +167,13 @@ func TestWaitRunning_StillStarting(t *testing.T) {
 	err := waitRunning(context.Background(), api.client(t), "telegram", &out, time.Millisecond, 20*time.Millisecond)
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "still starting")
+}
+
+func TestCollectSettings_ExplicitEmptyRandomDefaultIsNotRefilled(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", ""}}
+	_, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd", "auth_code": ""}), p, "en", noSetup, &bytes.Buffer{})
+	require.NoError(t, err)
+	assert.Equal(t, "", p.defaults["auth_code"])
+	assert.Equal(t, "", cfg["auth_code"])
 }

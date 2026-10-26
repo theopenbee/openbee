@@ -217,7 +217,6 @@ output:
     setup_run: "Run %s now?"
     setup_failed: "%s failed: %v. Enter the settings manually."
     keep_secret: "Leave empty to keep the current value (%s)."
-    random_default: "Leave empty to let openbee generate one."
     field_required: "%s is required"
     int_invalid: "Enter a whole number"
     bot_name_prompt: "Bot name"
