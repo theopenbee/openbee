@@ -21,7 +21,7 @@ type PlatformFailureNotifier struct {
 }
 
 // NewPlatformFailureNotifier creates a PlatformFailureNotifier.
-func NewPlatformFailureNotifier(msgStore *store.MessageStore, senders map[string]platform.PlatformSenderAdapter) *PlatformFailureNotifier {
+func NewPlatformFailureNotifier(msgStore *store.MessageStore, senders platform.Senders) *PlatformFailureNotifier {
 	return &PlatformFailureNotifier{resolver: delivery.NewResolver(msgStore, senders)}
 }
 

@@ -74,7 +74,7 @@ func makeStatusHandler(
 		opt(cfg)
 	}
 	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
+	senders := platform.SenderMap{"beta": sender}
 	sessions := &fakeStatusSessionLister{agents: agents, err: cfg.sessionsErr}
 	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
 	wl := &fakeWorkerByIDsLookup{byID: workers}

@@ -48,7 +48,7 @@ func setupNotifier(t *testing.T, platformID string) (*task.PlatformFailureNotifi
 
 	ms := store.NewMessageStore(db)
 	sender := &spySender{}
-	senders := map[string]platform.PlatformSenderAdapter{platformID: sender}
+	senders := platform.SenderMap{platformID: sender}
 	notifier := task.NewPlatformFailureNotifier(ms, senders)
 	return notifier, ms, sender
 }

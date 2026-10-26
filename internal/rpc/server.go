@@ -48,7 +48,7 @@ func NewBeeServer(
 	ts *store.TaskStore,
 	ms *store.MessageStore,
 	oms *store.OutboundMessageStore,
-	senders map[string]platform.PlatformSenderAdapter,
+	senders platform.Senders,
 	clearSvc *session.ClearService,
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,

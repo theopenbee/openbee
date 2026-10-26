@@ -89,13 +89,13 @@ func (m *mockClearDispatcher) ClearWorker(sessionKey, workerID string) {
 }
 
 // newTestServer builds a Bee RPC server on a fresh SQLite DB with the given platform senders.
-func newTestServer(t *testing.T, senders map[string]platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+func newTestServer(t *testing.T, senders platform.SenderMap) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	if senders == nil {
-		senders = map[string]platform.PlatformSenderAdapter{}
+		senders = platform.SenderMap{}
 	}
 
 	ws := store.NewWorkerStore(db)
@@ -130,7 +130,7 @@ func setupServerWithMessaging(t *testing.T) *rpc.Server {
 }
 
 func setupServerWithSender(t *testing.T, senderID string, sender platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB) {
-	s, db, _, _ := newTestServer(t, map[string]platform.PlatformSenderAdapter{senderID: sender})
+	s, db, _, _ := newTestServer(t, platform.SenderMap{senderID: sender})
 	return s, db
 }
 

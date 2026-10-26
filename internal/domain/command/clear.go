@@ -37,7 +37,7 @@ type ClearCommandHandler struct {
 	workers      WorkerNameLookup
 	svc          ClearService
 	runningExecs utils.RunningExecLookup
-	senders      map[string]platform.PlatformSenderAdapter
+	senders      platform.Senders
 
 	now func() time.Time
 
@@ -48,7 +48,7 @@ type ClearCommandHandler struct {
 func NewClearCommandHandler(
 	workers WorkerNameLookup,
 	svc ClearService,
-	senders map[string]platform.PlatformSenderAdapter,
+	senders platform.Senders,
 	runningExecs utils.RunningExecLookup,
 ) *ClearCommandHandler {
 	return &ClearCommandHandler{

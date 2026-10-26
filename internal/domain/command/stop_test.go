@@ -69,7 +69,7 @@ func TestStop_BeeRunning_PendingMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"beta": sender})
+		platform.SenderMap{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	assert.True(t, stopper.stopped, "expected StopSession to be called")
@@ -83,7 +83,7 @@ func TestStop_BeeRunning_NoMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"beta": sender})
+		platform.SenderMap{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -95,7 +95,7 @@ func TestStop_NothingToStop(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"beta": sender})
+		platform.SenderMap{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -107,7 +107,7 @@ func TestStop_OnlyMessages(t *testing.T) {
 	sender := &fakeStopSender{}
 
 	h := command.NewStopCommandHandler(stopper, msgStore, nil, nil,
-		map[string]platform.PlatformSenderAdapter{"beta": sender})
+		platform.SenderMap{"beta": sender})
 	h.HandleCommand(context.Background(), "/stop", makeStopReplyTo())
 
 	require.Len(t, sender.sent, 1)
@@ -126,7 +126,7 @@ func (f *fakeWorkerStopper) StopWorker(_ context.Context, sessionKey string, w m
 
 func newStopWorkerHandler(workers command.WorkerNameLookup, stop command.WorkerStopper, sender *fakeStopSender) *command.StopCommandHandler {
 	return command.NewStopCommandHandler(&fakeBeeStopper{}, &fakeStopMsgStore{}, workers, stop,
-		map[string]platform.PlatformSenderAdapter{"beta": sender})
+		platform.SenderMap{"beta": sender})
 }
 
 func workerLookup(name string, workers ...model.Worker) *fakeClearWorkerLookup {

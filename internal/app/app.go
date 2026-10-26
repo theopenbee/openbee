@@ -141,9 +141,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	dispatchCh := make(chan task.DispatchTask, 128)
 
-	sendersByPlatform := make(map[string]platform.PlatformSenderAdapter)
+	sendersByPlatform := platform.NewSenderRegistry()
 
-	// sendersByPlatform is populated below; notifier holds a reference to the same map.
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
 
@@ -157,7 +156,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
 	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
-	sendersByPlatform[local.PlatformID] = localSender
+	sendersByPlatform.Set(local.PlatformID, localSender)
 
 	mediaSvc := media.NewService()
 	pluginRuntime := plugin.NewRuntimeResolver()
@@ -181,7 +180,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		if ch.ExtractContext != nil {
 			platform.RegisterExtractor(id, ch.ExtractContext)
 		}
-		sendersByPlatform[id] = store.NewLoggingPlatformSenderAdapter(ch.Platform.Sender(), s.outboundMsgStore, id)
+		sendersByPlatform.Set(id, store.NewLoggingPlatformSenderAdapter(ch.Platform.Sender(), s.outboundMsgStore, id))
 	}
 
 	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)

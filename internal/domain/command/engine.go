@@ -102,7 +102,7 @@ type EngineCommandHandler struct {
 	workers    WorkerRepository
 	sysCfg     SystemConfigWriter
 	validator  EngineValidator
-	senders    map[string]platform.PlatformSenderAdapter
+	senders    platform.Senders
 	beeBusy    BeeBusyChecker
 	workerBusy WorkerBusyChecker
 	engineCfg  *enginecfg.Store
@@ -115,7 +115,7 @@ func isExactOrPrefixed(content, cmd string) bool {
 func NewEngineCommandHandler(
 	workers WorkerRepository,
 	sysCfg SystemConfigWriter,
-	senders map[string]platform.PlatformSenderAdapter,
+	senders platform.Senders,
 	validator EngineValidator,
 	beeBusy BeeBusyChecker,
 	workerBusy WorkerBusyChecker,
@@ -242,8 +242,8 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 	sendReply(ctx, h.senders, replyTo, text)
 }
 
-func sendReply(ctx context.Context, senders map[string]platform.PlatformSenderAdapter, replyTo platform.InboundMessage, text string) {
-	sender, ok := senders[replyTo.Platform]
+func sendReply(ctx context.Context, senders platform.Senders, replyTo platform.InboundMessage, text string) {
+	sender, ok := senders.Get(replyTo.Platform)
 	if !ok {
 		return
 	}

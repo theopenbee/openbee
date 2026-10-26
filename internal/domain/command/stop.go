@@ -32,7 +32,7 @@ type StopCommandHandler struct {
 	msgs       StopMessageStore
 	workers    WorkerNameLookup
 	workerStop WorkerStopper
-	senders    map[string]platform.PlatformSenderAdapter
+	senders    platform.Senders
 }
 
 func NewStopCommandHandler(
@@ -40,7 +40,7 @@ func NewStopCommandHandler(
 	msgs StopMessageStore,
 	workers WorkerNameLookup,
 	workerStop WorkerStopper,
-	senders map[string]platform.PlatformSenderAdapter,
+	senders platform.Senders,
 ) *StopCommandHandler {
 	return &StopCommandHandler{
 		feeder:     feeder,

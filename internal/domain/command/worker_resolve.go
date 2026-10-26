@@ -26,7 +26,7 @@ type workerResolveMessages struct {
 // matches, or the name is ambiguous.
 func resolveSingleWorker(
 	ctx context.Context,
-	senders map[string]platform.PlatformSenderAdapter,
+	senders platform.Senders,
 	workers WorkerNameLookup,
 	replyTo platform.InboundMessage,
 	name string,

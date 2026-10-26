@@ -122,7 +122,7 @@ func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string)}
 	repo := &fakeWorkerRepo{workers: workers}
-	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
+	senders := platform.SenderMap{"beta": sender}
 	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
 	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
 	engineCfg := enginecfg.NewStore("")
@@ -258,7 +258,7 @@ func TestEngineCommand_Busy(t *testing.T) {
 			sender := &fakeSender{}
 			cfg := &fakeSysConfig{vals: make(map[string]string)}
 			repo := &fakeWorkerRepo{workers: tc.workers, updateErr: tc.updateErr}
-			senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
+			senders := platform.SenderMap{"beta": sender}
 			h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, tc.beeBusy, tc.workerBusy, enginecfg.NewStore(""))
 
 			handled := h.HandleCommand(context.Background(), tc.cmd, makeReplyTo())
@@ -273,7 +273,7 @@ func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}
-	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
+	senders := platform.SenderMap{"beta": sender}
 	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
 	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
 	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, engineCfg)

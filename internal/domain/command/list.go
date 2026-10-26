@@ -24,10 +24,10 @@ type WorkerLister interface {
 // ListCommandHandler handles the /list slash command.
 type ListCommandHandler struct {
 	workers WorkerLister
-	senders map[string]platform.PlatformSenderAdapter
+	senders platform.Senders
 }
 
-func NewListCommandHandler(workers WorkerLister, senders map[string]platform.PlatformSenderAdapter) *ListCommandHandler {
+func NewListCommandHandler(workers WorkerLister, senders platform.Senders) *ListCommandHandler {
 	return &ListCommandHandler{workers: workers, senders: senders}
 }
 

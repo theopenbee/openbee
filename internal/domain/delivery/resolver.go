@@ -22,10 +22,10 @@ type Target struct {
 
 type Resolver struct {
 	messages MessageLookup
-	senders  map[string]platform.PlatformSenderAdapter
+	senders  platform.Senders
 }
 
-func NewResolver(messages MessageLookup, senders map[string]platform.PlatformSenderAdapter) *Resolver {
+func NewResolver(messages MessageLookup, senders platform.Senders) *Resolver {
 	return &Resolver{messages: messages, senders: senders}
 }
 
@@ -87,7 +87,7 @@ func (r *Resolver) proactive(ctx context.Context, sessionKey string) (platform.P
 }
 
 func (r *Resolver) sender(platformID string) (platform.PlatformSenderAdapter, error) {
-	sender, ok := r.senders[platformID]
+	sender, ok := r.senders.Get(platformID)
 	if !ok {
 		return nil, fmt.Errorf("no sender registered for platform %q", platformID)
 	}

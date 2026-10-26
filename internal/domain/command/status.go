@@ -36,7 +36,7 @@ type StatusCommandHandler struct {
 	tasks        TaskBySessionLister
 	workers      WorkerByIDsLookup
 	runningExecs utils.RunningExecLookup
-	senders      map[string]platform.PlatformSenderAdapter
+	senders      platform.Senders
 	engineCfg    *enginecfg.Store
 	now          func() time.Time
 }
@@ -46,7 +46,7 @@ type StatusCommandDeps struct {
 	Sessions     SessionContextLister
 	Tasks        TaskBySessionLister
 	Workers      WorkerByIDsLookup
-	Senders      map[string]platform.PlatformSenderAdapter
+	Senders      platform.Senders
 	EngineCfg    *enginecfg.Store
 	RunningExecs utils.RunningExecLookup
 }

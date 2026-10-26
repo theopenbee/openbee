@@ -133,7 +133,7 @@ func makeClearFixture(
 		opt(cfg)
 	}
 	sender := &fakeSender{}
-	senders := map[string]platform.PlatformSenderAdapter{"beta": sender}
+	senders := platform.SenderMap{"beta": sender}
 	sessions := &fakeClearSessionStore{agents: agents, deleted: true}
 	taskStore := &fakeClearTaskStore{tasks: tasks, cancelled: cfg.cancelled}
 	workers := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: workersByID}}
@@ -288,7 +288,7 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
+	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
@@ -328,7 +328,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
+	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1-task1"}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
@@ -391,7 +391,7 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 		},
 	}
 	engineCfg := enginecfg.NewStore("claude")
-	senders := map[string]platform.PlatformSenderAdapter{"beta": fx.sender}
+	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"}
 	svc := session.NewClearService(session.ClearServiceDeps{
 		Sessions:     fx.sessions,
