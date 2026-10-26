@@ -103,3 +103,15 @@ func TestManager_CatalogUnavailable(t *testing.T) {
 	_, err := h.m.Catalog(context.Background(), false)
 	assert.Equal(t, CodeCatalogUnavailable, apperr.Code(err))
 }
+
+func TestManager_CatalogDoesNotOfferDowngrade(t *testing.T) {
+	h := newHarness(t)
+	h.installNpm("telegram", "0.3.0")
+	h.m.deps.Catalog = &fakeCatalog{cat: catalog.Catalog{SchemaVersion: 1, Plugins: []catalog.Entry{
+		catalogEntry("telegram", "@theopenbee/channel-telegram", "0.2.0"),
+	}}}
+	view, err := h.m.Catalog(context.Background(), false)
+	require.NoError(t, err)
+	assert.True(t, view.Plugins[0].Installed)
+	assert.False(t, view.Plugins[0].UpdateAvailable)
+}

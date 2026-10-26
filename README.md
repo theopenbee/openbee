@@ -73,7 +73,6 @@ openbee config
 
 The wizard will guide you through:
 - Agent executable path
-- Platform(s) to enable (installed channel plugins) and their credentials
 - Advanced options (can be skipped to use defaults)
 
 The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
@@ -95,7 +94,7 @@ openbee server -d
 
 ### Channel plugins
 
-Chat platforms are added as plugins without rebuilding OpenBee: `openbee plugin install <npm package or directory>`, then enable the channel in `openbee config`. Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
+Chat platforms are added as plugins without rebuilding OpenBee. A running OpenBee installs, configures, enables and removes them without restarting, through its API (`/api/plugins`). Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
 
 ## 🌟 Star History
 

@@ -28,9 +28,9 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | `id` | Channel id and session key prefix. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
-| `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee config` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
+| `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step a configuring client runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
 | `version` | Optional. `package.json` `version` wins when present. |
-| `config[]` | Settings openbee asks for in `openbee config` and validates at startup. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes `openbee config` suggest a random value when the field is empty, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
+| `config[]` | Settings openbee stores for the plugin and validates before starting it. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes openbee fill in a random value when the field has no value yet, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
 
 One plugin provides exactly one channel.
 
@@ -91,7 +91,7 @@ A client that configures a plugin whose manifest declares `setup` runs the setup
 - **Exit when stdin closes.** EOF on stdin means openbee is gone (it may have crashed or been killed). A plugin that keeps running would answer users twice after openbee restarts.
 - Secrets arrive only in `initialize`. They are never passed in arguments or environment variables. The environment is inherited from openbee.
 - openbee restarts a plugin that exits unexpectedly. The delay starts at 1s and doubles up to 60s; after 10 minutes of healthy uptime it resets.
-- openbee does not restart a plugin that answers `initialize` with error `-32001`, reports a different `protocol_version`, or whose command cannot be found.
+- openbee does not restart a plugin that answers `initialize` with error `-32001`, reports a different `protocol_version`, or whose command cannot be found, until its settings change or it is restarted through the API.
 - On shutdown openbee sends `shutdown` and waits up to 5s, then closes stdin, waits 2s more and kills the process group.
 
 ## Transport

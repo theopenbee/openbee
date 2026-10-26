@@ -69,11 +69,14 @@ func (c *Client) Get(ctx context.Context, refresh bool) (Catalog, error) {
 		var cat Catalog
 		if cat, err = parse(raw); err == nil {
 			c.cached, c.fetchedAt = &cat, now
-			c.writeCache(raw)
+			if c.opts.Override == "" {
+				c.writeCache(raw)
+			}
 			return cat, nil
 		}
 	}
 	if c.cached != nil {
+		c.fetchedAt = now
 		return *c.cached, nil
 	}
 	if data, rerr := os.ReadFile(c.opts.CachePath); rerr == nil {

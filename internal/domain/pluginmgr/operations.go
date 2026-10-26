@@ -91,7 +91,7 @@ func (m *Manager) opContext() context.Context {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.rootCtx != nil {
-		return m.rootCtx
+		return context.WithoutCancel(m.rootCtx)
 	}
 	return context.Background()
 }
@@ -119,7 +119,9 @@ func (m *Manager) runInstall(opID, spec string) {
 		unlockPrev = m.lockID(prevID)
 		m.mu.Lock()
 		_, stoppedPrev = m.instances[prevID]
+		m.upgrading[prevID] = true
 		m.mu.Unlock()
+		defer m.clearUpgrading(prevID)
 		m.stopLocked(prevID)
 	}
 
@@ -257,4 +259,10 @@ func (m *Manager) runUninstall(opID, id string) {
 	m.refreshBotNames(ctx)
 	log.Info("plugin uninstalled", zap.String("plugin", id))
 	m.finishOp(opID, errors.Join(errs...))
+}
+
+func (m *Manager) clearUpgrading(id string) {
+	m.mu.Lock()
+	delete(m.upgrading, id)
+	m.mu.Unlock()
 }

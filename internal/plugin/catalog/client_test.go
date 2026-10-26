@@ -213,3 +213,31 @@ func TestClient_RejectsOtherSchemaVersion(t *testing.T) {
 	_, err := NewClient(Options{Override: path, CachePath: filepath.Join(t.TempDir(), "c.json")}).Get(context.Background(), false)
 	assert.ErrorContains(t, err, "schema_version")
 }
+
+func TestClient_OfflineDoesNotRetryUntilTTL(t *testing.T) {
+	reg := newFakeRegistry(t, map[string]string{"1.0.0": "0.1.0"})
+	now := time.Now()
+	c := NewClient(Options{Registries: []string{reg.srv.URL}, CachePath: filepath.Join(t.TempDir(), "c.json"), Now: func() time.Time { return now }})
+	_, err := c.Get(context.Background(), false)
+	require.NoError(t, err)
+
+	reg.down.Store(true)
+	now = now.Add(11 * time.Minute)
+	cat, err := c.Get(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, "0.1.0", cat.Plugins[0].Version)
+	hits := reg.hits.Load()
+
+	_, err = c.Get(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, hits, reg.hits.Load())
+}
+
+func TestClient_OverrideDoesNotWriteDiskCache(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.json")
+	require.NoError(t, os.WriteFile(path, catalogJSON("0.3.0"), 0o644))
+	cachePath := filepath.Join(t.TempDir(), "c.json")
+	_, err := NewClient(Options{Override: path, CachePath: cachePath}).Get(context.Background(), false)
+	require.NoError(t, err)
+	assert.NoFileExists(t, cachePath)
+}

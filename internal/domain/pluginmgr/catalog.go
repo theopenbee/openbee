@@ -60,7 +60,7 @@ func (m *Manager) Catalog(ctx context.Context, refresh bool) (CatalogView, error
 		if e, ok := installed[p.ID]; ok {
 			cp.Installed = true
 			cp.InstalledVersion = e.Version
-			cp.UpdateAvailable = e.Source == plugin.SourceNpm && e.Package == p.Package && e.Version != p.Version
+			cp.UpdateAvailable = e.Source == plugin.SourceNpm && e.Package == p.Package && isNewer(p.Version, e.Version)
 		}
 		view.Plugins = append(view.Plugins, cp)
 	}
@@ -73,4 +73,9 @@ func (m *Manager) versionAllows(min string) bool {
 	}
 	cmp, ok := catalog.CompareVersions(m.deps.Version, min)
 	return !ok || cmp >= 0
+}
+
+func isNewer(candidate, installed string) bool {
+	cmp, ok := catalog.CompareVersions(candidate, installed)
+	return ok && cmp > 0
 }

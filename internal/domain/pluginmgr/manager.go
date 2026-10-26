@@ -109,9 +109,10 @@ type Manager struct {
 	gen        int
 	wg         sync.WaitGroup
 
-	pkgMu sync.Mutex
-	ops   []*Operation
-	opsWG sync.WaitGroup
+	pkgMu     sync.Mutex
+	ops       []*Operation
+	opsWG     sync.WaitGroup
+	upgrading map[string]bool
 }
 
 func New(d Deps) *Manager {
@@ -121,6 +122,7 @@ func New(d Deps) *Manager {
 		startErrs: make(map[string]string),
 		locks:     make(map[string]*sync.Mutex),
 		botNames:  make(map[string]string),
+		upgrading: make(map[string]bool),
 	}
 }
 
@@ -157,8 +159,10 @@ func (m *Manager) Start(ctx context.Context, dispatch func(platform.InboundMessa
 func (m *Manager) Wait(ctx context.Context) error {
 	done := make(chan struct{})
 	go func() {
-		m.wg.Wait()
 		m.opsWG.Wait()
+		m.mu.Lock()
+		m.mu.Unlock()
+		m.wg.Wait()
 		close(done)
 	}()
 	select {
@@ -267,12 +271,13 @@ func (m *Manager) launch(ctx context.Context, id string) error {
 
 	m.mu.Lock()
 	rootCtx, dispatch := m.rootCtx, m.dispatch
-	if rootCtx == nil {
+	if rootCtx == nil || rootCtx.Err() != nil {
 		m.mu.Unlock()
-		return errors.New("plugin manager is not started")
+		return errors.New("plugin manager is not running")
 	}
 	m.gen++
 	gen := m.gen
+	m.wg.Add(1)
 	m.mu.Unlock()
 
 	inst := m.deps.Factory(InstanceSpec{
@@ -296,7 +301,6 @@ func (m *Manager) launch(ctx context.Context, id string) error {
 	m.deps.Senders.Set(id, sender)
 	platform.RegisterExtractor(id, pluginchannel.ExtractContextFor(id))
 
-	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
 		defer close(rec.done)
@@ -355,6 +359,7 @@ func (m *Manager) stopLocked(id string) {
 }
 
 func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string, update map[string]any) error {
+	ctx = context.WithoutCancel(ctx)
 	unlock := m.lockID(id)
 	defer unlock()
 	e, err := m.entry(id)
@@ -409,6 +414,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string
 }
 
 func (m *Manager) Enable(ctx context.Context, id string) error {
+	ctx = context.WithoutCancel(ctx)
 	unlock := m.lockID(id)
 	defer unlock()
 	e, err := m.entry(id)
@@ -443,6 +449,7 @@ func (m *Manager) Enable(ctx context.Context, id string) error {
 }
 
 func (m *Manager) Disable(ctx context.Context, id string) error {
+	ctx = context.WithoutCancel(ctx)
 	unlock := m.lockID(id)
 	defer unlock()
 	if _, err := m.entry(id); err != nil {
@@ -463,6 +470,7 @@ func (m *Manager) Disable(ctx context.Context, id string) error {
 }
 
 func (m *Manager) Restart(ctx context.Context, id string) error {
+	ctx = context.WithoutCancel(ctx)
 	unlock := m.lockID(id)
 	defer unlock()
 	if _, err := m.entry(id); err != nil {
@@ -552,6 +560,7 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 	m.mu.Lock()
 	rec := m.instances[e.ID]
 	startErr := m.startErrs[e.ID]
+	upgrading := m.upgrading[e.ID]
 	var recState State
 	var recErr string
 	if rec != nil {
@@ -562,6 +571,8 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 	switch {
 	case rec != nil:
 		st.State, st.Error = recState, recErr
+	case upgrading && found && row.Enabled:
+		st.State = StateStarting
 	case merr != nil:
 		st.State, st.Error = StateFailed, merr.Error()
 		return st, nil

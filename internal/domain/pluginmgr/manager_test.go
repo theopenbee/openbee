@@ -92,6 +92,10 @@ func (i *fakeInstance) Run(ctx context.Context, _ func(platform.InboundMessage))
 	}
 	i.spec.OnState(pluginchannel.StateRunning, nil)
 	<-ctx.Done()
+	i.f.mu.Lock()
+	delay := i.f.stopDelay
+	i.f.mu.Unlock()
+	time.Sleep(delay)
 	i.cancel()
 	i.spec.OnState(pluginchannel.StateStopped, nil)
 }
@@ -102,6 +106,7 @@ type fakeFactory struct {
 	specs     map[string]InstanceSpec
 	instances []*fakeInstance
 	fail      map[string]error
+	stopDelay time.Duration
 }
 
 func newFakeFactory() *fakeFactory {
@@ -414,7 +419,7 @@ func TestManager_GetMasksSecrets(t *testing.T) {
 
 	d, err := h.m.Get(context.Background(), "telegram")
 	require.NoError(t, err)
-	assert.Equal(t, "1234****EFGH", d.Config["token"])
+	assert.Equal(t, "****EFGH", d.Config["token"])
 	require.Len(t, d.Fields, 1)
 	assert.Equal(t, "token", d.Fields[0].Key)
 	assert.Equal(t, "telegram name", d.Name.Get("en"))
@@ -439,4 +444,46 @@ func TestManager_DisableDuringInFlightSend(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("in-flight send did not return after disable")
 	}
+}
+
+func TestManager_UpdateSettingsSurvivesCancelledRequest(t *testing.T) {
+	h := newHarness(t)
+	h.install("telegram")
+	h.save("telegram", true, "", map[string]any{"token": "t1"})
+	h.start()
+	h.waitState("telegram", StateRunning)
+	h.factory.mu.Lock()
+	h.factory.stopDelay = 200 * time.Millisecond
+	h.factory.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	require.NoError(t, h.m.UpdateSettings(ctx, "telegram", nil, map[string]any{"token": "t2"}))
+	h.waitState("telegram", StateRunning)
+	assert.Equal(t, "t2", h.factory.spec("telegram").Config["token"])
+	_, ok := h.senders.Get("telegram")
+	assert.True(t, ok)
+}
+
+func TestManager_RestartSurvivesCancelledRequest(t *testing.T) {
+	h := newHarness(t)
+	h.install("telegram")
+	h.save("telegram", true, "", map[string]any{"token": "t1"})
+	h.start()
+	h.waitState("telegram", StateRunning)
+	h.factory.mu.Lock()
+	h.factory.stopDelay = 200 * time.Millisecond
+	h.factory.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	require.NoError(t, h.m.Restart(ctx, "telegram"))
+	h.waitState("telegram", StateRunning)
+	assert.Equal(t, 2, h.factory.startCount("telegram"))
 }

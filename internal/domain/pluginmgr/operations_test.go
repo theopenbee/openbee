@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/apperr"
+	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
@@ -29,9 +30,15 @@ type fakeInstaller struct {
 	calls     []string
 	onInstall func(spec string)
 	removed   []string
+	ctxErr    error
 }
 
-func (f *fakeInstaller) Install(_ context.Context, spec string) (plugin.Entry, plugin.Manifest, error) {
+func (f *fakeInstaller) Install(ctx context.Context, spec string) (plugin.Entry, plugin.Manifest, error) {
+	defer func() {
+		f.mu.Lock()
+		f.ctxErr = ctx.Err()
+		f.mu.Unlock()
+	}()
 	n := f.active.Add(1)
 	defer f.active.Add(-1)
 	for {
@@ -239,4 +246,57 @@ func TestOperation_NotFound(t *testing.T) {
 	h := newHarness(t)
 	_, ok := h.m.Operation("missing")
 	assert.False(t, ok)
+}
+
+func TestInstall_UpgradeShowsStartingWhileInstalling(t *testing.T) {
+	h := newHarness(t)
+	h.installNpm("telegram", "0.1.0")
+	h.save("telegram", true, "", map[string]any{"token": "t"})
+	h.start()
+	h.waitState("telegram", StateRunning)
+
+	var during atomic.Value
+	h.inst.onInstall = func(string) {
+		list, err := h.m.List(context.Background())
+		if err == nil && len(list) == 1 {
+			during.Store(list[0].State)
+		}
+	}
+	require.Equal(t, OpSucceeded, h.waitOp(h.m.Install("@theopenbee/channel-telegram@0.2.0").ID).Status)
+	assert.Equal(t, StateStarting, during.Load())
+}
+
+func TestInstall_NotCancelledByShutdown(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	h.m.Start(ctx, func(platform.InboundMessage) {}, nil)
+	h.inst.block = make(chan struct{})
+	op := h.m.Install("@theopenbee/channel-telegram@0.1.0")
+	require.Eventually(t, func() bool { o, _ := h.m.Operation(op.ID); return o.Status == OpRunning }, 2*time.Second, 5*time.Millisecond)
+
+	cancel()
+	wctx, wcancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer wcancel()
+	assert.ErrorIs(t, h.m.Wait(wctx), context.DeadlineExceeded)
+
+	close(h.inst.block)
+	require.NoError(t, h.m.Wait(context.Background()))
+	done, _ := h.m.Operation(op.ID)
+	assert.Equal(t, OpSucceeded, done.Status)
+	h.inst.mu.Lock()
+	assert.NoError(t, h.inst.ctxErr)
+	h.inst.mu.Unlock()
+}
+
+func TestManager_NoStartAfterShutdown(t *testing.T) {
+	h := newHarness(t)
+	h.install("telegram")
+	h.save("telegram", false, "", map[string]any{"token": "t"})
+	ctx, cancel := context.WithCancel(context.Background())
+	h.m.Start(ctx, func(platform.InboundMessage) {}, nil)
+	cancel()
+	require.NoError(t, h.m.Wait(context.Background()))
+
+	assert.Error(t, h.m.Enable(context.Background(), "telegram"))
+	assert.Equal(t, 0, h.factory.startCount("telegram"))
 }

@@ -110,8 +110,28 @@ func TestMaskConfig_MasksSecrets(t *testing.T) {
 		"debug":     true,
 		"removed":   "x",
 	})
-	assert.Equal(t, map[string]any{"token": "1234****EFGH", "auth_code": "abc", "debug": true}, got)
+	assert.Equal(t, map[string]any{"token": "****EFGH", "auth_code": "abc", "debug": true}, got)
 	assert.Equal(t, map[string]any{"token": "****"}, MaskConfig(telegramManifest(), map[string]any{"token": "short"}))
+}
+
+func TestMaskConfig_ShortSecretsFullyHidden(t *testing.T) {
+	for _, secret := range []string{"s3cr3tpw", "abcdefghijk"} {
+		got := MaskConfig(telegramManifest(), map[string]any{"token": secret})
+		assert.Equal(t, "****", got["token"], secret)
+	}
+	got := MaskConfig(telegramManifest(), map[string]any{"token": "abcdefghijkl"})
+	assert.Equal(t, "****ijkl", got["token"])
+}
+
+func TestMergeConfig_KeepsSecretWhenMaskedValueSentBack(t *testing.T) {
+	m := telegramManifest()
+	for _, secret := range []string{"123456:ABCDEFGHIJ", "short"} {
+		current := map[string]any{"token": secret, "auth_code": "a"}
+		masked := MaskConfig(m, current)["token"]
+		got, err := MergeConfig(m, current, map[string]any{"token": masked})
+		require.NoError(t, err)
+		assert.Equal(t, secret, got["token"], secret)
+	}
 }
 
 func TestCodec_RoundTrip(t *testing.T) {

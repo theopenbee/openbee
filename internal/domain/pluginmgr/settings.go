@@ -80,7 +80,7 @@ func MergeConfig(m plugin.Manifest, current, update map[string]any) (map[string]
 		cur, hasCur := current[f.Key]
 		v, sent := update[f.Key]
 		switch {
-		case sent && f.Type == plugin.FieldSecret && (v == nil || v == ""):
+		case sent && f.Type == plugin.FieldSecret && (v == nil || v == "" || (hasCur && v == maskedValue(cur))):
 			if hasCur {
 				out[f.Key] = cur
 			}
@@ -106,12 +106,24 @@ func MaskConfig(m plugin.Manifest, cfg map[string]any) map[string]any {
 		if !ok {
 			continue
 		}
-		if s, isStr := v.(string); f.Type == plugin.FieldSecret && isStr && s != "" {
-			v = crypto.Mask(s)
+		if f.Type == plugin.FieldSecret {
+			v = maskedValue(v)
 		}
 		out[f.Key] = v
 	}
 	return out
+}
+
+func maskedValue(v any) any {
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return v
+	}
+	runes := []rune(s)
+	if len(runes) < 12 {
+		return "****"
+	}
+	return "****" + string(runes[len(runes)-4:])
 }
 
 func randomHex(n int) string {
