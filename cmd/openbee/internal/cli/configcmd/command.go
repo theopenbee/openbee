@@ -283,5 +283,6 @@ func runConfig() error {
 	}
 
 	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
+	fmt.Println(i18n.M.Output.Config.NextPlugins)
 	return nil
 }

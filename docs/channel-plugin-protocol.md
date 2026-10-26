@@ -28,7 +28,7 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | `id` | Channel id and session key prefix. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
-| `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step a configuring client runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
+| `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee plugin configure` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
 | `version` | Optional. `package.json` `version` wins when present. |
 | `config[]` | Settings openbee stores for the plugin and validates before starting it. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes openbee fill in a random value when the field has no value yet, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
 
@@ -37,11 +37,18 @@ One plugin provides exactly one channel.
 ## Installation
 
 ```sh
-openbee plugin install <npm-spec | directory>
+openbee plugin search [keyword]
+openbee plugin install <catalog id | npm-spec | directory>...
+openbee plugin configure <id> [--set key=value]... [--bot-name name] [--enable]
 openbee plugin list
-openbee plugin remove <id>
+openbee plugin enable|disable|restart <id>
+openbee plugin update [id...]
+openbee plugin remove <id> [--yes]
 ```
 
+These commands talk to the running openbee, signing a short-lived token with `bee.rpc.token_secret` from `config.yaml`. They refuse to run inside openbee's own agents.
+
+- A catalog id installs the version listed in the plugin catalog. A bare name that is not in the catalog is rejected; write `npm:<name>` to install that npm package.
 - A directory argument is registered in place and loaded from that directory on every start.
 - Anything else is installed into `~/.openbee/plugins` by the package manager of the [runtime](#runtime): `npm install --save` on Node.js, `bun add` on Bun (any spec npm accepts: `name@version`, `github:owner/repo`, a tarball URL).
 - Installed plugins are recorded in `~/.openbee/plugins/plugins.json`. Each plugin gets a private writable directory `~/.openbee/plugins/data/<id>/`.
@@ -79,10 +86,10 @@ When openbee starts it starts every enabled plugin. Before it sends `initialize.
 
 ## Setup
 
-A client that configures a plugin whose manifest declares `setup` runs the setup command on the machine where openbee runs, before asking for the `config[]` fields, and saves the result as the plugin's settings.
+`openbee plugin configure <id>` runs the setup command of a plugin whose manifest declares `setup`, on the machine where openbee runs, before asking for the `config[]` fields, and saves the result as the plugin's settings.
 
 - The command runs in the plugin directory with stdin and stderr attached to the user's terminal, so it can show a QR code and ask questions there. `OPENBEE_LANGUAGE` holds the user's language (`en` or `zh`).
-- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. The client saves the values and does not ask for those fields again.
+- On success it exits 0 and writes one JSON object to stdout, for example `{"token": "...", "user_id": "..."}`. Every key must be a declared `config[]` field and every value must match its type; `null` values are ignored. `openbee plugin configure` saves the values and does not ask for those fields again.
 - On failure (non-zero exit or invalid output) openbee shows the error and asks for every field by hand.
 
 ## Process rules

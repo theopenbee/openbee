@@ -72,7 +72,6 @@ type PromptMessages struct {
 	PiPath string `yaml:"pi_path"`
 	// Platform
 	PlatformSelect string `yaml:"platform_select"`
-	PlatformNone   string `yaml:"platform_none"`
 	PluginListHint string `yaml:"plugin_list_hint"`
 	PluginSetup    string `yaml:"plugin_setup"`
 	PluginSetupRun string `yaml:"plugin_setup_run"`
@@ -142,50 +141,57 @@ type OutputMessages struct {
 }
 
 type PluginOutput struct {
-	Installed         string `yaml:"installed"`
-	TrustWarning      string `yaml:"trust_warning"`
-	ListHeader        string `yaml:"list_header"`
-	ListEmpty         string `yaml:"list_empty"`
-	Removed           string `yaml:"removed"`
-	InstallingBun     string `yaml:"installing_bun"`
-	Installing        string `yaml:"installing"`
-	InstallOK         string `yaml:"install_ok"`
-	InstallFailed     string `yaml:"install_failed"`
-	OpTimeout         string `yaml:"op_timeout"`
-	Summary           string `yaml:"summary"`
-	ConfigureHint     string `yaml:"configure_hint"`
-	NotInCatalog      string `yaml:"not_in_catalog"`
-	SearchHeader      string `yaml:"search_header"`
-	SearchEmpty       string `yaml:"search_empty"`
-	SearchHint        string `yaml:"search_hint"`
-	SearchNothing     string `yaml:"search_nothing"`
-	SearchSelect      string `yaml:"search_select"`
-	StatusUpdate      string `yaml:"status_update"`
-	StatusInstalled   string `yaml:"status_installed"`
-	StatusAvailable   string `yaml:"status_available"`
-	StatusUnavailable string `yaml:"status_unavailable"`
-	UpdateNone        string `yaml:"update_none"`
-	UpdateAllFlag     string `yaml:"update_all_flag"`
-	SetInvalid        string `yaml:"set_invalid"`
-	SetType           string `yaml:"set_type"`
-	SetupRun          string `yaml:"setup_run"`
-	SetupFailed       string `yaml:"setup_failed"`
-	KeepSecret        string `yaml:"keep_secret"`
-	RandomDefault     string `yaml:"random_default"`
-	FieldRequired     string `yaml:"field_required"`
-	IntInvalid        string `yaml:"int_invalid"`
-	BotNamePrompt     string `yaml:"bot_name_prompt"`
-	BotNameHelp       string `yaml:"bot_name_help"`
-	NeedTerminal      string `yaml:"need_terminal"`
-	Saved             string `yaml:"saved"`
-	EnableNow         string `yaml:"enable_now"`
-	EnableLater       string `yaml:"enable_later"`
-	Started           string `yaml:"started"`
-	StartFailed       string `yaml:"start_failed"`
-	StillStarting     string `yaml:"still_starting"`
-	SetFlag           string `yaml:"set_flag"`
-	BotNameFlag       string `yaml:"bot_name_flag"`
-	EnableFlag        string `yaml:"enable_flag"`
+	TrustWarning      string            `yaml:"trust_warning"`
+	ListHeader        string            `yaml:"list_header"`
+	ListEmpty         string            `yaml:"list_empty"`
+	Removed           string            `yaml:"removed"`
+	InstallingBun     string            `yaml:"installing_bun"`
+	Installing        string            `yaml:"installing"`
+	InstallOK         string            `yaml:"install_ok"`
+	InstallFailed     string            `yaml:"install_failed"`
+	OpTimeout         string            `yaml:"op_timeout"`
+	Summary           string            `yaml:"summary"`
+	ConfigureHint     string            `yaml:"configure_hint"`
+	NotInCatalog      string            `yaml:"not_in_catalog"`
+	SearchHeader      string            `yaml:"search_header"`
+	SearchEmpty       string            `yaml:"search_empty"`
+	SearchHint        string            `yaml:"search_hint"`
+	SearchNothing     string            `yaml:"search_nothing"`
+	SearchSelect      string            `yaml:"search_select"`
+	StatusUpdate      string            `yaml:"status_update"`
+	StatusInstalled   string            `yaml:"status_installed"`
+	StatusAvailable   string            `yaml:"status_available"`
+	StatusUnavailable string            `yaml:"status_unavailable"`
+	UpdateNone        string            `yaml:"update_none"`
+	UpdateAllFlag     string            `yaml:"update_all_flag"`
+	SetInvalid        string            `yaml:"set_invalid"`
+	SetType           string            `yaml:"set_type"`
+	SetupRun          string            `yaml:"setup_run"`
+	SetupFailed       string            `yaml:"setup_failed"`
+	KeepSecret        string            `yaml:"keep_secret"`
+	RandomDefault     string            `yaml:"random_default"`
+	FieldRequired     string            `yaml:"field_required"`
+	IntInvalid        string            `yaml:"int_invalid"`
+	BotNamePrompt     string            `yaml:"bot_name_prompt"`
+	BotNameHelp       string            `yaml:"bot_name_help"`
+	NeedTerminal      string            `yaml:"need_terminal"`
+	Saved             string            `yaml:"saved"`
+	EnableNow         string            `yaml:"enable_now"`
+	EnableLater       string            `yaml:"enable_later"`
+	Started           string            `yaml:"started"`
+	StartFailed       string            `yaml:"start_failed"`
+	StillStarting     string            `yaml:"still_starting"`
+	SetFlag           string            `yaml:"set_flag"`
+	BotNameFlag       string            `yaml:"bot_name_flag"`
+	EnableFlag        string            `yaml:"enable_flag"`
+	Disabled          string            `yaml:"disabled"`
+	RemoveConfirm     string            `yaml:"remove_confirm"`
+	RemoveNeedsYes    string            `yaml:"remove_needs_yes"`
+	YesFlag           string            `yaml:"yes_flag"`
+	NotRunning        string            `yaml:"not_running"`
+	AgentEnvironment  string            `yaml:"agent_environment"`
+	NoTokenSecret     string            `yaml:"no_token_secret"`
+	States            map[string]string `yaml:"states"`
 }
 
 // ServiceOutput maps to service command runtime output.
@@ -264,13 +270,13 @@ type RestoreOutput struct {
 type ConfigOutput struct {
 	FoundExisting             string `yaml:"found_existing"` // contains %s
 	SectionEngine             string `yaml:"section_engine"`
-	SectionPlatform           string `yaml:"section_platform"`
 	SectionAuth               string `yaml:"section_auth"`
 	SectionAdvanced           string `yaml:"section_advanced"`
 	SectionWrite              string `yaml:"section_write"`
 	OutputFile                string `yaml:"output_file"` // contains %s
 	WriteCancelled            string `yaml:"write_cancelled"`
 	Written                   string `yaml:"written"` // contains %s
+	NextPlugins               string `yaml:"next_plugins"`
 	JWTRegenerated            string `yaml:"jwt_regenerated"`
 	JWTGenerated              string `yaml:"jwt_generated"`
 	RPCTokenSecretGenerated   string `yaml:"rpc_token_secret_generated"` // contains %s

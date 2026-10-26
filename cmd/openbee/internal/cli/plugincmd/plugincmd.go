@@ -42,11 +42,15 @@ func newCommand(dd deps) *cobra.Command {
 	d := &dd
 	var cfgPath string
 	root := &cobra.Command{
-		Use:   "plugin",
-		Short: i18n.M.Cmd.Plugin.Short,
+		Use:          "plugin",
+		Short:        i18n.M.Cmd.Plugin.Short,
+		SilenceUsage: true,
 	}
 	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
 	client := func() (*Client, error) {
+		if d.Getenv("OPENBEE_API_KEY") != "" {
+			return nil, errAgentEnvironment
+		}
 		if d.Lang == "" {
 			d.Lang = loadLanguage(cfgPath)
 		}
@@ -55,9 +59,20 @@ func newCommand(dd deps) *cobra.Command {
 	root.AddCommand(
 		d.newSearchCommand(client),
 		d.newInstallCommand(client),
-		d.newUpdateCommand(client),
 		d.newConfigureCommand(client),
+		d.newListCommand(client),
+		d.newEnableCommand(client),
+		d.newDisableCommand(client),
+		d.newRestartCommand(client),
+		d.newUpdateCommand(client),
+		d.newRemoveCommand(client),
 	)
+	for _, sub := range root.Commands() {
+		run := sub.RunE
+		sub.RunE = func(cmd *cobra.Command, args []string) error {
+			return friendlyError(run(cmd, args), cfgPath)
+		}
+	}
 	return root
 }
 

@@ -94,7 +94,15 @@ openbee server -d
 
 ### Channel plugins
 
-Chat platforms are added as plugins without rebuilding OpenBee. A running OpenBee installs, configures, enables and removes them without restarting, through its API (`/api/plugins`). Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
+Chat platforms are added as plugins without rebuilding OpenBee, and a running OpenBee installs, configures, enables and removes them without restarting:
+
+```bash
+openbee plugin search              # browse the plugin catalog and pick plugins to install
+openbee plugin configure telegram  # answer the plugin's questions, then enable it
+openbee plugin list                # see every plugin and whether it is running
+```
+
+`openbee plugin install <id>`, `enable`, `disable`, `restart`, `update` and `remove` cover the rest; `configure --set key=value` works without prompts. Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
 
 ## 🌟 Star History
 

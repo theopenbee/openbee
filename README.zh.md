@@ -94,7 +94,15 @@ openbee server -d
 
 ### 渠道插件
 
-聊天平台通过插件接入，无需重新编译 OpenBee。运行中的 OpenBee 通过接口（`/api/plugins`）安装、配置、启用和卸载插件，无需重启。插件运行在 Bun 或 Node.js 上；两者都没有时，OpenBee 会把 Bun 下载到 `~/.openbee/runtime`。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
+聊天平台通过插件接入，无需重新编译 OpenBee；运行中的 OpenBee 安装、配置、启用和卸载插件都不需要重启：
+
+```bash
+openbee plugin search              # 浏览插件目录，选择要安装的插件
+openbee plugin configure telegram  # 按提示填写插件配置，然后启用
+openbee plugin list                # 查看所有插件及其运行状态
+```
+
+另有 `openbee plugin install <id>`、`enable`、`disable`、`restart`、`update`、`remove`；`configure --set key=value` 可以不经问答直接配置。插件运行在 Bun 或 Node.js 上；两者都没有时，OpenBee 会把 Bun 下载到 `~/.openbee/runtime`。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
 
 ## 🌟 Star History
 
