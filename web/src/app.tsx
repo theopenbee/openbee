@@ -25,6 +25,8 @@ const Users = lazy(() => import("@/pages/users").then(m => ({ default: m.Users }
 const Roles = lazy(() => import("@/pages/roles").then(m => ({ default: m.Roles })))
 const Env = lazy(() => import("@/pages/env").then(m => ({ default: m.Settings })))
 const SystemSettings = lazy(() => import("@/pages/settings").then(m => ({ default: m.SystemSettings })))
+const Plugins = lazy(() => import("@/pages/plugins").then(m => ({ default: m.Plugins })))
+const PluginDetail = lazy(() => import("@/pages/plugin-detail").then(m => ({ default: m.PluginDetail })))
 const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
 
 const queryClient = new QueryClient({
@@ -65,6 +67,8 @@ export function App() {
                 <Route path="/chat" element={<Guard perm={Perm.ChatWrite}><LocalChat /></Guard>} />
                 <Route path="/env" element={<Guard perm={Perm.EnvRead}><Env /></Guard>} />
                 <Route path="/settings" element={<Guard perm={Perm.SystemConfigRead}><SystemSettings /></Guard>} />
+                <Route path="/plugins" element={<Guard perm={Perm.PluginsRead}><Plugins /></Guard>} />
+                <Route path="/plugins/:id" element={<Guard perm={Perm.PluginsRead}><PluginDetail /></Guard>} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -57,6 +57,7 @@ export const NAV: NavDef[] = [
     items: [
       { titleKey: "nav.settings", url: "/env", perm: Perm.EnvRead },
       { titleKey: "nav.systemSettings", url: "/settings", perm: Perm.SystemConfigRead },
+      { titleKey: "nav.plugins", url: "/plugins", perm: Perm.PluginsRead },
     ],
   },
 ]

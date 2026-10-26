@@ -19,7 +19,8 @@
     "systemSettings": "Settings",
     "systemConfig": "System",
     "collapseNav": "Collapse navigation",
-    "expandNav": "Expand navigation"
+    "expandNav": "Expand navigation",
+    "plugins": "Plugins"
   },
   "common": {
     "save": "Save",
@@ -555,6 +556,114 @@
     "noAccessTitle": "No accessible features yet",
     "noAccessDescription": "Your account hasn't been granted access to any features. Please contact an administrator to request permissions.",
     "logout": "Log out"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "subtitle": "Install channel plugins from the catalog and turn them on without restarting OpenBee",
+    "refreshCatalog": "Refresh catalog",
+    "tabs": {
+      "market": "Marketplace",
+      "installed": "Installed"
+    },
+    "searchPlaceholder": "Search by name or description",
+    "allTags": "All",
+    "official": "Official",
+    "deprecated": "Deprecated",
+    "noResults": "No plugins match your search",
+    "action": {
+      "install": "Install",
+      "installing": "Installing {{time}}",
+      "configure": "Configure",
+      "update": "Update to {{version}}",
+      "incompatible": "Needs a newer OpenBee",
+      "enable": "Enable",
+      "disable": "Disable",
+      "restart": "Restart",
+      "uninstall": "Uninstall",
+      "more": "More"
+    },
+    "installedVersion": "Installed v{{version}}",
+    "updateAvailable": "Installed v{{version}}, update available",
+    "installDone": "{{name}} installed",
+    "installGoConfigure": "Configure",
+    "installFailed": "Could not install {{name}}: {{error}}",
+    "uninstallDone": "{{name}} uninstalled",
+    "uninstallFailed": "Could not uninstall {{name}}: {{error}}",
+    "state": {
+      "running": "Running",
+      "disabled": "Disabled",
+      "not_configured": "Not configured",
+      "starting": "Starting",
+      "retrying": "Retrying",
+      "failed": "Failed"
+    },
+    "columns": {
+      "plugin": "Plugin",
+      "version": "Version",
+      "status": "Status",
+      "botName": "Bot name"
+    },
+    "installedTitle": "Installed plugins",
+    "installedSummary": "{{count}} plugins, {{running}} running",
+    "emptyInstalled": {
+      "title": "No plugins installed",
+      "description": "Install a channel plugin from the marketplace to connect a chat platform.",
+      "action": "Open marketplace"
+    },
+    "uninstallDialog": {
+      "title": "Uninstall {{name}}?",
+      "description": "The plugin, its settings and its data are deleted. The channel stops right away; other channels keep running.",
+      "confirm": "Uninstall"
+    },
+    "toast": {
+      "enabled": "{{name}} enabled",
+      "disabled": "{{name}} disabled",
+      "restarted": "{{name}} restarted",
+      "saved": "Settings saved",
+      "savedRestarting": "Settings saved, {{name}} is restarting",
+      "savedEnableHint": "Settings saved. Enable the plugin to start it."
+    },
+    "detail": {
+      "back": "Plugins",
+      "settings": "Settings",
+      "settingsHint": "Saving restarts only {{name}}; other channels are not affected",
+      "info": "Plugin info",
+      "package": "Package",
+      "version": "Version",
+      "source": "Source",
+      "sourceNpm": "Plugin catalog (npm)",
+      "sourcePath": "Local directory",
+      "path": "Path",
+      "repository": "Repository",
+      "license": "License",
+      "latest": "Latest in the catalog",
+      "newer": "{{version}} is available",
+      "botName": "Bot name",
+      "botNameHelp": "Name used to @mention the bot in group chats; it cannot match a worker name",
+      "secretSaved": "Saved {{mask}}, leave empty to keep it",
+      "defaultValue": "Default {{value}}",
+      "listHelp": "One value per line",
+      "required": "Required",
+      "intInvalid": "{{label}} must be a whole number",
+      "noChanges": "Nothing to save",
+      "reset": "Reset",
+      "readonly": "You can view these settings but not change them.",
+      "notFound": "This plugin is not installed."
+    },
+    "setup": {
+      "defaultLabel": "Sign in",
+      "cardHint": "After signing in, the settings it returns are saved automatically",
+      "start": "Start",
+      "waiting": "Starting…",
+      "scanHint": "Scan the QR code with your phone and confirm on the phone",
+      "refreshHint": "An expired code is replaced automatically",
+      "inputPlaceholder": "Type here when asked",
+      "send": "Send",
+      "again": "Get a new code",
+      "reconnecting": "Reconnecting…",
+      "success": "Signed in, settings saved",
+      "failed": "Sign-in failed: {{error}}"
+    }
   },
   "errors": {
     "last_super_admin": "Cannot remove or disable the last active super-admin",

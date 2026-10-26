@@ -184,6 +184,9 @@ export function usePluginSetup(pluginId: string, onDone?: (ev: PluginSetupEvent)
     }
   }, [sessionId, queryClient])
 
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const start = useCallback(async () => {
     const { id } = await api.plugins.startSetup(pluginId)
     setState({ ...IDLE_SETUP, sessionId: id })
@@ -191,17 +194,15 @@ export function usePluginSetup(pluginId: string, onDone?: (ev: PluginSetupEvent)
   }, [pluginId])
 
   const cancel = useCallback(async () => {
-    const sid = state.sessionId
+    const { sessionId: sid, done } = stateRef.current
     setState(IDLE_SETUP)
-    if (sid && !state.done) await api.plugins.cancelSetup(sid).catch(() => undefined)
-  }, [state.sessionId, state.done])
+    if (sid && !done) await api.plugins.cancelSetup(sid).catch(() => undefined)
+  }, [])
 
-  const input = useCallback(
-    async (text: string) => {
-      if (state.sessionId) await api.plugins.setupInput(state.sessionId, text)
-    },
-    [state.sessionId],
-  )
+  const input = useCallback(async (text: string) => {
+    const sid = stateRef.current.sessionId
+    if (sid) await api.plugins.setupInput(sid, text)
+  }, [])
 
   return { ...state, start, cancel, input }
 }

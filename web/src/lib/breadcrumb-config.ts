@@ -36,6 +36,17 @@ const ROUTES: { test: RegExp; crumbs: CrumbDef[] }[] = [
     crumbs: [{ labelKey: "nav.systemSettings" }],
   },
   {
+    test: /^\/plugins$/,
+    crumbs: [{ labelKey: "nav.plugins" }],
+  },
+  {
+    test: /^\/plugins\//,
+    crumbs: [
+      { labelKey: "nav.plugins", to: "/plugins" },
+      { labelKey: "breadcrumb.detail" },
+    ],
+  },
+  {
     test: /^\/chat$/,
     crumbs: [{ labelKey: "localChat.title" }],
   },

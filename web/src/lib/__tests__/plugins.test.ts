@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildSettingsPayload,
   filterCatalog,
+  formatElapsed,
   initialFormValues,
   invalidIntFields,
   isTransitional,
@@ -191,5 +192,14 @@ describe("isTransitional", () => {
     expect(isTransitional("starting")).toBe(true)
     expect(isTransitional("retrying")).toBe(true)
     expect(isTransitional("running")).toBe(false)
+  })
+})
+
+describe("formatElapsed", () => {
+  it("formats minutes and seconds", () => {
+    expect(formatElapsed(0)).toBe("0:00")
+    expect(formatElapsed(12_400)).toBe("0:12")
+    expect(formatElapsed(125_000)).toBe("2:05")
+    expect(formatElapsed(-5)).toBe("0:00")
   })
 })

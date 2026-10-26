@@ -19,7 +19,8 @@
     "systemSettings": "系统设置",
     "systemConfig": "系统",
     "collapseNav": "收起导航",
-    "expandNav": "展开导航"
+    "expandNav": "展开导航",
+    "plugins": "插件"
   },
   "common": {
     "save": "保存",
@@ -554,6 +555,114 @@
     "noAccessTitle": "暂无可访问的功能",
     "noAccessDescription": "你的账号尚未被分配任何可访问的功能，请联系管理员开通权限。",
     "logout": "退出登录"
+  },
+  "plugins": {
+    "title": "插件",
+    "subtitle": "从插件目录安装渠道插件，配置后即可启用，无需重启 OpenBee",
+    "refreshCatalog": "刷新目录",
+    "tabs": {
+      "market": "插件市场",
+      "installed": "已安装"
+    },
+    "searchPlaceholder": "搜索插件名称或描述",
+    "allTags": "全部",
+    "official": "官方",
+    "deprecated": "已弃用",
+    "noResults": "没有匹配的插件",
+    "action": {
+      "install": "安装",
+      "installing": "安装中 {{time}}",
+      "configure": "配置",
+      "update": "更新到 {{version}}",
+      "incompatible": "需要更新版本的 OpenBee",
+      "enable": "启用",
+      "disable": "停用",
+      "restart": "重启",
+      "uninstall": "卸载",
+      "more": "更多"
+    },
+    "installedVersion": "已安装 v{{version}}",
+    "updateAvailable": "已安装 v{{version}}，有新版本",
+    "installDone": "{{name}} 已安装",
+    "installGoConfigure": "去配置",
+    "installFailed": "{{name}} 安装失败：{{error}}",
+    "uninstallDone": "已卸载 {{name}}",
+    "uninstallFailed": "{{name}} 卸载失败：{{error}}",
+    "state": {
+      "running": "运行中",
+      "disabled": "已停用",
+      "not_configured": "未配置",
+      "starting": "启动中",
+      "retrying": "重试中",
+      "failed": "失败"
+    },
+    "columns": {
+      "plugin": "插件",
+      "version": "版本",
+      "status": "状态",
+      "botName": "机器人名称"
+    },
+    "installedTitle": "已安装的插件",
+    "installedSummary": "{{count}} 个插件，{{running}} 个运行中",
+    "emptyInstalled": {
+      "title": "还没有安装插件",
+      "description": "去插件市场安装一个渠道插件，就能接入聊天平台。",
+      "action": "打开插件市场"
+    },
+    "uninstallDialog": {
+      "title": "卸载 {{name}}？",
+      "description": "会删除该插件及其配置和数据，这个渠道会立即停止，其他渠道不受影响。",
+      "confirm": "卸载"
+    },
+    "toast": {
+      "enabled": "已启用 {{name}}",
+      "disabled": "已停用 {{name}}",
+      "restarted": "已重启 {{name}}",
+      "saved": "已保存",
+      "savedRestarting": "已保存，{{name}} 正在重启",
+      "savedEnableHint": "已保存，启用插件后开始工作"
+    },
+    "detail": {
+      "back": "插件",
+      "settings": "配置",
+      "settingsHint": "保存后只重启 {{name}}，不影响其他渠道",
+      "info": "插件信息",
+      "package": "包名",
+      "version": "版本",
+      "source": "来源",
+      "sourceNpm": "插件目录（npm）",
+      "sourcePath": "本地目录",
+      "path": "路径",
+      "repository": "仓库",
+      "license": "许可证",
+      "latest": "已是目录中的最新版本",
+      "newer": "目录中有新版本 {{version}}",
+      "botName": "机器人名称",
+      "botNameHelp": "群聊里 @ 机器人时用的名称；不能和员工重名",
+      "secretSaved": "已保存 {{mask}}，留空则保留",
+      "defaultValue": "默认 {{value}}",
+      "listHelp": "一行一个值",
+      "required": "必填",
+      "intInvalid": "{{label}} 必须是整数",
+      "noChanges": "没有需要保存的改动",
+      "reset": "重置",
+      "readonly": "你可以查看这些配置，但没有修改权限。",
+      "notFound": "这个插件没有安装。"
+    },
+    "setup": {
+      "defaultLabel": "登录",
+      "cardHint": "登录成功后会自动保存相关配置",
+      "start": "开始",
+      "waiting": "正在启动…",
+      "scanHint": "请用手机扫描二维码，并在手机上确认",
+      "refreshHint": "二维码过期后会自动换新",
+      "inputPlaceholder": "需要时在这里输入",
+      "send": "发送",
+      "again": "重新获取",
+      "reconnecting": "正在重新连接…",
+      "success": "登录成功，配置已保存",
+      "failed": "登录失败：{{error}}"
+    }
   },
   "errors": {
     "last_super_admin": "无法移除或停用最后一个启用的超级管理员",
