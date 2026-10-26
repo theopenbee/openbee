@@ -584,6 +584,7 @@
     "installedVersion": "已安装 v{{version}}",
     "updateAvailable": "已安装 v{{version}}，有新版本",
     "installDone": "{{name}} 已安装",
+    "updateDone": "{{name}} 已更新到 {{version}}",
     "installGoConfigure": "去配置",
     "installFailed": "{{name}} 安装失败：{{error}}",
     "uninstallDone": "已卸载 {{name}}",

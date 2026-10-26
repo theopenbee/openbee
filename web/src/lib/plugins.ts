@@ -146,10 +146,13 @@ export function pendingInstalls(ops: PluginOperation[]): Record<string, PluginOp
   return out
 }
 
+export function isLink(line: string): boolean {
+  return LINK_PATTERN.test(line.trim())
+}
+
 export function latestLink(lines: string[]): string | null {
   for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim()
-    if (LINK_PATTERN.test(line)) return line
+    if (isLink(lines[i])) return lines[i].trim()
   }
   return null
 }

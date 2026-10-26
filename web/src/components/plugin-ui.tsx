@@ -66,19 +66,25 @@ export function usePluginOperationToasts() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const nameOf = (op: PluginOperation) => {
+  const describe = (op: PluginOperation) => {
     const catalog = queryClient.getQueryData<PluginCatalog>(["plugin-catalog"])
     const installed = queryClient.getQueryData<PluginStatus[]>(["plugins"])
     const pkg = op.spec ? specPackage(op.spec) : ""
     const fromCatalog = catalog?.plugins.find((p) => (op.plugin_id ? p.id === op.plugin_id : p.package === pkg))
     const fromInstalled = installed?.find((p) => p.id === op.plugin_id)
-    return localize(fromCatalog?.name ?? fromInstalled?.name, i18n.language) || op.plugin_id || pkg
+    return {
+      name: localize(fromCatalog?.name ?? fromInstalled?.name, i18n.language) || op.plugin_id || pkg,
+      update: Boolean(fromCatalog?.installed),
+      version: op.spec && pkg !== op.spec ? op.spec.slice(pkg.length + 1) : "",
+    }
   }
 
   return usePluginOperations((op) => {
-    const name = nameOf(op)
+    const { name, update, version } = describe(op)
     if (op.kind === "install") {
-      if (op.status === "succeeded") {
+      if (op.status === "succeeded" && update) {
+        toast.success(t("plugins.updateDone", { name, version }))
+      } else if (op.status === "succeeded") {
         toast.success(t("plugins.installDone", { name }), op.plugin_id
           ? { action: { label: t("plugins.installGoConfigure"), onClick: () => navigate(`/plugins/${op.plugin_id}`) } }
           : undefined)

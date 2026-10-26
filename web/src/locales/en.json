@@ -585,6 +585,7 @@
     "installedVersion": "Installed v{{version}}",
     "updateAvailable": "Installed v{{version}}, update available",
     "installDone": "{{name}} installed",
+    "updateDone": "{{name}} updated to {{version}}",
     "installGoConfigure": "Configure",
     "installFailed": "Could not install {{name}}: {{error}}",
     "uninstallDone": "{{name}} uninstalled",

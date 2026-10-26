@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePluginSetup } from "@/hooks/use-plugins"
-import { latestLink } from "@/lib/plugins"
+import { isLink, latestLink } from "@/lib/plugins"
 import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { cn, getErrorMessage } from "@/lib/utils"
 
@@ -59,7 +59,7 @@ export function PluginSetupDialog({
   }, [open, start])
 
   const link = latestLink(setup.lines)
-  const progress = setup.lines.filter((line) => line.trim() !== link).slice(-VISIBLE_LINES)
+  const progress = setup.lines.filter((line) => !isLink(line)).slice(-VISIBLE_LINES)
   const failed = setup.done && !setup.done.ok ? setup.done.error || "" : null
   const active = Boolean(setup.sessionId) && !setup.done
   const stopped = Boolean(startError) || failed !== null

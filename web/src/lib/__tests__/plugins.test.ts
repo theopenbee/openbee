@@ -4,6 +4,7 @@ import {
   filterCatalog,
   formatElapsed,
   initialFormValues,
+  isLink,
   invalidIntFields,
   isTransitional,
   latestLink,
@@ -175,6 +176,8 @@ describe("latestLink", () => {
 
   it("ignores links inside sentences", () => {
     expect(latestLink(["see https://docs.example for help"])).toBeNull()
+    expect(isLink(" https://a.example/1 ")).toBe(true)
+    expect(isLink("see https://docs.example")).toBe(false)
   })
 })
 
