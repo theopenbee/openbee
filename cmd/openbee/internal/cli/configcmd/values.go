@@ -34,14 +34,6 @@ type configValues struct {
 	AuthJWTSecret  string
 	AuthAccessTTL  string
 	AuthRefreshTTL string
-
-	PluginSections map[string]map[string]any
-}
-
-// configRenderData wraps configValues with fields derived solely for template rendering.
-type configRenderData struct {
-	configValues
-	PluginPlatformsYAML string
 }
 
 // loadExistingConfig returns nil if no usable config file exists at path.
@@ -76,6 +68,5 @@ func loadExistingConfig(path string) *configValues {
 		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
 		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
 		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),
-		PluginSections:         cfg.Bee.Platforms.Plugins,
 	}
 }

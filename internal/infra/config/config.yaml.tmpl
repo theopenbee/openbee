@@ -34,8 +34,6 @@ bee:
   rpc:
     token_secret: "{{.RPCTokenSecret}}"
     token_ttl: {{.RPCTokenTTL}}
-  platforms:{{if .PluginPlatformsYAML}}
-{{.PluginPlatformsYAML}}{{else}} {}{{end}}
   feeder:
     max_concurrent_bee: {{.FeederMaxConcurrentBee}}
   message_debounce: {{.MessageDebounce}}

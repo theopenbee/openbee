@@ -67,7 +67,8 @@ func TestPluginInstall_LocalPath(t *testing.T) {
 	assert.Contains(t, out, "discord")
 	assert.Contains(t, out, "0.1.0")
 	assert.Contains(t, out, firstLine(i18n.M.Output.Plugin.TrustWarning))
-	assert.Contains(t, out, firstLine(i18n.M.Output.Plugin.NextSteps))
+	assert.NotContains(t, out, "config.yaml")
+	assert.NotContains(t, out, "restart")
 	_, ok, err := reg.Get("discord")
 	require.NoError(t, err)
 	assert.True(t, ok)
@@ -87,19 +88,18 @@ func TestPluginList(t *testing.T) {
 	require.NoError(t, err)
 	_, err = run(t, reg, "install", writePlugin(t, "slack", "Slack", "0.2.0"))
 	require.NoError(t, err)
-	cfg := writeConfig(t, "bee:\n  platforms:\n    discord:\n      enabled: true\n      token: x\n")
+	cfg := writeConfig(t, "language: en\n")
 
 	out, err := run(t, reg, "list", "-c", cfg)
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	require.Len(t, lines, 3)
+	assert.NotContains(t, lines[0], "STATUS")
 	assert.Contains(t, lines[1], "discord")
 	assert.Contains(t, lines[1], "Discord")
 	assert.Contains(t, lines[1], "0.1.0")
 	assert.Contains(t, lines[1], plugin.SourcePath)
-	assert.Contains(t, lines[1], i18n.M.Output.Plugin.StatusEnabled)
 	assert.Contains(t, lines[2], "slack")
-	assert.Contains(t, lines[2], i18n.M.Output.Plugin.StatusDisabled)
 }
 
 func TestPluginList_Empty(t *testing.T) {
@@ -108,16 +108,15 @@ func TestPluginList_Empty(t *testing.T) {
 	assert.Contains(t, out, i18n.M.Output.Plugin.ListEmpty)
 }
 
-func TestPluginRemove_WarnsWhenStillEnabled(t *testing.T) {
+func TestPluginRemove(t *testing.T) {
 	reg := newRegistry(t)
 	_, err := run(t, reg, "install", writePlugin(t, "discord", "Discord", "0.1.0"))
 	require.NoError(t, err)
-	cfg := writeConfig(t, "bee:\n  platforms:\n    discord:\n      enabled: true\n")
 
-	out, err := run(t, reg, "remove", "discord", "-c", cfg)
+	out, err := run(t, reg, "remove", "discord")
 	require.NoError(t, err)
 	assert.Contains(t, out, strings.Split(i18n.M.Output.Plugin.Removed, "%s")[0])
-	assert.Contains(t, out, strings.Split(i18n.M.Output.Plugin.StillEnabled, "%s")[0])
+	assert.NotContains(t, out, "config.yaml")
 	_, ok, err := reg.Get("discord")
 	require.NoError(t, err)
 	assert.False(t, ok)
@@ -131,20 +130,4 @@ func TestPluginRemove_NotInstalled(t *testing.T) {
 
 func firstLine(s string) string {
 	return strings.SplitN(s, "\n", 2)[0]
-}
-
-func TestPluginList_YAMLStyleEnabled(t *testing.T) {
-	reg := newRegistry(t)
-	_, err := run(t, reg, "install", writePlugin(t, "discord", "Discord", "0.1.0"))
-	require.NoError(t, err)
-	_, err = run(t, reg, "install", writePlugin(t, "slack", "Slack", "0.2.0"))
-	require.NoError(t, err)
-	cfg := writeConfig(t, "bee:\n  platforms:\n    discord:\n      enabled: yes\n    slack:\n      enabled: maybe\n")
-
-	out, err := run(t, reg, "list", "-c", cfg)
-	require.NoError(t, err)
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	require.Len(t, lines, 3)
-	assert.Contains(t, lines[1], i18n.M.Output.Plugin.StatusEnabled)
-	assert.Contains(t, lines[2], i18n.M.Output.Plugin.StatusInvalid)
 }

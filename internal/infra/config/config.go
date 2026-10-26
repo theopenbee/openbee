@@ -93,7 +93,7 @@ type BeeConfig struct {
 	Engine          EngineDefaultConfig `yaml:"engine"`
 	Engines         EnginesConfig       `yaml:"engines"`
 	Feeder          FeederConfig        `yaml:"feeder"`
-	Platforms       PlatformsConfig     `yaml:"platforms"`
+	LegacyPlatforms map[string]any      `yaml:"platforms"`
 	RPC             RPCConfig           `yaml:"rpc"`
 
 	RPCBaseURL string `yaml:"-"`
@@ -125,45 +125,6 @@ func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
 	}
 }
 
-type PlatformsConfig struct {
-	Plugins map[string]map[string]any `yaml:",inline"`
-}
-
-func (p *PlatformsConfig) UnmarshalYAML(value *yaml.Node) error {
-	type plain PlatformsConfig
-	if value.Kind == yaml.MappingNode {
-		filtered := *value
-		filtered.Content = make([]*yaml.Node, 0, len(value.Content))
-		for i := 0; i+1 < len(value.Content); i += 2 {
-			key, val := value.Content[i], value.Content[i+1]
-			if val.Kind != yaml.MappingNode && val.Kind != yaml.AliasNode {
-				continue
-			}
-			filtered.Content = append(filtered.Content, key, val)
-		}
-		value = &filtered
-	}
-	return value.Decode((*plain)(p))
-}
-
-func (p PlatformsConfig) BotNamesByPlatform() map[string]string {
-	names := make(map[string]string)
-	for id, section := range p.Plugins {
-		if n, _ := section["bot_name"].(string); n != "" {
-			names[id] = n
-		}
-	}
-	return names
-}
-
-func (p PlatformsConfig) BotNames() []string {
-	var names []string
-	for _, n := range p.BotNamesByPlatform() {
-		names = append(names, n)
-	}
-	return names
-}
-
 type FeederConfig struct {
 	MaxConcurrentBee int `yaml:"max_concurrent_bee"`
 }
@@ -182,11 +143,12 @@ type AuthConfig struct {
 }
 
 type ServerConfig struct {
-	Port      int        `yaml:"port"`
-	Host      string     `yaml:"host"`
-	Debug     bool       `yaml:"debug"`
-	Auth      AuthConfig `yaml:"auth"`
-	EnvSecret string     `yaml:"env_secret"`
+	Port               int        `yaml:"port"`
+	Host               string     `yaml:"host"`
+	Debug              bool       `yaml:"debug"`
+	Auth               AuthConfig `yaml:"auth"`
+	EnvSecret          string     `yaml:"env_secret"`
+	EnvSecretGenerated bool       `yaml:"-"`
 }
 
 type DatabaseConfig struct {
@@ -249,6 +211,7 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Server.EnvSecret == "" {
 		cfg.Server.EnvSecret = GenerateRandomSecret()
+		cfg.Server.EnvSecretGenerated = true
 	}
 	if cfg.Bee.RPC.TokenTTL == 0 {
 		cfg.Bee.RPC.TokenTTL = 48 * time.Hour

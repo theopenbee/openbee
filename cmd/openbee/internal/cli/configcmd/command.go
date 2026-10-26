@@ -67,16 +67,8 @@ func renderConfig(vals configValues) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse template: %w", err)
 	}
-	pluginYAML, err := renderPluginSections(vals.PluginSections)
-	if err != nil {
-		return nil, err
-	}
 	var buf bytes.Buffer
-	render := configRenderData{
-		configValues:        vals,
-		PluginPlatformsYAML: pluginYAML,
-	}
-	if err := tmpl.Execute(&buf, render); err != nil {
+	if err := tmpl.Execute(&buf, vals); err != nil {
 		return nil, fmt.Errorf("render template: %w", err)
 	}
 	return buf.Bytes(), nil
@@ -209,14 +201,7 @@ func runConfig() error {
 
 	installBuiltinSkills()
 
-	// Step 2 — Platform config
-	fmt.Println(i18n.M.Output.Config.SectionPlatform)
-
-	if err := runPlatformStep(&vals); err != nil {
-		return err
-	}
-
-	// Step 3 — Web Authentication
+	// Step 2 — Web Authentication
 	fmt.Println(i18n.M.Output.Config.SectionAuth)
 
 	if err := survey.AskOne(&survey.Input{
@@ -245,7 +230,7 @@ func runConfig() error {
 		}
 	}
 
-	// Step 4 — Advanced config
+	// Step 3 — Advanced config
 	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
 
 	var customAdvanced bool
@@ -272,7 +257,7 @@ func runConfig() error {
 		}
 	}
 
-	// Step 4 — Confirm write
+	// Step 3 — Confirm write
 	fmt.Println(i18n.M.Output.Config.SectionWrite)
 	fmt.Printf(i18n.M.Output.Config.OutputFile+"\n", configOutputPath)
 

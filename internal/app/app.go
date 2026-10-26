@@ -165,7 +165,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 	var channels []platform.Channel
 	var pluginDone []<-chan struct{}
-	for _, b := range pluginchannel.BuildChannels(cfg.Bee.Platforms.Plugins, pluginchannel.BuildOptions{
+	for _, b := range pluginchannel.BuildChannels(nil, pluginchannel.BuildOptions{
 		Registry: plugin.OpenRegistry(plugin.DefaultDir()),
 		Runtime:  pluginRuntime,
 		MediaSvc: mediaSvc,
@@ -209,8 +209,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	})
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
-	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain,
-		msgingest.WithPlatformBotNames(cfg.Bee.Platforms.BotNamesByPlatform()))
+	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)

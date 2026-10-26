@@ -48,7 +48,6 @@ func newCommand(d deps) *cobra.Command {
 			}
 			fmt.Fprintf(d.Out, i18n.M.Output.Plugin.Installed+"\n", entry.ID, displayVersion(m.Version))
 			fmt.Fprintln(d.Out, i18n.M.Output.Plugin.TrustWarning)
-			fmt.Fprintln(d.Out, i18n.M.Output.Plugin.NextSteps)
 			return nil
 		},
 	})
@@ -66,7 +65,7 @@ func newCommand(d deps) *cobra.Command {
 				fmt.Fprintln(d.Out, i18n.M.Output.Plugin.ListEmpty)
 				return nil
 			}
-			sections, lang := loadSections(cfgPath)
+			lang := loadLanguage(cfgPath)
 			w := tabwriter.NewWriter(d.Out, 0, 4, 2, ' ', 0)
 			fmt.Fprintln(w, i18n.M.Output.Plugin.ListHeader)
 			for _, e := range entries {
@@ -74,13 +73,7 @@ func newCommand(d deps) *cobra.Command {
 				if m, err := plugin.LoadManifest(e.Path); err == nil {
 					name = m.DisplayName(lang)
 				}
-				status := i18n.M.Output.Plugin.StatusDisabled
-				if on, err := plugin.SectionEnabled(sections[e.ID]); err != nil {
-					status = i18n.M.Output.Plugin.StatusInvalid
-				} else if on {
-					status = i18n.M.Output.Plugin.StatusEnabled
-				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", e.ID, name, displayVersion(e.Version), e.Source, status, e.Path)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.ID, name, displayVersion(e.Version), e.Source, e.Path)
 			}
 			return w.Flush()
 		},
@@ -96,26 +89,18 @@ func newCommand(d deps) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(d.Out, i18n.M.Output.Plugin.Removed+"\n", entry.ID)
-			if sections, _ := loadSections(cfgPath); enabled(sections, entry.ID) {
-				fmt.Fprintf(d.Out, i18n.M.Output.Plugin.StillEnabled+"\n", entry.ID)
-			}
 			return nil
 		},
 	})
 	return root
 }
 
-func loadSections(cfgPath string) (map[string]map[string]any, string) {
+func loadLanguage(cfgPath string) string {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		return nil, i18n.LangEN
+		return i18n.LangEN
 	}
-	return cfg.Bee.Platforms.Plugins, cfg.Language
-}
-
-func enabled(sections map[string]map[string]any, id string) bool {
-	on, _ := plugin.SectionEnabled(sections[id])
-	return on
+	return cfg.Language
 }
 
 func displayVersion(v string) string {

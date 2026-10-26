@@ -185,14 +185,9 @@ output:
   plugin:
     installed: "Installed plugin %s (version %s)"
     trust_warning: "Plugins run with your user permissions. Only install plugins you trust."
-    next_steps: "Next: run 'openbee config' or add bee.platforms.<id> to config.yaml, then restart openbee."
-    list_header: "ID\tNAME\tVERSION\tSOURCE\tSTATUS\tPATH"
+    list_header: "ID\tNAME\tVERSION\tSOURCE\tPATH"
     list_empty: "No channel plugins installed."
     removed: "Removed plugin %s"
-    still_enabled: "Channel %s is still enabled in config.yaml; disable it or openbee will log an error on startup."
-    status_enabled: "enabled"
-    status_disabled: "disabled"
-    status_invalid: "invalid enabled value"
     installing_bun: "No usable Bun or Node.js found; installing Bun %s into %s ..."
   service:
     installed: "service installed at %s"

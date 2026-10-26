@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,67 +85,6 @@ bee:
 
 	assert.Equal(t, 5*time.Minute, cfg.Bee.Engine.Timeout.Bee)
 	assert.Equal(t, 30*time.Minute, cfg.Bee.Engine.Timeout.Worker)
-}
-
-func TestBeeConfig_FormerBuiltinSectionsArePluginConfig(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`
-server:
-  port: 8080
-bee:
-  platforms:
-    telegram:
-      enabled: true
-      token: "test-token"
-      max_media_size: 10485760
-    feishu:
-      enabled: true
-      app_id: "cli_x"
-      app_secret: "s"
-      bot_name: "FeishuBot"
-    dingtalk:
-      enabled: false
-      client_id: "ding_x"
-    wecom:
-      enabled: true
-      bot_id: "aib_x"
-      websocket_url: "wss://example.com"
-    weixin:
-      enabled: true
-      token: "wx-token"
-      route_tag: 7
-      bot_name: "WxBot"
-    linear:
-      enabled: true
-      api_key: "lin_test"
-      label_name: "openbee"
-      poll_interval: 10s
-      projects: ["Core"]
-      states: ["Todo", "In Progress"]
-      max_media_size: 10485760
-`)
-	f.Close()
-
-	cfg, err := Load(f.Name())
-	require.NoError(t, err)
-
-	p := cfg.Bee.Platforms.Plugins
-	assert.Equal(t, true, p["telegram"]["enabled"])
-	assert.Equal(t, "test-token", p["telegram"]["token"])
-	assert.Equal(t, 10485760, p["telegram"]["max_media_size"])
-	assert.Equal(t, "cli_x", p["feishu"]["app_id"])
-	assert.Equal(t, false, p["dingtalk"]["enabled"])
-	assert.Equal(t, "ding_x", p["dingtalk"]["client_id"])
-	assert.Equal(t, "wss://example.com", p["wecom"]["websocket_url"])
-	assert.Equal(t, "wx-token", p["weixin"]["token"])
-	assert.Equal(t, 7, p["weixin"]["route_tag"])
-	assert.Equal(t, "lin_test", p["linear"]["api_key"])
-	assert.Equal(t, "10s", p["linear"]["poll_interval"])
-	assert.Equal(t, []any{"Core"}, p["linear"]["projects"])
-	assert.Equal(t, []any{"Todo", "In Progress"}, p["linear"]["states"])
-	assert.Equal(t, 10485760, p["linear"]["max_media_size"])
-	assert.Equal(t, "FeishuBot", cfg.Bee.Platforms.BotNamesByPlatform()["feishu"])
-	assert.Equal(t, "WxBot", cfg.Bee.Platforms.BotNamesByPlatform()["weixin"])
 }
 
 func TestGetLang_fromFile(t *testing.T) {
@@ -271,70 +211,44 @@ bee:
 	assert.Empty(t, envCodex)
 }
 
-func TestPlatformsConfig_BotNamesByPlatform(t *testing.T) {
-	p := PlatformsConfig{Plugins: map[string]map[string]any{"beta": {"bot_name": "BetaBot"}, "weixin": {"enabled": false, "bot_name": "WxBot"}}}
-	got := p.BotNamesByPlatform()
-	assert.Equal(t, map[string]string{"beta": "BetaBot", "weixin": "WxBot"}, got)
-	assert.ElementsMatch(t, []string{"BetaBot", "WxBot"}, p.BotNames())
-}
-
-func TestPlatformsConfig_InlinePlugins(t *testing.T) {
+func TestLoad_LegacyPlatformsIgnored(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
-server:
-  port: 8080
 bee:
   platforms:
-    discord:
+    telegram:
       enabled: true
-      bot_name: DBot
       token: x
-      allowed_guilds: ["1", "2"]
-    slack:
-      enabled: false
-      bot_name: SBot
+      bot_name: TBot
   feeder:
     max_concurrent_bee: 3
 `), 0o644))
-
 	cfg, err := Load(path)
 	require.NoError(t, err)
-	p := cfg.Bee.Platforms
 	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
-	require.Contains(t, p.Plugins, "discord")
-	assert.Equal(t, "x", p.Plugins["discord"]["token"])
-	assert.Equal(t, true, p.Plugins["discord"]["enabled"])
-	assert.Equal(t, []any{"1", "2"}, p.Plugins["discord"]["allowed_guilds"])
-	assert.Equal(t, map[string]string{"discord": "DBot", "slack": "SBot"}, p.BotNamesByPlatform())
+	assert.Contains(t, cfg.Bee.LegacyPlatforms, "telegram")
 }
 
-func TestPlatformsConfig_NoPlugins(t *testing.T) {
+func TestLoad_NoLegacyPlatforms(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms: {}\n  feeder:\n    max_concurrent_bee: 2\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  platforms: {}\n"), 0o644))
 	cfg, err := Load(path)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.Bee.Platforms.Plugins)
-	assert.Equal(t, 2, cfg.Bee.Feeder.MaxConcurrentBee)
+	assert.Empty(t, cfg.Bee.LegacyPlatforms)
 }
 
-func TestPlatformsConfig_IgnoresNonMappingUnknownKeys(t *testing.T) {
+func TestLoad_EnvSecretGeneratedFlag(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(`
-bee:
-  platforms:
-    stray: true
-    notes: "old value"
-    legacy: [a, b]
-    empty:
-    discord:
-      enabled: true
-      token: x
-`), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 8080\n"), 0o644))
 	cfg, err := Load(path)
 	require.NoError(t, err)
-	p := cfg.Bee.Platforms
-	assert.Equal(t, "x", p.Plugins["discord"]["token"])
-	assert.NotContains(t, p.Plugins, "stray")
-	assert.NotContains(t, p.Plugins, "notes")
-	assert.NotContains(t, p.Plugins, "legacy")
+	assert.True(t, cfg.Server.EnvSecretGenerated)
+	assert.NotEmpty(t, cfg.Server.EnvSecret)
+
+	secret := strings.Repeat("ab", 32)
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  env_secret: \""+secret+"\"\n"), 0o644))
+	cfg, err = Load(path)
+	require.NoError(t, err)
+	assert.False(t, cfg.Server.EnvSecretGenerated)
+	assert.Equal(t, secret, cfg.Server.EnvSecret)
 }

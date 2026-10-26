@@ -44,9 +44,8 @@ func TestLoad_pluginMessages(t *testing.T) {
 		require.NoError(t, i18n.Load(lang))
 		p := i18n.M.Output.Plugin
 		for name, v := range map[string]string{
-			"installed": p.Installed, "trust_warning": p.TrustWarning, "next_steps": p.NextSteps,
+			"installed": p.Installed, "trust_warning": p.TrustWarning,
 			"list_header": p.ListHeader, "list_empty": p.ListEmpty, "removed": p.Removed,
-			"still_enabled": p.StillEnabled, "status_enabled": p.StatusEnabled, "status_disabled": p.StatusDisabled, "status_invalid": p.StatusInvalid,
 		} {
 			assert.NotEmpty(t, v, "%s %s", lang, name)
 		}

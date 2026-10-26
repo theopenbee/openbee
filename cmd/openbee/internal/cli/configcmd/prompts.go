@@ -94,13 +94,6 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-func promptBotName(fieldPtr *string) error {
-	return handleSurveyErr(survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.BotName,
-		Default: *fieldPtr,
-	}, fieldPtr, survey.WithValidator(survey.Required)))
-}
-
 func handleSurveyErr(err error) error {
 	if errors.Is(err, terminal.InterruptErr) {
 		fmt.Println(i18n.M.Prompt.Cancelled)

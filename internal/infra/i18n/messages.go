@@ -142,17 +142,12 @@ type OutputMessages struct {
 }
 
 type PluginOutput struct {
-	Installed      string `yaml:"installed"`
-	TrustWarning   string `yaml:"trust_warning"`
-	NextSteps      string `yaml:"next_steps"`
-	ListHeader     string `yaml:"list_header"`
-	ListEmpty      string `yaml:"list_empty"`
-	Removed        string `yaml:"removed"`
-	StillEnabled   string `yaml:"still_enabled"`
-	StatusEnabled  string `yaml:"status_enabled"`
-	StatusDisabled string `yaml:"status_disabled"`
-	StatusInvalid  string `yaml:"status_invalid"`
-	InstallingBun  string `yaml:"installing_bun"`
+	Installed     string `yaml:"installed"`
+	TrustWarning  string `yaml:"trust_warning"`
+	ListHeader    string `yaml:"list_header"`
+	ListEmpty     string `yaml:"list_empty"`
+	Removed       string `yaml:"removed"`
+	InstallingBun string `yaml:"installing_bun"`
 }
 
 // ServiceOutput maps to service command runtime output.
