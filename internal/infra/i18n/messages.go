@@ -154,6 +154,8 @@ type PluginOutput struct {
 	ConfigureHint     string            `yaml:"configure_hint"`
 	NotInCatalog      string            `yaml:"not_in_catalog"`
 	CatalogRequired   string            `yaml:"catalog_required"`
+	NoSuchDirectory   string            `yaml:"no_such_directory"`
+	Unauthorized      string            `yaml:"unauthorized"`
 	SearchHeader      string            `yaml:"search_header"`
 	SearchEmpty       string            `yaml:"search_empty"`
 	SearchHint        string            `yaml:"search_hint"`
@@ -170,6 +172,9 @@ type PluginOutput struct {
 	SetupRun          string            `yaml:"setup_run"`
 	SetupFailed       string            `yaml:"setup_failed"`
 	KeepSecret        string            `yaml:"keep_secret"`
+	WithDefault       string            `yaml:"with_default"`
+	ClearHint         string            `yaml:"clear_hint"`
+	ListPrompt        string            `yaml:"list_prompt"`
 	FieldRequired     string            `yaml:"field_required"`
 	IntInvalid        string            `yaml:"int_invalid"`
 	BotNamePrompt     string            `yaml:"bot_name_prompt"`

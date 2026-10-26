@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,12 +49,18 @@ func TestParseSets(t *testing.T) {
 
 func TestCollectSettings_KeepsSecretAndClearedRandomDefaultIsEmpty(t *testing.T) {
 	require.NoError(t, i18n.Load("en"))
-	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", "TBot"}}
+	p := &fakePrompter{interactive: true, answers: []any{"", "-", "10", false, "", "TBot"}}
 	bot, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd"}), p, "en", noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.NotContains(t, cfg, "token")
 	assert.Equal(t, "", cfg["auth_code"])
-	assert.Regexp(t, `^[0-9a-f]{16}$`, p.defaults["auth_code"])
+	var authDefault string
+	for msg, def := range p.defaults {
+		if strings.HasPrefix(msg, "auth_code") {
+			authDefault = def
+		}
+	}
+	assert.Regexp(t, `^[0-9a-f]{16}$`, authDefault)
 	assert.NotContains(t, cfg, "allowed")
 	assert.Equal(t, 10, cfg["max_media_size"])
 	assert.Equal(t, false, cfg["debug"])
@@ -174,6 +181,42 @@ func TestCollectSettings_ExplicitEmptyRandomDefaultIsNotRefilled(t *testing.T) {
 	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", ""}}
 	_, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd", "auth_code": ""}), p, "en", noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
-	assert.Equal(t, "", p.defaults["auth_code"])
 	assert.Equal(t, "", cfg["auth_code"])
+}
+
+func TestCollectSettings_EnterAcceptsPrefilledRandomDefault(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	p := &fakePrompter{interactive: true, answers: []any{"tok", "", "", false, "", ""}}
+	_, cfg, err := collectSettings(tgDetail(nil), p, "en", noSetup, &bytes.Buffer{})
+	require.NoError(t, err)
+	assert.Regexp(t, `^[0-9a-f]{16}$`, cfg["auth_code"])
+	assert.NotContains(t, cfg, "max_media_size")
+}
+
+func TestCollectSettings_DashClearsCurrentValues(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	d := tgDetail(map[string]any{"token": "****abcd", "auth_code": "abc", "max_media_size": 20.0, "allowed": []any{"a"}})
+	d.BotName = "TBot"
+	p := &fakePrompter{interactive: true, answers: []any{"", "-", "-", false, "-", "-"}}
+	bot, cfg, err := collectSettings(d, p, "en", noSetup, &bytes.Buffer{})
+	require.NoError(t, err)
+	assert.Equal(t, "", cfg["auth_code"])
+	assert.Equal(t, []string{}, cfg["allowed"])
+	v, present := cfg["max_media_size"]
+	assert.True(t, present)
+	assert.Nil(t, v)
+	require.NotNil(t, bot)
+	assert.Equal(t, "", *bot)
+}
+
+func TestCollectSettings_ShowsKeepHintAndHelp(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	d := tgDetail(map[string]any{"token": "****abcd"})
+	d.Fields[0].Help = plugin.LocalizedText{"en": "Get it from @BotFather"}
+	p := &fakePrompter{interactive: true, answers: []any{"", "", "", false, "", ""}}
+	var out bytes.Buffer
+	_, _, err := collectSettings(d, p, "en", noSetup, &out)
+	require.NoError(t, err)
+	assert.Contains(t, p.asked[0], "****abcd")
+	assert.Contains(t, out.String(), "Get it from @BotFather")
 }

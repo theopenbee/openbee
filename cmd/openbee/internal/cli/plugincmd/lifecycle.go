@@ -3,6 +3,7 @@ package plugincmd
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"text/tabwriter"
 
@@ -181,6 +182,10 @@ func friendlyError(err error, cfgPath string) error {
 		return errors.New(m.AgentEnvironment)
 	case errors.Is(err, errNoTokenSecret):
 		return fmt.Errorf(m.NoTokenSecret, cfgPath)
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized {
+		return fmt.Errorf(m.Unauthorized, apiErr.URL, cfgPath)
 	}
 	return err
 }

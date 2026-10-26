@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -162,3 +164,31 @@ func TestNotRunningFromRequest(t *testing.T) {
 }
 
 var httpClientNoRetry = http.Client{Timeout: time.Second}
+
+func TestFriendlyErrors_Unauthorized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	t.Cleanup(srv.Close)
+	d := deps{NewClient: func(string) (*Client, error) { return &Client{baseURL: srv.URL, token: "t", http: srv.Client()}, nil }}
+	_, err := runWithDeps(t, d, "list")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bee.rpc.token_secret")
+	assert.Contains(t, err.Error(), srv.URL)
+}
+
+func TestInstallByIDWhenOpenbeeIsDown(t *testing.T) {
+	d := deps{NewClient: func(string) (*Client, error) {
+		return &Client{baseURL: "http://127.0.0.1:1", token: "t", http: &httpClientNoRetry}, nil
+	}}
+	_, err := runWithDeps(t, d, "install", "lark")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "openbee server -d")
+}
+
+func TestLoadLanguageDefaultsToEnglish(t *testing.T) {
+	path := writeClientConfig(t, 12999, clientSecret)
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 1\n"), 0o600))
+	assert.Equal(t, i18n.LangEN, loadLanguage(path))
+}

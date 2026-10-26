@@ -213,3 +213,11 @@ func TestUpdate_WaitsForEnabledPluginsWithoutConfigureHint(t *testing.T) {
 	assert.NotContains(t, out, "openbee plugin configure")
 	assert.Contains(t, out, "telegram is running")
 }
+
+func TestResolveSpec_PathLikeTypoIsRejected(t *testing.T) {
+	_, err := resolveSpec("plugins/my-chan", staticCatalog(testCatalog(), nil), os.Stat)
+	assert.ErrorIs(t, err, errNoSuchDirectory)
+	got, err := resolveSpec("github:someone/openbee-channel-foo", staticCatalog(testCatalog(), nil), os.Stat)
+	require.NoError(t, err)
+	assert.Equal(t, "github:someone/openbee-channel-foo", got)
+}

@@ -132,103 +132,147 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 		if _, done := cfg[f.Key]; done {
 			continue
 		}
-		current, present := d.Config[f.Key]
-		hasCur := present && hasValue(current)
-		label := fieldLabel(f, lang)
-		help := f.Help.Get(lang)
-		switch f.Type {
-		case plugin.FieldSecret:
-			if hasCur {
-				help = strings.TrimSpace(help + " " + fmt.Sprintf(m.KeepSecret, current))
-			}
-			for {
-				v, err := p.Password(label, help)
-				if err != nil {
-					return nil, nil, err
-				}
-				if v != "" {
-					cfg[f.Key] = v
-					break
-				}
-				if hasCur || !f.Required {
-					break
-				}
-				fmt.Fprintf(out, m.FieldRequired+"\n", label)
-			}
-		case plugin.FieldBool:
-			def, _ := current.(bool)
-			if !hasCur {
-				def, _ = f.Default.(bool)
-			}
-			v, err := p.Confirm(label, def)
-			if err != nil {
-				return nil, nil, err
-			}
-			cfg[f.Key] = v
-		case plugin.FieldInt:
-			def := textDefault(current)
-			if !hasCur {
-				def = textDefault(f.Default)
-			}
-			v, err := p.Input(label, help, def, func(s string) error {
-				if s == "" && !f.Required {
-					return nil
-				}
-				if _, err := strconv.Atoi(strings.TrimSpace(s)); err != nil {
-					return errors.New(m.IntInvalid)
-				}
-				return nil
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-			if v = strings.TrimSpace(v); v != "" {
-				n, _ := strconv.Atoi(v)
-				cfg[f.Key] = n
-			}
-		case plugin.FieldList:
-			help = strings.TrimSpace(help + " " + i18n.M.Prompt.PluginListHint)
-			v, err := p.Input(label, help, textDefault(current), nil)
-			if err != nil {
-				return nil, nil, err
-			}
-			if v != "" || hasCur {
-				cfg[f.Key] = splitList(v)
-			}
-		default:
-			def := textDefault(current)
-			switch {
-			case hasCur:
-			case f.RandomDefault && !present:
-				def = randomHex(8)
-			case present:
-			default:
-				def = textDefault(f.Default)
-			}
-			required := f.Required && !hasCur
-			v, err := p.Input(label, help, def, func(s string) error {
-				if required && strings.TrimSpace(s) == "" {
-					return fmt.Errorf(m.FieldRequired, label)
-				}
-				return nil
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-			if v != "" || present || f.RandomDefault {
-				cfg[f.Key] = v
-			}
+		if err := askField(f, d.Config, p, lang, cfg, out); err != nil {
+			return nil, nil, err
 		}
 	}
-	name, err := p.Input(m.BotNamePrompt, m.BotNameHelp, d.BotName, nil)
+	fmt.Fprintf(out, "  %s\n", m.BotNameHelp)
+	msg := m.BotNamePrompt
+	if d.BotName != "" {
+		msg = fmt.Sprintf(m.ClearHint, msg)
+	}
+	name, err := p.Input(msg, "", d.BotName, nil)
 	if err != nil {
 		return nil, nil, err
 	}
-	name = strings.TrimSpace(name)
+	if name = strings.TrimSpace(name); name == clearValue {
+		name = ""
+	}
 	if name == d.BotName {
 		return nil, cfg, nil
 	}
 	return &name, cfg, nil
+}
+
+const clearValue = "-"
+
+func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang string, cfg map[string]any, out io.Writer) error {
+	m := i18n.M.Output.Plugin
+	current, present := config[f.Key]
+	hasCur := present && hasValue(current)
+	label := fieldLabel(f, lang)
+	if help := f.Help.Get(lang); help != "" {
+		fmt.Fprintf(out, "  %s\n", help)
+	}
+	withDefault := func(msg string) string {
+		if !present && f.Default != nil {
+			return fmt.Sprintf(m.WithDefault, msg, textDefault(f.Default))
+		}
+		return msg
+	}
+	withClear := func(msg, def string) string {
+		if def != "" {
+			return fmt.Sprintf(m.ClearHint, msg)
+		}
+		return msg
+	}
+	switch f.Type {
+	case plugin.FieldSecret:
+		msg := label
+		if hasCur {
+			msg = fmt.Sprintf(m.KeepSecret, label, current)
+		}
+		for {
+			v, err := p.Password(msg, "")
+			if err != nil {
+				return err
+			}
+			if v != "" {
+				cfg[f.Key] = v
+				return nil
+			}
+			if hasCur || !f.Required {
+				return nil
+			}
+			fmt.Fprintf(out, m.FieldRequired+"\n", label)
+		}
+	case plugin.FieldBool:
+		def, _ := current.(bool)
+		if !hasCur {
+			def, _ = f.Default.(bool)
+		}
+		v, err := p.Confirm(label, def)
+		if err != nil {
+			return err
+		}
+		cfg[f.Key] = v
+	case plugin.FieldInt:
+		def := ""
+		if hasCur {
+			def = textDefault(current)
+		}
+		v, err := p.Input(withClear(withDefault(label), def), "", def, func(s string) error {
+			s = strings.TrimSpace(s)
+			if s == "" || s == clearValue {
+				return nil
+			}
+			if _, err := strconv.Atoi(s); err != nil {
+				return errors.New(m.IntInvalid)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		switch v = strings.TrimSpace(v); v {
+		case clearValue:
+			cfg[f.Key] = nil
+		case "":
+		default:
+			n, _ := strconv.Atoi(v)
+			cfg[f.Key] = n
+		}
+	case plugin.FieldList:
+		def := textDefault(current)
+		v, err := p.Input(withClear(fmt.Sprintf(m.ListPrompt, label), def), "", def, nil)
+		if err != nil {
+			return err
+		}
+		switch v = strings.TrimSpace(v); v {
+		case clearValue:
+			cfg[f.Key] = []string{}
+		case "":
+		default:
+			cfg[f.Key] = splitList(v)
+		}
+	default:
+		def := ""
+		switch {
+		case hasCur:
+			def = textDefault(current)
+		case f.RandomDefault && !present:
+			def = randomHex(8)
+		}
+		required := f.Required && !hasCur
+		v, err := p.Input(withClear(withDefault(label), def), "", def, func(s string) error {
+			if required && (strings.TrimSpace(s) == "" || s == clearValue) {
+				return fmt.Errorf(m.FieldRequired, label)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		switch {
+		case v == clearValue:
+			cfg[f.Key] = ""
+		case v != "":
+			cfg[f.Key] = v
+		case present:
+			cfg[f.Key] = ""
+		}
+	}
+	return nil
 }
 
 func waitRunning(ctx context.Context, c *Client, id string, out io.Writer, interval, timeout time.Duration) error {

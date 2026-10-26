@@ -31,6 +31,7 @@ type APIError struct {
 	Status  int
 	Code    string
 	Message string
+	URL     string
 }
 
 func (e *APIError) Error() string { return e.Message }
@@ -83,8 +84,21 @@ type Operation struct {
 
 type Client struct {
 	baseURL string
+	secret  string
 	token   string
 	http    *http.Client
+	now     func() time.Time
+}
+
+func (c *Client) apiKey() (string, error) {
+	if c.secret == "" {
+		return c.token, nil
+	}
+	now := time.Now
+	if c.now != nil {
+		now = c.now
+	}
+	return auth.GenerateAdminToken(c.secret, now().Add(adminTokenTTL).Sub(time.Now()))
 }
 
 func newClientFromConfig(cfgPath string, getenv func(string) string) (*Client, error) {
@@ -98,13 +112,9 @@ func newClientFromConfig(cfgPath string, getenv func(string) string) (*Client, e
 	if cfg.Bee.RPC.TokenSecretGenerated {
 		return nil, errNoTokenSecret
 	}
-	token, err := auth.GenerateAdminToken(cfg.Bee.RPC.TokenSecret, adminTokenTTL)
-	if err != nil {
-		return nil, err
-	}
 	return &Client{
 		baseURL: strings.TrimSuffix(cfg.Bee.RPCBaseURL, "/"),
-		token:   token,
+		secret:  cfg.Bee.RPC.TokenSecret,
 		http:    &http.Client{Timeout: 60 * time.Second},
 	}, nil
 }
@@ -122,7 +132,11 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if err != nil {
 		return err
 	}
-	req.Header.Set("X-API-Key", c.token)
+	key, err := c.apiKey()
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-API-Key", key)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -148,7 +162,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		if e.Error == "" {
 			e.Error = fmt.Sprintf("%s %s: HTTP %d", method, path, resp.StatusCode)
 		}
-		return &APIError{Status: resp.StatusCode, Code: e.Code, Message: e.Error}
+		return &APIError{Status: resp.StatusCode, Code: e.Code, Message: e.Error, URL: c.baseURL}
 	}
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil

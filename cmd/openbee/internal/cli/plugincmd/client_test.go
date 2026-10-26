@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,9 @@ func TestNewClientFromConfig_SignsAdminToken(t *testing.T) {
 	c, err := newClientFromConfig(writeClientConfig(t, 12999, clientSecret), noEnv)
 	require.NoError(t, err)
 	assert.Equal(t, "http://127.0.0.1:12999", c.baseURL)
-	claims, err := auth.ValidateToken(c.token, clientSecret)
+	key, err := c.apiKey()
+	require.NoError(t, err)
+	claims, err := auth.ValidateToken(key, clientSecret)
 	require.NoError(t, err)
 	assert.Equal(t, auth.TokenTypeAdmin, claims.Type)
 }
@@ -202,4 +205,26 @@ func TestClient_NotRunning(t *testing.T) {
 	_, err = c.List(context.Background())
 	assert.ErrorIs(t, err, ErrNotRunning)
 	assert.Contains(t, err.Error(), addr)
+}
+
+func TestClient_SignsFreshTokenPerRequest(t *testing.T) {
+	var keys []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("X-API-Key"))
+		_, _ = w.Write([]byte(`{"plugins":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := &Client{baseURL: srv.URL, secret: clientSecret, http: srv.Client(), now: func() time.Time { return time.Now().Add(-time.Hour) }}
+	_, err := c.List(context.Background())
+	require.NoError(t, err)
+	c.now = time.Now
+	_, err = c.List(context.Background())
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+	assert.NotEqual(t, keys[0], keys[1])
+	_, err = auth.ValidateToken(keys[0], clientSecret)
+	assert.Error(t, err)
+	claims, err := auth.ValidateToken(keys[1], clientSecret)
+	require.NoError(t, err)
+	assert.Equal(t, auth.TokenTypeAdmin, claims.Type)
 }

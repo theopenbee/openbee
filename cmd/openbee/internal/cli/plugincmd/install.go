@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	errNoSuchDirectory  = errors.New("no such directory")
 	errNotInCatalog     = errors.New("not in the plugin catalog")
 	errCatalogRequired  = errors.New("plugin catalog is required")
 	errOperationTimeout = errors.New("operation is still running")
@@ -37,10 +38,16 @@ func resolveSpec(arg string, loadCatalog func() (*Catalog, error), stat func(str
 	if info, err := stat(arg); err == nil && info.IsDir() {
 		return filepath.Abs(arg)
 	}
-	if strings.HasPrefix(arg, "@") || strings.ContainsAny(arg, ":@/") {
+	if strings.HasPrefix(arg, "@") || strings.ContainsAny(arg, ":@") {
 		return arg, nil
 	}
+	if strings.ContainsRune(arg, '/') || strings.HasPrefix(arg, ".") {
+		return "", &resolveError{errNoSuchDirectory, fmt.Sprintf(i18n.M.Output.Plugin.NoSuchDirectory, arg)}
+	}
 	cat, err := loadCatalog()
+	if errors.Is(err, ErrNotRunning) {
+		return "", err
+	}
 	if err != nil {
 		return "", &resolveError{errCatalogRequired, fmt.Sprintf(i18n.M.Output.Plugin.CatalogRequired, arg, err)}
 	}

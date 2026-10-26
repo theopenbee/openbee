@@ -197,6 +197,9 @@ func (p *fakePrompter) Input(message, _, def string, validate func(string) error
 	}
 	p.defaults[message] = def
 	v := p.next("input", message).(string)
+	if v == "" {
+		v = def
+	}
 	if validate != nil {
 		if err := validate(v); err != nil {
 			return "", err

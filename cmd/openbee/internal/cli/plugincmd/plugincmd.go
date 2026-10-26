@@ -79,7 +79,7 @@ func newCommand(dd deps) *cobra.Command {
 
 func loadLanguage(cfgPath string) string {
 	cfg, err := config.Load(cfgPath)
-	if err != nil {
+	if err != nil || cfg.Language == "" {
 		return i18n.LangEN
 	}
 	return cfg.Language
