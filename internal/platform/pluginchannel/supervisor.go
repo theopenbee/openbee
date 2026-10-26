@@ -22,6 +22,16 @@ import (
 
 var ErrNotRunning = errors.New("plugin channel is not running")
 
+type State string
+
+const (
+	StateStarting State = "starting"
+	StateRunning  State = "running"
+	StateRetrying State = "retrying"
+	StateFailed   State = "failed"
+	StateStopped  State = "stopped"
+)
+
 type Spec struct {
 	ChannelID string
 	Dir       string
@@ -29,6 +39,7 @@ type Spec struct {
 	Env       []string
 	Runtime   *plugin.RuntimeResolver
 	Init      InitializeParams
+	OnState   func(state State, err error)
 }
 
 type permanentError struct{ err error }
@@ -92,26 +103,37 @@ func (s *Supervisor) setConn(c *Conn) {
 	s.mu.Unlock()
 }
 
+func (s *Supervisor) report(state State, err error) {
+	if s.spec.OnState != nil {
+		s.spec.OnState(state, err)
+	}
+}
+
 func (s *Supervisor) Run(ctx context.Context) {
 	defer close(s.done)
 	backoff := s.initialBackoff
 	for {
 		started := time.Now()
+		s.report(StateStarting, nil)
 		err := s.runOnce(ctx)
 		if ctx.Err() != nil {
+			s.report(StateStopped, nil)
 			return
 		}
 		var perm *permanentError
 		if errors.As(err, &perm) {
 			s.log.Error("plugin channel disabled", zap.Error(err))
+			s.report(StateFailed, err)
 			return
 		}
 		if time.Since(started) >= s.stableAfter {
 			backoff = s.initialBackoff
 		}
 		s.log.Warn("plugin exited, restarting", zap.Error(err), zap.Duration("backoff", backoff))
+		s.report(StateRetrying, err)
 		select {
 		case <-ctx.Done():
+			s.report(StateStopped, nil)
 			return
 		case <-time.After(backoff):
 		}
@@ -207,6 +229,7 @@ func (s *Supervisor) runOnce(ctx context.Context) error {
 
 	s.setConn(c.conn)
 	s.log.Info("plugin channel started")
+	s.report(StateRunning, nil)
 	select {
 	case err := <-c.waitDone:
 		s.setConn(nil)

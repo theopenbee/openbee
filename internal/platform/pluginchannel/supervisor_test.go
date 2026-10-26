@@ -194,3 +194,69 @@ func TestSupervisor_RuntimeInstallFailureRetries(t *testing.T) {
 	runSupervisor(t, s)
 	require.Eventually(t, func() bool { return lookups.Load() >= 3 }, 10*time.Second, 20*time.Millisecond)
 }
+
+type stateRecorder struct {
+	mu     sync.Mutex
+	states []State
+	errs   []error
+}
+
+func (r *stateRecorder) record(s State, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.states = append(r.states, s)
+	r.errs = append(r.errs, err)
+}
+
+func (r *stateRecorder) snapshot() ([]State, []error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.states), slices.Clone(r.errs)
+}
+
+func (r *stateRecorder) has(s State) bool {
+	states, _ := r.snapshot()
+	return slices.Contains(states, s)
+}
+
+func TestSupervisor_ReportsRunningThenStopped(t *testing.T) {
+	rec := &stateRecorder{}
+	s := testSupervisor(t, "ok", nil)
+	s.spec.OnState = rec.record
+	ctx, cancel := context.WithCancel(context.Background())
+	go s.Run(ctx)
+	waitRunning(t, s)
+	require.Eventually(t, func() bool { return rec.has(StateRunning) }, 5*time.Second, 10*time.Millisecond)
+	cancel()
+	select {
+	case <-s.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("supervisor did not stop")
+	}
+	states, errs := rec.snapshot()
+	assert.Equal(t, []State{StateStarting, StateRunning, StateStopped}, states)
+	assert.Nil(t, errs[1])
+	assert.Nil(t, errs[2])
+}
+
+func TestSupervisor_ReportsRetrying(t *testing.T) {
+	rec := &stateRecorder{}
+	s := testSupervisor(t, "count_starts", nil, "FAKE_PLUGIN_COUNTER="+filepath.Join(t.TempDir(), "starts"))
+	s.spec.OnState = rec.record
+	runSupervisor(t, s)
+	require.Eventually(t, func() bool { return rec.has(StateRetrying) }, 10*time.Second, 10*time.Millisecond)
+	states, errs := rec.snapshot()
+	i := slices.Index(states, StateRetrying)
+	assert.Error(t, errs[i])
+}
+
+func TestSupervisor_ReportsFailedOnConfigInvalid(t *testing.T) {
+	rec := &stateRecorder{}
+	s := testSupervisor(t, "config_invalid", nil)
+	s.spec.OnState = rec.record
+	assertStopsOnItsOwn(t, s)
+	states, errs := rec.snapshot()
+	require.NotEmpty(t, states)
+	assert.Equal(t, StateFailed, states[len(states)-1])
+	assert.ErrorContains(t, errs[len(errs)-1], "rejected its config")
+}

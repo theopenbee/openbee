@@ -107,11 +107,15 @@ func (p *Platform) handleInbound(params json.RawMessage) {
 
 type receiver struct{ p *Platform }
 
+func (p *Platform) Run(ctx context.Context, dispatch func(platform.InboundMessage)) {
+	p.mu.Lock()
+	p.dispatch = dispatch
+	p.mu.Unlock()
+	p.sup.Run(ctx)
+}
+
 func (r receiver) Start(ctx context.Context, dispatch func(platform.InboundMessage)) error {
-	r.p.mu.Lock()
-	r.p.dispatch = dispatch
-	r.p.mu.Unlock()
-	r.p.sup.Run(ctx)
+	r.p.Run(ctx, dispatch)
 	return nil
 }
 
