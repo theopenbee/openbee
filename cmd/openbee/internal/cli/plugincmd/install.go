@@ -73,7 +73,7 @@ func waitOperation(ctx context.Context, c *Client, id string, interval, timeout 
 	}
 }
 
-func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, interval, timeout time.Duration) error {
+func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, interval, timeout time.Duration) ([]string, error) {
 	m := i18n.M.Output.Plugin
 	var installed []string
 	failed := 0
@@ -101,16 +101,27 @@ func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, i
 	if len(specs) > 1 {
 		fmt.Fprintf(out, m.Summary+"\n", len(installed), failed)
 	}
-	if len(installed) > 0 {
-		fmt.Fprintln(out, m.TrustWarning)
-		for _, id := range installed {
-			fmt.Fprintf(out, m.ConfigureHint+"\n", id)
-		}
-	}
 	if failed > 0 {
-		return fmt.Errorf(m.Summary, len(installed), failed)
+		return installed, fmt.Errorf(m.Summary, len(installed), failed)
 	}
-	return nil
+	return installed, nil
+}
+
+func printConfigureHints(out io.Writer, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	m := i18n.M.Output.Plugin
+	fmt.Fprintln(out, m.TrustWarning)
+	for _, id := range ids {
+		fmt.Fprintf(out, m.ConfigureHint+"\n", id)
+	}
+}
+
+func installAndHint(ctx context.Context, c *Client, specs []string, out io.Writer, interval, timeout time.Duration) error {
+	ids, err := installAll(ctx, c, specs, out, interval, timeout)
+	printConfigureHints(out, ids)
+	return err
 }
 
 func matchesKeyword(p CatalogPlugin, keyword string) bool {
@@ -209,7 +220,7 @@ func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 			for i, idx := range picked {
 				specs[i] = selectable[idx].Package + "@" + selectable[idx].Version
 			}
-			return installAll(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
+			return installAndHint(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
 		},
 	}
 }
@@ -240,7 +251,7 @@ func (d *deps) newInstallCommand(client func() (*Client, error)) *cobra.Command 
 				}
 				specs = append(specs, spec)
 			}
-			return installAll(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
+			return installAndHint(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
 		},
 	}
 }
@@ -277,7 +288,17 @@ func (d *deps) newUpdateCommand(client func() (*Client, error)) *cobra.Command {
 				fmt.Fprintln(d.Out, i18n.M.Output.Plugin.UpdateNone)
 				return nil
 			}
-			return installAll(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
+			ids, err := installAll(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
+			for _, id := range ids {
+				p, gerr := c.Get(cmd.Context(), id)
+				if gerr != nil || !p.Enabled {
+					continue
+				}
+				if werr := waitRunning(cmd.Context(), c, id, d.Out, d.Interval, d.RunTimeout); werr != nil && err == nil {
+					err = werr
+				}
+			}
+			return err
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, i18n.M.Output.Plugin.UpdateAllFlag)

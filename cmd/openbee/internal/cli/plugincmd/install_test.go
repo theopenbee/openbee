@@ -89,7 +89,7 @@ func TestInstallAll_SequentialWithSummary(t *testing.T) {
 	api.failInstall["@theopenbee/channel-dingtalk@0.1.0"] = "npm error ETARGET"
 	c := api.client(t)
 	var out bytes.Buffer
-	err := installAll(context.Background(), c, []string{"@theopenbee/channel-lark@0.1.0", "@theopenbee/channel-dingtalk@0.1.0", "@theopenbee/channel-wecom@0.1.1"}, &out, time.Millisecond, time.Second)
+	err := installAndHint(context.Background(), c, []string{"@theopenbee/channel-lark@0.1.0", "@theopenbee/channel-dingtalk@0.1.0", "@theopenbee/channel-wecom@0.1.1"}, &out, time.Millisecond, time.Second)
 	assert.Error(t, err)
 	assert.Equal(t, []string{"@theopenbee/channel-lark@0.1.0", "@theopenbee/channel-dingtalk@0.1.0", "@theopenbee/channel-wecom@0.1.1"}, api.installs)
 	text := out.String()
@@ -200,4 +200,16 @@ func TestResolveSpec_ErrorMessagesAreNotDuplicated(t *testing.T) {
 	_, err = resolveSpec("lark", staticCatalog(nil, errors.New("offline")), os.Stat)
 	assert.ErrorIs(t, err, errCatalogRequired)
 	assert.Equal(t, "Cannot read the plugin catalog to find lark: offline", err.Error())
+}
+
+func TestUpdate_WaitsForEnabledPluginsWithoutConfigureHint(t *testing.T) {
+	api := newFakeAPI()
+	api.catalog = testCatalog()
+	api.addPlugin(Detail{Plugin: Plugin{ID: "telegram", Enabled: true, State: "running"}})
+	api.states["telegram"] = []string{"starting", "running"}
+	out, err := runCmd(t, api, &fakePrompter{}, "update")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"@theopenbee/channel-telegram@0.2.0"}, api.installs)
+	assert.NotContains(t, out, "openbee plugin configure")
+	assert.Contains(t, out, "telegram is running")
 }
