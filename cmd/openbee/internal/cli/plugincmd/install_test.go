@@ -191,3 +191,13 @@ func TestUpdate_NothingToUpdate(t *testing.T) {
 	assert.Empty(t, api.installs)
 	assert.Contains(t, out, "up to date")
 }
+
+func TestResolveSpec_ErrorMessagesAreNotDuplicated(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	_, err := resolveSpec("telegramx", staticCatalog(testCatalog(), nil), os.Stat)
+	assert.Equal(t, "telegramx is not in the plugin catalog; to install the npm package with that name use npm:telegramx", err.Error())
+
+	_, err = resolveSpec("lark", staticCatalog(nil, errors.New("offline")), os.Stat)
+	assert.ErrorIs(t, err, errCatalogRequired)
+	assert.Equal(t, "Cannot read the plugin catalog to find lark: offline", err.Error())
+}

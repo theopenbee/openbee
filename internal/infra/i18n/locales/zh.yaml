@@ -200,6 +200,7 @@ output:
     summary: "成功 %d 个，失败 %d 个"
     configure_hint: "下一步：openbee plugin configure %s"
     not_in_catalog: "插件目录中没有 %s；如果要安装 npm 上的同名包，请写 npm:%s"
+    catalog_required: "无法读取插件目录，找不到 %s：%v"
     search_header: "ID\t名称\t版本\t状态"
     search_empty: "没有匹配的插件。"
     search_hint: "安装：openbee plugin install <id>（可以写多个 id）"

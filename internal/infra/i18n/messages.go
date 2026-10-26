@@ -153,6 +153,7 @@ type PluginOutput struct {
 	Summary           string            `yaml:"summary"`
 	ConfigureHint     string            `yaml:"configure_hint"`
 	NotInCatalog      string            `yaml:"not_in_catalog"`
+	CatalogRequired   string            `yaml:"catalog_required"`
 	SearchHeader      string            `yaml:"search_header"`
 	SearchEmpty       string            `yaml:"search_empty"`
 	SearchHint        string            `yaml:"search_hint"`

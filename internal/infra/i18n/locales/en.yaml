@@ -200,6 +200,7 @@ output:
     summary: "%d installed, %d failed"
     configure_hint: "Next: openbee plugin configure %s"
     not_in_catalog: "%s is not in the plugin catalog; to install the npm package with that name use npm:%s"
+    catalog_required: "Cannot read the plugin catalog to find %s: %v"
     search_header: "ID\tNAME\tVERSION\tSTATUS"
     search_empty: "No plugins match."
     search_hint: "Install with: openbee plugin install <id> (several ids are allowed)"

@@ -53,6 +53,7 @@ func newCommand(dd deps) *cobra.Command {
 		}
 		if d.Lang == "" {
 			d.Lang = loadLanguage(cfgPath)
+			_ = i18n.Load(d.Lang)
 		}
 		return d.NewClient(cfgPath)
 	}

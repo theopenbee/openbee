@@ -22,6 +22,14 @@ var (
 	errOperationTimeout = errors.New("operation is still running")
 )
 
+type resolveError struct {
+	sentinel error
+	msg      string
+}
+
+func (e *resolveError) Error() string { return e.msg }
+func (e *resolveError) Unwrap() error { return e.sentinel }
+
 func resolveSpec(arg string, loadCatalog func() (*Catalog, error), stat func(string) (os.FileInfo, error)) (string, error) {
 	if name, ok := strings.CutPrefix(arg, "npm:"); ok {
 		return name, nil
@@ -34,14 +42,14 @@ func resolveSpec(arg string, loadCatalog func() (*Catalog, error), stat func(str
 	}
 	cat, err := loadCatalog()
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %v", errCatalogRequired, arg, err)
+		return "", &resolveError{errCatalogRequired, fmt.Sprintf(i18n.M.Output.Plugin.CatalogRequired, arg, err)}
 	}
 	for _, p := range cat.Plugins {
 		if p.ID == arg {
 			return p.Package + "@" + p.Version, nil
 		}
 	}
-	return "", fmt.Errorf("%w: %s", errNotInCatalog, fmt.Sprintf(i18n.M.Output.Plugin.NotInCatalog, arg, arg))
+	return "", &resolveError{errNotInCatalog, fmt.Sprintf(i18n.M.Output.Plugin.NotInCatalog, arg, arg)}
 }
 
 func waitOperation(ctx context.Context, c *Client, id string, interval, timeout time.Duration) (Operation, error) {
