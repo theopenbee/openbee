@@ -1,22 +1,17 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Check } from "lucide-react"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Select } from "@/components/arc/select/select"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
-import { DetailSection } from "@/components/detail-primitives"
-import { EYEBROW_LABEL } from "@/lib/styles"
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { EngineSelectItems } from "@/components/engine-select-items"
+import { useEngineOptions } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { api } from "@/lib/api"
+import { getErrorMessage } from "@/lib/utils"
 import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
@@ -24,52 +19,58 @@ import {
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
 } from "@/lib/types"
 
-interface EngineArgsConfigSectionProps {
-  configKey: string
-  savedValue: Record<string, string>
+const SAVED_RESET_MS = 2400
+
+type SaveStatus = "idle" | "saving" | "saved" | "error"
+
+function SettingsRow({
+  title,
+  description,
+  children,
+}: {
   title: string
-  successMessage: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <div className="grid gap-4 px-4 py-5 sm:px-6 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8">
+      <div className="grid content-start gap-1">
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <p className="text-sm text-secondary">{description}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  )
 }
 
-function EngineArgsConfigSection({
-  configKey,
-  savedValue,
-  title,
-  successMessage,
-}: EngineArgsConfigSectionProps) {
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const enabledEngines = useEnabledEngines()
-  const [pendingValue, setPendingValue] = useState<Record<string, string> | null>(null)
-  const value = pendingValue ?? savedValue
-
-  const { mutate: save, isPending } = useMutation({
-    mutationFn: (v: Record<string, string>) =>
-      api.systemConfigs.set(configKey, JSON.stringify(stripEmptyEngineArgs(v))),
-    onError: () => setPendingValue(null),
-    onSuccess: () => {
-      setPendingValue(null)
-      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
-      toast.success(successMessage)
-    },
-  })
-
-  const isDirty =
-    pendingValue !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingValue), savedValue)
-
+function SettingsGroup({ children }: { children: ReactNode }) {
   return (
-    <DetailSection className="p-5 sm:p-6 space-y-4">
-      <p className={EYEBROW_LABEL}>{title}</p>
-      <EngineArgsSection
-        engines={enabledEngines}
-        value={value}
-        onChange={setPendingValue}
-        showLabel={false}
-      />
-      <Button onClick={() => save(value)} disabled={isPending || !isDirty}>
-        {t("common.save")}
-      </Button>
-    </DetailSection>
+    <div className="divide-y divide-border-subtle overflow-hidden rounded-surface border border-border bg-surface">
+      {children}
+    </div>
+  )
+}
+
+function SettingsSkeleton() {
+  return (
+    <div className="grid gap-10" aria-busy="true">
+      {[1, 2].map((group) => (
+        <div key={group} className="grid gap-4">
+          <div className="skeleton h-5 w-32" />
+          <div className="divide-y divide-border-subtle rounded-surface border border-border bg-surface">
+            {Array.from({ length: group }).map((_, row) => (
+              <div key={row} className="grid gap-4 px-6 py-5 md:grid-cols-[14rem_1fr] md:gap-8">
+                <div className="grid content-start gap-2">
+                  <div className="skeleton h-4 w-24" />
+                  <div className="skeleton h-4 w-40" />
+                </div>
+                <div className="skeleton h-11 w-full rounded-control" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -77,78 +78,172 @@ export function SystemSettings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const enabledEngines = useEnabledEngines()
+  const engineOptions = useEngineOptions(enabledEngines)
 
-  const { data: sysConfigs } = useQuery({
+  const { data: sysConfigs, error: loadError, isLoading, refetch } = useQuery({
     queryKey: ["system-configs"],
     queryFn: () => api.systemConfigs.get(),
   })
 
   const savedEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
-  const [pendingEngine, setPendingEngine] = useState<string | null>(null)
-  const engine = pendingEngine ?? savedEngine
-
-  const { mutate: saveEngine, isPending } = useMutation({
-    mutationFn: (value: string) =>
-      api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, value),
-    onError: () => setPendingEngine(null),
-    onSuccess: () => {
-      setPendingEngine(null)
-      queryClient.invalidateQueries({ queryKey: ["system-configs"] })
-      toast.success(t("systemSettings.updated"))
-    },
-  })
-
   const globalArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL]
   const beeArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE]
   const savedGlobalArgs = useMemo(() => parseEngineArgs(globalArgsRaw), [globalArgsRaw])
   const savedBeeArgs = useMemo(() => parseEngineArgs(beeArgsRaw), [beeArgsRaw])
 
+  const [pendingEngine, setPendingEngine] = useState<string | null>(null)
+  const [pendingGlobalArgs, setPendingGlobalArgs] = useState<Record<string, string> | null>(null)
+  const [pendingBeeArgs, setPendingBeeArgs] = useState<Record<string, string> | null>(null)
+  const [status, setStatus] = useState<SaveStatus>("idle")
+  const [saveError, setSaveError] = useState("")
+
+  const engine = pendingEngine ?? savedEngine
+  const globalArgs = pendingGlobalArgs ?? savedGlobalArgs
+  const beeArgs = pendingBeeArgs ?? savedBeeArgs
+
+  const engineDirty = pendingEngine !== null && pendingEngine !== savedEngine
+  const globalDirty =
+    pendingGlobalArgs !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingGlobalArgs), savedGlobalArgs)
+  const beeDirty =
+    pendingBeeArgs !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingBeeArgs), savedBeeArgs)
+  const dirty = engineDirty || globalDirty || beeDirty
+  const saving = status === "saving"
+
+  useEffect(() => {
+    if (status !== "saved") return
+    const timer = window.setTimeout(() => setStatus("idle"), SAVED_RESET_MS)
+    return () => window.clearTimeout(timer)
+  }, [status])
+
+  const edit = <T,>(setter: (value: T) => void) => (value: T) => {
+    setter(value)
+    if (status === "saved" || status === "error") setStatus("idle")
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!dirty || saving) return
+    setStatus("saving")
+    setSaveError("")
+    const writes: Promise<unknown>[] = []
+    if (engineDirty) writes.push(api.systemConfigs.set(SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, engine))
+    if (globalDirty) {
+      writes.push(
+        api.systemConfigs.set(SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL, JSON.stringify(stripEmptyEngineArgs(globalArgs))),
+      )
+    }
+    if (beeDirty) {
+      writes.push(
+        api.systemConfigs.set(SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE, JSON.stringify(stripEmptyEngineArgs(beeArgs))),
+      )
+    }
+    const results = await Promise.allSettled(writes)
+    await queryClient.invalidateQueries({ queryKey: ["system-configs"] })
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected")
+    if (failed) {
+      setSaveError(getErrorMessage(failed.reason))
+      setStatus("error")
+      return
+    }
+    setPendingEngine(null)
+    setPendingGlobalArgs(null)
+    setPendingBeeArgs(null)
+    setStatus("saved")
+  }
+
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeader title={t("systemSettings.title")} />
+      <div className="max-w-form">
+        <PageHeader title={t("systemSettings.title")} subtitle={t("systemSettings.subtitle")} />
 
-        <DetailSection className="p-5 sm:p-6 space-y-4">
-          <p className={EYEBROW_LABEL}>{t("systemSettings.engineSection.title")}</p>
-          <div className="flex items-center gap-3">
-            <Select
-              value={engine}
-              onValueChange={setPendingEngine}
-              disabled={isPending}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <EngineSelectItems engines={enabledEngines} />
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={() => saveEngine(engine)}
-              disabled={
-                isPending ||
-                pendingEngine === null ||
-                pendingEngine === savedEngine
-              }
-            >
-              {t("common.save")}
-            </Button>
-          </div>
-        </DetailSection>
+        {loadError ? (
+          <Alert tone="danger" title={t("systemSettings.loadError")}>
+            <span className="grid justify-items-start gap-3">
+              <span>{loadError.message}</span>
+              <Button variant="secondary" size="sm" onClick={() => refetch()}>
+                {t("common.retry")}
+              </Button>
+            </span>
+          </Alert>
+        ) : isLoading ? (
+          <SettingsSkeleton />
+        ) : (
+          <form onSubmit={handleSubmit} className="grid gap-10">
+            <section className="grid gap-4" aria-labelledby="settings-engine">
+              <h2 id="settings-engine" className="text-base font-medium text-foreground">
+                {t("systemSettings.engineSection.title")}
+              </h2>
+              <SettingsGroup>
+                <SettingsRow
+                  title={t("systemSettings.engineSection.rowTitle")}
+                  description={t("systemSettings.engineSection.description")}
+                >
+                  <Select
+                    label={t("systemSettings.engineSection.label")}
+                    options={engineOptions}
+                    value={engine}
+                    onValueChange={edit(setPendingEngine)}
+                    disabled={saving}
+                  />
+                </SettingsRow>
+              </SettingsGroup>
+            </section>
 
-        <EngineArgsConfigSection
-          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL}
-          savedValue={savedGlobalArgs}
-          title={t("systemSettings.globalArgsSection.title")}
-          successMessage={t("systemSettings.globalArgsSection.updated")}
-        />
+            <section className="grid gap-4" aria-labelledby="settings-args">
+              <div className="grid gap-1">
+                <h2 id="settings-args" className="text-base font-medium text-foreground">
+                  {t("systemSettings.argsSection.title")}
+                </h2>
+                <p className="text-sm text-secondary">{t("systemSettings.argsSection.description")}</p>
+              </div>
+              <SettingsGroup>
+                <SettingsRow
+                  title={t("systemSettings.globalArgsSection.title")}
+                  description={t("systemSettings.globalArgsSection.description")}
+                >
+                  <EngineArgsSection
+                    engines={enabledEngines}
+                    value={globalArgs}
+                    onChange={edit(setPendingGlobalArgs)}
+                    idPrefix="global-args"
+                    disabled={saving}
+                  />
+                </SettingsRow>
+                <SettingsRow
+                  title={t("systemSettings.beeArgsSection.title")}
+                  description={t("systemSettings.beeArgsSection.description")}
+                >
+                  <EngineArgsSection
+                    engines={enabledEngines}
+                    value={beeArgs}
+                    onChange={edit(setPendingBeeArgs)}
+                    idPrefix="bee-args"
+                    disabled={saving}
+                  />
+                </SettingsRow>
+              </SettingsGroup>
+            </section>
 
-        <EngineArgsConfigSection
-          configKey={SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE}
-          savedValue={savedBeeArgs}
-          title={t("systemSettings.beeArgsSection.title")}
-          successMessage={t("systemSettings.beeArgsSection.updated")}
-        />
+            {status === "error" && (
+              <Alert tone="danger" title={t("systemSettings.saveError")}>
+                {saveError}
+              </Alert>
+            )}
+
+            <div className="flex justify-end">
+              <Button type="submit" loading={saving} disabled={!dirty && status !== "error"}>
+                {status === "saved" ? (
+                  <>
+                    <Check size={16} strokeWidth={1.75} aria-hidden="true" />
+                    {t("systemSettings.saved")}
+                  </>
+                ) : (
+                  t("systemSettings.save")
+                )}
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </FadeIn>
   )

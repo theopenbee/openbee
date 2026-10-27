@@ -23,22 +23,6 @@ export function formatDuration(
   return formatTotalDuration(diff)
 }
 
-export function statusTone(status: string) {
-  switch (status) {
-    case "idle":
-    case "completed":
-      return "text-status-idle"
-    case "working":
-    case "running":
-      return "text-status-working"
-    case "error":
-    case "failed":
-      return "text-status-error"
-    default:
-      return "text-muted-foreground"
-  }
-}
-
 export function statusLabel(status: string, t: (key: string, defaultValue: string) => string) {
   return t(`statuses.${status}`, status)
 }

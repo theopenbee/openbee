@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { FadeIn } from "@/components/fade-in"
 import { PageHeader } from "@/components/page-header"
-import { DashboardHeroCard } from "@/components/dashboard-hero-card"
+import { DashboardMetrics } from "@/components/dashboard-metrics"
 import { QuickLinks } from "@/components/quick-links"
 import { TokenUsageCard } from "@/components/token-usage-card"
 import { SupportedAgentsCard } from "@/components/supported-agents-card"
@@ -11,19 +11,18 @@ export function Dashboard() {
   const { t } = useTranslation()
 
   return (
-    <FadeIn>
+    <FadeIn className="@container">
       <PageHeader title={t("dashboard.title")} />
 
-      <div className="grid grid-cols-1 gap-x-6 gap-y-8 lg:grid-cols-3">
-        {/* Left 2/3: identity, launchers, token usage */}
-        <div className="space-y-8 lg:col-span-2">
-          <DashboardHeroCard />
+      <div className="grid gap-6">
+        <DashboardMetrics />
+
+        <div className="grid items-stretch gap-6 @5xl:grid-cols-3">
+          <TokenUsageCard className="@5xl:col-span-2" />
           <QuickLinks />
-          <TokenUsageCard />
         </div>
 
-        {/* Right 1/3: supported engines, system info */}
-        <div className="space-y-8">
+        <div className="grid items-stretch gap-6 @3xl:grid-cols-2">
           <SupportedAgentsCard />
           <SystemInfoCard />
         </div>

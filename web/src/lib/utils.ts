@@ -1,7 +1,17 @@
 import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
 import i18n from "i18next"
 import { ApiError } from "./api"
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    theme: {
+      radius: ["control", "panel", "surface", "inset"],
+      shadow: ["resting", "raised", "floating"],
+      container: ["page", "form"],
+    },
+  },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

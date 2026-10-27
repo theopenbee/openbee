@@ -1,353 +1,388 @@
-import { Fragment, useState, type FormEvent, type ComponentType } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { useTranslation, Trans } from "react-i18next"
-import { ChevronDownIcon, Copy, EyeIcon, ListFilterIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { CopyIcon, EllipsisIcon, EyeIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useWorkers, useDeleteWorker } from "@/hooks/use-workers"
-import { useDepartments, useFlatDepartments } from "@/hooks/use-departments"
+import { useFlatDepartments } from "@/hooks/use-departments"
 import { formatEngineLabel, formatRelative, formatTimestamp } from "@/lib/format"
-import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE, EYEBROW_LABEL } from "@/lib/styles"
-import { DepartmentTreeSidebar, UNGROUPED_FILTER } from "@/components/department-tree"
+import { getErrorMessage } from "@/lib/utils"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Checkbox } from "@/components/arc/checkbox/checkbox"
+import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
+import { DropdownMenu } from "@/components/arc/dropdown-menu/dropdown-menu"
+import { Input } from "@/components/arc/input/input"
+import { SearchField } from "@/components/arc/search-field/search-field"
+import SegmentedControl from "@/components/arc/segmented-control/segmented-control"
+import { Select } from "@/components/arc/select/select"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { WorkerAvatar } from "@/components/worker-avatar"
-import { WorkerLink } from "@/components/worker-link"
 import { EmptyState } from "@/components/empty-state"
 import { FadeIn } from "@/components/fade-in"
+import { PageHeader } from "@/components/page-header"
 import { SkeletonTable } from "@/components/skeleton-loader"
+import { StatusBadge } from "@/components/status-badge"
+import { WorkerAvatar } from "@/components/worker-avatar"
+import { WorkerLink } from "@/components/worker-link"
+import type { Worker } from "@/lib/types"
 
-type DeleteStep = 1 | 2
+const ALL = "all"
+const UNGROUPED = "ungrouped"
+const STATUSES = ["working", "idle", "error"] as const
 
-// One row action in the worker dropdown. Read actions (View) are always present;
-// write actions (Copy, Delete) are appended only when the user holds
-// contacts:write, so the menu is built by filtering rather than per-item guards.
-type WorkerRowAction = {
-  key: string
-  icon: ComponentType<{ className?: string }>
-  label: string
-  onClick: () => void
-  destructive?: boolean
+type DeleteTarget = Pick<Worker, "id" | "name" | "work_dir">
+
+const TH = "whitespace-nowrap px-4 py-3 text-left text-xs font-normal text-secondary sm:px-6"
+const TD = "px-4 py-4 align-middle sm:px-6"
+
+function DepartmentCell({ worker }: { worker: Worker }) {
+  const { t } = useTranslation()
+  const departments = worker.departments ?? []
+  if (departments.length === 0) return <span className="text-muted">{t("departments.ungrouped")}</span>
+  const [first, ...rest] = departments
+  return (
+    <span className="flex min-w-0 items-center gap-1.5" title={departments.map((d) => d.name).join(", ")}>
+      <span className="truncate text-secondary">{first.name}</span>
+      {rest.length > 0 && <span className="shrink-0 text-muted tabular">+{rest.length}</span>}
+    </span>
+  )
+}
+
+function DeleteWorkerDialog({ target, onClose }: { target: DeleteTarget | null; onClose: () => void }) {
+  const { t } = useTranslation()
+  const deleteWorker = useDeleteWorker()
+  const { reset } = deleteWorker
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [confirmation, setConfirmation] = useState("")
+  const [deleteWorkDir, setDeleteWorkDir] = useState(false)
+  const [lastTarget, setLastTarget] = useState(target)
+  if (target && target !== lastTarget) {
+    setLastTarget(target)
+    setConfirmation("")
+    setDeleteWorkDir(false)
+  }
+  useEffect(() => {
+    if (target) reset()
+  }, [target, reset])
+  const shown = target ?? lastTarget
+  const confirmed = !!shown && confirmation === shown.name
+
+  const handleConfirm = async () => {
+    if (!shown || !confirmed) return
+    try {
+      await deleteWorker.mutateAsync({ id: shown.id, deleteWorkDir })
+      onClose()
+    } catch {
+      return
+    }
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={(open) => { if (!open && !deleteWorker.isPending) onClose() }}>
+      <DialogContent
+        title={t("workers.deleteDialog.title", { name: shown?.name ?? "" })}
+        description={t("workers.deleteDialog.description")}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          inputRef.current?.focus()
+        }}
+      >
+        <form
+          className="grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleConfirm()
+          }}
+        >
+          <Input
+            ref={inputRef}
+            label={t("workers.deleteDialog.confirmNameLabel", { name: shown?.name ?? "" })}
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            placeholder={t("workers.deleteDialog.confirmNamePlaceholder")}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={deleteWorker.isPending}
+          />
+          <Checkbox
+            label={t("workers.deleteDialog.deleteWorkDir")}
+            description={shown?.work_dir ? t("workers.deleteDialog.deleteWorkDirHint", { path: shown.work_dir }) : undefined}
+            checked={deleteWorkDir}
+            onCheckedChange={(state) => setDeleteWorkDir(state === true)}
+            disabled={deleteWorker.isPending}
+          />
+          {deleteWorker.error && (
+            <Alert tone="danger" title={t("workers.deleteDialog.error")}>
+              {getErrorMessage(deleteWorker.error)}
+            </Alert>
+          )}
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={deleteWorker.isPending}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" variant="danger" loading={deleteWorker.isPending} disabled={!confirmed}>
+              {t("workers.deleteDialog.confirm")}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export function Workers() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
-  const { data: departments = [] } = useDepartments()
   const flatDepartments = useFlatDepartments()
-  const selectedDept = flatDepartments.find(({ dept }) => dept.id === selectedDeptId)?.dept
-  const activeDeptId = selectedDeptId === UNGROUPED_FILTER || selectedDept ? selectedDeptId : null
-  const deptFilter = activeDeptId === UNGROUPED_FILTER ? undefined : (activeDeptId ?? undefined)
-  const { data: workers = [], error: fetchError, isLoading } = useWorkers(deptFilter)
-  const displayedWorkers = activeDeptId === UNGROUPED_FILTER
-    ? workers.filter((w) => !w.departments || w.departments.length === 0)
-    : workers
-  const deleteWorker = useDeleteWorker()
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [deleteStep, setDeleteStep] = useState<DeleteStep>(1)
-  const [deleteWorkDir, setDeleteWorkDir] = useState(false)
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
+  const [departmentFilter, setDepartmentFilter] = useState<string>(ALL)
+  const [statusFilter, setStatusFilter] = useState<string>(ALL)
+  const [query, setQuery] = useState("")
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
 
-  const resetDelete = () => {
-    setDeleteTarget(null)
-    setDeleteStep(1)
-    setDeleteWorkDir(false)
-    setDeleteConfirmationText("")
+  const departmentExists = flatDepartments.some(({ dept }) => dept.id === departmentFilter)
+  const activeDepartment =
+    departmentFilter === UNGROUPED || departmentExists ? departmentFilter : ALL
+  const serverDepartment =
+    activeDepartment === ALL || activeDepartment === UNGROUPED ? undefined : activeDepartment
+  const { data: workers = [], error, isLoading, refetch } = useWorkers(serverDepartment)
+
+  const departmentOptions = useMemo(() => {
+    const names = new Map(flatDepartments.map(({ dept }) => [dept.id, dept.name]))
+    const parents = new Map(flatDepartments.map(({ dept }) => [dept.id, dept.parent_id]))
+    const path = (id: string): string => {
+      const parent = parents.get(id)
+      const name = names.get(id) ?? id
+      return parent && names.has(parent) ? `${path(parent)} / ${name}` : name
+    }
+    return [
+      { value: ALL, label: t("workers.filters.allDepartments") },
+      { value: UNGROUPED, label: t("departments.ungrouped") },
+      ...flatDepartments.map(({ dept }) => ({ value: dept.id, label: path(dept.id) })),
+    ]
+  }, [flatDepartments, t])
+
+  const inDepartment = useMemo(
+    () =>
+      activeDepartment === UNGROUPED
+        ? workers.filter((w) => !w.departments || w.departments.length === 0)
+        : workers,
+    [workers, activeDepartment],
+  )
+
+  const statusOptions = useMemo(() => {
+    const count = (status: string) => inDepartment.filter((w) => w.status === status).length
+    const accessory = (n: number) => <span className="text-muted tabular">{n}</span>
+    return [
+      { value: ALL, label: t("workers.filters.allStatuses"), accessory: accessory(inDepartment.length) },
+      ...STATUSES.map((status) => ({
+        value: status,
+        label: t(`statuses.${status}`),
+        accessory: accessory(count(status)),
+      })),
+    ]
+  }, [inDepartment, t])
+
+  const needle = query.trim().toLowerCase()
+  const displayed = inDepartment.filter(
+    (w) =>
+      (statusFilter === ALL || w.status === statusFilter) &&
+      (!needle ||
+        w.name.toLowerCase().includes(needle) ||
+        (w.description ?? "").toLowerCase().includes(needle)),
+  )
+
+  const activeCount = inDepartment.filter((w) => w.status === "working").length
+  const hasLocalFilters = needle !== "" || statusFilter !== ALL
+  const hasAnyFilter = hasLocalFilters || activeDepartment !== ALL
+
+  const clearFilters = () => {
+    setQuery("")
+    setStatusFilter(ALL)
+    setDepartmentFilter(ALL)
   }
 
-  const error = fetchError?.message || deleteWorker.error?.message || ""
-  const activeWorkers = displayedWorkers.filter((worker) => worker.status === "working").length
-  const isDeleteNameConfirmed = deleteConfirmationText === (deleteTarget?.name ?? "")
-  const filterLabel =
-    activeDeptId === UNGROUPED_FILTER
-      ? t("departments.ungrouped")
-      : (selectedDept?.name ?? t("departments.allWorkers"))
+  const createButton = (
+    <Button onClick={() => navigate("/workers/create")}>
+      <PlusIcon size={16} strokeWidth={1.75} aria-hidden="true" />
+      {t("workers.createWorker")}
+    </Button>
+  )
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteTarget || !isDeleteNameConfirmed) return
-    await deleteWorker.mutateAsync({ id: deleteTarget.id, deleteWorkDir })
-    resetDelete()
-  }
-
-  const handleDeleteStepOne = (e?: FormEvent) => {
-    e?.preventDefault()
-    if (!deleteTarget || !isDeleteNameConfirmed) return
-    setDeleteStep(2)
-  }
-
-  const openDeleteDialog = (target: { id: string; name: string }) => {
-    setDeleteStep(1)
-    setDeleteWorkDir(false)
-    setDeleteConfirmationText("")
-    setDeleteTarget(target)
-  }
-
-  return (
-    <FadeIn className="h-full">
-      <div className="flex h-full">
-        {/* Left pane: department filter, flush to the layout edge with its own scroll. */}
-        <aside className="hidden w-60 shrink-0 flex-col border-r lg:flex">
-          <div className="flex h-16 items-center border-b px-4">
-            <h2 className="text-sm font-semibold tracking-tight">{t("departments.filter")}</h2>
-          </div>
-          <div className="min-h-0 flex-1">
-            <DepartmentTreeSidebar
-              departments={departments}
-              selectedId={activeDeptId}
-              onSelect={setSelectedDeptId}
+  const renderBody = () => {
+    if (error) {
+      return (
+        <Alert tone="danger" title={t("workers.loadError")}>
+          <span className="grid justify-items-start gap-3">
+            <span>{getErrorMessage(error)}</span>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              {t("common.retry")}
+            </Button>
+          </span>
+        </Alert>
+      )
+    }
+    if (isLoading) return <SkeletonTable rows={6} columns={5} />
+    if (displayed.length === 0) {
+      return (
+        <div className="rounded-surface border border-border bg-surface">
+          {hasAnyFilter ? (
+            <EmptyState
+              title={hasLocalFilters ? t("workers.noMatches") : t("emptyState.noWorkersInGroup")}
+              description={hasLocalFilters ? t("workers.noMatchesDesc") : t("emptyState.noWorkersInGroupDesc")}
+              action={
+                <Button variant="secondary" onClick={clearFilters}>
+                  {t("workers.filters.clear")}
+                </Button>
+              }
             />
-          </div>
-        </aside>
-
-        {/* Right pane: worker list, fills remaining width with its own scroll. */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-14 items-center justify-between gap-4 border-b px-4 py-2 md:h-16 md:px-6 md:py-0">
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold tracking-tight md:text-xl">{t("workers.title")}</h1>
-              {displayedWorkers.length > 0 && (
-                <p className="mt-0.5 text-sm text-muted-foreground" aria-live="polite">
-                  {t("workers.summary", { count: displayedWorkers.length, active: activeWorkers })}
-                </p>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button onClick={() => navigate("/workers/create")}>
-                {t("workers.createWorker")}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center border-b px-4 py-2 lg:hidden">
-            <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-              <SheetTrigger render={<Button variant="outline" className="h-9 max-w-full" />}>
-                <ListFilterIcon className="text-muted-foreground" />
-                <span className="truncate">{filterLabel}</span>
-                <ChevronDownIcon className="text-muted-foreground" />
-              </SheetTrigger>
-              <SheetContent side="bottom" className="max-h-[75dvh] gap-0">
-                <SheetHeader className="border-b">
-                  <SheetTitle>{t("departments.filter")}</SheetTitle>
-                </SheetHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <DepartmentTreeSidebar
-                    departments={departments}
-                    selectedId={activeDeptId}
-                    onSelect={(id) => {
-                      setSelectedDeptId(id)
-                      setFilterSheetOpen(false)
-                    }}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-
-          <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">
-      {error && (
-        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4 mx-auto w-full max-w-6xl")}>
-          {error}
+          ) : (
+            <EmptyState
+              title={t("emptyState.noWorkers")}
+              description={t("emptyState.noWorkersDesc")}
+              action={createButton}
+            />
+          )}
         </div>
-      )}
+      )
+    }
 
-      {isLoading ? (
-        <SkeletonTable rows={6} columns={4} />
-      ) : displayedWorkers.length === 0 && !error ? (
-        <EmptyState
-          title={activeDeptId !== null ? t("emptyState.noWorkersInGroup") : t("emptyState.noWorkers")}
-          description={activeDeptId !== null ? t("emptyState.noWorkersInGroupDesc") : t("emptyState.noWorkersDesc")}
-          action={
-            activeDeptId === null ? (
-              <Button onClick={() => navigate("/workers/create")}>{t("workers.createWorker")}</Button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-sm bg-card ring-1 ring-foreground/10">
-          <Table className="xl:min-w-[680px]">
-            <TableHeader>
-              <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                <TableHead>{t("workers.columns.name")}</TableHead>
-                <TableHead className="hidden w-[112px] sm:table-cell">{t("workers.columns.engine")}</TableHead>
-                <TableHead className="hidden w-[124px] xl:table-cell">{t("workers.columns.activeTime")}</TableHead>
-                <TableHead className="w-16 text-right">{t("workers.columns.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayedWorkers.map((w) => {
-                const rowActions: WorkerRowAction[] = [
-                  { key: "view", icon: EyeIcon, label: t("common.view"), onClick: () => navigate(`/workers/${w.id}`) },
-                  { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${w.id}`) },
-                  { key: "delete", icon: Trash2Icon, label: t("common.delete"), destructive: true, onClick: () => openDeleteDialog({ id: w.id, name: w.name }) },
-                ]
-                return (
-                <TableRow key={w.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="max-xl:whitespace-normal">
-                    <div className="flex items-center gap-3 py-1">
+    return (
+      <div className="overflow-hidden rounded-surface border border-border bg-surface">
+        <div className="overflow-x-auto overscroll-x-contain">
+          <table className="w-full text-sm">
+            <caption className="sr-only">{t("workers.title")}</caption>
+            <thead>
+              <tr>
+                <th scope="col" className={TH}>{t("workers.columns.name")}</th>
+                <th scope="col" className={`${TH} hidden md:table-cell`}>{t("workers.columns.engine")}</th>
+                <th scope="col" className={`${TH} hidden sm:table-cell`}>{t("workers.columns.status")}</th>
+                <th scope="col" className={`${TH} hidden lg:table-cell`}>{t("workers.columns.department")}</th>
+                <th scope="col" className={`${TH} hidden xl:table-cell`}>{t("workers.columns.activeTime")}</th>
+                <th scope="col" className={`${TH} w-16`}>
+                  <span className="sr-only">{t("workers.columns.actions")}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayed.map((w) => (
+                <tr key={w.id} className="border-t border-border-subtle transition-colors hover:bg-surface-muted">
+                  <td className={TD}>
+                    <div className="flex min-w-0 items-start gap-3 sm:items-center">
                       <WorkerAvatar name={w.name} status={w.status} />
-                      <div className="flex min-w-0 flex-col gap-0.5">
+                      <div className="grid min-w-0 gap-0.5">
                         <WorkerLink
                           id={w.id}
                           name={w.name}
-                          className="font-medium text-foreground hover:text-primary"
+                          className="truncate font-medium text-foreground hover:text-accent-strong"
                         />
-                        <p className="max-w-[34rem] text-xs leading-5 text-muted-foreground line-clamp-2">
-                          {w.description || "—"}
+                        <p className="line-clamp-1 max-w-xl text-sm text-secondary">
+                          {w.description || t("common.noDescription")}
                         </p>
+                        <div className="pt-1 sm:hidden">
+                          <StatusBadge status={w.status} />
+                        </div>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                  </td>
+                  <td className={`${TD} hidden whitespace-nowrap md:table-cell`}>
                     {w.engine ? (
-                      <EngineIcon
-                        engine={w.engine}
-                        title={formatEngineLabel(w.engine, t)}
-                        className="size-5 text-foreground/80"
-                      />
+                      <span className="inline-flex items-center gap-2 text-foreground">
+                        <EngineIcon engine={w.engine} className="size-4" />
+                        {formatEngineLabel(w.engine, t)}
+                      </span>
                     ) : (
-                      "—"
+                      <span className="text-muted">{t("workers.noEngine")}</span>
                     )}
-                  </TableCell>
-                  <TableCell className="hidden text-sm font-mono text-muted-foreground xl:table-cell">
+                  </td>
+                  <td className={`${TD} hidden whitespace-nowrap sm:table-cell`}>
+                    <StatusBadge status={w.status} />
+                  </td>
+                  <td className={`${TD} hidden max-w-48 lg:table-cell`}>
+                    <DepartmentCell worker={w} />
+                  </td>
+                  <td className={`${TD} hidden whitespace-nowrap text-secondary tabular xl:table-cell`}>
                     <span title={w.updated_at ? formatTimestamp(w.updated_at) : undefined}>
                       {formatRelative(w.updated_at, t)}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={t("workers.columns.actions")}
-                          />
-                        }
-                      >
-                        <MoreHorizontalIcon className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-36">
-                        {rowActions.map((action, i) => (
-                          <Fragment key={action.key}>
-                            {i > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuItem
-                              variant={action.destructive ? "destructive" : undefined}
-                              onClick={action.onClick}
-                            >
-                              <action.icon className="size-4" />
-                              {action.label}
-                            </DropdownMenuItem>
-                          </Fragment>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                  </td>
+                  <td className={`${TD} text-right`}>
+                    <DropdownMenu
+                      iconOnly
+                      icon={<EllipsisIcon size={16} strokeWidth={1.75} />}
+                      label={t("workers.rowActions", { name: w.name })}
+                      items={[
+                        {
+                          label: t("common.view"),
+                          icon: <EyeIcon size={16} strokeWidth={1.75} />,
+                          onSelect: () => navigate(`/workers/${w.id}`),
+                        },
+                        {
+                          label: t("workers.copyWorker"),
+                          icon: <CopyIcon size={16} strokeWidth={1.75} />,
+                          onSelect: () => navigate(`/workers/create?copy=${w.id}`),
+                        },
+                        {
+                          label: t("workers.deleteWorker"),
+                          icon: <Trash2Icon size={16} strokeWidth={1.75} />,
+                          destructive: true,
+                          separatorBefore: true,
+                          onSelect: () => setDeleteTarget({ id: w.id, name: w.name, work_dir: w.work_dir }),
+                        },
+                      ]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <FadeIn className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-page px-4 py-6 sm:px-6 md:px-8 md:py-8">
+        <PageHeader
+          title={t("workers.title")}
+          subtitle={
+            !isLoading && !error
+              ? t("workers.summary", { count: inDepartment.length, active: activeCount })
+              : undefined
+          }
+          actions={createButton}
+        />
+
+        <div className="mb-6 flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-72">
+            <SearchField
+              label={t("workers.searchLabel")}
+              placeholder={t("workers.searchPlaceholder")}
+              value={query}
+              onValueChange={setQuery}
+            />
+          </div>
+          <div className="w-full sm:w-60">
+            <Select
+              label={t("workers.filters.department")}
+              options={departmentOptions}
+              value={activeDepartment}
+              onValueChange={setDepartmentFilter}
+            />
+          </div>
+          <div className="max-w-full lg:ml-auto">
+            <SegmentedControl
+              label={t("workers.filters.status")}
+              options={statusOptions}
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+            />
+          </div>
+        </div>
+
+        {renderBody()}
       </div>
 
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) resetDelete() }}>
-        <DialogContent>
-          <DialogHeader>
-            <p className={EYEBROW_LABEL}>
-              {deleteStep === 1 ? t("workers.deleteDialog.stepOne") : t("workers.deleteDialog.stepTwo")}
-            </p>
-            <DialogTitle>{t("workers.deleteDialog.title")}</DialogTitle>
-            {deleteStep === 2 && (
-              <DialogDescription>
-                <Trans
-                  i18nKey="workers.deleteDialog.stepTwoDescription"
-                  values={{ name: deleteTarget?.name ?? "" }}
-                  components={{ strong: <strong /> }}
-                />
-              </DialogDescription>
-            )}
-          </DialogHeader>
-          {deleteStep === 1 ? (
-            <form onSubmit={handleDeleteStepOne} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="delete-confirm-name">
-                  {t("workers.deleteDialog.confirmNameLabel", { name: deleteTarget?.name ?? "" })}
-                </Label>
-                <Input
-                  id="delete-confirm-name"
-                  value={deleteConfirmationText}
-                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                  placeholder={t("workers.deleteDialog.confirmNamePlaceholder")}
-                />
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetDelete}>
-                  {t("common.cancel")}
-                </Button>
-                <Button type="submit" disabled={!isDeleteNameConfirmed}>
-                  {t("workers.deleteDialog.continue")}
-                </Button>
-              </DialogFooter>
-            </form>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 py-2">
-                <input
-                  type="checkbox"
-                  id="delete-work-dir"
-                  checked={deleteWorkDir}
-                  onChange={(e) => setDeleteWorkDir(e.target.checked)}
-                  className="size-4 cursor-pointer rounded accent-primary"
-                />
-                <Label htmlFor="delete-work-dir" className="cursor-pointer">
-                  {t("workers.deleteDialog.deleteWorkDir")}
-                </Label>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={resetDelete}>
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteConfirm}
-                  disabled={deleteWorker.isPending}
-                >
-                  {t("common.delete")}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-        </div>
-      </div>
+      <DeleteWorkerDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} />
     </FadeIn>
   )
 }

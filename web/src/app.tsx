@@ -1,10 +1,9 @@
 import { lazy, Suspense } from "react"
 import { HashRouter, Routes, Route } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { Toaster } from "sonner"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/toaster"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
@@ -35,33 +34,31 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Toaster theme="system" richColors />
-      <TooltipProvider>
-        <HashRouter>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/setup" element={<Setup />} />
-              <Route element={<AuthGuard><Layout /></AuthGuard>}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/workers" element={<Workers />} />
-                <Route path="/workers/create" element={<CreateWorker />} />
-                <Route path="/workers/:id" element={<WorkerDetail />} />
-                <Route path="/departments" element={<Departments />} />
-                <Route path="/sessions" element={<Sessions />} />
-                <Route path="/sessions/detail" element={<SessionDetail />} />
-                <Route path="/tasks" element={<Tasks />} />
-                <Route path="/chat" element={<LocalChat />} />
-                <Route path="/env" element={<Env />} />
-                <Route path="/settings" element={<SystemSettings />} />
-                <Route path="/plugins" element={<Plugins />} />
-                <Route path="/plugins/:id" element={<PluginDetail />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </HashRouter>
-      </TooltipProvider>
+      <Toaster />
+      <HashRouter>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/setup" element={<Setup />} />
+            <Route element={<AuthGuard><Layout /></AuthGuard>}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/workers" element={<Workers />} />
+              <Route path="/workers/create" element={<CreateWorker />} />
+              <Route path="/workers/:id" element={<WorkerDetail />} />
+              <Route path="/departments" element={<Departments />} />
+              <Route path="/sessions" element={<Sessions />} />
+              <Route path="/sessions/detail" element={<SessionDetail />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/chat" element={<LocalChat />} />
+              <Route path="/env" element={<Env />} />
+              <Route path="/settings" element={<SystemSettings />} />
+              <Route path="/plugins" element={<Plugins />} />
+              <Route path="/plugins/:id" element={<PluginDetail />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </HashRouter>
     </QueryClientProvider>
   )
 }

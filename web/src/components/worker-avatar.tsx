@@ -1,15 +1,14 @@
 import { useTranslation } from "react-i18next"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { cn } from "@/lib/utils"
+import { Avatar } from "@/components/arc/avatar/avatar"
 import { statusLabel } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
 export const presenceColor: Record<string, string> = {
-  idle: "bg-status-idle",
-  working: "bg-status-working",
-  error: "bg-status-error",
+  idle: "bg-success",
+  working: "bg-accent",
+  error: "bg-danger",
 }
 
-// First glyph for CJK names, first letters of the first two words otherwise.
 export function initials(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return "?"
@@ -26,18 +25,18 @@ interface WorkerAvatarProps {
   className?: string
 }
 
+const sizes = { sm: "sm", default: "md", lg: "lg" } as const
+
 export function WorkerAvatar({ name, status, size = "default", className }: WorkerAvatarProps) {
   const { t } = useTranslation()
-  const color = presenceColor[status] ?? "bg-muted-foreground"
+  const color = presenceColor[status] ?? "bg-border-strong"
   const label = statusLabel(status, t)
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
-      <Avatar size={size}>
-        <AvatarFallback className="font-medium uppercase">{initials(name)}</AvatarFallback>
-      </Avatar>
+      <Avatar name={Array.from(initials(name)).join(" ")} size={sizes[size]} aria-hidden="true" />
       <span
-        className="absolute -right-0.5 -bottom-0.5 inline-flex size-2.5 items-center justify-center rounded-full ring-2 ring-card"
+        className="absolute -right-0.5 -bottom-0.5 inline-flex size-2.5 items-center justify-center rounded-full ring-2 ring-surface"
         title={label}
         role="img"
         aria-label={label}

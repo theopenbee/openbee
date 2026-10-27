@@ -1,71 +1,56 @@
 import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { useExecutions } from "@/hooks/use-executions"
-import { useIsMobile } from "@/hooks/use-mobile"
-import type { WorkerExecution } from "@/lib/types"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { StatusBadge } from "@/components/status-badge"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Select } from "@/components/arc/select/select"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonTable } from "@/components/skeleton-loader"
 import { PaginationControls } from "@/components/pagination-controls"
-import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
-import { SessionGroupRow } from "@/components/session-group-row"
-import { WorkerLink } from "@/components/worker-link"
-import { cn, sessionDetailPath } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { formatDuration, formatRelative, formatTimestamp, formatTokenCount, groupExecutionsBySession, isActiveStatus, statusLabel, STATUS_ROW_BORDER } from "@/lib/format"
+import { SessionGroupRow, SessionGroupRowSkeleton } from "@/components/session-group-row"
+import { useWorkers } from "@/hooks/use-workers"
+import { api } from "@/lib/api"
+import { groupExecutionsBySession, isActiveStatus } from "@/lib/format"
 
 const PAGE_SIZE = 20
-
-const TURN_DOT: Record<string, string> = {
-  running: "bg-status-working",
-  completed: "bg-status-idle",
-  failed: "bg-status-error",
-  pending: "bg-muted-foreground/30",
-}
-
-function TurnPips({ executions }: { executions: WorkerExecution[] }) {
-  const { t } = useTranslation()
-  const ordered = [...executions].reverse()
-  return (
-    <div className="flex items-center gap-0.5 flex-wrap max-w-[120px]">
-      {ordered.map((e, i) => (
-        <div
-          key={e.id}
-          title={`${t("sessionDetail.turn", { index: i + 1 })}: ${statusLabel(e.status, t)}`}
-          className={cn(
-            "size-2 rounded-full shrink-0",
-            TURN_DOT[e.status] ?? "bg-muted-foreground/30"
-          )}
-        />
-      ))}
-    </div>
-  )
-}
+const ALL_WORKERS = "all"
+const SKELETON_ROWS = 6
 
 export function Sessions() {
   const { t } = useTranslation()
-  const isMobile = useIsMobile()
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
-  const { data, error, isLoading } = useExecutions(page, PAGE_SIZE)
+  const [workerFilter, setWorkerFilter] = useState(ALL_WORKERS)
+  const workerId = workerFilter === ALL_WORKERS ? undefined : workerFilter
 
-  const executions = data?.items ?? []
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
-  const totalSessions = data?.total ?? 0
+  const { data, error, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["executions", page, PAGE_SIZE, workerId ?? null],
+    queryFn: () => api.sessions.list(page, PAGE_SIZE, workerId),
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? []
+      return items.some((execution) => isActiveStatus(execution.status)) ? 500 : false
+    },
+  })
+  const { data: workers } = useWorkers()
 
+  const executions = useMemo(() => data?.items ?? [], [data])
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
+  const totalSessions = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalSessions / PAGE_SIZE))
+  const activeCount = sessionGroups.filter((group) => isActiveStatus(group[0].status)).length
 
-  const activeCount = sessionGroups.filter((g) => isActiveStatus(g[0].status)).length
+  const workerOptions = useMemo(
+    () => [
+      { value: ALL_WORKERS, label: t("sessions.allWorkers") },
+      ...[...(workers ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((worker) => ({ value: worker.id, label: worker.name })),
+    ],
+    [workers, t]
+  )
 
   const subtitle =
     totalSessions > 0
@@ -74,136 +59,89 @@ export function Sessions() {
         : t("sessions.summary", { count: totalSessions })
       : undefined
 
+  const changeWorker = (value: string) => {
+    setWorkerFilter(value)
+    setPage(1)
+  }
+
+  const filtered = workerId !== undefined
+
   return (
     <FadeIn>
-      <PageHeader title={t("sessions.title")} subtitle={subtitle} />
+      <PageHeader
+        title={t("sessions.title")}
+        subtitle={subtitle}
+        actions={
+          <div className="w-60 max-w-full">
+            <Select
+              label={t("sessions.filterWorker")}
+              options={workerOptions}
+              value={workerFilter}
+              onValueChange={changeWorker}
+            />
+          </div>
+        }
+      />
 
       {error && (
-        <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-4")}>
-          {error.message}
+        <div className="mb-4">
+          <Alert tone="danger" title={t("sessions.loadError")}>
+            {error.message}
+            <span className="mt-3 flex">
+              <Button variant="secondary" size="sm" loading={isRefetching} onClick={() => void refetch()}>
+                {t("common.retry")}
+              </Button>
+            </span>
+          </Alert>
         </div>
       )}
 
       {isLoading ? (
-        <SkeletonTable />
-      ) : sessionGroups.length === 0 && !error ? (
-        <EmptyState
-          title={t("emptyState.noExecutions")}
-          description={t("emptyState.noExecutionsDesc")}
-        />
+        <div
+          aria-busy="true"
+          className="divide-y divide-border-subtle overflow-hidden rounded-surface border border-border bg-surface"
+        >
+          {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
+            <SessionGroupRowSkeleton key={index} />
+          ))}
+        </div>
+      ) : sessionGroups.length === 0 ? (
+        error ? null : filtered ? (
+          <EmptyState
+            title={t("sessions.noWorkerSessions")}
+            description={t("sessions.noWorkerSessionsDesc")}
+            action={
+              <Button variant="secondary" onClick={() => changeWorker(ALL_WORKERS)}>
+                {t("sessions.showAllWorkers")}
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title={t("emptyState.noExecutions")}
+            description={t("sessions.emptyDescription")}
+            action={
+              <Button variant="secondary" onClick={() => navigate("/chat")}>
+                {t("sessions.openChat")}
+              </Button>
+            }
+          />
+        )
       ) : (
         <>
-          {isMobile ? (
-            <div className="divide-y divide-border/70 overflow-hidden rounded-sm border border-border/70 bg-card">
-              {sessionGroups.map((group) => (
-                <SessionGroupRow
-                  key={group[0].session_id}
-                  group={group}
-                  tokenStats={data?.token_stats?.[group[0].session_id]}
-                  showWorker
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-sm border border-border/70 bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-secondary/50 hover:bg-secondary/50">
-                    <TableHead className="pl-5 w-28">{t("sessions.columns.session")}</TableHead>
-                    <TableHead className="w-36">{t("sessions.columns.worker")}</TableHead>
-                    <TableHead>{t("sessions.columns.turns")}</TableHead>
-                    <TableHead className="w-28">{t("sessions.columns.latestStatus")}</TableHead>
-                    <TableHead className="w-24">{t("sessions.columns.started")}</TableHead>
-                    <TableHead className="w-20">{t("sessions.columns.duration")}</TableHead>
-                    <TableHead className="w-24">{t("sessions.columns.tokens")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessionGroups.map((group) => {
-                    const latest = group[0]
-                    const oldest = group[group.length - 1]
-                    const lastCompleted = group.find((e) => e.completed_at)
-                    const isActive = isActiveStatus(latest.status)
-                    const duration = formatDuration(oldest.started_at, lastCompleted?.completed_at ?? null)
-                    const tokenStats = data?.token_stats?.[latest.session_id] ?? null
-
-                    return (
-                      <TableRow
-                        key={latest.session_id}
-                        className="hover:bg-primary/5 transition-colors"
-                      >
-                        <TableCell
-                          className={cn(
-                            "pl-4 border-l-2",
-                            STATUS_ROW_BORDER[latest.status] ?? "border-l-transparent"
-                          )}
-                        >
-                          <Link
-                            to={sessionDetailPath(latest.session_id)}
-                            aria-label={t("sessions.viewSession", { id: latest.session_id })}
-                            className="font-mono text-sm font-medium text-foreground hover:text-primary transition-colors"
-                          >
-                            {latest.session_id.slice(0, 8)}
-                          </Link>
-                        </TableCell>
-
-                        <TableCell>
-                          {latest.worker_id ? (
-                            <WorkerLink
-                              id={latest.worker_id}
-                              name={latest.worker_name}
-                              className="text-sm text-muted-foreground"
-                            />
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">—</span>
-                          )}
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex flex-col gap-1.5">
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {t("sessions.turnCount", { count: group.length })}
-                            </span>
-                            <TurnPips executions={group} />
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <StatusBadge status={latest.status} />
-                        </TableCell>
-
-                        <TableCell
-                          className="text-xs font-mono text-muted-foreground"
-                          title={oldest.started_at ? formatTimestamp(oldest.started_at) : undefined}
-                        >
-                          {formatRelative(oldest.started_at, t)}
-                        </TableCell>
-
-                        <TableCell className="text-xs font-mono">
-                          {isActive ? (
-                            <span className="text-status-working animate-pulse-amber">{t("sessionDetail.live")}</span>
-                          ) : (
-                            <span className="text-muted-foreground">{duration}</span>
-                          )}
-                        </TableCell>
-
-                        <TableCell>
-                          {tokenStats ? (
-                            <div className="flex items-center gap-1 text-xs font-mono">
-                              <span className="text-muted-foreground">{formatTokenCount(tokenStats.total_tokens)}</span>
-                              <TokenStatsInfoButton stats={tokenStats} side="left" align="center" />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground/40">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          <section
+            aria-label={t("sessions.title")}
+            className="divide-y divide-border-subtle overflow-hidden rounded-surface border border-border bg-surface"
+          >
+            {sessionGroups.map((group) => (
+              <SessionGroupRow
+                key={group[0].session_id}
+                group={group}
+                tokenStats={data?.token_stats?.[group[0].session_id]}
+                showWorker
+              />
+            ))}
+          </section>
 
           <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
         </>

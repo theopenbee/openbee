@@ -1,23 +1,21 @@
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
+import { AuthPasswordField } from "@/components/auth-password-field"
 import { useChangePassword } from "@/hooks/use-change-password"
 import { useLogout } from "@/hooks/use-logout"
+import { ApiError } from "@/lib/api"
 import { getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
 
 const MIN_PASSWORD_LENGTH = 6
+
+interface FieldErrors {
+  oldPassword?: string
+  newPassword?: string
+  confirmPassword?: string
+}
 
 export function ChangePasswordDialog({
   open,
@@ -33,106 +31,143 @@ export function ChangePasswordDialog({
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [error, setError] = useState("")
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [formError, setFormError] = useState("")
+  const [done, setDone] = useState(false)
+  const oldRef = useRef<HTMLInputElement>(null)
+  const newRef = useRef<HTMLInputElement>(null)
+  const confirmRef = useRef<HTMLInputElement>(null)
 
   const reset = () => {
     setOldPassword("")
     setNewPassword("")
     setConfirmPassword("")
-    setError("")
+    setErrors({})
+    setFormError("")
+    setDone(false)
+    changePassword.reset()
   }
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) reset()
-    onOpenChange(next)
+    if (next) {
+      onOpenChange(true)
+      return
+    }
+    const finished = done
+    reset()
+    onOpenChange(false)
+    if (finished) logout()
+  }
+
+  const validate = (): FieldErrors => {
+    const next: FieldErrors = {}
+    if (!oldPassword) next.oldPassword = t("account.currentRequired", "Enter your current password")
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      next.newPassword = t("account.errorTooShort", "Use at least 6 characters")
+    } else if (newPassword === oldPassword) {
+      next.newPassword = t("account.errorSameAsOld", "Choose a password different from the current one")
+    }
+    if (!next.newPassword && confirmPassword !== newPassword) {
+      next.confirmPassword = t("account.errorMismatch", "The passwords do not match")
+    }
+    return next
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      setError(t("account.errorMismatch"))
-      return
-    }
-    if (newPassword === oldPassword) {
-      setError(t("account.errorSameAsOld"))
+    if (changePassword.isPending) return
+    const next = validate()
+    setErrors(next)
+    setFormError("")
+    const firstInvalid = next.oldPassword ? oldRef : next.newPassword ? newRef : next.confirmPassword ? confirmRef : null
+    if (firstInvalid) {
+      firstInvalid.current?.focus()
       return
     }
     try {
       await changePassword.mutateAsync({ oldPassword, newPassword })
-      // Changing the password invalidates every existing session server-side,
-      // so tear down this one and send the user back to the login page instead
-      // of leaving them on a page whose tokens are already dead.
-      handleOpenChange(false)
-      toast.success(t("account.passwordChangedRelogin"))
-      logout()
+      setDone(true)
     } catch (err) {
-      setError(getErrorMessage(err))
+      if (err instanceof ApiError && err.code === "old_password_incorrect") {
+        setErrors({ oldPassword: getErrorMessage(err) })
+        oldRef.current?.select()
+      } else {
+        setFormError(getErrorMessage(err))
+      }
     }
   }
 
-  const canSubmit =
-    oldPassword.length > 0 &&
-    newPassword.length >= MIN_PASSWORD_LENGTH &&
-    confirmPassword.length > 0 &&
-    !changePassword.isPending
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{t("account.changePassword")}</DialogTitle>
-          <DialogDescription>{t("account.changePasswordDescription")}</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
-          <div className="space-y-1.5">
-            <Label htmlFor="current-password">{t("account.currentPassword")}</Label>
-            <Input
-              id="current-password"
-              type="password"
+      <DialogContent
+        title={t("account.changePassword", "Change password")}
+        description={t("account.changePasswordDescription", "Changing it signs you out of every session.")}
+      >
+        {done ? (
+          <div className="grid gap-6">
+            <Alert tone="success" title={t("account.passwordChanged", "Password changed")}>
+              {t("account.passwordChangedRelogin", "Sign in again with your new password.")}
+            </Alert>
+            <div className="flex justify-end">
+              <Button type="button" autoFocus onClick={() => handleOpenChange(false)}>
+                {t("account.signInAgain", "Sign in again")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} noValidate className="grid gap-4">
+            {formError ? (
+              <Alert tone="danger" title={t("account.errorTitle", "Could not change the password")}>
+                {formError}
+              </Alert>
+            ) : null}
+            <AuthPasswordField
+              ref={oldRef}
+              label={t("account.currentPassword", "Current password")}
               autoComplete="current-password"
               value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              placeholder={t("account.currentPasswordPlaceholder")}
-              required
+              onChange={(e) => {
+                setOldPassword(e.target.value)
+                setErrors((prev) => ({ ...prev, oldPassword: undefined }))
+              }}
+              error={errors.oldPassword}
               autoFocus
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-password">{t("account.newPassword")}</Label>
-            <Input
-              id="new-password"
-              type="password"
+            <AuthPasswordField
+              ref={newRef}
+              label={t("account.newPassword", "New password")}
               autoComplete="new-password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder={t("account.newPasswordPlaceholder")}
-              required
+              onChange={(e) => {
+                setNewPassword(e.target.value)
+                setErrors((prev) => ({ ...prev, newPassword: undefined }))
+              }}
+              description={errors.newPassword ? undefined : t("account.newPasswordHint", "Use at least 6 characters.")}
+              error={errors.newPassword}
               minLength={MIN_PASSWORD_LENGTH}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="confirm-password">{t("account.confirmPassword")}</Label>
-            <Input
-              id="confirm-password"
-              type="password"
+            <AuthPasswordField
+              ref={confirmRef}
+              label={t("account.confirmPassword", "Confirm new password")}
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder={t("account.confirmPasswordPlaceholder")}
-              required
+              onChange={(e) => {
+                setConfirmPassword(e.target.value)
+                setErrors((prev) => ({ ...prev, confirmPassword: undefined }))
+              }}
+              error={errors.confirmPassword}
               minLength={MIN_PASSWORD_LENGTH}
             />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </form>
+            <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => handleOpenChange(false)}>
+                {t("common.cancel", "Cancel")}
+              </Button>
+              <Button type="submit" loading={changePassword.isPending}>
+                {t("account.changePassword", "Change password")}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )

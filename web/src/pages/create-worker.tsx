@@ -1,31 +1,26 @@
-import { useState, useEffect, useRef, type FormEvent } from "react"
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { ArrowLeft, Search } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { useCreateWorker, useWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Checkbox } from "@/components/arc/checkbox/checkbox"
+import { Input } from "@/components/arc/input/input"
+import { Select } from "@/components/arc/select/select"
+import { Textarea } from "@/components/arc/textarea/textarea"
 import { FadeIn } from "@/components/fade-in"
-import { DetailSection } from "@/components/detail-primitives"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { EngineSelectItems } from "@/components/engine-select-items"
-import { EngineArgsSection } from "@/components/engine-args-section"
+import { PageHeader } from "@/components/page-header"
 import { SectionHeading } from "@/components/section-heading"
+import { useEngineOptions } from "@/components/engine-select-items"
+import { EngineArgsSection } from "@/components/engine-args-section"
+import { WorkerDepartmentPicker } from "@/components/worker-department-picker"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { KNOWN_SCOPES, serializeScopes, parseScopes, toggleScope } from "@/lib/scopes"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
 
@@ -58,6 +53,50 @@ function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
   return Object.keys(stripped).length > 0 ? stripped : undefined
 }
 
+function FormSection({
+  id,
+  title,
+  description,
+  badge,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  badge?: number
+  children: ReactNode
+}) {
+  return (
+    <section className="grid min-w-0 gap-5" aria-labelledby={id}>
+      <div className="grid gap-1">
+        <div id={id}>
+          <SectionHeading text={title} badge={badge} />
+        </div>
+        {description && <p className="text-sm text-secondary">{description}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function CreateWorkerSkeleton() {
+  return (
+    <div className="grid gap-10" aria-busy="true">
+      {[3, 2, 2].map((fields, section) => (
+        <div key={section} className="grid gap-5">
+          <div className="skeleton h-5 w-28" />
+          {Array.from({ length: fields }).map((_, i) => (
+            <div key={i} className="grid gap-2">
+              <div className="skeleton h-4 w-20" />
+              <div className="skeleton h-11 w-full rounded-control" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function CreateWorker() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -69,7 +108,8 @@ export function CreateWorker() {
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
-  const { data: copyWorker } = useWorker(copyId ?? "", { enabled: isCopy })
+  const engineOptions = useEngineOptions(enabledEngines)
+  const { data: copyWorker, error: copyError, refetch: refetchCopy } = useWorker(copyId ?? "", { enabled: isCopy })
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -80,10 +120,7 @@ export function CreateWorker() {
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
-  const [deptSearch, setDeptSearch] = useState("")
 
-  // Bring submission failures into view: on a long form the alert sits above
-  // the submit button, so scroll it into the viewport when it appears.
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (submitError) {
@@ -91,8 +128,6 @@ export function CreateWorker() {
     }
   }, [submitError])
 
-  // Seed the form once: for a copy we must wait for the source worker to load,
-  // otherwise we initialize immediately with defaults.
   const seededRef = useRef(false)
   useEffect(() => {
     if (seededRef.current) return
@@ -132,54 +167,39 @@ export function CreateWorker() {
   }
 
   const isPending = createWorker.isPending || setWorkerDepts.isPending
-  const isCopyLoading = isCopy && !copyWorker
-
-  const filteredDepts = deptSearch.trim()
-    ? flatDepts.filter(({ dept }) =>
-        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
-      )
-    : flatDepts
+  const isCopyLoading = isCopy && !copyWorker && !copyError
+  const title = isCopy ? t("workers.copyWorker") : t("workers.createWorker")
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-2xl space-y-6">
-        <div className="space-y-3">
-          <Link
-            to="/workers"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            {t("workers.backToList")}
-          </Link>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
-            </h1>
-          </div>
-        </div>
+      <div className="max-w-form">
+        <Link
+          to="/workers"
+          className="-ml-3 mb-4 inline-flex h-9 items-center gap-2 rounded-control px-3 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
+        >
+          <ArrowLeft size={16} strokeWidth={1.75} aria-hidden="true" />
+          {t("workers.backToList")}
+        </Link>
 
-        {submitError && (
-          <div ref={errorRef} role="alert" className={ALERT_DESTRUCTIVE}>
-            {submitError}
-          </div>
-        )}
+        <PageHeader
+          title={title}
+          subtitle={isCopy && copyWorker ? t("workers.form.copySubtitle", { name: copyWorker.name }) : undefined}
+        />
 
-        {isCopyLoading ? (
-          <div className="space-y-6" aria-hidden>
-            {[0, 1, 2].map((i) => (
-              <DetailSection key={i} className="space-y-4 p-5 sm:p-6">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-3/4" />
-              </DetailSection>
-            ))}
-          </div>
+        {copyError && !copyWorker ? (
+          <Alert tone="danger" title={t("workers.form.copyLoadError")}>
+            <span className="grid justify-items-start gap-3">
+              <span>{copyError.message}</span>
+              <Button variant="secondary" size="sm" onClick={() => refetchCopy()}>
+                {t("common.retry")}
+              </Button>
+            </span>
+          </Alert>
+        ) : isCopyLoading ? (
+          <CreateWorkerSkeleton />
         ) : (
-        <form id="create-worker-form" onSubmit={handleSubmit} className="space-y-6">
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionBasic")} />
-
-            <div className="max-w-sm">
+          <form id="create-worker-form" onSubmit={handleSubmit} className="grid gap-10">
+            <FormSection id="cw-section-basic" title={t("workers.form.sectionBasic")}>
               <WorkerNameField
                 id="cw-name"
                 open
@@ -187,164 +207,119 @@ export function CreateWorker() {
                 onChange={setName}
                 onError={setSubmitError}
                 autoFocus
+                disabled={isPending}
               />
-            </div>
+              <Select
+                id="cw-engine"
+                label={t("workers.form.engine")}
+                description={t("workers.form.engineHelper")}
+                placeholder={t("workers.form.engineDefault")}
+                options={engineOptions}
+                value={engine}
+                onValueChange={(v) => v && setEngine(v as Engine)}
+                disabled={isPending}
+              />
+            </FormSection>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-engine">{t("workers.form.engine")}</Label>
-              <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
-                <SelectTrigger id="cw-engine">
-                  <SelectValue placeholder={t("workers.form.engineDefault")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <EngineSelectItems engines={enabledEngines} />
-                </SelectContent>
-              </Select>
-            </div>
-          </DetailSection>
-
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionEnhancement")} />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-desc">{t("workers.form.description")}</Label>
+            <FormSection id="cw-section-enhancement" title={t("workers.form.sectionEnhancement")}>
               <Textarea
                 id="cw-desc"
+                label={t("workers.form.description")}
+                description={t("workers.form.descriptionHelper")}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t("workers.form.descriptionPlaceholder")}
-                rows={2}
+                rows={3}
+                disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-constraints">{t("workers.form.constraints")}</Label>
               <Textarea
                 id="cw-constraints"
+                label={t("workers.form.constraints")}
+                description={t("workers.form.constraintsHelper")}
                 value={constraints}
                 onChange={(e) => setConstraints(e.target.value)}
                 placeholder={t("workers.form.constraintsPlaceholder")}
-                rows={4}
+                rows={5}
+                disabled={isPending}
               />
-            </div>
-          </DetailSection>
+            </FormSection>
 
-          {flatDepts.length > 0 && (
-            <DetailSection className="space-y-3 p-5 sm:p-6">
-              <SectionHeading
-                text={t("workers.form.sectionDepartment")}
+            {flatDepts.length > 0 && (
+              <FormSection
+                id="cw-section-department"
+                title={t("workers.form.sectionDepartment")}
+                description={t("workers.form.departmentHelper")}
                 badge={selectedDeptIds.size}
-              />
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  className="h-8 pl-8 text-xs"
+              >
+                <WorkerDepartmentPicker
+                  selected={selectedDeptIds}
+                  onChange={setSelectedDeptIds}
+                  disabled={isPending}
                 />
-              </div>
+              </FormSection>
+            )}
 
-              <div className="-mx-1 max-h-48 space-y-0.5 overflow-y-auto">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-muted-foreground">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        id={`cw-dept-${dept.id}`}
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
-                      />
-                      <span className="text-sm leading-snug text-foreground/75">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </DetailSection>
-          )}
-
-          <DetailSection className="space-y-5 p-5 sm:p-6">
-            <SectionHeading text={t("workers.form.sectionOther")} />
-
-            <EngineArgsSection
-              engines={[engine]}
-              value={engineArgs}
-              onChange={setEngineArgs}
-            />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cw-workdir">{t("workers.form.workDir")}</Label>
+            <FormSection id="cw-section-other" title={t("workers.form.sectionOther")}>
+              <EngineArgsSection
+                engines={[engine]}
+                value={engineArgs}
+                onChange={setEngineArgs}
+                idPrefix="cw-engine-args"
+                disabled={isPending}
+              />
               <Input
                 id="cw-workdir"
+                label={t("workers.form.workDir")}
+                description={t("workers.form.workDirHelper")}
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
-                className="font-mono text-xs"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={isPending}
               />
-              <p className="text-xs text-muted-foreground">{t("workers.form.workDirHelper")}</p>
-            </div>
-          </DetailSection>
+            </FormSection>
 
-          <DetailSection className="space-y-3 p-5 sm:p-6">
-            <SectionHeading
-              text={t("workers.form.sectionPermissions")}
+            <FormSection
+              id="cw-section-permissions"
+              title={t("workers.form.sectionPermissions")}
+              description={t("workers.form.permissionsHelper")}
               badge={selectedScopes.length}
-            />
-            <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
-              {KNOWN_SCOPES.map((scope) => (
-                <label
-                  key={scope.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-sm px-3 py-1.5 transition-colors hover:bg-muted/50"
-                >
-                  <input
-                    type="checkbox"
+            >
+              <div className="-ml-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                {KNOWN_SCOPES.map((scope) => (
+                  <Checkbox
+                    key={scope.id}
+                    id={`cw-scope-${scope.id}`}
+                    label={t(scope.titleKey)}
+                    description={t(scope.descriptionKey)}
                     checked={selectedScopes.includes(scope.id)}
-                    onChange={(e) =>
-                      setSelectedScopes((prev) => toggleScope(prev, scope.id, e.target.checked))
+                    onCheckedChange={(state) =>
+                      setSelectedScopes((prev) => toggleScope(prev, scope.id, state === true))
                     }
                     disabled={isPending}
-                    className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
                   />
-                  <span className="text-sm leading-snug text-foreground/75">
-                    {t(scope.titleKey)}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </DetailSection>
+                ))}
+              </div>
+            </FormSection>
 
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate("/workers")}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending || !name.trim()}
-            >
-              {isCopy ? t("workers.copyWorker") : t("workers.createWorker")}
-            </Button>
-          </div>
-        </form>
+            {submitError && (
+              <div ref={errorRef}>
+                <Alert tone="danger" title={isCopy ? t("workers.form.copyError") : t("workers.form.createError")}>
+                  {submitError}
+                </Alert>
+              </div>
+            )}
+
+            <div className="flex flex-col-reverse gap-2 border-t border-border-subtle pt-6 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => navigate("/workers")} disabled={isPending}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" loading={isPending} disabled={!name.trim()}>
+                {title}
+              </Button>
+            </div>
+          </form>
         )}
       </div>
     </FadeIn>

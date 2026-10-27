@@ -1,19 +1,10 @@
-// Shared class strings for recurring micro-typography, so the same visual role
-// stays identical everywhere instead of drifting across components.
+export const FIELD_LABEL = "text-xs text-secondary"
 
-// Eyebrow / caption label: the small uppercase metadata caption above metrics,
-// list rows, and section subtitles. Tracking is kept tight (0.05em) on purpose:
-// uppercase + wide tracking is a Latin idiom, and heavy letter-spacing spreads
-// CJK glyphs apart unnaturally, so a restrained value reads well in both scripts.
-export const EYEBROW_LABEL =
-  "text-[11px] font-medium uppercase tracking-[0.05em] text-muted-foreground"
-
-// Destructive inline alert: the bordered, tinted error banner shown for form
-// and request failures. Keeps the same radius, border, tint, and text colour
-// everywhere; call sites layer on their own margin/layout (and override padding
-// via cn/twMerge) for context.
 export const ALERT_DESTRUCTIVE =
-  "rounded-sm border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  "rounded-control border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger"
 
 export const TOOLTIP_BUBBLE =
-  "z-50 w-fit max-w-xs origin-(--transform-origin) rounded-sm bg-foreground px-3 py-1.5 text-xs text-background data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+  "z-50 w-fit max-w-xs rounded-control bg-foreground px-3 py-1.5 text-xs text-background shadow-floating"
+
+export const FIELD_CONTROL =
+  "min-h-11 w-full rounded-control border border-border-strong bg-surface px-3 text-sm text-foreground transition-colors placeholder:text-muted hover:border-foreground focus-visible:border-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-50 aria-invalid:border-danger"

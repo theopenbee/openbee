@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import { useState, useCallback, useEffect, useId, useRef, useMemo } from "react"
+import { Avatar } from "@/components/arc/avatar/avatar"
 import { cn, isImeComposing } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
 
@@ -14,6 +15,8 @@ interface MentionTextareaProps {
   disabled?: boolean
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>
   className?: string
+  ariaLabel?: string
+  rows?: number
 }
 
 type MentionState = {
@@ -43,17 +46,21 @@ export function MentionTextarea({
   disabled,
   textareaRef,
   className,
+  ariaLabel,
+  rows = 1,
 }: MentionTextareaProps) {
+  const listId = useId()
   const [mentionState, setMentionState] = useState<MentionState | null>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(blurTimerRef.current), [])
 
+  const query = mentionState?.query
   const filteredWorkers = useMemo(() => {
-    if (!mentionState) return []
-    const q = mentionState.query.toLowerCase()
-    return workers.filter(w => w.name.toLowerCase().includes(q)).slice(0, 8)
-  }, [mentionState?.query, workers])
+    if (query === undefined) return []
+    const q = query.toLowerCase()
+    return workers.filter((w) => w.name.toLowerCase().includes(q)).slice(0, 8)
+  }, [query, workers])
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -104,7 +111,7 @@ export function MentionTextarea({
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault()
           const delta = e.key === "ArrowDown" ? 1 : -1
-          setMentionState(s =>
+          setMentionState((s) =>
             s ? { ...s, activeIndex: Math.min(Math.max(s.activeIndex + delta, 0), filteredWorkers.length - 1) } : null
           )
           return
@@ -125,10 +132,14 @@ export function MentionTextarea({
     [mentionState, filteredWorkers, handleSelect, onKeyDown]
   )
 
+  const open = Boolean(mentionState && filteredWorkers.length > 0)
+  const activeId = open && mentionState ? `${listId}-${mentionState.activeIndex}` : undefined
+
   return (
     <div className="relative">
-      {mentionState && filteredWorkers.length > 0 && (
+      {open && mentionState && (
         <MentionPanel
+          id={listId}
           workers={filteredWorkers}
           activeIndex={mentionState.activeIndex}
           onSelect={handleSelect}
@@ -137,12 +148,17 @@ export function MentionTextarea({
       <textarea
         ref={textareaRef}
         value={value}
+        rows={rows}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         onPaste={onPaste}
         placeholder={placeholder}
         disabled={disabled}
+        aria-label={ariaLabel}
+        aria-autocomplete="list"
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={activeId}
         className={className}
       />
     </div>
@@ -150,36 +166,36 @@ export function MentionTextarea({
 }
 
 function MentionPanel({
+  id,
   workers,
   activeIndex,
   onSelect,
 }: {
+  id: string
   workers: MentionWorker[]
   activeIndex: number
   onSelect: (worker: MentionWorker) => void
 }) {
   return (
-    <div
-      className="absolute bottom-full left-0 min-w-[12rem] max-w-xs w-max mb-1 z-50 rounded-sm border border-border/70 bg-popover shadow-lg overflow-hidden"
-    >
-      <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
+    <div className="absolute bottom-full left-0 z-50 mb-3 w-64 max-w-[calc(100vw-2rem)] animate-fade-in overflow-hidden rounded-panel border border-border bg-surface-raised p-2 shadow-floating">
+      <ul id={id} role="listbox" className="max-h-72 overflow-y-auto">
         {workers.map((worker, index) => (
           <li
             key={worker.id}
+            id={`${id}-${index}`}
             role="option"
             aria-selected={index === activeIndex}
             className={cn(
-              "flex items-center px-3 py-2 text-sm cursor-pointer transition-colors",
-              index === activeIndex
-                ? "bg-accent text-accent-foreground"
-                : "hover:bg-accent/50"
+              "flex min-h-11 cursor-pointer items-center gap-3 rounded-control px-3 text-sm text-foreground transition-colors",
+              index === activeIndex ? "bg-surface-muted" : "hover:bg-surface-muted"
             )}
             onMouseDown={(e) => {
               e.preventDefault()
               onSelect(worker)
             }}
           >
-            <span className="font-medium truncate">{worker.name}</span>
+            <Avatar name={worker.name} size="sm" aria-hidden="true" />
+            <span className="truncate">{worker.name}</span>
           </li>
         ))}
       </ul>

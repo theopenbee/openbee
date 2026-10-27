@@ -1,47 +1,46 @@
 import { useTranslation } from "react-i18next"
+import { Badge } from "@/components/arc/badge/badge"
 import { Panel } from "@/components/panel"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { formatEngineLabel } from "@/lib/format"
 import { ENGINES } from "@/lib/types"
-import { EYEBROW_LABEL } from "@/lib/styles"
 import { cn } from "@/lib/utils"
 
-// The three engines OpenBee can drive. Each is presented as a named capability
-// with its CLI key, not a logo grid, so the lineup reads as a deliberate
-// typographic statement and marks which engines this deployment has enabled.
-export function SupportedAgentsCard() {
+export function SupportedAgentsCard({ className }: { className?: string }) {
   const { t } = useTranslation()
   const enabled = useEnabledEngines()
 
   return (
-    <Panel title={t("dashboard.supportedAgents")} ariaLabel={t("dashboard.supportedAgents")} flush>
-      <ul className="divide-y divide-border/70">
+    <Panel
+      title={t("dashboard.supportedAgents")}
+      ariaLabel={t("dashboard.supportedAgents")}
+      className={className}
+      flush
+    >
+      <ul className="border-t border-border-subtle">
         {ENGINES.map((engine) => {
           const isOn = enabled.includes(engine)
           return (
-            <li key={engine} className="flex items-baseline justify-between gap-4 px-5 py-3.5">
-              <div className="flex min-w-0 items-center gap-3">
-                <EngineIcon
-                  engine={engine}
-                  title={formatEngineLabel(engine, t)}
-                  className={`size-6 ${isOn ? "text-foreground" : "text-muted-foreground/50"}`}
-                />
-                <p className="min-w-0 truncate font-mono text-xs text-muted-foreground">{engine}</p>
+            <li
+              key={engine}
+              className="flex min-h-18 items-center gap-4 border-b border-border-subtle px-6 py-3 last:border-b-0"
+            >
+              <EngineIcon
+                engine={engine}
+                className={cn("size-5 shrink-0", isOn ? "text-foreground" : "text-muted")}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-foreground">{formatEngineLabel(engine, t)}</p>
+                <p className="truncate font-mono text-xs text-secondary">{engine}</p>
               </div>
-              <span
-                className={cn(
-                  EYEBROW_LABEL,
-                  "flex shrink-0 items-center gap-1.5",
-                  isOn ? "text-foreground" : "text-muted-foreground/70"
-                )}
+              <Badge
+                tone={isOn ? "success" : "neutral"}
+                size="sm"
+                icon={<span className={cn("block size-1.5 rounded-full", isOn ? "bg-success" : "bg-border-strong")} />}
               >
-                <span
-                  className={`size-1.5 rounded-full ${isOn ? "bg-brand" : "bg-muted-foreground/40"}`}
-                  aria-hidden
-                />
                 {isOn ? t("dashboard.agentEnabled") : t("dashboard.agentDisabled")}
-              </span>
+              </Badge>
             </li>
           )
         })}

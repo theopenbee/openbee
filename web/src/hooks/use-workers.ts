@@ -67,6 +67,7 @@ export function useWorkerExecutions(
     queryKey: ["workers", workerId, "executions", page, pageSize],
     queryFn: () => api.sessions.list(page, pageSize, workerId),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   })
 }
 

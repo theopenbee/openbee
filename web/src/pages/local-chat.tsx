@@ -7,10 +7,9 @@ import {
   useRef,
   useState,
 } from "react"
-import { Streamdown } from "streamdown"
-import { code } from "@streamdown/code"
 import { useTranslation } from "react-i18next"
 import {
+  ArrowUp,
   ArrowUpRight,
   File,
   FileArchive,
@@ -20,9 +19,11 @@ import {
   FileText,
   FileVideo,
   Paperclip,
-  Send,
   X,
 } from "lucide-react"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import {
   useLocalMessages,
   useLocalChatStream,
@@ -33,31 +34,31 @@ import { EmptyState } from "@/components/empty-state"
 import { CopyButton } from "@/components/copy-button"
 import { ExpandableContent } from "@/components/expandable-content"
 import { ImageLightbox } from "@/components/image-lightbox"
-import { Button } from "@/components/ui/button"
+import { ChatMarkdown } from "@/components/chat-markdown"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
 import { tokenParam } from "@/lib/auth"
 import type { ChatMessage, LocalMessagesResponse, Worker } from "@/lib/types"
 import { basename, cn, getFileCategory, isImage, isImeComposing } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { isSameDay } from "@/lib/format"
 import { observeResize } from "@/lib/resize-observer"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
-import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { useWorkers } from "@/hooks/use-workers"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { MentionTextarea } from "@/components/mention-textarea"
+import composerStyles from "@/components/chat-composer.module.css"
 
 const EMPTY_WORKERS: Worker[] = []
-
-// Enable Shiki syntax highlighting for fenced code blocks. Kept as a stable
-// module-level reference so Streamdown's memoization isn't defeated by a new
-// object on every render.
-const STREAMDOWN_PLUGINS = { code }
 
 const TOUCH_ONLY_QUERY = "(hover: none) and (pointer: coarse)"
 
 const NEAR_BOTTOM_PX = 48
+
+const COLLAPSE_HEIGHT = 320
+
+const COMPOSER_MAX_HEIGHT = 160
+
+const COLUMN = "mx-auto w-full max-w-3xl px-4 sm:px-6"
 
 type ScrollAnchor = { el: Element; top: number }
 
@@ -85,7 +86,7 @@ function findScrollAnchor(container: HTMLElement, log: HTMLElement | null): Scro
 }
 
 function formatMessageTimestamp(timestamp: number | null | undefined, language: string) {
-  if (!timestamp) return "—"
+  if (!timestamp) return ""
   return new Intl.DateTimeFormat(language, isSameDay(timestamp, Date.now())
     ? {
         hour: "numeric",
@@ -101,7 +102,7 @@ function formatMessageTimestamp(timestamp: number | null | undefined, language: 
 
 function FileCategoryIcon({ filePath, className }: { filePath: string; className?: string }) {
   const category = getFileCategory(filePath)
-  const props = { className: className ?? "size-4 shrink-0" }
+  const props = { size: 16, strokeWidth: 1.75, "aria-hidden": true, className: cn("shrink-0", className) }
   switch (category) {
     case "image": return <FileImage {...props} />
     case "audio": return <FileAudio {...props} />
@@ -125,10 +126,9 @@ const AttachmentPreview = memo(function AttachmentPreview({
 }) {
   const filename = basename(mediaPath)
   const url = mediaUrl(mediaPath)
-  const frameClass = "border-border/70 bg-background/70"
 
   if (isImage(mediaPath)) {
-    return <ImageLightbox src={url} alt={filename} className={frameClass} />
+    return <ImageLightbox src={url} alt={filename} />
   }
 
   return (
@@ -136,24 +136,15 @@ const AttachmentPreview = memo(function AttachmentPreview({
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={cn(
-        "inline-flex items-center gap-2 rounded-sm border px-3 py-2 text-sm transition-colors",
-        frameClass,
-        "text-foreground hover:bg-muted/40"
-      )}
+      className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-control border border-border bg-surface px-3 text-sm text-foreground transition-colors hover:bg-surface-muted"
     >
-      <FileCategoryIcon filePath={mediaPath} />
-      <span className="break-all">{filename}</span>
-      <ArrowUpRight className="size-4 shrink-0 opacity-70" />
+      <FileCategoryIcon filePath={mediaPath} className="text-secondary" />
+      <span className="min-w-0 truncate">{filename}</span>
+      <ArrowUpRight size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />
     </a>
   )
 })
 
-const COLLAPSE_HEIGHT = 320
-
-// A single chat message row (sent or received). Extracted as a memo'd component
-// so a long transcript doesn't re-render every bubble on each state change, and
-// so each row can own its hover state for the inline copy affordance.
 const MessageBubble = memo(function MessageBubble({
   message,
   isGroupStart,
@@ -166,92 +157,102 @@ const MessageBubble = memo(function MessageBubble({
   const { t, i18n } = useTranslation()
   const isUser = message.role === "user"
   const hasContent = message.content.trim().length > 0
-  const hasMedia = Boolean(message.media_paths && message.media_paths.length > 0)
+  const mediaPaths = message.media_paths ?? []
+  const timestamp = formatMessageTimestamp(message.ts, i18n.language)
+
+  const copyReveal =
+    "transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100"
 
   return (
     <div
       className={cn(
-        "group flex flex-col first:mt-0",
+        "group flex min-w-0 flex-col first:mt-0",
         isUser ? "items-end" : "items-start",
-        isGroupStart ? "mt-4" : "mt-1"
+        isGroupStart ? "mt-6" : "mt-2"
       )}
     >
       {isGroupStart && (
-        <div
-          className={cn(
-            "mb-1 flex items-center gap-2 px-0.5 text-xs",
-            isUser && "flex-row-reverse"
-          )}
-        >
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              isUser ? "bg-muted-foreground/40" : "bg-primary"
-            )}
-          />
-          <span className="font-medium text-muted-foreground">
+        <div className={cn("mb-2 flex items-baseline gap-2 text-xs", isUser && "flex-row-reverse")}>
+          <span className="font-medium text-foreground">
             {isUser ? t("localChat.operatorLabel") : t("localChat.beeLabel")}
           </span>
-          <time className="text-muted-foreground/60">
-            {formatMessageTimestamp(message.ts, i18n.language)}
-          </time>
+          {timestamp && <time className="text-muted tabular">{timestamp}</time>}
         </div>
       )}
 
-      <div
-        className={cn(
-          "relative flex min-w-0 flex-col",
-          isUser ? "max-w-[min(85%,42rem)] items-end" : "max-w-[min(100%,52rem)] items-start"
-        )}
-      >
+      {mediaPaths.length > 0 && (
         <div
           className={cn(
-            "max-w-full overflow-hidden",
-            isUser
-              ? "rounded-sm bg-muted/50 px-3.5 py-2"
-              : "rounded-sm border border-border/60 bg-card px-3.5 py-2"
+            "flex max-w-full flex-col gap-2",
+            hasContent && "mb-2",
+            isUser ? "items-end sm:max-w-[min(85%,32rem)]" : "items-start sm:max-w-md"
           )}
         >
-          {hasMedia && (
-            <div className="space-y-2">
-              {message.media_paths!.map((path) => (
-                <AttachmentPreview key={path} mediaPath={path} />
-              ))}
-            </div>
-          )}
-
-          {hasContent && (
-            <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
-              <div
-                className={cn(
-                  "prose prose-sm max-w-none dark:prose-invert prose-p:my-2 prose-pre:rounded-sm prose-pre:border prose-pre:border-border/70 prose-pre:bg-muted/35 prose-pre:px-3 prose-pre:py-2 prose-code:break-words",
-                  hasMedia && "mt-2"
-                )}
-              >
-                <Streamdown mode="static" plugins={STREAMDOWN_PLUGINS} remarkPlugins={CHAT_REMARK_PLUGINS}>
-                  {message.content}
-                </Streamdown>
-              </div>
-            </ExpandableContent>
-          )}
+          {mediaPaths.map((path) => (
+            <AttachmentPreview key={path} mediaPath={path} />
+          ))}
         </div>
+      )}
 
-        {hasContent && (
-          <CopyButton
-            value={message.content}
-            className={cn(
-              "-mx-2 p-2 pointer-fine:absolute pointer-fine:top-1 pointer-fine:m-0 pointer-fine:p-0 pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:focus-visible:opacity-100",
-              isUser ? "pointer-fine:-left-7" : "pointer-fine:-right-7"
-            )}
-          />
-        )}
-      </div>
+      {hasContent && isUser && (
+        <div className="relative min-w-0 max-w-[min(85%,36rem)]">
+          <div className="rounded-panel bg-surface-muted px-4 py-2.5">
+            <ExpandableContent
+              maxHeight={COLLAPSE_HEIGHT}
+              onToggle={onExpandToggle}
+              fadeClassName="h-16 from-surface-muted"
+            >
+              <ChatMarkdown breaks>{message.content}</ChatMarkdown>
+            </ExpandableContent>
+          </div>
+          <span className={cn("absolute top-1 right-full mr-1 inline-flex", copyReveal)}>
+            <CopyButton value={message.content} label={t("localChat.copyMessage")} />
+          </span>
+        </div>
+      )}
+
+      {hasContent && !isUser && (
+        <>
+          <div className="w-full min-w-0">
+            <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
+              <ChatMarkdown breaks>{message.content}</ChatMarkdown>
+            </ExpandableContent>
+          </div>
+          <div className={cn("-mb-1 -ml-2.5 flex", copyReveal)}>
+            <CopyButton value={message.content} label={t("localChat.copyMessage")} />
+          </div>
+        </>
+      )}
     </div>
   )
 })
 
+function ChatSkeleton() {
+  return (
+    <div className="flex flex-col gap-8" aria-busy="true">
+      <div className="flex justify-end">
+        <div className="skeleton h-11 w-2/5" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="skeleton h-3 w-12" />
+        <div className="skeleton h-4 w-full" />
+        <div className="skeleton h-4 w-4/5" />
+        <div className="skeleton h-4 w-3/5" />
+      </div>
+      <div className="flex justify-end">
+        <div className="skeleton h-11 w-1/3" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="skeleton h-3 w-12" />
+        <div className="skeleton h-4 w-11/12" />
+        <div className="skeleton h-4 w-2/3" />
+      </div>
+    </div>
+  )
+}
+
 export function LocalChat() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
 
   const { data, isLoading } = useLocalMessages()
   const sendMessage = useSendMessage()
@@ -316,7 +317,7 @@ export function LocalChat() {
     const textarea = textareaRef.current
     if (!textarea) return
     textarea.style.height = "0px"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
+    textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT)}px`
   }, [input])
 
   const handleReply = useCallback((message: ChatMessage) => {
@@ -446,179 +447,154 @@ export function LocalChat() {
   const messageCount = localMessages.length
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const isEmpty = !isLoading && messageCount === 0
+  const controlSize = isTouchOnly ? "md" : "sm"
 
   return (
     <div className="flex h-full min-h-0 flex-col animate-fade-in">
+      <h1 className="sr-only">{t("localChat.title")}</h1>
+
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
       >
-        <div ref={scrollContentRef} className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-5">
-            {isLoading ? (
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="rounded-sm border border-border/70 bg-background/80 px-4 py-4"
-                  >
-                    <div className="skeleton h-4 w-28" />
-                    <div className="skeleton mt-4 h-4 w-full" />
-                    <div className="skeleton mt-2 h-4 w-4/5" />
-                  </div>
-                ))}
-              </div>
-            ) : isEmpty ? (
+        <div ref={scrollContentRef} className={cn(COLUMN, "flex min-h-full flex-col pt-6 pb-8 md:pt-10")}>
+          {isLoading ? (
+            <ChatSkeleton />
+          ) : isEmpty ? (
+            <div className="flex flex-1 items-center justify-center">
               <EmptyState
                 title={t("localChat.noMessagesTitle")}
                 description={t("localChat.noMessagesDescription")}
               />
-            ) : (
-              <>
-                {hasMore && (
-                  <div className="flex justify-center pb-8">
-                    <button
-                      type="button"
-                      disabled={isLoadingMore}
-                      onClick={handleLoadMore}
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-full border bg-background/80 px-4 py-1.5 text-xs transition-colors disabled:opacity-50",
-                        loadError
-                          ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-                          : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      {isLoadingMore
-                        ? t("localChat.loadingMore")
-                        : loadError
-                          ? t("localChat.loadMoreError")
-                          : t("localChat.loadMore")}
-                    </button>
-                    {loadError && !isLoadingMore && (
-                      <span role="alert" className="sr-only">
-                        {t("localChat.loadMoreError")}
-                      </span>
-                    )}
+            </div>
+          ) : (
+            <>
+              {hasMore && (
+                <div className="mb-8 flex flex-col items-center gap-2">
+                  {loadError && !isLoadingMore && (
+                    <p role="alert" className="text-sm text-danger">
+                      {t("localChat.loadMoreFailed")}
+                    </p>
+                  )}
+                  <Button variant="secondary" size="sm" loading={isLoadingMore} onClick={handleLoadMore}>
+                    {loadError ? t("common.retry") : t("localChat.loadMore")}
+                  </Button>
+                </div>
+              )}
+              <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
+                {localMessages.map((message, index) => {
+                  const prev = localMessages[index - 1]
+                  const isGroupStart = !prev || prev.role !== message.role
+
+                  return (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isGroupStart={isGroupStart}
+                      onExpandToggle={handleExpandToggle}
+                    />
+                  )
+                })}
+
+                {isProcessing && (
+                  <div className="mt-6 flex flex-col items-start">
+                    <span className="mb-2 text-xs font-medium text-foreground">{t("localChat.beeLabel")}</span>
+                    <TextShimmer className="text-sm text-secondary">{t("localChat.processing")}</TextShimmer>
                   </div>
                 )}
-                <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
-                  {localMessages.map((message, index) => {
-                    const prev = localMessages[index - 1]
-                    const isGroupStart = !prev || prev.role !== message.role
-
-                    return (
-                      <MessageBubble
-                        key={message.id}
-                        message={message}
-                        isGroupStart={isGroupStart}
-                        onExpandToggle={handleExpandToggle}
-                      />
-                    )
-                  })}
-
-                  {isProcessing && (
-                    <div className="mt-4 flex flex-col items-start">
-                      <div className="mb-1 flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
-                        <span className="size-1.5 rounded-full bg-primary" />
-                        <span className="font-medium">{t("localChat.beeLabel")}</span>
-                        <span className="text-muted-foreground/60">{t("localChat.processing")}</span>
-                      </div>
-                      <div className="flex gap-1.5 px-0.5 py-1">
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "0ms" }} />
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "300ms" }} />
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse-amber" style={{ animationDelay: "600ms" }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="border-t border-border/70 bg-card">
-        <div className="mx-auto w-full max-w-4xl px-3 py-2 sm:px-6 sm:py-3">
-            {uploadError && (
-              <div role="alert" className={cn(ALERT_DESTRUCTIVE, "mb-2 px-3 py-2")}>
-                {uploadError}
-              </div>
-            )}
+      <div className="shrink-0 bg-background">
+        <div className={cn(COLUMN, "pb-3 sm:pb-6")}>
+          {uploadError && (
+            <div className="mb-3">
+              <Alert tone="danger" title={uploadError} open onDismiss={() => setUploadError(null)} />
+            </div>
+          )}
 
+          <div
+            className={cn(
+              composerStyles.composer,
+              "rounded-surface border border-border bg-surface p-2 transition-colors focus-within:border-border-strong"
+            )}
+          >
             {pendingMediaPaths.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
+              <ul className={cn(composerStyles.files, "flex flex-wrap gap-2 px-2 pt-1 pb-2")} aria-label={t("localChat.attachments")}>
                 {pendingMediaPaths.map((path) => (
-                  <span
+                  <li
                     key={path}
-                    className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground"
+                    className="inline-flex min-h-8 max-w-full items-center gap-2 rounded-full border border-border bg-surface-muted py-1 pr-1 pl-3 text-xs text-foreground"
                   >
-                    <FileCategoryIcon filePath={path} className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="max-w-40 truncate sm:max-w-52">{basename(path)}</span>
+                    <FileCategoryIcon filePath={path} className="text-secondary" />
+                    <span className="min-w-0 max-w-40 truncate sm:max-w-56">{basename(path)}</span>
                     <button
                       type="button"
-                      className="inline-flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      aria-label={`${t("localChat.removeAttachment")}: ${basename(path)}`}
+                      className="inline-grid size-6 shrink-0 place-items-center rounded-full text-secondary transition-colors hover:bg-surface hover:text-foreground"
+                      aria-label={t("localChat.removeNamedAttachment", { name: basename(path) })}
                       onClick={() =>
                         setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
                       }
                     >
-                      <X className="size-3.5" />
+                      <X size={16} strokeWidth={1.75} aria-hidden="true" />
                     </button>
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
 
-            <div className="flex items-end gap-1 rounded-sm border border-border/70 bg-background/80 p-1 sm:block sm:p-2">
-              <div className="min-w-0 flex-1">
-                <MentionTextarea
-                  textareaRef={textareaRef}
-                  className="block max-h-[160px] min-h-10 w-full resize-none bg-transparent px-2 py-2 text-base leading-6 placeholder:text-muted-foreground focus:outline-none sm:min-h-[2.75rem] sm:py-1.5 sm:text-sm"
-                  placeholder={t("localChat.inputPlaceholder")}
-                  value={input}
-                  onChange={setInput}
-                  onKeyDown={handleComposerKeyDown}
-                  onPaste={handlePaste}
-                  workers={workersData ?? EMPTY_WORKERS}
-                  disabled={isProcessing}
-                />
-              </div>
-
-              <div className="contents sm:mt-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:px-1">
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {isTouchOnly ? t("localChat.composerHintTouch") : t("localChat.composerHint")}
-                </span>
-
-                <div className="contents sm:ml-auto sm:flex sm:items-center sm:gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  <Button
-                    variant="outline"
-                    className="order-first size-10 rounded-sm border-transparent bg-transparent text-muted-foreground dark:border-transparent dark:bg-transparent sm:order-none sm:h-9 sm:w-auto sm:border-border sm:bg-background sm:text-foreground dark:sm:border-input dark:sm:bg-input/30"
-                    onClick={() => fileInputRef.current?.click()}
-                    aria-label={t("localChat.uploadFile")}
-                  >
-                    <Paperclip className="size-5 sm:size-4" />
-                    <span className="hidden sm:inline">{t("localChat.uploadFile")}</span>
-                  </Button>
-                  <Button
-                    className="size-10 rounded-sm sm:h-9 sm:w-auto"
-                    onClick={() => void handleSend()}
-                    disabled={!canSend || sendMessage.isPending}
-                    aria-label={t("localChat.send")}
-                  >
-                    <Send className="size-4" />
-                    <span className="hidden sm:inline">{t("localChat.send")}</span>
-                  </Button>
-                </div>
-              </div>
+            <div className={composerStyles.input}>
+              <MentionTextarea
+                textareaRef={textareaRef}
+                ariaLabel={t("localChat.messageLabel")}
+                className="block max-h-40 min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-base leading-6 text-foreground placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:px-3 sm:py-3 sm:text-sm"
+                placeholder={t("localChat.inputPlaceholder")}
+                value={input}
+                onChange={setInput}
+                onKeyDown={handleComposerKeyDown}
+                onPaste={handlePaste}
+                workers={workersData ?? EMPTY_WORKERS}
+                disabled={isProcessing}
+              />
             </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <span className={composerStyles.attach}>
+              <Button
+                variant="ghost"
+                size={controlSize}
+                onClick={() => fileInputRef.current?.click()}
+                aria-label={t("localChat.uploadFile")}
+              >
+                <Paperclip size={16} strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            </span>
+            <span className={cn(composerStyles.hint, "truncate text-xs text-muted")}>
+              {isTouchOnly ? t("localChat.composerHintTouch") : t("localChat.composerHint")}
+            </span>
+            <span className={composerStyles.send}>
+              <Button
+                size={controlSize}
+                onClick={() => void handleSend()}
+                disabled={!canSend || sendMessage.isPending}
+                aria-label={t("localChat.send")}
+              >
+                <ArrowUp size={16} strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            </span>
           </div>
         </div>
       </div>
+    </div>
   )
 }

@@ -1,28 +1,98 @@
-import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useEffect, useState, type ReactNode } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
-import { Activity, Bot, Clock3, Logs, Zap } from "lucide-react"
+import { Alert } from "@/components/arc/alert/alert"
+import { Badge } from "@/components/arc/badge/badge"
+import { Button } from "@/components/arc/button/button"
+import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { useSessionDetail } from "@/hooks/use-session-detail"
-import { DetailField, DetailHero, DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
+import { DetailSection } from "@/components/detail-primitives"
 import { LogViewer } from "@/components/log-viewer"
 import { StatusBadge } from "@/components/status-badge"
 import { PageHeader } from "@/components/page-header"
+import { Panel } from "@/components/panel"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonPage } from "@/components/skeleton-loader"
+import { SkeletonCard } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
+import { CopyButton } from "@/components/copy-button"
 import { TokenStatsInfoButton } from "@/components/token-stats-tooltip"
 import { WorkerLink } from "@/components/worker-link"
 import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatCompactTimestamp, formatDuration, formatTokenCount, statusTone, statusLabel, isActiveStatus, extractMessageContent } from "@/lib/format"
+import {
+  extractMessageContent,
+  formatCompactTimestamp,
+  formatDuration,
+  formatTimestamp,
+  formatTokenCount,
+  isActiveStatus,
+} from "@/lib/format"
+import type { WorkerExecution } from "@/lib/types"
+
+function runDuration(execution: WorkerExecution) {
+  return formatDuration(
+    execution.started_at,
+    execution.completed_at ?? (isActiveStatus(execution.status) ? Date.now() : execution.started_at)
+  )
+}
+
+function OverviewStat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-secondary">{label}</dt>
+      <dd className="mt-1 flex min-w-0 items-center gap-1.5 text-base font-medium text-foreground tabular">{children}</dd>
+    </div>
+  )
+}
+
+function MetaField({ label, children, mono = false }: { label: string; children: ReactNode; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-secondary">{label}</dt>
+      <dd className={cn("mt-1 text-sm text-foreground", mono ? "break-all font-mono" : "tabular")}>{children}</dd>
+    </div>
+  )
+}
+
+function TextBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0">
+      <h3 className="text-xs text-secondary">{label}</h3>
+      <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-inset bg-surface-muted px-4 py-3 text-sm leading-relaxed text-foreground">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function SessionDetailSkeleton() {
+  return (
+    <div className="grid gap-6" aria-busy="true">
+      <div className="grid gap-3">
+        <div className="skeleton h-9 w-40" />
+        <div className="skeleton h-4 w-72 max-w-full" />
+      </div>
+      <div className="grid grid-cols-2 gap-6 rounded-surface border border-border bg-surface p-6 sm:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index}>
+            <div className="skeleton h-3 w-14" />
+            <div className="skeleton mt-2 h-5 w-24 max-w-full" />
+          </div>
+        ))}
+      </div>
+      <SkeletonCard className="min-h-64" />
+      <SkeletonCard className="min-h-96" />
+    </div>
+  )
+}
 
 export function SessionDetail() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const currentSessionId = searchParams.get("session_id") ?? ""
   const queryClient = useQueryClient()
-  const { data, error, isLoading } = useSessionDetail(currentSessionId)
+  const { data, error, isLoading, refetch, isRefetching } = useSessionDetail(currentSessionId)
   const executions = data?.executions ?? []
   const tokenStats = data?.token_stats ?? null
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
@@ -46,31 +116,50 @@ export function SessionDetail() {
     })
   }, [executions, preferredExecutionId])
 
-  if (isLoading) return <SkeletonPage />
+  if (isLoading) return <SessionDetailSkeleton />
 
-  if (!error && executions.length === 0) {
-    return <EmptyState title={t("sessionDetail.noExecutions")} />
+  const retryButton = (
+    <Button variant="secondary" size="sm" loading={isRefetching} onClick={() => void refetch()}>
+      {t("common.retry")}
+    </Button>
+  )
+
+  if (error && executions.length === 0) {
+    return (
+      <FadeIn>
+        <PageHeader title={t("sessionDetail.session")} />
+        <Alert tone="danger" title={t("sessionDetail.loadError")}>
+          {error.message}
+          <span className="mt-3 flex">{retryButton}</span>
+        </Alert>
+      </FadeIn>
+    )
   }
 
   const selectedExecution =
     executions.find((exec) => exec.id === selectedExecutionId) ?? latestExecution
 
   if (!selectedExecution || !firstExecution || !latestExecution) {
-    return <EmptyState title={t("sessionDetail.noExecutions")} />
+    return (
+      <EmptyState
+        title={t("sessionDetail.noExecutions")}
+        description={t("sessionDetail.noExecutionsDesc")}
+        action={
+          <Button variant="secondary" onClick={() => navigate("/sessions")}>
+            {t("sessionDetail.backToSessions")}
+          </Button>
+        }
+      />
+    )
   }
 
   const selectedTurnIndex = executions.findIndex((exec) => exec.id === selectedExecution.id) + 1
+  const sessionLive = isActiveStatus(latestExecution.status)
   const sessionDuration = formatDuration(
     firstExecution.started_at,
-    latestExecution.completed_at ??
-      (isActiveStatus(latestExecution.status) ? Date.now() : latestExecution.started_at)
+    latestExecution.completed_at ?? (sessionLive ? Date.now() : latestExecution.started_at)
   )
-
-  const selectedDuration = formatDuration(
-    selectedExecution.started_at,
-    selectedExecution.completed_at ??
-      (isActiveStatus(selectedExecution.status) ? Date.now() : selectedExecution.started_at)
-  )
+  const selectedLive = isActiveStatus(selectedExecution.status)
 
   let workerExecution = latestExecution
   if (!workerExecution.worker_id) {
@@ -82,339 +171,198 @@ export function SessionDetail() {
     }
   }
 
-  const hasWorker = !!workerExecution.worker_id
-  const workerLabel = hasWorker
-    ? workerExecution.worker_name || `${workerExecution.worker_id!.slice(0, 8)}...`
-    : t("sessionDetail.bee")
+  const showNavigator = executions.length > 1
+  const triggerText = extractMessageContent(selectedExecution.trigger_input)
 
   return (
     <FadeIn>
-      <div className="space-y-6">
-        <PageHeader
-          title={t("sessionDetail.session")}
-          subtitle={t("sessionDetail.summary", { count: executions.length })}
-          actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                <Logs className="size-3.5" />
-                <span>{t("sessionDetail.latestTurn")}</span>
-                <span className="font-mono text-foreground">{executions.length}</span>
-              </div>
-              <StatusBadge status={latestExecution.status} />
-            </div>
-          }
-        />
+      <PageHeader
+        title={t("sessionDetail.session")}
+        subtitle={
+          <span className="inline-flex max-w-full items-center gap-1">
+            <span className="min-w-0 break-all font-mono">{currentSessionId}</span>
+            <span className="-my-2.5 inline-flex shrink-0">
+              <CopyButton value={currentSessionId} label={t("sessions.copySessionId")} />
+            </span>
+          </span>
+        }
+        actions={<StatusBadge status={latestExecution.status} size="md" />}
+      />
 
-        {error && (
-          <p role="alert" className="text-destructive">
+      {error && (
+        <div className="mb-6">
+          <Alert tone="danger" title={t("sessionDetail.refreshError")}>
             {error.message}
-          </p>
-        )}
+            <span className="mt-3 flex">{retryButton}</span>
+          </Alert>
+        </div>
+      )}
 
-        <DetailHero>
-          <div className="flex flex-col gap-6 p-5 sm:p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3">
-                <p className={EYEBROW_LABEL}>
-                  {t("sessionDetail.overview")}
-                </p>
-                <div className="space-y-2">
-                  <h2 className="max-w-4xl break-all font-mono text-sm leading-7 text-foreground sm:text-base">
-                    {currentSessionId}
-                  </h2>
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                    {t("sessionDetail.inspectTurnHint")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                  <Bot className="size-3.5" />
-                  {hasWorker ? (
-                    <WorkerLink
-                      id={workerExecution.worker_id!}
-                      name={workerExecution.worker_name}
-                      className="font-medium text-foreground hover:text-primary"
-                    />
-                  ) : (
-                    <span className="font-medium text-foreground">{workerLabel}</span>
-                  )}
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
-                  <Activity className={cn("size-3.5", statusTone(latestExecution.status))} />
-                  <span>{t("sessions.columns.latestStatus")}</span>
-                  <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                    {statusLabel(latestExecution.status, t)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-              <DetailOverviewStat
-                icon={Logs}
-                label={t("sessions.columns.turns")}
-                value={t("sessions.turnCount", { count: executions.length })}
-                hint={
-                  <span>
-                    {t("sessionDetail.latestTurn")}{" "}
-                    <span className="font-mono text-foreground">{executions.length}</span>
-                  </span>
-                }
+      <DetailSection>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-5 p-6 sm:grid-cols-3 xl:grid-cols-6">
+          <OverviewStat label={t("sessionDetail.worker")}>
+            {workerExecution.worker_id ? (
+              <WorkerLink
+                id={workerExecution.worker_id}
+                name={workerExecution.worker_name}
+                className="truncate hover:text-accent-strong"
               />
-              <DetailOverviewStat
-                icon={Bot}
-                label={t("sessionDetail.worker")}
-                value={workerLabel}
-                hint={
-                  <span>
-                    {t("sessions.columns.latestStatus")}{" "}
-                    <span className={cn("font-medium", statusTone(latestExecution.status))}>
-                      {statusLabel(latestExecution.status, t)}
-                    </span>
-                  </span>
-                }
-              />
-              <DetailOverviewStat
-                icon={Clock3}
-                label={t("sessions.columns.started")}
-                value={formatTimestamp(firstExecution.started_at)}
-                hint={formatTimestamp(latestExecution.completed_at ?? latestExecution.started_at)}
-              />
-              <DetailOverviewStat
-                icon={Activity}
-                label={t("sessions.columns.duration")}
-                value={sessionDuration}
-                hint={
-                  isActiveStatus(latestExecution.status)
-                    ? t("sessionDetail.live")
-                    : formatCompactTimestamp(latestExecution.completed_at)
-                }
-              />
-              <DetailOverviewStat
-                icon={Zap}
-                label={t("sessionDetail.tokens")}
-                value={
-                  tokenStats ? (
-                    <div className="flex items-center gap-1">
-                      <span>{formatTokenCount(tokenStats.total_tokens)}</span>
-                      <TokenStatsInfoButton stats={tokenStats} side="bottom" align="start" />
-                    </div>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-            </div>
-          </div>
-        </DetailHero>
+            ) : (
+              <span className="truncate">{t("sessionDetail.bee")}</span>
+            )}
+          </OverviewStat>
+          <OverviewStat label={t("sessions.columns.turns")}>
+            {t("sessions.turnCount", { count: executions.length })}
+          </OverviewStat>
+          <OverviewStat label={t("sessions.columns.started")}>
+            <span className="truncate">{formatCompactTimestamp(firstExecution.started_at)}</span>
+          </OverviewStat>
+          <OverviewStat label={t("sessionDetail.lastActivity")}>
+            <span className="truncate">
+              {formatCompactTimestamp(latestExecution.completed_at ?? latestExecution.started_at)}
+            </span>
+          </OverviewStat>
+          <OverviewStat label={t("sessions.columns.duration")}>
+            <span>{sessionDuration}</span>
+            {sessionLive && (
+              <TextShimmer className="text-xs font-normal text-accent-strong">{t("sessionDetail.live")}</TextShimmer>
+            )}
+          </OverviewStat>
+          <OverviewStat label={t("sessionDetail.tokens")}>
+            {tokenStats ? (
+              <>
+                <span>{formatTokenCount(tokenStats.total_tokens)}</span>
+                <TokenStatsInfoButton stats={tokenStats} side="bottom" align="end" />
+              </>
+            ) : (
+              <span className="font-normal text-secondary">{t("sessionDetail.noTokens")}</span>
+            )}
+          </OverviewStat>
+        </dl>
+      </DetailSection>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <aside className="xl:sticky xl:top-6">
-            <DetailSection className="h-full flex flex-col">
-              <div className="border-b border-border/70 px-4 py-4 sm:px-5">
-                <p className={EYEBROW_LABEL}>
-                  {t("sessionDetail.turnNavigator")}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {t("sessionDetail.turnNavigatorHint")}
-                </p>
-              </div>
-
-              <div className="max-h-80 flex-1 space-y-2 overflow-y-auto p-3 sm:p-4 xl:max-h-none">
+      <div className={cn("mt-6 grid gap-6", showNavigator && "xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-start")}>
+        {showNavigator && (
+          <aside className="min-w-0 xl:sticky xl:top-8">
+            <Panel title={t("sessionDetail.turnNavigator")} flush>
+              <ul className="max-h-80 overflow-y-auto border-t border-border-subtle xl:max-h-[calc(100dvh-12rem)]">
                 {[...executions].reverse().map((exec, reverseIndex) => {
                   const turnNumber = executions.length - reverseIndex
                   const isSelected = exec.id === selectedExecution.id
 
                   return (
-                    <button
-                      key={exec.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => setSelectedExecutionId(exec.id)}
-                      className={cn(
-                        "w-full rounded-sm border px-3 py-3 text-left transition-all",
-                        isSelected
-                          ? "border-primary/20 bg-primary/5 ring-1 ring-primary/10"
-                          : "border-border/60 bg-background/70 hover:border-border hover:bg-muted/40"
-                      )}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={cn(
-                            "flex size-10 shrink-0 items-center justify-center rounded-sm border text-xs font-medium",
-                            isSelected
-                              ? "border-primary/20 bg-background text-foreground"
-                              : "border-border/70 bg-background text-muted-foreground"
-                          )}
-                        >
-                          {turnNumber}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-foreground">
+                    <li key={exec.id} className="border-t border-border-subtle first:border-t-0">
+                      <button
+                        type="button"
+                        aria-current={isSelected ? "true" : undefined}
+                        onClick={() => setSelectedExecutionId(exec.id)}
+                        className={cn(
+                          "flex w-full flex-col gap-1 px-6 py-3 text-left transition-colors",
+                          isSelected ? "bg-accent-subtle dark:bg-surface-muted" : "hover:bg-surface-muted"
+                        )}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className={cn("text-sm font-medium tabular", isSelected ? "text-accent-strong" : "text-foreground")}>
                               {t("sessionDetail.turn", { index: turnNumber })}
-                            </p>
+                            </span>
                             {reverseIndex === 0 && (
-                              <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
-                                {t("sessionDetail.latest")}
-                              </span>
+                              <Badge size="sm">{t("sessionDetail.latest")}</Badge>
                             )}
-                          </div>
-
-                          <p className="mt-1 truncate text-sm text-muted-foreground">
-                            {extractMessageContent(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span className="font-mono">{formatCompactTimestamp(exec.started_at)}</span>
-                            <span className="font-mono">
-                              {formatDuration(
-                                exec.started_at,
-                                exec.completed_at ??
-                                  (isActiveStatus(exec.status) ? Date.now() : exec.started_at)
-                              )}
-                            </span>
-                            <span className={cn("inline-flex items-center gap-1.5 font-medium", statusTone(exec.status))}>
-                              <span className="size-1.5 rounded-full bg-current" />
-                              {statusLabel(exec.status, t)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </button>
+                          </span>
+                          <StatusBadge status={exec.status} />
+                        </span>
+                        <span className="truncate text-sm text-secondary">
+                          {extractMessageContent(exec.trigger_input) || t("sessionDetail.noTriggerInput")}
+                        </span>
+                        <span className="text-xs text-secondary tabular">
+                          {formatCompactTimestamp(exec.started_at)} · {runDuration(exec)}
+                        </span>
+                      </button>
+                    </li>
                   )
                 })}
-              </div>
-            </DetailSection>
+              </ul>
+            </Panel>
           </aside>
+        )}
 
-          <div className="space-y-6">
-            <DetailHero>
-              <div className="flex flex-col gap-4 border-b border-border/70 px-5 py-5 sm:px-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className={EYEBROW_LABEL}>
-                        {t("sessionDetail.inspectTurn")}
-                      </p>
-                      {isActiveStatus(selectedExecution.status) && (
-                        <span className="rounded-full bg-status-working/10 px-2 py-0.5 text-[11px] font-medium text-status-working">
-                          {t("sessionDetail.live")}
-                        </span>
-                      )}
-                    </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Panel
+            title={
+              <span className="tabular">
+                {t("sessionDetail.turn", { index: selectedTurnIndex })}
+              </span>
+            }
+            description={
+              <span className="tabular">
+                {formatCompactTimestamp(selectedExecution.started_at)} · {runDuration(selectedExecution)}
+              </span>
+            }
+            action={<StatusBadge status={selectedExecution.status} />}
+          >
+            <div className="grid gap-6">
+              <TextBlock label={t("sessionDetail.prompt")}>
+                {triggerText || <span className="text-secondary">{t("sessionDetail.noTriggerInput")}</span>}
+              </TextBlock>
 
-                    <h3 className="text-2xl font-semibold tracking-tight text-foreground">
-                      {t("sessionDetail.turn", { index: selectedTurnIndex })}
-                    </h3>
-                  </div>
+              <TextBlock label={t("sessionDetail.result")}>
+                {selectedExecution.result ? (
+                  selectedExecution.result
+                ) : selectedLive ? (
+                  <TextShimmer className="text-secondary">{t("sessionDetail.resultPending")}</TextShimmer>
+                ) : (
+                  <span className="text-secondary">{t("executionDetail.noResult")}</span>
+                )}
+              </TextBlock>
 
-                  <StatusBadge status={selectedExecution.status} />
-                </div>
-              </div>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border-subtle pt-6 sm:grid-cols-3">
+                <MetaField label={t("sessionDetail.execution")} mono>
+                  {selectedExecution.id}
+                </MetaField>
+                <MetaField label={t("sessionDetail.worker")}>
+                  {selectedExecution.worker_id ? (
+                    <WorkerLink
+                      id={selectedExecution.worker_id}
+                      name={selectedExecution.worker_name}
+                      className="hover:text-accent-strong"
+                    />
+                  ) : (
+                    t("sessionDetail.bee")
+                  )}
+                </MetaField>
+                <MetaField label={t("executionDetail.pid")} mono>
+                  {selectedExecution.ai_process_pid || t("sessionDetail.notAvailable")}
+                </MetaField>
+                <MetaField label={t("executionDetail.started")}>
+                  {formatTimestamp(selectedExecution.started_at)}
+                </MetaField>
+                <MetaField label={t("executionDetail.completed")}>
+                  {selectedExecution.completed_at
+                    ? formatTimestamp(selectedExecution.completed_at)
+                    : t("sessionDetail.notAvailable")}
+                </MetaField>
+                <MetaField label={t("sessions.columns.duration")}>{runDuration(selectedExecution)}</MetaField>
+              </dl>
+            </div>
+          </Panel>
 
-              <div className="grid gap-6 px-5 py-5 sm:px-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(17rem,0.9fr)]">
-                <div className="space-y-5">
-                  <section className="space-y-3">
-                    <p className={EYEBROW_LABEL}>
-                      {t("executionDetail.triggerInput")}
-                    </p>
-                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
-                      {selectedExecution.trigger_input ? (
-                        <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-                          {extractMessageContent(selectedExecution.trigger_input)}
-                        </pre>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t("sessionDetail.noTriggerInput")}</p>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <p className={EYEBROW_LABEL}>
-                      {t("executionDetail.result")}
-                    </p>
-                    <div className="rounded-sm border border-border/70 bg-background/80 p-4">
-                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground">
-                        {selectedExecution.result || t("executionDetail.noResult")}
-                      </pre>
-                    </div>
-                  </section>
-                </div>
-
-                <section className="rounded-sm border border-border/70 bg-background/80 p-4">
-                  <div className="space-y-4">
-                    <p className={EYEBROW_LABEL}>
-                      {t("sessionDetail.metadata")}
-                    </p>
-
-                    <div className="space-y-4">
-                      <DetailField
-                        label={t("sessionDetail.execution")}
-                        value={selectedExecution.id}
-                        mono
-                      />
-
-                      <DetailField
-                        label={t("sessionDetail.worker")}
-                        value={
-                          selectedExecution.worker_id ? (
-                            <WorkerLink
-                              id={selectedExecution.worker_id}
-                              name={selectedExecution.worker_name}
-                              className="hover:text-primary"
-                            />
-                          ) : (
-                            t("sessionDetail.bee")
-                          )
-                        }
-                      />
-
-                      <DetailField label={t("executionDetail.session")} value={currentSessionId} mono />
-                      <DetailField label={t("sessions.columns.duration")} value={selectedDuration} />
-                      <DetailField label={t("executionDetail.started")} value={formatTimestamp(selectedExecution.started_at)} />
-                      <DetailField label={t("executionDetail.completed")} value={formatTimestamp(selectedExecution.completed_at)} />
-                      <DetailField label={t("executionDetail.pid")} value={selectedExecution.ai_process_pid || "—"} mono />
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </DetailHero>
-
-            <DetailSection>
-              <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-                <div>
-                  <p className={EYEBROW_LABEL}>
-                    {t("executionDetail.logs")}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {t("sessionDetail.logsHint")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="px-5 py-5 sm:px-6">
-                <LogViewer
-                  executionId={selectedExecution.id}
-                  status={selectedExecution.status}
-                  variant="embedded"
-                  autoScroll={selectedExecution.id === latestExecution.id}
-                  onComplete={
-                    isActiveStatus(selectedExecution.status)
-                      ? () =>
-                          queryClient.invalidateQueries({
-                            queryKey: ["sessions", currentSessionId],
-                          })
-                      : undefined
-                  }
-                />
-              </div>
-            </DetailSection>
-          </div>
+          <Panel title={t("executionDetail.logs")} description={t("sessionDetail.logsHint")} flush>
+            <LogViewer
+              executionId={selectedExecution.id}
+              status={selectedExecution.status}
+              variant="embedded"
+              autoScroll={selectedExecution.id === latestExecution.id}
+              onComplete={
+                selectedLive
+                  ? () =>
+                      queryClient.invalidateQueries({
+                        queryKey: ["sessions", currentSessionId],
+                      })
+                  : undefined
+              }
+            />
+          </Panel>
         </div>
       </div>
     </FadeIn>

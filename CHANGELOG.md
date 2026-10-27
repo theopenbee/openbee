@@ -5,6 +5,9 @@
 ### Added
 - Add `openbee reset-password` to reset the admin password.
 
+### Changed
+- Redesign the web console on the Arc UI library.
+
 ### Removed
 - Remove user and role management; keep one admin account.
 - Remove unused web username and password from config.

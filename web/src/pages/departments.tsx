@@ -1,367 +1,465 @@
-import { useMemo, useState, type FormEvent } from "react"
+import { useMemo, useRef, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { PlusIcon, PencilIcon, Trash2Icon, FolderIcon, FolderOpenIcon, ChevronRightIcon, KeyRoundIcon, MoreHorizontalIcon } from "lucide-react"
-import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from "@/hooks/use-departments"
+import { Link } from "react-router-dom"
+import { useReducedMotion } from "motion/react"
+import { EllipsisIcon, FolderTreeIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { useCreateDepartment, useDeleteDepartment, useDepartments, useUpdateDepartment } from "@/hooks/use-departments"
+import { useWorkers } from "@/hooks/use-workers"
 import { flattenDeptTree } from "@/lib/department-utils"
-import { cn, getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { formatRelative, formatTimestamp } from "@/lib/format"
+import { getErrorMessage } from "@/lib/utils"
 import { PageHeader } from "@/components/page-header"
+import { Panel } from "@/components/panel"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import type { Department, DepartmentTree } from "@/lib/types"
+import { SkeletonCard } from "@/components/skeleton-loader"
+import { DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
+import { StatusBadge } from "@/components/status-badge"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { EnvConfigPanel } from "@/components/env-config-panel"
+import { DepartmentTree } from "@/components/department-tree"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
+import { DropdownMenu } from "@/components/arc/dropdown-menu/dropdown-menu"
+import { Input } from "@/components/arc/input/input"
+import { Select } from "@/components/arc/select/select"
+import type { Department, DepartmentTree as DepartmentNode } from "@/lib/types"
 
 const NO_PARENT_VALUE = "__no_parent__"
 
-type Mode = "idle" | "create" | "edit" | "delete"
+type FormMode = "create" | "edit"
+
+interface FormState {
+  mode: FormMode
+  target: DepartmentNode | null
+  name: string
+  parentId: string | null
+}
+
+interface DeleteState {
+  target: DepartmentNode
+  workers: number | null
+}
+
+function indexTree(nodes: DepartmentNode[]) {
+  const map = new Map<string, DepartmentNode>()
+  const walk = (list: DepartmentNode[]) =>
+    list.forEach((node) => {
+      map.set(node.id, node)
+      walk(node.children)
+    })
+  walk(nodes)
+  return map
+}
+
+function subtreeIds(node: DepartmentNode): Set<string> {
+  const ids = new Set<string>([node.id])
+  const walk = (list: DepartmentNode[]) =>
+    list.forEach((child) => {
+      ids.add(child.id)
+      walk(child.children)
+    })
+  walk(node.children)
+  return ids
+}
 
 export function Departments() {
   const { t } = useTranslation()
-  const { data: departments = [] } = useDepartments()
+  const reduced = useReducedMotion()
+  const departmentsQuery = useDepartments()
+  const departments = useMemo(() => departmentsQuery.data ?? [], [departmentsQuery.data])
   const createDept = useCreateDepartment()
   const updateDept = useUpdateDepartment()
   const deleteDept = useDeleteDepartment()
 
-  const flatDepts = useMemo(() => flattenDeptTree(departments), [departments])
-  const deptNameById = useMemo(
-    () => Object.fromEntries(flatDepts.map(({ dept }) => [dept.id, dept.name])),
-    [flatDepts]
-  )
+  const flat = useMemo(() => flattenDeptTree(departments), [departments])
+  const nodes = useMemo(() => indexTree(departments), [departments])
 
-  const [mode, setMode] = useState<Mode>("idle")
-  const [targetDept, setTargetDept] = useState<Department | null>(null)
-  const [envTarget, setEnvTarget] = useState<Department | null>(null)
-  const [formName, setFormName] = useState("")
-  const [formParentId, setFormParentId] = useState<string | null>(null)
-  const [error, setError] = useState("")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [form, setForm] = useState<FormState | null>(null)
+  const [formError, setFormError] = useState("")
+  const [deleting, setDeleting] = useState<DeleteState | null>(null)
+  const [deleteError, setDeleteError] = useState("")
+  const detailsRef = useRef<HTMLDivElement>(null)
 
-  const resetForm = () => {
-    setMode("idle")
-    setTargetDept(null)
-    setFormName("")
-    setFormParentId(null)
-    setError("")
+  const selected = (selectedId ? nodes.get(selectedId) : undefined) ?? departments[0] ?? null
+
+  const pathOf = (dept: Department): string[] => {
+    const names: string[] = []
+    let parentId = dept.parent_id
+    while (parentId) {
+      const parent = nodes.get(parentId)
+      if (!parent) break
+      names.unshift(parent.name)
+      parentId = parent.parent_id
+    }
+    return names
   }
 
-  const openCreate = (parentId?: string | null) => {
-    setTargetDept(null)
-    setFormName("")
-    setFormParentId(parentId ?? null)
-    setError("")
-    setMode("create")
-  }
-
-  const openEdit = (dept: Department) => {
-    setTargetDept(dept)
-    setFormName(dept.name)
-    setFormParentId(dept.parent_id)
-    setError("")
-    setMode("edit")
-  }
-
-  const openDelete = (dept: Department) => {
-    setTargetDept(dept)
-    setError("")
-    setMode("delete")
-  }
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!formName.trim()) return
-    try {
-      await createDept.mutateAsync({ name: formName.trim(), parent_id: formParentId })
-      resetForm()
-    } catch (err) {
-      setError(getErrorMessage(err))
+  const select = (id: string) => {
+    setSelectedId(id)
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() =>
+        detailsRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }),
+      )
     }
   }
 
-  const handleUpdate = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!targetDept || !formName.trim()) return
+  const openCreate = (parentId: string | null = null) => {
+    setFormError("")
+    setForm({ mode: "create", target: null, name: "", parentId })
+  }
+
+  const openEdit = (dept: DepartmentNode) => {
+    setFormError("")
+    setForm({ mode: "edit", target: dept, name: dept.name, parentId: dept.parent_id })
+  }
+
+  const openDelete = (dept: DepartmentNode, workers: number | null) => {
+    setDeleteError("")
+    setDeleting({ target: dept, workers })
+  }
+
+  const submitForm = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!form) return
+    const name = form.name.trim()
+    if (!name) return
     try {
-      await updateDept.mutateAsync({
-        id: targetDept.id,
-        data: { name: formName.trim(), parent_id: formParentId },
-      })
-      resetForm()
+      if (form.mode === "create") {
+        const created = await createDept.mutateAsync({ name, parent_id: form.parentId })
+        if (created?.id) setSelectedId(created.id)
+      } else if (form.target) {
+        await updateDept.mutateAsync({ id: form.target.id, data: { name, parent_id: form.parentId } })
+      }
+      setForm(null)
     } catch (err) {
-      setError(getErrorMessage(err))
+      setFormError(getErrorMessage(err))
     }
   }
 
-  const handleDelete = async () => {
-    if (!targetDept) return
+  const confirmDelete = async () => {
+    if (!deleting) return
     try {
-      await deleteDept.mutateAsync(targetDept.id)
-      resetForm()
+      await deleteDept.mutateAsync(deleting.target.id)
+      if (selected?.id === deleting.target.id) setSelectedId(deleting.target.parent_id)
+      setDeleting(null)
     } catch (err) {
-      setError(getErrorMessage(err))
+      setDeleteError(getErrorMessage(err))
     }
   }
 
-  const isFormOpen = mode === "create" || mode === "edit"
-  const isDeleteOpen = mode === "delete"
+  const excludedParents = form?.target ? subtreeIds(form.target) : new Set<string>()
+  const parentOptions = [
+    { value: NO_PARENT_VALUE, label: t("departments.form.noParent") },
+    ...flat
+      .filter(({ dept }) => !excludedParents.has(dept.id))
+      .map(({ dept }) => ({ value: dept.id, label: [...pathOf(dept), dept.name].join(" / ") })),
+  ]
+
   const createButton = (
     <Button onClick={() => openCreate()}>
-      <PlusIcon className="size-4 mr-1" />
+      <PlusIcon size={16} strokeWidth={1.75} aria-hidden="true" />
       {t("departments.create")}
     </Button>
   )
-  const filteredDepts = useMemo(
-    () => flatDepts.filter(({ dept }) => dept.id !== targetDept?.id),
-    [flatDepts, targetDept?.id]
-  )
+
+  const formParent = form?.parentId ? nodes.get(form.parentId) : undefined
+  const formTitle =
+    form?.mode === "edit"
+      ? t("departments.form.editTitle")
+      : form?.parentId
+        ? t("departments.form.createChildTitle")
+        : t("departments.create")
+  const formDescription =
+    form?.mode === "edit"
+      ? t("departments.form.editDescription", { name: form.target?.name ?? "" })
+      : formParent
+        ? t("departments.form.createChildDescription", { name: formParent.name })
+        : t("departments.form.createDescription")
+  const saving = createDept.isPending || updateDept.isPending
+
+  const deleteBlocker = deleting
+    ? deleting.target.children.length > 0
+      ? t("departments.deleteDialog.hasChildren", { count: deleting.target.children.length })
+      : deleting.workers
+        ? t("departments.deleteDialog.hasWorkers", { count: deleting.workers })
+        : ""
+    : ""
+
+  const renderBody = () => {
+    if (departmentsQuery.isLoading) {
+      return (
+        <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]" aria-busy="true">
+          <SkeletonCard className="h-80" />
+          <div className="grid content-start gap-6">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+      )
+    }
+    if (departmentsQuery.error) {
+      return (
+        <Alert tone="danger" title={t("departments.loadError")}>
+          <span className="mt-1 flex flex-wrap items-center gap-3">
+            <span className="wrap-anywhere">{getErrorMessage(departmentsQuery.error)}</span>
+            <Button variant="secondary" size="sm" onClick={() => departmentsQuery.refetch()}>
+              {t("common.retry")}
+            </Button>
+          </span>
+        </Alert>
+      )
+    }
+    if (departments.length === 0 || !selected) {
+      return (
+        <div className="rounded-surface border border-border bg-surface">
+          <EmptyState
+            icon={<FolderTreeIcon size={24} strokeWidth={1.5} />}
+            title={t("departments.emptyTitle")}
+            description={t("departments.emptyDescription")}
+            action={createButton}
+          />
+        </div>
+      )
+    }
+    return (
+      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start">
+        <div className="min-w-0 lg:sticky lg:top-8">
+          <Panel
+            title={t("departments.tree.title")}
+            action={<span className="text-xs text-secondary tabular">{flat.length}</span>}
+            flush
+          >
+            <div className="px-3 lg:max-h-[calc(100dvh-10rem)] lg:overflow-y-auto">
+              <DepartmentTree
+                departments={departments}
+                selectedId={selected.id}
+                onSelect={select}
+                label={t("departments.tree.title")}
+              />
+            </div>
+          </Panel>
+        </div>
+        <div ref={detailsRef} className="min-w-0 scroll-mt-4">
+          <DepartmentDetails
+            key={selected.id}
+            node={selected}
+            path={pathOf(selected)}
+            onEdit={() => openEdit(selected)}
+            onAddChild={() => openCreate(selected.id)}
+            onDelete={(workers) => openDelete(selected, workers)}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <FadeIn>
-      <div className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeader
-          title={t("nav.departments")}
-          actions={createButton}
-        />
+      <PageHeader
+        title={t("departments.title")}
+        subtitle={flat.length > 0 ? t("departments.summary", { count: flat.length }) : undefined}
+        actions={createButton}
+      />
 
-        {departments.length === 0 ? (
-          <EmptyState
-            title={t("departments.empty")}
-            action={createButton}
-          />
-        ) : (
-          <div className="rounded-sm border border-border p-1.5">
-            {departments.map((node) => (
-              <DepartmentRow
-                key={node.id}
-                node={node}
-                onEnv={setEnvTarget}
-                onCreateChild={openCreate}
-                onEdit={openEdit}
-                onDelete={openDelete}
-              />
-            ))}
-          </div>
-        )}
+      {renderBody()}
 
-        <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {mode === "create" ? t("departments.create") : t("departments.rename")}
-              </DialogTitle>
-              <DialogDescription>{t("departments.manageDescription")}</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={mode === "create" ? handleCreate : handleUpdate} className="space-y-4">
-              {error && <div role="alert" className={ALERT_DESTRUCTIVE}>{error}</div>}
-              <div className="space-y-1.5">
-                <Label htmlFor="dept-name">{t("departments.form.name")}</Label>
-                <Input
-                  id="dept-name"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder={t("departments.form.namePlaceholder")}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>{t("departments.form.parent")}</Label>
-                <Select
-                  value={formParentId ?? NO_PARENT_VALUE}
-                  onValueChange={(v) => setFormParentId(v === NO_PARENT_VALUE ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue>
-                      {(value: string) =>
-                        value === NO_PARENT_VALUE
-                          ? t("departments.form.noParent")
-                          : deptNameById[value] ?? value
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_PARENT_VALUE}>{t("departments.form.noParent")}</SelectItem>
-                    {filteredDepts.map(({ dept, depth }) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        <span style={{ paddingLeft: `${depth * 12}px` }}>{dept.name}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  {t("common.cancel")}
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!formName.trim() || createDept.isPending || updateDept.isPending}
-                >
-                  {mode === "create" ? t("departments.create") : t("common.save")}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) resetForm() }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>{t("departments.deleteConfirm.title")}</DialogTitle>
-              <DialogDescription>
-                {t("departments.deleteConfirm.description", { name: targetDept?.name })}
-              </DialogDescription>
-            </DialogHeader>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <DialogFooter>
-              <Button variant="outline" onClick={resetForm}>
+      <Dialog open={form !== null} onOpenChange={(open) => !open && setForm(null)}>
+        <DialogContent title={formTitle} description={formDescription}>
+          <form onSubmit={submitForm} className="grid gap-5">
+            <Input
+              label={t("departments.form.name")}
+              value={form?.name ?? ""}
+              onChange={(e) => setForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
+              placeholder={t("departments.form.namePlaceholder")}
+              required
+              autoFocus
+            />
+            <Select
+              label={t("departments.form.parent")}
+              options={parentOptions}
+              value={form?.parentId ?? NO_PARENT_VALUE}
+              onValueChange={(value) =>
+                setForm((prev) => (prev ? { ...prev, parentId: value === NO_PARENT_VALUE ? null : value } : prev))
+              }
+            />
+            {formError && (
+              <Alert tone="danger" title={t("departments.form.saveError")}>
+                <span className="wrap-anywhere">{formError}</span>
+              </Alert>
+            )}
+            <div className="mt-1 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setForm(null)}>
                 {t("common.cancel")}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={deleteDept.isPending}
-              >
-                {t("common.delete")}
+              <Button type="submit" loading={saving} disabled={!form?.name.trim()}>
+                {form?.mode === "edit" ? t("departments.form.save") : t("departments.create")}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!envTarget} onOpenChange={(open) => { if (!open) setEnvTarget(null) }}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <KeyRoundIcon className="size-4 text-muted-foreground" />
-                {t("envConfig.depEnvTitle")}
-              </DialogTitle>
-              <DialogDescription className="flex items-center gap-1.5">
-                <FolderIcon className="size-3.5" />
-                {envTarget?.name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto -mx-4 px-4">
-              {envTarget && (
-                <EnvConfigPanel scope="department" scopeId={envTarget.id} />
-              )}
             </div>
-            <DialogFooter showCloseButton />
-          </DialogContent>
-        </Dialog>
-      </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent
+          title={t("departments.deleteDialog.title", { name: deleting?.target.name ?? "" })}
+          description={t("departments.deleteDialog.description")}
+        >
+          <div className="grid gap-4">
+            {deleteBlocker && (
+              <Alert tone="warning" title={t("departments.deleteDialog.blockedTitle")}>
+                {deleteBlocker}
+              </Alert>
+            )}
+            {deleteError && (
+              <Alert tone="danger" title={t("departments.deleteDialog.error")}>
+                <span className="wrap-anywhere">{deleteError}</span>
+              </Alert>
+            )}
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDeleting(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="danger" loading={deleteDept.isPending} disabled={Boolean(deleteBlocker)} onClick={confirmDelete}>
+              {t("departments.deleteDialog.confirm")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </FadeIn>
   )
 }
 
-interface DepartmentRowProps {
-  node: DepartmentTree
-  onEnv: (dept: Department) => void
-  onCreateChild: (parentId: string) => void
-  onEdit: (dept: Department) => void
-  onDelete: (dept: Department) => void
+interface DepartmentDetailsProps {
+  node: DepartmentNode
+  path: string[]
+  onEdit: () => void
+  onAddChild: () => void
+  onDelete: (workers: number | null) => void
 }
 
-function DepartmentRow({ node, onEnv, onCreateChild, onEdit, onDelete }: DepartmentRowProps) {
+function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: DepartmentDetailsProps) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(true)
-  const hasChildren = node.children.length > 0
+  const workers = useWorkers(node.id)
+  const workerCount = workers.data ? workers.data.length : null
 
   return (
-    <div>
-      <div className="group flex items-center gap-2 rounded-sm px-2 py-2 transition-colors hover:bg-muted/50">
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-            aria-label={node.name}
-            className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ChevronRightIcon
-              className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
+    <div className="grid gap-6">
+      <Panel
+        title={node.name}
+        description={path.length > 0 ? path.join(" / ") : t("departments.detail.topLevel")}
+        action={
+          <>
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              <PencilIcon size={16} strokeWidth={1.75} aria-hidden="true" />
+              {t("departments.detail.edit")}
+            </Button>
+            <DropdownMenu
+              iconOnly
+              icon={<EllipsisIcon size={16} strokeWidth={1.75} />}
+              label={t("departments.detail.more", { name: node.name })}
+              items={[
+                {
+                  label: t("departments.addChild"),
+                  icon: <PlusIcon size={16} strokeWidth={1.75} />,
+                  onSelect: onAddChild,
+                },
+                {
+                  label: t("departments.detail.delete"),
+                  icon: <Trash2Icon size={16} strokeWidth={1.75} />,
+                  destructive: true,
+                  separatorBefore: true,
+                  onSelect: () => onDelete(workerCount),
+                },
+              ]}
             />
-          </button>
-        ) : (
-          <span className="size-5 shrink-0" />
-        )}
-        {expanded && hasChildren ? (
-          <FolderOpenIcon className="size-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-        )}
-        <span className="flex-1 truncate text-sm">{node.name}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-muted-foreground"
-                aria-label={t("departments.rowActions")}
-              />
-            }
-          >
-            <MoreHorizontalIcon className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-40">
-            <DropdownMenuItem onClick={() => onEnv(node)}>
-              <KeyRoundIcon className="size-3.5" />
-              {t("envConfig.depEnvTitle")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreateChild(node.id)}>
-              <PlusIcon className="size-3.5" />
-              {t("departments.addChild")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onEdit(node)}>
-              <PencilIcon className="size-3.5" />
-              {t("departments.rename")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
-              <Trash2Icon className="size-3.5" />
-              {t("common.delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {expanded && hasChildren && (
-        <div className="ml-[1.0625rem] border-l border-border pl-2">
-          {node.children.map((child) => (
-            <DepartmentRow
-              key={child.id}
-              node={child}
-              onEnv={onEnv}
-              onCreateChild={onCreateChild}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <DetailOverviewStat
+            label={t("departments.detail.subDepartments")}
+            value={node.children.length}
+            valueClassName="tabular"
+          />
+          <DetailOverviewStat
+            label={t("departments.detail.workers")}
+            value={workerCount ?? (workers.error ? "–" : <span className="skeleton inline-block h-5 w-8 align-middle" />)}
+            valueClassName="tabular"
+          />
+          <DetailOverviewStat
+            className="col-span-2 sm:col-span-1"
+            label={t("departments.detail.updated")}
+            value={formatRelative(node.updated_at, t)}
+            hint={t("departments.detail.created", { time: formatTimestamp(node.created_at) })}
+          />
         </div>
-      )}
+      </Panel>
+
+      <Panel
+        title={t("departments.detail.workersTitle")}
+        description={t("departments.detail.workersDescription")}
+        flush
+      >
+        {workers.isLoading ? (
+          <ul aria-busy="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <li key={i} className="flex items-center gap-3 border-t border-border-subtle px-6 py-3">
+                <div className="skeleton size-7 rounded-full" />
+                <div className="skeleton h-4 w-40" />
+              </li>
+            ))}
+          </ul>
+        ) : workers.error ? (
+          <div className="px-6 pb-4">
+            <Alert tone="danger" title={t("departments.detail.workersError")}>
+              <span className="mt-1 flex flex-wrap items-center gap-3">
+                <span className="wrap-anywhere">{getErrorMessage(workers.error)}</span>
+                <Button variant="secondary" size="sm" onClick={() => workers.refetch()}>
+                  {t("common.retry")}
+                </Button>
+              </span>
+            </Alert>
+          </div>
+        ) : (workers.data ?? []).length === 0 ? (
+          <p className="border-t border-border-subtle px-6 py-5 text-sm text-secondary">
+            {t("departments.detail.noWorkers")}
+          </p>
+        ) : (
+          <ul>
+            {(workers.data ?? []).map((worker) => (
+              <li key={worker.id} className="border-t border-border-subtle">
+                <Link
+                  to={`/workers/${worker.id}`}
+                  className="flex min-w-0 items-center gap-3 px-6 py-3 transition-colors hover:bg-surface-muted"
+                >
+                  <WorkerAvatar name={worker.name} status={worker.status} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">{worker.name}</div>
+                    {worker.description && (
+                      <div className="truncate text-xs text-secondary">{worker.description}</div>
+                    )}
+                  </div>
+                  <StatusBadge status={worker.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <DetailSection className="px-6 pt-5 pb-6">
+        <EnvConfigPanel
+          scope="department"
+          scopeId={node.id}
+          title={t("departments.detail.envTitle")}
+          description={t("departments.detail.envDescription")}
+          inset
+        />
+      </DetailSection>
     </div>
   )
 }

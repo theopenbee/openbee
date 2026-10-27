@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import {
+  ArrowLeft,
   Building2,
   CalendarIcon,
   Clock,
@@ -16,41 +17,33 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
-import { DetailSection } from "@/components/detail-primitives"
-import { Button } from "@/components/ui/button"
+import { Alert } from "@/components/arc/alert/alert"
+import { Badge } from "@/components/arc/badge/badge"
+import { Button } from "@/components/arc/button/button"
+import { DetailOverviewStat, DetailSection } from "@/components/detail-primitives"
 import { CopyButton } from "@/components/copy-button"
-import { WorkerAvatar, initials, presenceColor } from "@/components/worker-avatar"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { FadeIn } from "@/components/fade-in"
-import { SkeletonPage } from "@/components/skeleton-loader"
 import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
+import { Panel } from "@/components/panel"
 import { PaginationControls } from "@/components/pagination-controls"
+import { StatusBadge } from "@/components/status-badge"
 import { TaskList } from "@/components/task-list"
 import { SessionGroupRow } from "@/components/session-group-row"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
-import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
-import { formatTimestamp, formatEngineLabel, groupExecutionsBySession } from "@/lib/format"
-import type { EnvScope } from "@/lib/types"
+import { WorkerEffectiveEnv } from "@/components/worker-effective-env"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
-import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import { EnvConfigPanel } from "@/components/env-config-panel"
-import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
 import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { cn, getErrorMessage } from "@/lib/utils"
+import { formatEngineLabel, formatRelative, formatTimestamp, groupExecutionsBySession } from "@/lib/format"
+import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
+import type { Worker } from "@/lib/types"
 
 const PAGE_SIZE = 20
 
-// Left-rail navigation: each entry maps a menu item to the content rendered in
-// the right pane. The `key` is mirrored to the URL (`?tab=`) so the active
-// section survives refresh and is shareable.
 const SECTIONS = [
   { key: "overview", labelKey: "workerDetail.overview", icon: LayoutDashboard },
   { key: "sessions", labelKey: "workerDetail.sessions", icon: Logs },
@@ -62,152 +55,199 @@ const SECTIONS = [
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
 
+const PAGE_CONTAINER = "mx-auto w-full max-w-page px-4 py-6 sm:px-6 md:px-8 md:py-8"
+
 const revealTab = (el: HTMLButtonElement | null) => {
   el?.scrollIntoView({ block: "nearest", inline: "nearest" })
 }
 
-// Env source is a configuration layer, not a presence status, so it stays in the
-// achromatic field: muted by default, with the effective (worker-level) override
-// lifted to full-weight foreground rather than a non-brand accent color.
-const SOURCE_CONFIG: Record<Exclude<EnvScope, "bee">, { color: string; labelKey: string }> = {
-  global: { color: "text-muted-foreground", labelKey: "envConfig.sourceGlobal" },
-  department: { color: "text-muted-foreground", labelKey: "envConfig.sourceDepartment" },
-  worker: { color: "text-foreground", labelKey: "envConfig.sourceWorker" },
+function BackLink() {
+  const { t } = useTranslation()
+  return (
+    <Link
+      to="/workers"
+      aria-label={t("workers.backToList")}
+      className="inline-flex h-9 items-center gap-2 rounded-control px-3 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
+    >
+      <ArrowLeft size={16} strokeWidth={1.75} aria-hidden="true" />
+      {t("workers.title")}
+    </Link>
+  )
 }
 
-function EffectiveEnvPreview({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
+function SectionNav({ active, onSelect }: { active: SectionKey; onSelect: (key: SectionKey) => void }) {
   const { t } = useTranslation()
-  const { data: globalEnvs = [] } = useEnvList("global")
-  const { data: workerEnvs = [] } = useEnvList("worker", workerId)
-  const deptEnvsList = useDepartmentEnvs(departmentIds)
-
-  const rows = useMemo(() => {
-    const merged = new Map<string, { masked: string; source: Exclude<EnvScope, "bee"> }>()
-
-    for (const env of globalEnvs) {
-      merged.set(env.key, { masked: env.masked, source: "global" })
-    }
-
-    for (const deptEnvs of deptEnvsList) {
-      for (const env of deptEnvs) {
-        merged.set(env.key, { masked: env.masked, source: "department" })
-      }
-    }
-
-    for (const env of workerEnvs) {
-      merged.set(env.key, { masked: env.masked, source: "worker" })
-    }
-
-    return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [globalEnvs, workerEnvs, deptEnvsList])
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-sm border border-dashed border-border/80 bg-background/75 px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
-        {t("envConfig.noEffective")}
-      </div>
-    )
-  }
-
   return (
-    <div className="rounded-sm border border-border/70 overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("envConfig.key")}</TableHead>
-            <TableHead>{t("envConfig.masked")}</TableHead>
-            <TableHead>{t("envConfig.source")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map(([key, { masked, source }]) => {
-            const cfg = SOURCE_CONFIG[source]
-            return (
-              <TableRow key={key}>
-                <TableCell className="font-mono text-sm">{key}</TableCell>
-                <TableCell className="font-mono text-sm text-muted-foreground">{masked}</TableCell>
-                <TableCell>
-                  <span className={cn("text-xs font-medium", cfg?.color)}>
-                    {cfg ? t(cfg.labelKey) : source}
-                  </span>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+    <nav aria-label={t("workerDetail.sectionNav")} className="min-w-0 scroll-px-4 overflow-x-auto overscroll-x-contain [scrollbar-width:none] sm:scroll-px-6 lg:overflow-visible">
+      <ul className="flex w-max gap-1 px-4 pb-3 sm:px-6 lg:grid lg:w-auto lg:gap-0.5 lg:px-3 lg:pb-0">
+        {SECTIONS.map((section) => {
+          const isActive = section.key === active
+          const Icon = section.icon
+          return (
+            <li key={section.key}>
+              <button
+                ref={isActive ? revealTab : undefined}
+                type="button"
+                onClick={() => onSelect(section.key)}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex h-10 w-full min-w-0 items-center gap-3 whitespace-nowrap rounded-control px-3 text-sm transition-colors duration-150 lg:h-9",
+                  isActive
+                    ? "bg-accent-subtle text-foreground dark:bg-surface-muted"
+                    : "text-secondary hover:bg-surface-muted hover:text-foreground",
+                )}
+              >
+                <Icon
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                  className={cn("shrink-0", isActive && "text-accent-strong")}
+                />
+                <span className="truncate">{t(section.labelKey)}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
+  )
+}
+
+function InfoRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1 border-t border-border-subtle py-3 first:border-t-0 sm:min-h-14 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center sm:gap-6">
+      <dt className="text-sm text-secondary">{label}</dt>
+      <dd className="min-w-0 text-sm text-foreground">{children}</dd>
     </div>
   )
 }
 
-// Masthead avatar: larger than the roster avatar to anchor the profile, carrying
-// the same presence dot and presence-color language. Flat fill, no shadow.
-function ProfileAvatar({ name, status }: { name: string; status: string }) {
-  const color = presenceColor[status] ?? "bg-muted-foreground"
+function MonoValue({ value, copyLabel }: { value: string; copyLabel: string }) {
   return (
-    <span className="relative inline-flex shrink-0 self-start">
-      <span className="flex size-16 select-none items-center justify-center rounded-full bg-muted text-xl font-medium text-muted-foreground ring-1 ring-border">
-        {initials(name)}
-      </span>
-      <span className="absolute right-1 bottom-1 inline-flex size-3.5 items-center justify-center rounded-full ring-2 ring-background">
-        {status === "working" && (
-          <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />
-        )}
-        <span className={cn("relative inline-flex size-full rounded-full", color)} />
-      </span>
+    <span className="flex min-w-0 items-center gap-1">
+      <span className="min-w-0 break-all font-mono text-sm text-foreground">{value}</span>
+      <CopyButton value={value} label={copyLabel} className="shrink-0" />
     </span>
   )
 }
 
-// One attribute in the profile record: label-left, value-right, hairline-divided.
-// The canonical enterprise dossier row, not a card.
-function RecordRow({ label, children }: { label: string; children: ReactNode }) {
+function Overview({ worker, sessionTotal, lastActive }: { worker: Worker; sessionTotal: number | undefined; lastActive: number | null | undefined }) {
+  const { t } = useTranslation()
+  const departments = worker.departments ?? []
   return (
-    <div className="flex flex-col gap-1 py-3 sm:flex-row sm:gap-6">
-      <dt className="shrink-0 text-xs font-medium text-muted-foreground sm:w-40 sm:pt-0.5">{label}</dt>
-      <dd className="min-w-0 flex-1 text-sm text-foreground">{children}</dd>
+    <div className="grid gap-6">
+      <DetailSection className="p-6">
+        <div className="flex min-w-0 items-start gap-4">
+          <WorkerAvatar name={worker.name} status={worker.status} size="lg" />
+          <div className="grid min-w-0 flex-1 gap-1.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="min-w-0 truncate text-xl font-medium text-foreground">{worker.name}</h2>
+              <StatusBadge status={worker.status} />
+            </div>
+            <p className="max-w-3xl text-sm text-secondary">
+              {worker.description || t("common.noDescription")}
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <DetailOverviewStat
+            icon={Logs}
+            label={t("workerDetail.sessions")}
+            value={sessionTotal ?? <span className="skeleton inline-block h-6 w-10 align-middle" />}
+            valueClassName="text-xl tabular"
+          />
+          <DetailOverviewStat
+            icon={Clock}
+            label={t("workerDetail.lastActive")}
+            value={lastActive ? formatRelative(lastActive, t) : t("workerDetail.neverActive")}
+            hint={lastActive ? formatTimestamp(lastActive) : undefined}
+            valueClassName="tabular"
+          />
+          <DetailOverviewStat
+            icon={CalendarIcon}
+            label={t("workerDetail.created")}
+            value={formatRelative(worker.created_at, t)}
+            hint={formatTimestamp(worker.created_at)}
+            valueClassName="tabular"
+            className="col-span-2 sm:col-span-1"
+          />
+        </div>
+      </DetailSection>
+
+      <Panel title={t("workerDetail.workerInfo")}>
+        <dl>
+          <InfoRow label={t("workerDetail.id")}>
+            <MonoValue value={worker.id} copyLabel={t("workerDetail.copyId")} />
+          </InfoRow>
+          <InfoRow label={t("workers.form.engine")}>
+            {worker.engine ? (
+              <span className="inline-flex items-center gap-2">
+                <EngineIcon engine={worker.engine} className="size-4" />
+                {formatEngineLabel(worker.engine, t)}
+              </span>
+            ) : (
+              <span className="text-secondary">{t("workers.noEngine")}</span>
+            )}
+          </InfoRow>
+          <InfoRow label={t("departments.title")}>
+            {departments.length > 0 ? (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {departments.map((d) => (
+                  <Badge key={d.id} size="sm" icon={<Building2 size={12} strokeWidth={1.75} />}>
+                    {d.name}
+                  </Badge>
+                ))}
+              </span>
+            ) : (
+              <span className="text-secondary">{t("departments.ungrouped")}</span>
+            )}
+          </InfoRow>
+          <InfoRow label={t("workerDetail.workDir")}>
+            {worker.work_dir ? (
+              <MonoValue value={worker.work_dir} copyLabel={t("workerDetail.copyWorkDir")} />
+            ) : (
+              <span className="text-secondary">{t("workerDetail.defaultWorkDir")}</span>
+            )}
+          </InfoRow>
+        </dl>
+      </Panel>
     </div>
   )
 }
 
-function WorkerActions({
-  workerId,
-  compact,
-  className,
-  onEdit,
-}: {
-  workerId: string
-  compact: boolean
-  className?: string
-  onEdit: () => void
-}) {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const actions = [
-    { key: "edit", icon: Pencil, label: t("common.edit"), onClick: onEdit },
-    { key: "copy", icon: Copy, label: t("common.copy"), onClick: () => navigate(`/workers/create?copy=${workerId}`) },
-  ]
-
+function DetailSkeleton() {
   return (
-    <div className={cn("flex shrink-0 items-center", compact ? "gap-1" : "gap-2", className)}>
-      {actions.map(({ key, icon: Icon, label, onClick }) => (
-        <Button
-          key={key}
-          variant={compact ? "ghost" : "outline"}
-          size={compact ? "icon-lg" : "sm"}
-          onClick={onClick}
-          aria-label={compact ? label : undefined}
-        >
-          <Icon className="size-4" />
-          {!compact && label}
-        </Button>
-      ))}
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row" aria-busy="true">
+      <aside className="shrink-0 border-b border-border lg:w-60 lg:border-r lg:border-b-0">
+        <div className="flex items-center gap-3 px-4 py-4 sm:px-6 lg:px-6 lg:pt-6">
+          <div className="skeleton size-9 rounded-full" />
+          <div className="grid flex-1 gap-2">
+            <div className="skeleton h-4 w-24" />
+            <div className="skeleton h-3 w-16" />
+          </div>
+        </div>
+        <div className="hidden gap-2 px-3 pt-2 lg:grid">
+          {SECTIONS.map((s) => (
+            <div key={s.key} className="skeleton h-9 w-full rounded-control" />
+          ))}
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <div className={PAGE_CONTAINER}>
+          <div className="skeleton mb-8 h-9 w-40" />
+          <div className="grid gap-6">
+            <div className="skeleton h-48 w-full rounded-surface" />
+            <div className="skeleton h-64 w-full rounded-surface" />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 export function WorkerDetail() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const { data: worker, error: workerError, refetch: refetchWorker } = useWorker(id!)
 
@@ -228,21 +268,24 @@ export function WorkerDetail() {
   }
   const activeLabelKey = SECTIONS.find((s) => s.key === activeSection)!.labelKey
 
-  // Sessions are only read on the Overview (count) and Sessions (list) tabs, so
-  // skip the request entirely on the other sections.
   const [page, setPage] = useState(1)
-  const { data } = useWorkerExecutions(id!, page, PAGE_SIZE, {
+  const {
+    data,
+    error: executionsError,
+    isLoading: executionsLoading,
+    refetch: refetchExecutions,
+  } = useWorkerExecutions(id!, page, PAGE_SIZE, {
     enabled: activeSection === "overview" || activeSection === "sessions",
   })
 
   const executions = data?.items ?? []
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
   const latestExecution = executions[0]
-
   const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
 
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
+  const [scopeError, setScopeError] = useState("")
 
   useEffect(() => {
     setLocalScopes(parseScopes(worker?.permission_scopes ?? ""))
@@ -251,298 +294,175 @@ export function WorkerDetail() {
   const [editInfoSheetOpen, setEditInfoSheetOpen] = useState(false)
   const workerDeptIds = useMemo(
     () => worker?.departments?.map((d) => d.id).sort() ?? [],
-    [worker?.departments]
+    [worker?.departments],
   )
 
   if (workerError && !worker) {
     return (
-      <FadeIn className="h-full">
-        <div className="flex h-full items-center justify-center p-6">
-          <EmptyState
-            title={t("common.loadError")}
-            description={workerError.message}
-            action={
-              <Button variant="outline" size="sm" onClick={() => refetchWorker()}>
+      <FadeIn className="min-h-0 flex-1 overflow-y-auto">
+        <div className={PAGE_CONTAINER}>
+          <div className="mb-6 -ml-3">
+            <BackLink />
+          </div>
+          <Alert tone="danger" title={t("workerDetail.loadError")}>
+            <span className="grid justify-items-start gap-3">
+              <span>{getErrorMessage(workerError)}</span>
+              <Button variant="secondary" size="sm" onClick={() => refetchWorker()}>
                 {t("common.retry")}
               </Button>
-            }
-          />
+            </span>
+          </Alert>
         </div>
       </FadeIn>
     )
   }
 
-  if (!worker) return <SkeletonPage />
+  if (!worker) return <DetailSkeleton />
 
-  const overviewStats = [
-    {
-      icon: Logs,
-      label: t("workerDetail.sessions"),
-      value: data?.total ?? 0,
-      valueClass: "text-lg font-medium tabular-nums",
-    },
-    {
-      icon: Clock,
-      label: t("workerDetail.lastActive"),
-      value: latestExecution
-        ? formatTimestamp(latestExecution.started_at)
-        : t("sessions.noExecutions"),
-      valueClass: "text-sm",
-    },
-    {
-      icon: CalendarIcon,
-      label: t("workerDetail.created"),
-      value: formatTimestamp(worker.created_at),
-      valueClass: "text-sm",
-    },
-  ]
+  const toggleScopeValue = (scopeId: string, val: boolean) => {
+    const prevScopes = localScopes
+    const newScopes = toggleScope(localScopes, scopeId, val)
+    setLocalScopes(newScopes)
+    setScopeError("")
+    updateWorker.mutate(
+      { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
+      {
+        onError: (err) => {
+          setLocalScopes(prevScopes)
+          setScopeError(getErrorMessage(err))
+        },
+      },
+    )
+  }
 
-  const openEditInfoSheet = () => setEditInfoSheetOpen(true)
+  const headerActions = (
+    <>
+      <Button variant="secondary" onClick={() => setEditInfoSheetOpen(true)}>
+        <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
+        {t("workerDetail.editInfo")}
+      </Button>
+      <Button variant="secondary" onClick={() => navigate(`/workers/create?copy=${worker.id}`)}>
+        <Copy size={16} strokeWidth={1.75} aria-hidden="true" />
+        {t("workers.copyWorker")}
+      </Button>
+    </>
+  )
 
   return (
-    <FadeIn className="h-full">
-      <div className="flex h-full flex-col lg:flex-row">
-        {/* Left rail: worker identity + vertical section menu. */}
-        <aside className="flex shrink-0 flex-col border-b lg:w-60 lg:border-r lg:border-b-0">
-          <div className="flex h-14 items-center gap-3 px-4 lg:h-16 lg:border-b">
-            <WorkerAvatar name={worker.name} status={worker.status} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold tracking-tight">{worker.name}</p>
-            </div>
-            <WorkerActions workerId={worker.id} compact className="lg:hidden" onEdit={openEditInfoSheet} />
+    <FadeIn className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <aside className="shrink-0 border-b border-border lg:flex lg:w-60 lg:flex-col lg:border-r lg:border-b-0">
+        <div className="hidden px-3 pt-4 lg:block">
+          <BackLink />
+        </div>
+        <div className="flex min-w-0 items-center gap-3 px-4 py-4 sm:px-6 lg:px-6 lg:pt-4 lg:pb-5">
+          <WorkerAvatar name={worker.name} status={worker.status} />
+          <div className="grid min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{worker.name}</p>
+            <p className="truncate text-xs text-secondary">
+              {worker.engine ? formatEngineLabel(worker.engine, t) : t("workers.noEngine")}
+            </p>
           </div>
-          <nav className="scroll-pe-6 overflow-x-auto px-2 pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:overflow-auto lg:p-2 lg:[mask-image:none]">
-            <ul className="flex w-max gap-1 pr-6 lg:block lg:w-auto lg:space-y-1 lg:pr-0">
-              {SECTIONS.map((section) => {
-                const isActive = section.key === activeSection
-                const Icon = section.icon
-                return (
-                  <li key={section.key}>
-                    <button
-                      ref={isActive ? revealTab : undefined}
-                      type="button"
-                      onClick={() => setActiveSection(section.key)}
-                      aria-current={isActive ? "page" : undefined}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                        isActive
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="size-4 shrink-0" />
-                      <span className="truncate">{t(section.labelKey)}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </nav>
-        </aside>
+        </div>
+        <SectionNav active={activeSection} onSelect={setActiveSection} />
+      </aside>
 
-        {/* Right pane: section header + scrollable content. */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <h1 className="sr-only lg:hidden">{t(activeLabelKey)}</h1>
-          <div className="hidden h-16 items-center justify-between gap-4 border-b px-6 lg:flex">
-            <h1 className="text-lg font-semibold tracking-tight">{t(activeLabelKey)}</h1>
-            <WorkerActions workerId={worker.id} compact={false} onEdit={openEditInfoSheet} />
-          </div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+        <div className={PAGE_CONTAINER}>
+          <PageHeader title={t(activeLabelKey)} actions={headerActions} />
 
-          <div className="min-w-0 flex-1 overflow-auto px-4 py-4 md:px-6 md:py-5">
-            <div className="mx-auto max-w-5xl space-y-6">
-              {workerError ? (
-                <p className="text-destructive">{workerError.message}</p>
-              ) : null}
+          {activeSection === "overview" && (
+            <Overview worker={worker} sessionTotal={data?.total} lastActive={latestExecution?.started_at} />
+          )}
 
-              {activeSection === "overview" && (
-                <div className="flex flex-col gap-8">
-                  {/* (1) Masthead: the identity hero — avatar with presence, name,
-                      status, and the worker's role read as a profile bio. */}
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                    <ProfileAvatar name={worker.name} status={worker.status} />
-                    <div className="min-w-0 flex-1 space-y-2.5">
-                      <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {worker.name}
-                      </h2>
-                      <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {worker.description || t("common.noDescription")}
-                      </p>
+          {activeSection === "sessions" && (
+            <div className="grid gap-4">
+              {executionsError ? (
+                <Alert tone="danger" title={t("workerDetail.sessionsLoadError")}>
+                  <span className="grid justify-items-start gap-3">
+                    <span>{getErrorMessage(executionsError)}</span>
+                    <Button variant="secondary" size="sm" onClick={() => refetchExecutions()}>
+                      {t("common.retry")}
+                    </Button>
+                  </span>
+                </Alert>
+              ) : executionsLoading ? (
+                <div aria-busy="true" className="overflow-hidden rounded-surface border border-border bg-surface">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="grid gap-2 border-t border-border-subtle px-6 py-4 first:border-t-0">
+                      <div className="skeleton h-4 w-2/3" />
+                      <div className="skeleton h-3 w-1/3" />
                     </div>
-                  </div>
-
-                  {/* (2) Activity band: at-a-glance presence facts, divided by
-                      hairlines into equal columns — no cards, no hero metric. */}
-                  <div className="grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    {overviewStats.map(({ icon: Icon, label, value, valueClass }, i) => (
-                      <div key={label} className={cn("py-4", i === 0 ? "sm:pr-6" : "sm:px-6")}>
-                        <div className={cn(EYEBROW_LABEL, "flex items-center gap-1.5")}>
-                          <Icon className="size-3.5" />
-                          <span>{label}</span>
-                        </div>
-                        <p className={cn("mt-2 font-mono text-foreground", valueClass)}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* (3) Record: the structured attribute dossier, label-left and
-                      value-right, the canonical enterprise profile pattern. */}
-                  <div>
-                    <p className={EYEBROW_LABEL}>{t("workerDetail.workerInfo")}</p>
-                    <dl className="mt-2 divide-y divide-border/60 border-t border-border/60">
-                      <RecordRow label={t("workerDetail.id")}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
-                            {worker.id}
-                          </span>
-                          <CopyButton value={worker.id} />
-                        </div>
-                      </RecordRow>
-
-                      <RecordRow label={t("workers.form.engine")}>
-                        {worker.engine ? (
-                          <EngineIcon
-                            engine={worker.engine}
-                            title={formatEngineLabel(worker.engine, t)}
-                            className="size-5 text-foreground"
-                          />
-                        ) : (
-                          "—"
-                        )}
-                      </RecordRow>
-
-                      <RecordRow label={t("departments.title")}>
-                        {worker.departments && worker.departments.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {worker.departments.map((d) => (
-                              <span
-                                key={d.id}
-                                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground"
-                              >
-                                <Building2 className="size-3 shrink-0" />
-                                {d.name}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">{t("departments.ungrouped")}</span>
-                        )}
-                      </RecordRow>
-
-                      <RecordRow label={t("workerDetail.workDir")}>
-                        {worker.work_dir ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">
-                              {worker.work_dir}
-                            </span>
-                            <CopyButton value={worker.work_dir} />
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </RecordRow>
-                    </dl>
-                  </div>
-                </div>
-              )}
-
-              {activeSection === "sessions" && (
-                <div className="space-y-4">
-            <DetailSection>
-              {sessionGroups.length === 0 ? (
-                <div className="px-5 py-10 sm:px-6">
-                  <EmptyState title={t("sessions.noExecutions")} />
-                </div>
-              ) : (
-                <div className="divide-y divide-border/70">
-                  {sessionGroups.map((group) => (
-                    <SessionGroupRow
-                      key={group[0].session_id}
-                      group={group}
-                      tokenStats={data?.token_stats?.[group[0].session_id]}
-                    />
                   ))}
                 </div>
-              )}
-            </DetailSection>
-
-            <PaginationControls
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
-            />
-                </div>
-              )}
-
-              {activeSection === "tasks" && (
-                <TaskList workerId={id!} />
-              )}
-
-              {activeSection === "constraints" && (
-                <WorkerConstraintsPanel worker={worker} />
-              )}
-
-              {activeSection === "permissions" && (
-                <div className="max-w-2xl space-y-4">
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {t("workers.form.permissionsHelper")}
-                  </p>
-
-                  <DetailSection className="divide-y divide-border/70">
-                    {KNOWN_SCOPES.map((scope) => (
-                      <ScopeToggleCard
-                        key={scope.id}
-                        scope={scope}
-                        checked={localScopes.includes(scope.id)}
-                        onToggle={(scopeId, val) => {
-                          const prevScopes = localScopes
-                          const newScopes = toggleScope(localScopes, scopeId, val)
-                          setLocalScopes(newScopes)
-                          updateWorker.mutate(
-                            { id: id!, data: { permission_scopes: serializeScopes(newScopes) } },
-                            { onError: () => setLocalScopes(prevScopes) }
-                          )
-                        }}
-                        disabled={updateWorker.isPending}
-                      />
-                    ))}
-                  </DetailSection>
-                </div>
-              )}
-
-              {activeSection === "env" && (
-                <div className="max-w-3xl space-y-6">
-                  <DetailSection className="p-5 sm:p-6">
-                    <EnvConfigPanel
-                      scope="worker"
-                      scopeId={id!}
-                      title={t("envConfig.workerTitle")}
-                    />
-                  </DetailSection>
-
-                  <DetailSection className="p-5 sm:p-6 space-y-4">
-                    <div>
-                      <p className={EYEBROW_LABEL}>
-                        {t("envConfig.effectiveTitle")}
-                      </p>
+              ) : sessionGroups.length === 0 ? (
+                <DetailSection>
+                  <EmptyState
+                    title={t("emptyState.noExecutions")}
+                    description={t("emptyState.noExecutionsDesc")}
+                  />
+                </DetailSection>
+              ) : (
+                <>
+                  <DetailSection>
+                    <div className="divide-y divide-border-subtle">
+                      {sessionGroups.map((group) => (
+                        <SessionGroupRow
+                          key={group[0].session_id}
+                          group={group}
+                          tokenStats={data?.token_stats?.[group[0].session_id]}
+                        />
+                      ))}
                     </div>
-                    <EffectiveEnvPreview
-                      workerId={id!}
-                      departmentIds={workerDeptIds}
-                    />
                   </DetailSection>
-                </div>
+                  <PaginationControls
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
+                  />
+                </>
               )}
             </div>
-          </div>
+          )}
+
+          {activeSection === "tasks" && <TaskList workerId={id!} />}
+
+          {activeSection === "constraints" && <WorkerConstraintsPanel worker={worker} />}
+
+          {activeSection === "permissions" && (
+            <section className="grid max-w-form gap-4" aria-label={t("workerDetail.permissions")}>
+              <p className="text-sm text-secondary">{t("workers.form.permissionsHelper")}</p>
+              {scopeError && (
+                <Alert tone="danger" title={t("workerDetail.permissionsSaveError")}>
+                  {scopeError}
+                </Alert>
+              )}
+              <DetailSection className="divide-y divide-border-subtle">
+                {KNOWN_SCOPES.map((scope) => (
+                  <ScopeToggleCard
+                    key={scope.id}
+                    scope={scope}
+                    checked={localScopes.includes(scope.id)}
+                    onToggle={toggleScopeValue}
+                    disabled={updateWorker.isPending}
+                  />
+                ))}
+              </DetailSection>
+            </section>
+          )}
+
+          {activeSection === "env" && (
+            <div className="grid gap-6">
+              <DetailSection className="p-6">
+                <EnvConfigPanel scope="worker" scopeId={id!} title={t("envConfig.workerTitle")} inset />
+              </DetailSection>
+              <WorkerEffectiveEnv workerId={id!} departmentIds={workerDeptIds} />
+            </div>
+          )}
         </div>
       </div>
 
-      <EditWorkerInfoSheet
-        open={editInfoSheetOpen}
-        onOpenChange={setEditInfoSheetOpen}
-        worker={worker}
-      />
+      <EditWorkerInfoSheet open={editInfoSheetOpen} onOpenChange={setEditInfoSheetOpen} worker={worker} />
     </FadeIn>
   )
 }

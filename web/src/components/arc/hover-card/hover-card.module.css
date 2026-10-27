@@ -1,0 +1,18 @@
+.card { z-index: 60; box-sizing: border-box; width: 18.5rem; max-width: min(18.5rem, var(--radix-popover-content-available-width, calc(100vw - 24px))); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface-raised); color: var(--foreground); box-shadow: var(--shadow-floating); font-family: var(--font-body); letter-spacing: var(--tracking-body); transform-origin: var(--radix-popover-content-transform-origin); outline: none; }
+.profile { display: grid; gap: var(--space-3); }
+.head { display: flex; min-width: 0; align-items: center; gap: var(--space-3); }
+.avatar { position: relative; display: grid; width: 48px; height: 48px; flex: none; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-muted); color: var(--foreground); font-size: var(--text-sm); font-weight: 500; }
+.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; transition: opacity var(--duration-standard) var(--ease-enter), filter var(--duration-standard) var(--ease-enter); }
+.avatar img[data-loading] { opacity: 0; filter: blur(4px); transition: none; }
+.identity { display: grid; min-width: 0; }
+.name, .role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name { color: var(--foreground); font-size: var(--text-base); font-weight: 500; line-height: var(--leading-body); }
+.role { color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-body); }
+.bio { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: var(--leading-body); }
+.stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.stat { display: flex; flex-direction: column-reverse; }
+.stat dt { color: var(--text-muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.stat dd { margin: 0; color: var(--foreground); font-size: var(--text-base); font-variant-numeric: tabular-nums; font-weight: 500; line-height: var(--leading-body); }
+.meta { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.meta svg { flex: none; }
+@media (prefers-reduced-motion: reduce) { .avatar img { transition: none; } .avatar img[data-loading] { filter: none; } }

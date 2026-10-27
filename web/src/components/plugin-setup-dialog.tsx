@@ -2,20 +2,14 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { QRCodeSVG } from "qrcode.react"
 import { toast } from "sonner"
-import { Loader2Icon, RefreshCwIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { CircleSlashIcon, LoaderCircleIcon, RefreshCwIcon } from "lucide-react"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
+import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { usePluginSetup } from "@/hooks/use-plugins"
 import { isLink, latestLink } from "@/lib/plugins"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+import { FIELD_CONTROL } from "@/lib/styles"
 import { cn, getErrorMessage } from "@/lib/utils"
 
 const VISIBLE_LINES = 6
@@ -63,6 +57,7 @@ export function PluginSetupDialog({
   const failed = setup.done && !setup.done.ok ? setup.done.error || "" : null
   const active = Boolean(setup.sessionId) && !setup.done
   const stopped = Boolean(startError) || failed !== null || setup.lost
+  const reconnecting = active && !setup.connected && !setup.lost && setup.lines.length > 0
 
   const send = async () => {
     if (!text.trim()) return
@@ -79,73 +74,90 @@ export function PluginSetupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-sm sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{t("plugins.setup.scanHint")}</DialogDescription>
-        </DialogHeader>
+      <DialogContent title={title} description={t("plugins.setup.scanHint")}>
+        <div className="grid gap-4">
+          <div className="grid justify-items-center gap-3 rounded-inset border border-border-subtle bg-surface-muted px-4 py-5">
+            <div className="grid size-60 place-items-center">
+              {stopped ? (
+                <span className="inline-flex flex-col items-center gap-2 text-sm text-secondary">
+                  <CircleSlashIcon size={24} strokeWidth={1.5} aria-hidden="true" />
+                  {t("plugins.setup.stopped")}
+                </span>
+              ) : link ? (
+                <QRCodeSVG value={link} size={240} marginSize={2} title={link} />
+              ) : (
+                <span className="inline-flex items-center gap-2 text-sm text-secondary" role="status">
+                  <LoaderCircleIcon size={16} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
+                  <TextShimmer>{t("plugins.setup.waiting")}</TextShimmer>
+                </span>
+              )}
+            </div>
+            <p className="text-center text-xs text-secondary">{t("plugins.setup.refreshHint")}</p>
+          </div>
 
-        <div className="flex h-64 items-center justify-center rounded-sm border border-border/70 bg-white p-3">
-          {stopped ? (
-            <span className="text-sm text-neutral-500">—</span>
-          ) : link ? (
-            <QRCodeSVG value={link} size={224} marginSize={1} title={link} />
-          ) : (
-            <span className="inline-flex items-center gap-2 text-sm text-neutral-500">
-              <Loader2Icon className="size-4 animate-spin" />
-              {t("plugins.setup.waiting")}
+          {progress.length > 0 && (
+            <div
+              className="grid gap-1 rounded-inset border border-border-subtle bg-surface-muted px-4 py-3 font-mono text-xs text-secondary"
+              aria-live="polite"
+              aria-label={t("plugins.setup.output")}
+            >
+              {progress.map((line, i) => (
+                <div
+                  key={`${setup.lines.length}-${i}`}
+                  className={cn("wrap-anywhere", i === progress.length - 1 && "text-foreground")}
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reconnecting && (
+            <span className="inline-flex items-center gap-2 text-xs text-secondary" role="status">
+              <LoaderCircleIcon size={14} strokeWidth={1.75} className="animate-spin" aria-hidden="true" />
+              <TextShimmer>{t("plugins.setup.reconnecting")}</TextShimmer>
             </span>
           )}
+
+          {stopped && (
+            <Alert tone="danger" title={t("plugins.setup.stoppedTitle")}>
+              <span className="wrap-anywhere">
+                {startError ?? (failed !== null ? t("plugins.setup.failed", { error: failed }) : t("plugins.setup.lost"))}
+              </span>
+            </Alert>
+          )}
+
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void send()
+            }}
+          >
+            <input
+              className={cn(FIELD_CONTROL, "min-w-0 flex-1")}
+              value={text}
+              disabled={!active}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t("plugins.setup.inputPlaceholder")}
+              aria-label={t("plugins.setup.inputLabel")}
+              autoComplete="off"
+            />
+            <Button type="submit" variant="secondary" loading={sending} disabled={!active || !text.trim()}>
+              {t("plugins.setup.send")}
+            </Button>
+          </form>
         </div>
-        <p className="-mt-2 text-xs text-muted-foreground">{t("plugins.setup.refreshHint")}</p>
 
-        {progress.length > 0 && (
-          <div className="space-y-1 rounded-sm bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground" aria-live="polite">
-            {progress.map((line, i) => (
-              <div key={`${setup.lines.length}-${i}`} className={cn("break-words", i === progress.length - 1 && "text-foreground")}>
-                {line}
-              </div>
-            ))}
-          </div>
-        )}
-        {active && !setup.connected && !setup.lost && setup.lines.length > 0 && (
-          <p className="text-xs text-muted-foreground">{t("plugins.setup.reconnecting")}</p>
-        )}
-        {(startError || failed !== null || setup.lost) && (
-          <div className={ALERT_DESTRUCTIVE}>
-            {startError ?? (failed !== null ? t("plugins.setup.failed", { error: failed }) : t("plugins.setup.lost"))}
-          </div>
-        )}
-
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void send()
-          }}
-        >
-          <Input
-            className="rounded-sm"
-            value={text}
-            disabled={!active}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t("plugins.setup.inputPlaceholder")}
-            aria-label={t("plugins.setup.inputPlaceholder")}
-          />
-          <Button type="submit" variant="outline" disabled={!active || sending || !text.trim()}>
-            {t("plugins.setup.send")}
-          </Button>
-        </form>
-
-        <DialogFooter className="rounded-none">
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button variant="outline" disabled={setup.starting} onClick={begin}>
-            <RefreshCwIcon />
+          <Button variant="secondary" loading={setup.starting} onClick={begin}>
+            <RefreshCwIcon size={16} strokeWidth={1.75} aria-hidden="true" />
             {t("plugins.setup.again")}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

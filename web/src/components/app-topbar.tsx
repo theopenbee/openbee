@@ -1,30 +1,54 @@
-import { Link } from "react-router-dom"
+import { useEffect, useState, type CSSProperties } from "react"
+import { Link, useLocation } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import { GithubIcon, MenuIcon } from "lucide-react"
+import { Drawer, DrawerContent } from "@/components/arc/drawer/drawer"
 import { LogoFull } from "@/components/brand/logo"
+import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { getStoredUsername } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
-/**
- * Full-width top bar that spans above the sidebar and the main area.
- *
- * Holds the brand lockup on the left and the logged-in user's action menu on
- * the right (theme + logout). It intentionally carries no horizontal tabs or
- * global search — navigation lives entirely in the left sidebar. On mobile,
- * where the sidebar collapses off-canvas, a trigger is exposed here so the
- * navigation stays reachable.
- */
-export function AppTopbar() {
-  const username = getStoredUsername() ?? "User"
+export function AppTopbar({ className }: { className?: string }) {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
 
   return (
-    <header className="flex h-12 w-full shrink-0 items-center gap-3 border-b bg-background px-4">
-      <SidebarTrigger className="md:hidden" />
-      <Link to="/" className="flex items-center" aria-label="OpenBee">
-        <LogoFull className="!h-7 !w-auto" />
+    <header className={cn("flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3", className)}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={t("nav.openNav", "Open navigation")}
+        className="grid size-10 place-items-center rounded-control text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
+      >
+        <MenuIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+      </button>
+      <Link to="/" aria-label="OpenBee" className="flex items-center rounded-control">
+        <LogoFull className="h-6 w-auto" />
       </Link>
-      <div className="ml-auto flex items-center gap-1">
-        <NavUser username={username} variant="bar" />
+      <div className="ml-auto">
+        <NavUser align="end" />
       </div>
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerContent side="left" title={t("nav.menu", "Menu")} style={{ "--drawer-size": "min(18rem, calc(100vw - 3rem))" } as CSSProperties}>
+          <div className="grid gap-4">
+            <NavMain onNavigate={() => setOpen(false)} />
+            <a
+              href="https://github.com/theopenbee/openbee"
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-9 items-center gap-3 rounded-control px-3 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
+            >
+              <GithubIcon size={16} strokeWidth={1.75} aria-hidden="true" />
+              GitHub
+            </a>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </header>
   )
 }

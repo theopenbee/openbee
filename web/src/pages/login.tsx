@@ -1,15 +1,18 @@
-import { useState, type FormEvent } from "react"
-import { ArrowRight, CircleAlert, LoaderCircle } from "lucide-react"
+import { useRef, useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { LogoFull } from "@/components/brand/logo"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Input } from "@/components/arc/input/input"
+import { AuthLayout } from "@/components/auth-layout"
+import { AuthPasswordField } from "@/components/auth-password-field"
 import { getStoredUsername, login } from "@/lib/auth"
-import { cn } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
+
+interface FieldErrors {
+  username?: string
+  password?: string
+}
 
 export function Login() {
   const { t } = useTranslation()
@@ -17,146 +20,97 @@ export function Login() {
   const queryClient = useQueryClient()
   const [username, setUsername] = useState(() => getStoredUsername() ?? "")
   const [password, setPassword] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const canSubmit = username.trim().length > 0 && password.length > 0 && !loading
+  const [focusPassword] = useState(() => username.length > 0)
+  const usernameRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!canSubmit) return
+    if (loading) return
 
+    const nextErrors: FieldErrors = {
+      username: username.trim() ? undefined : t("login.usernameRequired", "Enter your username"),
+      password: password ? undefined : t("login.passwordRequired", "Enter your password"),
+    }
+    if (nextErrors.username || nextErrors.password) {
+      setFieldErrors(nextErrors)
+      if (nextErrors.username) usernameRef.current?.focus()
+      else passwordRef.current?.focus()
+      return
+    }
+
+    setFieldErrors({})
     setError("")
     setLoading(true)
 
     const result = await login(username, password)
-    setLoading(false)
 
     if (result.success) {
-      // Backstop against stale cache: any logout path that funnels through this
-      // form (including a forced 401 redirect) starts the new session with an
-      // empty cache, so we never read the previous session's data.
       queryClient.clear()
       navigate("/", { replace: true })
-    } else if (result.status === 401) {
-      setError(t("login.error401"))
+      return
+    }
+
+    setLoading(false)
+    if (result.status === 401) {
+      setError(t("login.error401", "The username or password is incorrect."))
+      passwordRef.current?.select()
     } else if (result.status === 429) {
-      setError(t("login.error429"))
+      setError(t("login.error429", "Too many attempts. Wait a minute and try again."))
     } else {
-      setError(t("login.errorGeneric"))
+      setError(t("login.errorGeneric", "Check your connection and try again."))
     }
   }
 
   return (
-    <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-background px-4 py-10 text-foreground">
-      {/* Tonal base: a quiet off-paper field so the white card lifts without a shadow. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(to bottom, var(--background), color-mix(in oklch, var(--background) 90%, var(--muted) 10%))",
-        }}
-      />
-      {/* Blueprint grid, hairline-thin and vignetted toward the edges. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: [
-            "linear-gradient(color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
-            "linear-gradient(90deg, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px)",
-          ].join(", "),
-          backgroundSize: "32px 32px, 32px 32px",
-          maskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 42%, black, transparent 78%)",
-        }}
-      />
+    <AuthLayout
+      title={t("login.title", "Sign in")}
+      description={t("login.description", "Use your OpenBee administrator account.")}
+    >
+      <form onSubmit={handleSubmit} noValidate aria-busy={loading} className="grid gap-4">
+        {error ? (
+          <Alert tone="danger" title={t("login.errorTitle", "Could not sign in")}>
+            {error}
+          </Alert>
+        ) : null}
 
-      <main className="animate-fade-in motion-reduce:animate-none relative w-full max-w-sm">
-        <section className="rounded-sm border border-border bg-card p-6 ring-1 ring-foreground/5 sm:p-8">
-          <header className="space-y-5">
-            <LogoFull className="h-9" />
-            <div className="space-y-1.5">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {t("login.title")}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {t("login.eyebrow")}
-              </p>
-            </div>
-          </header>
+        <Input
+          ref={usernameRef}
+          label={t("login.username", "Username")}
+          name="username"
+          value={username}
+          onChange={(e) => {
+            setUsername(e.target.value)
+            setFieldErrors((prev) => ({ ...prev, username: undefined }))
+          }}
+          error={fieldErrors.username}
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          autoFocus={!focusPassword}
+        />
 
-          {error ? (
-            <div
-              role="alert"
-              aria-live="polite"
-              className={cn(ALERT_DESTRUCTIVE, "mt-6 flex items-start gap-2.5 px-3.5 py-3")}
-            >
-              <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-              <p className="leading-6">{error}</p>
-            </div>
-          ) : null}
+        <AuthPasswordField
+          ref={passwordRef}
+          label={t("login.password", "Password")}
+          name="password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value)
+            setFieldErrors((prev) => ({ ...prev, password: undefined }))
+          }}
+          error={fieldErrors.password}
+          autoComplete="current-password"
+          autoFocus={focusPassword}
+        />
 
-          <form
-            onSubmit={handleSubmit}
-            className="mt-6 space-y-5"
-            aria-busy={loading}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="username">{t("login.username")}</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoFocus={username.length === 0}
-                aria-invalid={error ? true : undefined}
-                placeholder={t("login.usernamePlaceholder")}
-                className="h-11 px-3.5"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">{t("login.password")}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                aria-invalid={error ? true : undefined}
-                placeholder={t("login.passwordPlaceholder")}
-                className="h-11 px-3.5"
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-              className="h-11 w-full text-sm font-semibold"
-            >
-              {loading ? (
-                <>
-                  <LoaderCircle
-                    aria-hidden="true"
-                    className="size-4 animate-spin motion-reduce:animate-none"
-                  />
-                  <span>{t("login.submitting")}</span>
-                </>
-              ) : (
-                <>
-                  <span>{t("login.submit")}</span>
-                  <ArrowRight aria-hidden="true" className="size-4" />
-                </>
-              )}
-            </Button>
-          </form>
-        </section>
-      </main>
-    </div>
+        <Button type="submit" loading={loading} className="mt-2 w-full">
+          {t("login.submit", "Sign in")}
+        </Button>
+      </form>
+    </AuthLayout>
   )
 }

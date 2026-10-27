@@ -1,36 +1,25 @@
-import { useState, useEffect, type FormEvent } from "react"
+import { useState, useEffect, type CSSProperties, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { Search } from "lucide-react"
 import { useUpdateWorker } from "@/hooks/use-workers"
 import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useEnabledEngines } from "@/hooks/use-config"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from "@/components/ui/sheet"
-import {
-  Select,
-  SelectContent,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { EngineSelectItems } from "@/components/engine-select-items"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Drawer, DrawerContent } from "@/components/arc/drawer/drawer"
+import { Input } from "@/components/arc/input/input"
+import { Select } from "@/components/arc/select/select"
+import { Textarea } from "@/components/arc/textarea/textarea"
+import { useEngineOptions } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { SectionHeading } from "@/components/section-heading"
+import { WorkerDepartmentPicker } from "@/components/worker-department-picker"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { getErrorMessage } from "@/lib/utils"
-import { ALERT_DESTRUCTIVE } from "@/lib/styles"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import type { Worker, Engine } from "@/lib/types"
 import { DEFAULT_ENGINE, pickDefaultEngine } from "@/lib/types"
+
+const DRAWER_STYLE = { "--drawer-size": "min(34rem, calc(100vw - 1rem))" } as CSSProperties
 
 interface EditWorkerInfoSheetProps {
   open: boolean
@@ -44,6 +33,7 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const setWorkerDepts = useSetWorkerDepartments()
   const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
+  const engineOptions = useEngineOptions(enabledEngines)
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -51,7 +41,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
-  const [deptSearch, setDeptSearch] = useState("")
   const [submitError, setSubmitError] = useState("")
 
   useEffect(() => {
@@ -62,7 +51,6 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
       setEngine(pickDefaultEngine(worker.engine, enabledEngines))
       setSelectedDeptIds(new Set(worker.departments?.map((d) => d.id) ?? []))
       setEngineArgs(worker.engine_args ?? {})
-      setDeptSearch("")
       setSubmitError("")
     }
   }, [open, worker, enabledEngines])
@@ -108,156 +96,112 @@ export function EditWorkerInfoSheet({ open, onOpenChange, worker }: EditWorkerIn
 
   const isPending = updateWorker.isPending || setWorkerDepts.isPending
 
-  const filteredDepts = deptSearch.trim()
-    ? flatDepts.filter(({ dept }) =>
-        dept.name.toLowerCase().includes(deptSearch.toLowerCase())
-      )
-    : flatDepts
-
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-[26rem] p-0 gap-0">
-        <SheetHeader className="px-6 pt-6 pb-4">
-          <SheetTitle>{t("workerDetail.workerInfo")}</SheetTitle>
-        </SheetHeader>
-
-        <Separator />
-
-        <form
-          id="edit-worker-info-form"
-          onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto"
-        >
-          <div className="px-6 py-5 space-y-5">
-            {submitError && (
-              <div role="alert" className={ALERT_DESTRUCTIVE}>
-                {submitError}
-              </div>
-            )}
-
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent
+        side="right"
+        title={t("workerDetail.editInfoTitle")}
+        description={worker.name}
+        style={DRAWER_STYLE}
+      >
+        <form id="edit-worker-info-form" onSubmit={handleSubmit} className="relative grid gap-8">
+          <div className="grid gap-5">
             <WorkerNameField
               id="ewis-name"
               open={open}
               value={name}
               onChange={setName}
               onError={setSubmitError}
+              disabled={isPending}
             />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ewis-desc">{t("workers.form.description")}</Label>
-              <Textarea
-                id="ewis-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("workers.form.descriptionPlaceholder")}
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">{t("workers.form.descriptionHelper")}</p>
-            </div>
+            <Textarea
+              id="ewis-desc"
+              label={t("workers.form.description")}
+              description={t("workers.form.descriptionHelper")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("workers.form.descriptionPlaceholder")}
+              rows={3}
+              disabled={isPending}
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ewis-workdir">{t("workers.form.workDir")}</Label>
+            <div className="grid min-w-0">
               <Input
                 id="ewis-workdir"
+                label={t("workers.form.workDir")}
                 value={workDir}
                 onChange={(e) => setWorkDir(e.target.value)}
                 placeholder={t("workers.form.workDirPlaceholder")}
+                autoComplete="off"
+                spellCheck={false}
+                required
+                disabled={isPending}
+                aria-describedby="ewis-workdir-hint"
               />
-              <p className="text-xs text-muted-foreground">{t("workers.form.workDirEditHelper")}</p>
+              <p id="ewis-workdir-hint" className="pt-2 text-xs text-muted">
+                {t("workers.form.workDirEditHelper")}
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ewis-engine">{t("workers.form.engine")}</Label>
-              <Select value={engine} onValueChange={(v) => v && setEngine(v as Engine)}>
-                <SelectTrigger id="ewis-engine">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <EngineSelectItems engines={enabledEngines} />
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">{t("workers.form.engineHelper")}</p>
-            </div>
+            <Select
+              id="ewis-engine"
+              label={t("workers.form.engine")}
+              description={t("workers.form.engineHelper")}
+              options={engineOptions}
+              value={engine}
+              onValueChange={(v) => v && setEngine(v as Engine)}
+              disabled={isPending}
+            />
 
             <EngineArgsSection
               engines={[engine]}
               value={engineArgs}
               onChange={setEngineArgs}
+              idPrefix="ewis-engine-args"
+              disabled={isPending}
             />
           </div>
 
           {flatDepts.length > 0 && (
-            <div className="border-t border-border/60 px-6 py-5 space-y-3">
-              <SectionHeading
-                text={t("workers.form.sectionDepartment")}
-                badge={selectedDeptIds.size}
+            <section className="grid gap-3 border-t border-border-subtle pt-6" aria-label={t("workers.form.sectionDepartment")}>
+              <div className="grid gap-1">
+                <SectionHeading text={t("workers.form.sectionDepartment")} badge={selectedDeptIds.size} />
+                <p className="text-sm text-secondary">{t("workers.form.departmentHelper")}</p>
+              </div>
+              <WorkerDepartmentPicker
+                selected={selectedDeptIds}
+                onChange={setSelectedDeptIds}
+                disabled={isPending}
               />
-
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={deptSearch}
-                  onChange={(e) => setDeptSearch(e.target.value)}
-                  placeholder={t("workers.form.searchDepartments")}
-                  className="pl-8 h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-0.5 max-h-48 overflow-y-auto -mx-1">
-                {filteredDepts.length === 0 ? (
-                  <p className="py-3 text-xs text-muted-foreground text-center">
-                    {t("workers.form.noMatchingDepartments")}
-                  </p>
-                ) : (
-                  filteredDepts.map(({ dept, depth }) => (
-                    <label
-                      key={dept.id}
-                      className="flex items-center gap-2 rounded-sm px-3 py-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
-                      style={{ paddingLeft: `${12 + depth * 12}px` }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedDeptIds.has(dept.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedDeptIds)
-                          if (e.target.checked) next.add(dept.id)
-                          else next.delete(dept.id)
-                          setSelectedDeptIds(next)
-                        }}
-                        className="size-3.5 shrink-0 cursor-pointer rounded-sm accent-primary"
-                      />
-                      <span className="text-sm text-foreground/75 leading-snug">{dept.name}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground">{t("workers.form.departmentHelper")}</p>
-            </div>
+            </section>
           )}
-        </form>
 
-        <Separator />
-        <SheetFooter className="px-6 py-4 flex-row gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            type="submit"
-            form="edit-worker-info-form"
-            disabled={isPending || !name.trim() || !trimmedWorkDir}
-            className="flex-1"
-          >
-            {t("common.save")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          {submitError && (
+            <Alert tone="danger" title={t("workers.form.saveError")}>
+              {submitError}
+            </Alert>
+          )}
+
+          <div className="sticky -bottom-5 -mx-5 -mb-5 flex justify-end gap-2 border-t border-border-subtle bg-surface-raised px-5 py-4 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              loading={isPending}
+              disabled={!name.trim() || !trimmedWorkDir}
+            >
+              {t("workerDetail.saveInfo")}
+            </Button>
+          </div>
+        </form>
+      </DrawerContent>
+    </Drawer>
   )
 }

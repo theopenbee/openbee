@@ -1,42 +1,46 @@
-import type { ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Users, Network, MessagesSquare, CalendarClock, KeyRound, SlidersHorizontal } from "lucide-react"
+import {
+  ActivityIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  KeyRoundIcon,
+  NetworkIcon,
+  SlidersHorizontalIcon,
+  UsersIcon,
+  type LucideIcon,
+} from "lucide-react"
 import { Panel } from "@/components/panel"
 
-type QuickLink = {
-  to: string
-  labelKey: string
-  icon: ReactNode
-}
-
-const LINKS: QuickLink[] = [
-  { to: "/workers", labelKey: "nav.workers", icon: <Users /> },
-  { to: "/departments", labelKey: "nav.departments", icon: <Network /> },
-  { to: "/tasks", labelKey: "nav.tasks", icon: <CalendarClock /> },
-  { to: "/sessions", labelKey: "nav.sessions", icon: <MessagesSquare /> },
-  { to: "/env", labelKey: "nav.settings", icon: <KeyRound /> },
-  { to: "/settings", labelKey: "nav.systemSettings", icon: <SlidersHorizontal /> },
+const LINKS: { to: string; labelKey: string; icon: LucideIcon }[] = [
+  { to: "/workers", labelKey: "nav.workers", icon: UsersIcon },
+  { to: "/departments", labelKey: "nav.departments", icon: NetworkIcon },
+  { to: "/tasks", labelKey: "nav.tasks", icon: ClockIcon },
+  { to: "/sessions", labelKey: "nav.sessions", icon: ActivityIcon },
+  { to: "/env", labelKey: "nav.settings", icon: KeyRoundIcon },
+  { to: "/settings", labelKey: "nav.systemSettings", icon: SlidersHorizontalIcon },
 ]
 
-export function QuickLinks() {
+export function QuickLinks({ className }: { className?: string }) {
   const { t } = useTranslation()
 
   return (
-    <Panel title={t("dashboard.quickAccess")} ariaLabel={t("dashboard.quickAccess")}>
-      <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {LINKS.map(({ to, labelKey, icon }) => (
-          <Link
-            key={to}
-            to={to}
-            className="group/quick flex items-center gap-3 rounded-sm border border-border/70 px-3.5 py-3 transition-colors hover:border-brand/40 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-          >
-            <span className="text-muted-foreground transition-colors group-hover/quick:text-brand [&_svg]:size-[18px]">
-              {icon}
-            </span>
-            <span className="text-sm font-medium">{t(labelKey)}</span>
-          </Link>
-        ))}
+    <Panel title={t("dashboard.quickAccess")} ariaLabel={t("dashboard.quickAccess")} className={className} flush>
+      <nav aria-label={t("dashboard.quickAccess")}>
+        <ul className="border-t border-border-subtle">
+          {LINKS.map(({ to, labelKey, icon: Icon }) => (
+            <li key={to} className="border-b border-border-subtle last:border-b-0">
+              <Link
+                to={to}
+                className="flex min-h-12 items-center gap-3 px-6 text-sm text-foreground transition-colors hover:bg-surface-muted"
+              >
+                <Icon size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-secondary" />
+                <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
+                <ChevronRightIcon size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />
+              </Link>
+            </li>
+          ))}
+        </ul>
       </nav>
     </Panel>
   )

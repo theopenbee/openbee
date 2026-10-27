@@ -10,7 +10,7 @@ export function Tasks() {
 
   return (
     <FadeIn>
-      <PageHeader title={t("tasks.title")} />
+      <PageHeader title={t("tasks.title")} subtitle={t("tasks.subtitle")} />
       <TaskList page={page} pageSize={TASK_PAGE_SIZE} onPageChange={setPage} />
     </FadeIn>
   )

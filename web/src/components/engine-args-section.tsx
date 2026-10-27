@@ -1,39 +1,39 @@
 import { useTranslation } from "react-i18next"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { EngineIcon } from "@/components/agent-icons/engine-icon"
+import { Input } from "@/components/arc/input/input"
+import { formatEngineLabel } from "@/lib/format"
 import type { Engine } from "@/lib/types"
 
 interface EngineArgsSectionProps {
   engines: readonly Engine[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
-  showLabel?: boolean
+  idPrefix?: string
+  disabled?: boolean
 }
 
-export function EngineArgsSection({ engines, value, onChange, showLabel = true }: EngineArgsSectionProps) {
+export function EngineArgsSection({ engines, value, onChange, idPrefix = "engine-args", disabled }: EngineArgsSectionProps) {
   const { t } = useTranslation()
+  const single = engines.length === 1
 
   return (
-    <div className="space-y-2">
-      {showLabel && <Label>{t("workers.form.engineArgs")}</Label>}
-      {engines.map((engine) => (
-        <div key={engine} className="flex items-center gap-3">
-          <span className="flex w-16 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-            <EngineIcon engine={engine} className="size-4 text-foreground/70" />
-            <span className="capitalize">{engine}</span>
-          </span>
+    <div className="grid gap-4">
+      {engines.map((engine) => {
+        const engineLabel = formatEngineLabel(engine, t)
+        return (
           <Input
-            id={`engine-args-${engine}`}
+            key={engine}
+            id={`${idPrefix}-${engine}`}
+            label={single ? t("workers.form.engineArgs") : engineLabel}
+            description={single ? t("workers.form.engineArgsHelper", { engine: engineLabel }) : undefined}
             value={value[engine] ?? ""}
-            onChange={(e) =>
-              onChange({ ...value, [engine]: e.target.value })
-            }
+            onChange={(e) => onChange({ ...value, [engine]: e.target.value })}
             placeholder={t("workers.form.engineArgsPlaceholder")}
-            className="flex-1 font-mono text-xs"
+            autoComplete="off"
+            spellCheck={false}
+            disabled={disabled}
           />
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
