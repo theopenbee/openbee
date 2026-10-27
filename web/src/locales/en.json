@@ -6,24 +6,11 @@
     "daysAgo": "{{count}}d ago"
   },
   "nav": {
-    "primary": "Primary",
-    "openNav": "Open navigation",
-    "menu": "Menu",
-    "workers": "Workers",
-    "departments": "Departments",
-    "digitalEmployees": "Digital Employees",
     "settings": "Settings"
   },
   "common": {
-    "save": "Save",
-    "edit": "Edit",
     "cancel": "Cancel",
-    "delete": "Delete",
-    "view": "View",
     "copy": "Copy",
-    "copied": "Copied",
-    "copyFailed": "Copy failed",
-    "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
     "retry": "Retry",
@@ -41,20 +28,8 @@
     "cancelled": "Cancelled"
   },
   "workers": {
-    "title": "Workers",
     "createWorker": "Create worker",
     "copyWorker": "Copy worker",
-    "backToList": "Back to workers",
-    "summary_one": "{{count}} worker, {{active}} working",
-    "summary_other": "{{count}} workers, {{active}} working",
-    "columns": {
-      "name": "Name",
-      "engine": "Engine",
-      "activeTime": "Last active",
-      "actions": "Actions",
-      "status": "Status",
-      "department": "Department"
-    },
     "form": {
       "copySuffix": "Copy",
       "sectionBasic": "Basic info",
@@ -111,29 +86,15 @@
       "pi": "Pi"
     },
     "deleteWorker": "Delete worker",
-    "searchLabel": "Search workers",
-    "searchPlaceholder": "Name or description",
-    "loadError": "Couldn't load workers",
     "noEngine": "Not set",
-    "noMatches": "No matching workers",
-    "noMatchesDesc": "Try another name, department, or status.",
-    "rowActions": "Actions for {{name}}",
-    "filters": {
-      "department": "Department",
-      "status": "Status",
-      "allDepartments": "All departments",
-      "allStatuses": "All",
-      "clear": "Clear filters"
-    }
+    "rowActions": "Actions for {{name}}"
   },
   "workerDetail": {
-    "overview": "Overview",
     "workerInfo": "Worker info",
     "id": "ID",
     "workDir": "Work directory",
     "created": "Created",
     "updated": "Last updated",
-    "constraints": "Work constraints",
     "editConstraints": "Edit work constraints",
     "constraintsPanel": {
       "charCount": "{{count}} chars",
@@ -174,34 +135,8 @@
     "copyWorkDir": "Copy work directory",
     "effectiveEnvDescription": "What the worker sees after global, department, and worker values are merged."
   },
-  "localChat": {
-    "title": "Chat",
-    "inputPlaceholder": "Message the Bee",
-    "send": "Send",
-    "uploadFile": "Upload file",
-    "processing": "Working on it…",
-    "uploadError_one": "{{count}} file failed to upload. Try again.",
-    "uploadError_other": "{{count}} files failed to upload. Try again.",
-    "noMessagesTitle": "Start the first exchange",
-    "noMessagesDescription": "Send a message or upload a file.",
-    "operatorLabel": "Operator",
-    "beeLabel": "Bee",
-    "composerHint": "Enter to send, Shift+Enter for a new line, @ to mention a worker",
-    "composerHintTouch": "Ctrl/⌘+Enter to send, @ to mention a worker",
-    "removeAttachment": "Remove attachment",
-    "loadMore": "Load earlier messages",
-    "loadingMore": "Loading…",
-    "loadMoreError": "Couldn't load earlier messages. Retry",
-    "loadMoreFailed": "Couldn't load earlier messages.",
-    "removeNamedAttachment": "Remove {{name}}",
-    "attachments": "Attachments",
-    "messageLabel": "Message",
-    "copyMessage": "Copy message",
-    "viewImage": "View image {{name}}",
-    "openOriginal": "Open original",
-    "closeImage": "Close image"
-  },
   "chat": {
+    "title": "Chat",
     "youPrefix": "You: ",
     "handedOffTo": "Handed off to {{name}}",
     "deletedWorker": "Deleted worker",
@@ -234,17 +169,34 @@
     "sendFailed": "Message not sent. Your text is back in the box.",
     "composerHintPlain": "Enter to send, Shift+Enter for a new line",
     "composerHintTouchPlain": "Ctrl/⌘+Enter to send",
+    "beeLabel": "Bee",
+    "send": "Send",
+    "uploadFile": "Upload file",
+    "uploadError_one": "{{count}} file failed to upload. Try again.",
+    "uploadError_other": "{{count}} files failed to upload. Try again.",
+    "noMessagesTitle": "Start the first exchange",
+    "noMessagesDescription": "Send a message or upload a file.",
+    "composerHint": "Enter to send, Shift+Enter for a new line, @ to mention a worker",
+    "composerHintTouch": "Ctrl/⌘+Enter to send, @ to mention a worker",
+    "loadMore": "Load earlier messages",
+    "loadMoreFailed": "Couldn't load earlier messages.",
+    "removeNamedAttachment": "Remove {{name}}",
+    "attachments": "Attachments",
+    "messageLabel": "Message",
+    "copyMessage": "Copy message",
+    "viewImage": "View image {{name}}",
+    "openOriginal": "Open original",
+    "closeImage": "Close image",
     "taskType": {
       "countdown": "Runs once",
       "scheduled": "Recurring"
+    },
+    "panelTabs": {
+      "overview": "Overview",
+      "constraints": "Constraints",
+      "permissions": "Permissions",
+      "env": "Env"
     }
-  },
-  "breadcrumb": {
-    "detail": "Detail"
-  },
-  "theme": {
-    "light": "Light mode",
-    "dark": "Dark mode"
   },
   "account": {
     "role": "Administrator",
@@ -268,7 +220,6 @@
     "username": "Username",
     "password": "Password",
     "submit": "Sign in",
-    "logout": "Log out",
     "error401": "The username or password is incorrect.",
     "error429": "Too many attempts. Wait a minute and try again.",
     "errorGeneric": "Check your connection and try again.",
@@ -298,8 +249,6 @@
   "departments": {
     "title": "Departments",
     "settingsDescription": "Manage department structure and members",
-    "filter": "Filter",
-    "allWorkers": "All workers",
     "ungrouped": "Ungrouped",
     "summary_one": "{{count}} department",
     "summary_other": "{{count}} departments",
@@ -352,12 +301,6 @@
       "error": "Could not delete the department"
     }
   },
-  "emptyState": {
-    "noWorkers": "No workers in the hive yet",
-    "noWorkersDesc": "Create your first AI worker to get started",
-    "noWorkersInGroup": "No workers in this group",
-    "noWorkersInGroupDesc": "Switch groups or add workers to this group"
-  },
   "scopes": {
     "readWorkers": {
       "title": "Read Workers",
@@ -402,7 +345,6 @@
     "sourceWorker": "worker",
     "source": "Source",
     "noEffective": "No env variables configured for this worker.",
-    "depEnvTitle": "Env Variables",
     "pageDescription": "Passed to the Bee and workers when they start. Values are encrypted and stay hidden after you save them.",
     "globalDescription": "Available to the Bee and every worker.",
     "beeDescription": "Only for the Bee coordinator. A key set here overrides the global value.",

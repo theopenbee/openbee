@@ -27,8 +27,8 @@ export function senderDisplay(
       return { kind: "user", name: t("chat.you") }
     case "bee":
       return workerIdOf(conversation)
-        ? { kind: "bee", name: t("localChat.beeLabel"), via: "bee" }
-        : { kind: "bee", name: t("localChat.beeLabel") }
+        ? { kind: "bee", name: t("chat.beeLabel"), via: "bee" }
+        : { kind: "bee", name: t("chat.beeLabel") }
     case "worker": {
       const workerId = sender.id ?? workerIdOf(conversation) ?? ""
       return { kind: "worker", name: workers.get(workerId)?.name ?? t("chat.deletedWorker"), workerId }

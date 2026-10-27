@@ -72,7 +72,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const workerList = workersData ?? EMPTY_WORKERS
   const workers = useMemo(() => new Map(workerList.map((item) => [item.id, item])), [workerList])
   const worker = workerId ? workers.get(workerId) : undefined
-  const name = isBee ? t("localChat.beeLabel") : (worker?.name ?? t("chat.deletedWorker"))
+  const name = isBee ? t("chat.beeLabel") : (worker?.name ?? t("chat.deletedWorker"))
 
   const { data: conversations } = useConversations()
   const [beeBusy, setBeeBusy] = useState(false)
@@ -219,7 +219,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
               <WorkerIntro worker={worker} />
             ) : (
               <div className="flex flex-1 items-center justify-center">
-                <EmptyState title={t("localChat.noMessagesTitle")} description={t("localChat.noMessagesDescription")} />
+                <EmptyState title={t("chat.noMessagesTitle")} description={t("chat.noMessagesDescription")} />
               </div>
             )
           ) : (
@@ -228,11 +228,11 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
                 <div className="mb-8 flex flex-col items-center gap-2">
                   {loadError && !isLoadingMore && (
                     <p role="alert" className="text-sm text-danger">
-                      {t("localChat.loadMoreFailed")}
+                      {t("chat.loadMoreFailed")}
                     </p>
                   )}
                   <Button variant="secondary" size="sm" loading={isLoadingMore} onClick={handleLoadMore}>
-                    {loadError ? t("common.retry") : t("localChat.loadMore")}
+                    {loadError ? t("common.retry") : t("chat.loadMore")}
                   </Button>
                 </div>
               )}

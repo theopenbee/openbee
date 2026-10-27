@@ -43,12 +43,12 @@ describe("senderDisplay", () => {
   it("senderDisplay labels bee handoff inside worker chat", () => {
     expect(senderDisplay(message({ type: "bee" }), "worker:w1", workers, t)).toEqual({
       kind: "bee",
-      name: "localChat.beeLabel",
+      name: "chat.beeLabel",
       via: "bee",
     })
     expect(senderDisplay(message({ type: "bee" }), "bee", workers, t)).toEqual({
       kind: "bee",
-      name: "localChat.beeLabel",
+      name: "chat.beeLabel",
     })
   })
 

@@ -79,7 +79,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
     const failedCount = results.length - succeeded.length
 
     if (failedCount > 0) {
-      setUploadError(t("localChat.uploadError", { count: failedCount }))
+      setUploadError(t("chat.uploadError", { count: failedCount }))
     }
 
     setPendingMediaPaths((prev) => [...prev, ...succeeded.map((result) => result.value.path)])
@@ -113,7 +113,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const controlSize = isTouchOnly ? "md" : "sm"
   const hint = mentions
-    ? t(isTouchOnly ? "localChat.composerHintTouch" : "localChat.composerHint")
+    ? t(isTouchOnly ? "chat.composerHintTouch" : "chat.composerHint")
     : t(isTouchOnly ? "chat.composerHintTouchPlain" : "chat.composerHintPlain")
 
   return (
@@ -132,7 +132,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
           )}
         >
           {pendingMediaPaths.length > 0 && (
-            <ul className={cn(composerStyles.files, "flex flex-wrap gap-2 px-2 pt-1 pb-2")} aria-label={t("localChat.attachments")}>
+            <ul className={cn(composerStyles.files, "flex flex-wrap gap-2 px-2 pt-1 pb-2")} aria-label={t("chat.attachments")}>
               {pendingMediaPaths.map((path) => (
                 <li
                   key={path}
@@ -143,7 +143,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
                   <button
                     type="button"
                     className="inline-grid size-6 shrink-0 place-items-center rounded-full text-secondary transition-colors hover:bg-surface hover:text-foreground"
-                    aria-label={t("localChat.removeNamedAttachment", { name: basename(path) })}
+                    aria-label={t("chat.removeNamedAttachment", { name: basename(path) })}
                     onClick={() =>
                       setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
                     }
@@ -159,7 +159,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
             {mentions ? (
               <MentionTextarea
                 textareaRef={textareaRef}
-                ariaLabel={t("localChat.messageLabel")}
+                ariaLabel={t("chat.messageLabel")}
                 className={TEXTAREA_CLASS}
                 placeholder={placeholder}
                 value={input}
@@ -172,7 +172,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
             ) : (
               <textarea
                 ref={textareaRef}
-                aria-label={t("localChat.messageLabel")}
+                aria-label={t("chat.messageLabel")}
                 className={TEXTAREA_CLASS}
                 placeholder={placeholder}
                 rows={1}
@@ -197,7 +197,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
               variant="ghost"
               size={controlSize}
               onClick={() => fileInputRef.current?.click()}
-              aria-label={t("localChat.uploadFile")}
+              aria-label={t("chat.uploadFile")}
             >
               <Paperclip size={16} strokeWidth={1.75} aria-hidden="true" />
             </Button>
@@ -210,7 +210,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
               size={controlSize}
               onClick={() => void handleSend()}
               disabled={!canSend || isSending}
-              aria-label={t("localChat.send")}
+              aria-label={t("chat.send")}
             >
               <ArrowUp size={16} strokeWidth={1.75} aria-hidden="true" />
             </Button>

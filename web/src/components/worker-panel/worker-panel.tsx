@@ -23,10 +23,10 @@ import type { Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
 const SECTIONS: { key: PanelSection; labelKey: string }[] = [
-  { key: "overview", labelKey: "workerDetail.overview" },
-  { key: "constraints", labelKey: "workerDetail.constraints" },
-  { key: "permissions", labelKey: "workerDetail.permissions" },
-  { key: "env", labelKey: "envConfig.title" },
+  { key: "overview", labelKey: "chat.panelTabs.overview" },
+  { key: "constraints", labelKey: "chat.panelTabs.constraints" },
+  { key: "permissions", labelKey: "chat.panelTabs.permissions" },
+  { key: "env", labelKey: "chat.panelTabs.env" },
 ]
 
 const ICON = { size: 16, strokeWidth: 1.75, "aria-hidden": true } as const

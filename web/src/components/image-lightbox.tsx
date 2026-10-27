@@ -33,7 +33,7 @@ export function ImageLightbox({
       <DialogPrimitive.Trigger asChild>
         <button
           type="button"
-          aria-label={t("localChat.viewImage", { name: alt })}
+          aria-label={t("chat.viewImage", { name: alt })}
           className={cn(
             "block max-w-full cursor-zoom-in overflow-hidden rounded-inset border border-border bg-surface transition-opacity hover:opacity-90",
             className
@@ -70,11 +70,11 @@ export function ImageLightbox({
                   </DialogPrimitive.Title>
                   <a href={src} target="_blank" rel="noreferrer" className={VIEWER_LINK}>
                     <ArrowUpRight size={16} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="hidden sm:inline">{t("localChat.openOriginal")}</span>
-                    <span className="sr-only sm:hidden">{t("localChat.openOriginal")}</span>
+                    <span className="hidden sm:inline">{t("chat.openOriginal")}</span>
+                    <span className="sr-only sm:hidden">{t("chat.openOriginal")}</span>
                   </a>
                   <DialogPrimitive.Close asChild>
-                    <Button variant="secondary" aria-label={t("localChat.closeImage")}>
+                    <Button variant="secondary" aria-label={t("chat.closeImage")}>
                       <X size={16} strokeWidth={1.75} aria-hidden="true" />
                     </Button>
                   </DialogPrimitive.Close>

@@ -81,7 +81,7 @@ export const MessageBubble = memo(function MessageBubble({
               </ExpandableContent>
             </div>
             <span className={cn("absolute top-1 right-full mr-1 inline-flex", COPY_REVEAL)}>
-              <CopyButton value={message.content} label={t("localChat.copyMessage")} />
+              <CopyButton value={message.content} label={t("chat.copyMessage")} />
             </span>
           </div>
         )}
@@ -117,7 +117,7 @@ export const MessageBubble = memo(function MessageBubble({
                   </ExpandableContent>
                 </div>
                 <div className={cn("-mb-1 -ml-2.5 flex", COPY_REVEAL)}>
-                  <CopyButton value={message.content} label={t("localChat.copyMessage")} />
+                  <CopyButton value={message.content} label={t("chat.copyMessage")} />
                 </div>
               </>
             )}

@@ -21,7 +21,7 @@ export function ConversationRow({ conversation, workers, active, now }: Conversa
   const { t, i18n } = useTranslation()
   const worker = conversation.worker_id ? workers.get(conversation.worker_id) : undefined
   const last = conversation.last_message
-  const name = worker ? worker.name : t("localChat.beeLabel")
+  const name = worker ? worker.name : t("chat.beeLabel")
   const preview = last ? previewText(last, workers, t) : (worker?.description ?? "")
   const unread = conversation.unread > MAX_UNREAD ? `${MAX_UNREAD}+` : String(conversation.unread)
 

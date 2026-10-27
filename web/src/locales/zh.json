@@ -6,24 +6,11 @@
     "daysAgo": "{{count}} 天前"
   },
   "nav": {
-    "primary": "主导航",
-    "openNav": "打开导航",
-    "menu": "菜单",
-    "workers": "员工",
-    "departments": "部门",
-    "digitalEmployees": "数字员工",
     "settings": "设置"
   },
   "common": {
-    "save": "保存",
-    "edit": "编辑",
     "cancel": "取消",
-    "delete": "删除",
-    "view": "查看",
     "copy": "复制",
-    "copied": "已复制",
-    "copyFailed": "复制失败",
-    "create": "创建",
     "noDescription": "无描述",
     "loadError": "加载数据失败。",
     "retry": "重试",
@@ -41,20 +28,8 @@
     "cancelled": "已取消"
   },
   "workers": {
-    "title": "员工",
     "createWorker": "创建员工",
     "copyWorker": "复制员工",
-    "backToList": "返回员工列表",
-    "summary_one": "{{count}} 名员工，{{active}} 名工作中",
-    "summary_other": "{{count}} 名员工，{{active}} 名工作中",
-    "columns": {
-      "name": "名称",
-      "engine": "引擎",
-      "activeTime": "最近活跃",
-      "actions": "操作",
-      "status": "状态",
-      "department": "部门"
-    },
     "form": {
       "copySuffix": "副本",
       "sectionBasic": "基本信息",
@@ -111,29 +86,15 @@
       "pi": "Pi"
     },
     "deleteWorker": "删除员工",
-    "searchLabel": "搜索员工",
-    "searchPlaceholder": "名称或描述",
-    "loadError": "无法加载员工列表",
     "noEngine": "未设置",
-    "noMatches": "没有匹配的员工",
-    "noMatchesDesc": "换个名称、部门或状态试试。",
-    "rowActions": "{{name}} 的操作",
-    "filters": {
-      "department": "部门",
-      "status": "状态",
-      "allDepartments": "全部部门",
-      "allStatuses": "全部",
-      "clear": "清除筛选"
-    }
+    "rowActions": "{{name}} 的操作"
   },
   "workerDetail": {
-    "overview": "概览",
     "workerInfo": "员工信息",
     "id": "ID",
     "workDir": "工作目录",
     "created": "创建时间",
     "updated": "最近更新",
-    "constraints": "工作约束",
     "editConstraints": "编辑工作约束",
     "constraintsPanel": {
       "charCount": "{{count}} 字",
@@ -174,33 +135,8 @@
     "copyWorkDir": "复制工作目录",
     "effectiveEnvDescription": "合并全局、部门与员工级变量后，该员工实际可见的值。"
   },
-  "localChat": {
-    "title": "聊天",
-    "inputPlaceholder": "给 Bee 发消息",
-    "send": "发送",
-    "uploadFile": "上传文件",
-    "processing": "处理中…",
-    "uploadError_other": "{{count}} 个文件上传失败，请重试",
-    "noMessagesTitle": "开始第一轮对话",
-    "noMessagesDescription": "发送一条消息，或者上传文件。",
-    "operatorLabel": "操作员",
-    "beeLabel": "Bee",
-    "composerHint": "回车发送，Shift+Enter 换行，输入 @ 提及员工",
-    "composerHintTouch": "Ctrl/⌘+Enter 发送，输入 @ 提及员工",
-    "removeAttachment": "移除附件",
-    "loadMore": "加载更早消息",
-    "loadingMore": "加载中…",
-    "loadMoreError": "加载失败，点击重试",
-    "loadMoreFailed": "无法加载更早的消息。",
-    "removeNamedAttachment": "移除 {{name}}",
-    "attachments": "附件",
-    "messageLabel": "消息",
-    "copyMessage": "复制消息",
-    "viewImage": "查看图片 {{name}}",
-    "openOriginal": "打开原图",
-    "closeImage": "关闭图片"
-  },
   "chat": {
+    "title": "聊天",
     "youPrefix": "你：",
     "handedOffTo": "已交给 {{name}}",
     "deletedWorker": "已删除的员工",
@@ -233,17 +169,33 @@
     "sendFailed": "消息没有发出，内容已放回输入框。",
     "composerHintPlain": "回车发送，Shift+Enter 换行",
     "composerHintTouchPlain": "Ctrl/⌘+Enter 发送",
+    "beeLabel": "Bee",
+    "send": "发送",
+    "uploadFile": "上传文件",
+    "uploadError_other": "{{count}} 个文件上传失败，请重试",
+    "noMessagesTitle": "开始第一轮对话",
+    "noMessagesDescription": "发送一条消息，或者上传文件。",
+    "composerHint": "回车发送，Shift+Enter 换行，输入 @ 提及员工",
+    "composerHintTouch": "Ctrl/⌘+Enter 发送，输入 @ 提及员工",
+    "loadMore": "加载更早消息",
+    "loadMoreFailed": "无法加载更早的消息。",
+    "removeNamedAttachment": "移除 {{name}}",
+    "attachments": "附件",
+    "messageLabel": "消息",
+    "copyMessage": "复制消息",
+    "viewImage": "查看图片 {{name}}",
+    "openOriginal": "打开原图",
+    "closeImage": "关闭图片",
     "taskType": {
       "countdown": "定时一次",
       "scheduled": "周期任务"
+    },
+    "panelTabs": {
+      "overview": "概览",
+      "constraints": "约束",
+      "permissions": "权限",
+      "env": "环境变量"
     }
-  },
-  "breadcrumb": {
-    "detail": "详情"
-  },
-  "theme": {
-    "light": "浅色模式",
-    "dark": "深色模式"
   },
   "account": {
     "role": "管理员",
@@ -267,7 +219,6 @@
     "username": "用户名",
     "password": "密码",
     "submit": "登录",
-    "logout": "退出登录",
     "error401": "用户名或密码不正确。",
     "error429": "尝试次数过多，请稍等片刻再试。",
     "errorGeneric": "请检查网络连接后重试。",
@@ -297,8 +248,6 @@
   "departments": {
     "title": "部门",
     "settingsDescription": "管理部门结构和成员",
-    "filter": "筛选",
-    "allWorkers": "全部员工",
     "ungrouped": "未分组",
     "summary_other": "共 {{count}} 个部门",
     "create": "创建部门",
@@ -348,12 +297,6 @@
       "error": "无法删除部门"
     }
   },
-  "emptyState": {
-    "noWorkers": "蜂巢中还没有员工",
-    "noWorkersDesc": "创建你的第一个 AI 员工开始使用",
-    "noWorkersInGroup": "该分组下暂无员工",
-    "noWorkersInGroupDesc": "切换分组或将员工添加到此分组"
-  },
   "scopes": {
     "readWorkers": {
       "title": "查询员工",
@@ -398,7 +341,6 @@
     "sourceWorker": "员工",
     "source": "来源",
     "noEffective": "该员工暂无任何环境变量配置。",
-    "depEnvTitle": "环境变量",
     "pageDescription": "Bee 和员工启动时会注入这些变量。变量值加密存储，保存后不再显示。",
     "globalDescription": "对 Bee 和所有员工生效。",
     "beeDescription": "仅对 Bee 协调者生效，同名时覆盖全局变量。",
@@ -406,7 +348,6 @@
     "keyHint": "仅限字母、数字和下划线。",
     "newValue": "新的值",
     "multiline": "多行值",
-    "valueLength_one": "{{count}} 个字符。",
     "valueLength_other": "{{count}} 个字符。",
     "saveValue": "保存新值",
     "added": "已添加 {{key}}",
@@ -425,7 +366,6 @@
     "deleteError": "无法删除变量",
     "saveError": "无法保存变量",
     "loadError": "无法加载变量",
-    "valueLengthSpace_one": "{{count}} 个字符。首尾包含空格。",
     "valueLengthSpace_other": "{{count}} 个字符。首尾包含空格。"
   },
   "systemSettings": {
