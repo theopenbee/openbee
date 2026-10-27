@@ -1,9 +1,21 @@
 import { Suspense, useEffect, useMemo } from "react"
-import { Outlet, useMatch, useNavigate, useOutletContext } from "react-router-dom"
+import { Outlet, useMatch, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { ConversationList } from "@/components/chat/conversation-list"
+import { SplitPanel } from "@/components/split-panel"
+import { WorkerCreateForm } from "@/components/worker-panel/worker-create-form"
+import { WorkerPanel } from "@/components/worker-panel/worker-panel"
 import { useWorkers } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
-import { resolveConversationRoute } from "@/lib/routes"
+import {
+  panelFromSearch,
+  panelReplacesHistory,
+  panelToSearch,
+  panelView,
+  resolveConversationRoute,
+  workerPanelPath,
+  type PanelState,
+} from "@/lib/routes"
 import type { ConversationId } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -57,6 +69,43 @@ export function ChatShell() {
           <Outlet context={context} />
         </Suspense>
       </main>
+      <ChatPanel param={param} />
     </div>
+  )
+}
+
+function ChatPanel({ param }: { param: string | undefined }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const panel = panelFromSearch(searchParams)
+  const view = panelView(param, panel)
+
+  const changePanel = (next: PanelState) =>
+    setSearchParams((current) => panelToSearch(next, current), { replace: panelReplacesHistory(panel, next) })
+
+  const title =
+    view?.mode === "new" ? t(view.copyFrom ? "workers.copyWorker" : "chat.newWorker") : t("chat.panelTitle")
+
+  return (
+    <SplitPanel
+      open={view !== null}
+      onOpenChange={(open) => {
+        if (!open) changePanel(null)
+      }}
+      title={title}
+    >
+      {view?.mode === "worker" && (
+        <WorkerPanel key={view.workerId} workerId={view.workerId} panel={panel} onPanelChange={changePanel} />
+      )}
+      {view?.mode === "new" && (
+        <WorkerCreateForm
+          key={view.copyFrom ?? ""}
+          copyFrom={view.copyFrom}
+          onCreated={(worker) => navigate(workerPanelPath(worker.id), { replace: true })}
+          onCancel={() => changePanel(null)}
+        />
+      )}
+    </SplitPanel>
   )
 }

@@ -9,6 +9,11 @@ export type PanelState =
   | { mode: "new"; copyFrom?: string }
   | null
 
+export type PanelView =
+  | { mode: "worker"; workerId: string; section: PanelSection }
+  | { mode: "new"; copyFrom?: string }
+  | null
+
 export interface LegacyTarget {
   to: string
   settings?: SettingsSection
@@ -19,7 +24,7 @@ const PANEL_PARAM = "panel"
 const COPY_PARAM = "copy"
 const NEW_PANEL = "new"
 
-function isPanelSection(value: string | null): value is PanelSection {
+export function isPanelSection(value: string | null): value is PanelSection {
   return value !== null && PANEL_SECTIONS.includes(value)
 }
 
@@ -44,9 +49,23 @@ export function panelToSearch(panel: PanelState, current: URLSearchParams): URLS
   return next
 }
 
+export function panelView(param: string | undefined, panel: PanelState): PanelView {
+  if (panel?.mode === "new") return panel
+  if (panel?.mode !== "worker" || !param || param === BEE_CONVERSATION) return null
+  return { mode: "worker", workerId: param, section: panel.section }
+}
+
+export function panelReplacesHistory(current: PanelState, next: PanelState): boolean {
+  return current?.mode === "worker" && next?.mode === "worker"
+}
+
 function withPanel(pathname: string, panel: PanelState): string {
   const query = panelToSearch(panel, new URLSearchParams()).toString()
   return query ? `${pathname}?${query}` : pathname
+}
+
+export function workerPanelPath(workerId: string): string {
+  return withPanel(conversationPath(workerConversationId(workerId)), { mode: "worker", section: "overview" })
 }
 
 export function legacyRedirect(pathname: string, search: string): LegacyTarget | null {

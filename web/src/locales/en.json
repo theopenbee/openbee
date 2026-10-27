@@ -100,6 +100,7 @@
       "confirmNameLabel": "Type {{name}} to confirm",
       "confirmNamePlaceholder": "Enter worker name",
       "description": "The worker and its settings are removed. This cannot be undone.",
+      "chatWarning": "This worker's chat history is deleted too.",
       "deleteWorkDirHint": "Removes {{path}} and everything in it.",
       "confirm": "Delete worker",
       "error": "Couldn't delete the worker"
@@ -226,6 +227,8 @@
     "stopFailed": "Couldn't stop the work",
     "openPanel": "Show worker info",
     "closePanel": "Hide worker info",
+    "panelTitle": "Worker profile",
+    "panelClose": "Close panel",
     "messagePlaceholder": "Message {{name}}",
     "emptyWorker": "Say hello to {{name}} and hand over work directly.",
     "sendFailed": "Message not sent. Your text is back in the box.",

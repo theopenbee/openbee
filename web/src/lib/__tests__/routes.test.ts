@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
+  isPanelSection,
   legacyRedirect,
   panelFromSearch,
+  panelReplacesHistory,
   panelToSearch,
+  panelView,
   resolveConversationRoute,
+  workerPanelPath,
   type PanelState,
 } from "../routes"
 
@@ -83,5 +87,53 @@ describe("panel search", () => {
 
   it("ignores an empty copy source", () => {
     expect(panelFromSearch(new URLSearchParams("panel=new&copy="))).toEqual({ mode: "new" })
+  })
+})
+
+describe("panelView", () => {
+  it("shows the new worker form on any chat", () => {
+    expect(panelView("bee", { mode: "new" })).toEqual({ mode: "new" })
+    expect(panelView("w1", { mode: "new", copyFrom: "w1" })).toEqual({ mode: "new", copyFrom: "w1" })
+    expect(panelView(undefined, { mode: "new" })).toEqual({ mode: "new" })
+  })
+
+  it("shows worker sections only in worker chats", () => {
+    expect(panelView("w1", { mode: "worker", section: "env" })).toEqual({ mode: "worker", workerId: "w1", section: "env" })
+    expect(panelView("bee", { mode: "worker", section: "overview" })).toBeNull()
+    expect(panelView(undefined, { mode: "worker", section: "overview" })).toBeNull()
+    expect(panelView("", { mode: "worker", section: "overview" })).toBeNull()
+  })
+
+  it("stays closed without a panel", () => {
+    expect(panelView("w1", null)).toBeNull()
+    expect(panelView("bee", null)).toBeNull()
+  })
+})
+
+describe("workerPanelPath", () => {
+  it("opens the new worker chat on its overview", () => {
+    expect(workerPanelPath("w9")).toBe("/chat/w9?panel=overview")
+  })
+})
+
+describe("isPanelSection", () => {
+  it("accepts only the four worker sections", () => {
+    expect(["overview", "constraints", "permissions", "env"].every(isPanelSection)).toBe(true)
+    expect(isPanelSection("new")).toBe(false)
+    expect(isPanelSection("sessions")).toBe(false)
+    expect(isPanelSection(null)).toBe(false)
+  })
+})
+
+describe("panelReplacesHistory", () => {
+  it("replaces history only when switching worker sections", () => {
+    const overview: PanelState = { mode: "worker", section: "overview" }
+    const env: PanelState = { mode: "worker", section: "env" }
+
+    expect(panelReplacesHistory(overview, env)).toBe(true)
+    expect(panelReplacesHistory(null, overview)).toBe(false)
+    expect(panelReplacesHistory(overview, null)).toBe(false)
+    expect(panelReplacesHistory(overview, { mode: "new", copyFrom: "w1" })).toBe(false)
+    expect(panelReplacesHistory({ mode: "new" }, overview)).toBe(false)
   })
 })

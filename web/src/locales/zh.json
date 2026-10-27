@@ -100,6 +100,7 @@
       "confirmNameLabel": "输入 {{name}} 以确认",
       "confirmNamePlaceholder": "输入员工名称",
       "description": "员工及其配置将被删除，此操作无法撤销。",
+      "chatWarning": "该员工的私聊记录会一并删除。",
       "deleteWorkDirHint": "将删除 {{path}} 及其中所有文件。",
       "confirm": "删除员工",
       "error": "无法删除员工"
@@ -225,6 +226,8 @@
     "stopFailed": "停止失败",
     "openPanel": "查看员工信息",
     "closePanel": "收起员工信息",
+    "panelTitle": "员工资料",
+    "panelClose": "关闭面板",
     "messagePlaceholder": "给 {{name}} 发消息",
     "emptyWorker": "和 {{name}} 打个招呼，直接交代工作吧。",
     "sendFailed": "消息没有发出，内容已放回输入框。",

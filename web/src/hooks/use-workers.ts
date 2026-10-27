@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { CONVERSATIONS_KEY } from "@/lib/chat-events"
 import type { Worker, Engine } from "@/lib/types"
 
 export function useWorkers(departmentId?: string) {
@@ -31,6 +32,7 @@ export function useCreateWorker() {
     }) => api.workers.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
+      queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
     },
   })
 }
@@ -40,8 +42,9 @@ export function useDeleteWorker() {
   return useMutation({
     mutationFn: ({ id, deleteWorkDir }: { id: string; deleteWorkDir: boolean }) =>
       api.workers.delete(id, deleteWorkDir),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workers"] })
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["workers"], predicate: (query) => query.queryKey[1] !== id })
+      queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
     },
   })
 }
