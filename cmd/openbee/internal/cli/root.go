@@ -9,6 +9,7 @@ import (
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/configcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/ctlcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
+	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/passwordcmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/plugincmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/servicecmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/upgradecmd"
@@ -41,6 +42,7 @@ func NewRoot(info BuildInfo) *cobra.Command {
 		daemoncmd.NewStatusCommand(exitCode),
 		backupcmd.NewBackupCommand(info.Version),
 		backupcmd.NewRestoreCommand(info.Version),
+		passwordcmd.NewResetCommand(),
 	)
 	root.AddCommand(ctlcmd.NewCommand())
 	root.AddCommand(upgradecmd.NewCommand(info.Version))

@@ -56,7 +56,6 @@ func defaultValues() configValues {
 		RPCTokenTTL:            "48h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
-		AuthUsername:           "admin",
 		AuthAccessTTL:          "2h",
 		AuthRefreshTTL:         "168h",
 	}
@@ -201,36 +200,7 @@ func runConfig() error {
 
 	installBuiltinSkills()
 
-	// Step 2 — Web Authentication
-	fmt.Println(i18n.M.Output.Config.SectionAuth)
-
-	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.Username,
-		Default: vals.AuthUsername,
-	}, &vals.AuthUsername, survey.WithValidator(survey.Required)); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if vals.AuthPassword != "" {
-		var changePassword bool
-		if err := survey.AskOne(&survey.Confirm{
-			Message: i18n.M.Prompt.PasswordChangeConfirm,
-			Default: false,
-		}, &changePassword); err != nil {
-			return handleSurveyErr(err)
-		}
-		if changePassword {
-			if err := promptPassword(&vals); err != nil {
-				return err
-			}
-		}
-	} else {
-		if err := promptPassword(&vals); err != nil {
-			return err
-		}
-	}
-
-	// Step 3 — Advanced config
+	// Step 2 — Advanced config
 	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
 
 	var customAdvanced bool

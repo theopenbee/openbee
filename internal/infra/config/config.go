@@ -136,8 +136,6 @@ type RPCConfig struct {
 }
 
 type AuthConfig struct {
-	Username        string        `yaml:"username"`
-	Password        string        `yaml:"password"`
 	JWTSecret       string        `yaml:"jwt_secret"`
 	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
@@ -197,9 +195,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Engines.Pi.Path == "" {
 		cfg.Bee.Engines.Pi.Path = "pi"
-	}
-	if cfg.Server.Auth.Username == "" {
-		cfg.Server.Auth.Username = "admin"
 	}
 	if cfg.Server.Auth.AccessTokenTTL == 0 {
 		cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour

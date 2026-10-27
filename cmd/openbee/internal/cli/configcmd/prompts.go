@@ -1,8 +1,6 @@
 package configcmd
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -46,35 +44,6 @@ func runLanguageStep(existingLang string) (string, error) {
 	}
 	surveyhint.Apply()
 	return lang, nil
-}
-
-func promptPassword(vals *configValues) error {
-	var method string
-	if err := survey.AskOne(&survey.Select{
-		Message: i18n.M.Prompt.PasswordSetup,
-		Options: []string{i18n.M.Prompt.OptionEnterManually, i18n.M.Prompt.OptionGenerateRandom},
-	}, &method); err != nil {
-		return handleSurveyErr(err)
-	}
-	switch method {
-	case i18n.M.Prompt.OptionEnterManually:
-		if err := survey.AskOne(&survey.Password{
-			Message: i18n.M.Prompt.Password,
-		}, &vals.AuthPassword, survey.WithValidator(survey.Required)); err != nil {
-			return handleSurveyErr(err)
-		}
-	case i18n.M.Prompt.OptionGenerateRandom:
-		vals.AuthPassword = randomHex(16)
-		fmt.Printf(i18n.M.Output.Config.PasswordGenerated+"\n", vals.AuthPassword)
-	}
-	return nil
-}
-
-// randomHex returns a hex-encoded random string with n bytes of entropy.
-func randomHex(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 func handleSurveyErr(err error) error {

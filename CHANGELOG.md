@@ -2,8 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Add `openbee reset-password` to reset the admin password.
+
 ### Removed
 - Remove user and role management; keep one admin account.
+- Remove unused web username and password from config.
 
 ### Fixed
 - Actually enable SQLite WAL mode and the busy timeout.

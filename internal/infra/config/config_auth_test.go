@@ -8,9 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Web login uses DB users now, so Auth.Password is normally empty. Token TTL
-// defaults must still apply, otherwise access tokens are minted already-expired.
-func TestApplyDefaults_TokenTTLDefaultsWithEmptyPassword(t *testing.T) {
+func TestApplyDefaults_TokenTTLDefaults(t *testing.T) {
 	cfg := &Config{}
 	require.NoError(t, applyDefaults(cfg))
 	assert.Equal(t, 2*time.Hour, cfg.Server.Auth.AccessTokenTTL)

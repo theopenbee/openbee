@@ -32,6 +32,7 @@ type CmdMessages struct {
 	Upgrade       CmdEntry   `yaml:"upgrade"`
 	Backup        CmdEntry   `yaml:"backup"`
 	Restore       CmdEntry   `yaml:"restore"`
+	ResetPassword CmdEntry   `yaml:"reset_password"`
 	Ctl           CmdEntry   `yaml:"ctl"`
 	CtlWorker     CmdEntry   `yaml:"ctl_worker"`
 	CtlTask       CmdEntry   `yaml:"ctl_task"`
@@ -79,12 +80,10 @@ type PromptMessages struct {
 	MultiSelectHint string `yaml:"multiselect_hint"`
 	BotName         string `yaml:"bot_name"`
 	// Auth
-	Username              string `yaml:"username"`
-	PasswordChangeConfirm string `yaml:"password_change_confirm"`
-	PasswordSetup         string `yaml:"password_setup"`
-	Password              string `yaml:"password"`
-	JWTRegenConfirm       string `yaml:"jwt_regen_confirm"`
-	RPCTokenRegenConfirm  string `yaml:"rpc_token_regen_confirm"`
+	NewPassword          string `yaml:"new_password"`
+	ConfirmPassword      string `yaml:"confirm_password"`
+	JWTRegenConfirm      string `yaml:"jwt_regen_confirm"`
+	RPCTokenRegenConfirm string `yaml:"rpc_token_regen_confirm"`
 	// Advanced
 	AdvancedConfirm  string `yaml:"advanced_confirm"`
 	ServerPort       string `yaml:"server_port"`
@@ -95,9 +94,6 @@ type PromptMessages struct {
 	MessageDebounce  string `yaml:"message_debounce"`
 	// Write
 	ConfirmWrite string `yaml:"confirm_write"`
-	// Survey options (used in both Options slice and switch cases)
-	OptionEnterManually  string `yaml:"option_enter_manually"`
-	OptionGenerateRandom string `yaml:"option_generate_random"`
 	// Generic cancel
 	Cancelled string `yaml:"cancelled"`
 }
@@ -110,6 +106,7 @@ type FlagMessages struct {
 	BackupPassword    string `yaml:"backup_password"`
 	RestorePassword   string `yaml:"restore_password"`
 	RestoreForce      string `yaml:"restore_force"`
+	ResetPassword     string `yaml:"reset_password"`
 	UpgradeCheck      string `yaml:"upgrade_check"`
 	ServiceConfig     string `yaml:"service_config"`
 	ServiceWorkingDir string `yaml:"service_working_dir"`
@@ -125,6 +122,8 @@ type ValidateMessages struct {
 	FileNotFound    string `yaml:"file_not_found"` // contains %s
 	PathIsDir       string `yaml:"path_is_dir"`    // contains %s
 	FileNotExec     string `yaml:"file_not_exec"`  // contains %s
+	PasswordShort   string `yaml:"password_short"`
+	PasswordMatch   string `yaml:"password_match"`
 }
 
 // OutputMessages maps to all command runtime output text.
@@ -134,6 +133,7 @@ type OutputMessages struct {
 	Upgrade UpgradeOutput `yaml:"upgrade"`
 	Backup  BackupOutput  `yaml:"backup"`
 	Restore RestoreOutput `yaml:"restore"`
+	Reset   ResetOutput   `yaml:"reset_password"`
 	Config  ConfigOutput  `yaml:"config"`
 	Daemon  DaemonOutput  `yaml:"daemon"`
 	Service ServiceOutput `yaml:"service"`
@@ -271,11 +271,16 @@ type RestoreOutput struct {
 	Complete string `yaml:"complete"`
 }
 
+type ResetOutput struct {
+	Done       string `yaml:"done"`
+	NoAdmin    string `yaml:"no_admin"`
+	DBNotFound string `yaml:"db_not_found"`
+}
+
 // ConfigOutput maps to config and config_claude runtime output.
 type ConfigOutput struct {
 	FoundExisting             string `yaml:"found_existing"` // contains %s
 	SectionEngine             string `yaml:"section_engine"`
-	SectionAuth               string `yaml:"section_auth"`
 	SectionAdvanced           string `yaml:"section_advanced"`
 	SectionWrite              string `yaml:"section_write"`
 	OutputFile                string `yaml:"output_file"` // contains %s
@@ -286,7 +291,6 @@ type ConfigOutput struct {
 	JWTGenerated              string `yaml:"jwt_generated"`
 	RPCTokenSecretGenerated   string `yaml:"rpc_token_secret_generated"` // contains %s
 	RPCTokenSecretRegenerated string `yaml:"rpc_token_secret_regenerated"`
-	PasswordGenerated         string `yaml:"password_generated"` // contains %s
 	PluginSetupFailed         string `yaml:"plugin_setup_failed"`
 	ClaudeFound               string `yaml:"claude_found"` // contains %s
 	ClaudeManualEntry         string `yaml:"claude_manual_entry"`

@@ -29,8 +29,6 @@ type configValues struct {
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
 
-	AuthUsername   string
-	AuthPassword   string
 	AuthJWTSecret  string
 	AuthAccessTTL  string
 	AuthRefreshTTL string
@@ -63,8 +61,6 @@ func loadExistingConfig(path string) *configValues {
 		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
-		AuthUsername:           cfg.Server.Auth.Username,
-		AuthPassword:           cfg.Server.Auth.Password,
 		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,
 		AuthAccessTTL:          cfg.Server.Auth.AccessTokenTTL.String(),
 		AuthRefreshTTL:         cfg.Server.Auth.RefreshTokenTTL.String(),

@@ -5,8 +5,6 @@ server:
   host: {{.ServerHost}}
   debug: {{.Debug}}
   auth:
-    username: "{{.AuthUsername}}"
-    password: "{{.AuthPassword}}"
     jwt_secret: "{{.AuthJWTSecret}}"
     access_token_ttl: {{.AuthAccessTTL}}
     refresh_token_ttl: {{.AuthRefreshTTL}}

@@ -18,6 +18,8 @@ cmd:
     short: "备份 openbee 数据库、配置及状态"
   restore:
     short: "从备份文件恢复 openbee 数据"
+  reset_password:
+    short: "重置 Web 控制台管理员密码"
   ctl:
     short: "控制运行中的 openbee 服务器"
   plugin:
@@ -101,10 +103,8 @@ prompt:
   plugin_setup_run: "是否重新进行%s？"
   multiselect_hint: "[方向键移动，空格选择，→ 全选，← 清空，输入过滤]"
   bot_name: "机器人名称（用于群聊中消除 @提及）："
-  username: "用户名："
-  password_change_confirm: "已配置密码，是否修改？"
-  password_setup: "密码设置方式："
-  password: "密码："
+  new_password: "新密码："
+  confirm_password: "确认新密码："
   jwt_regen_confirm: "JWT 密钥已存在，是否重新生成？"
   rpc_token_regen_confirm: "RPC Token Secret 已存在，是否重新生成？"
   advanced_confirm: "是否自定义高级设置？"
@@ -115,8 +115,6 @@ prompt:
   max_concurrent_bee: "最大并发 bee 数量："
   message_debounce: "消息防抖时间："
   confirm_write: "确认写入配置文件？"
-  option_enter_manually: "手动输入"
-  option_generate_random: "随机生成"
   cancelled: "\n已取消。"
 flag:
   config_path: "配置文件路径"
@@ -125,6 +123,7 @@ flag:
   backup_password: "使用此密码加密备份文件"
   restore_password: "用于解密备份文件的密码"
   restore_force: "覆盖已有数据"
+  reset_password: "新密码（不传则交互输入）"
   upgrade_check: "仅检查更新，不执行升级"
   service_config: "openbee 配置文件路径（默认 ~/.openbee/config.yaml）"
   service_working_dir: "服务运行时的工作目录（默认 ~/.openbee）"
@@ -158,21 +157,23 @@ output:
     created: "备份已创建：%s"
   restore:
     complete: "恢复完成。"
+  reset_password:
+    done: "已重置管理员 %q 的密码，已登录的会话需要重新登录。"
+    no_admin: "还没有管理员账户，请先在 Web 控制台完成首次初始化。"
+    db_not_found: "未找到数据库 %s，请检查配置文件中的 database.path。"
   config:
     found_existing: "发现已有配置文件 %s，将以其内容作为默认值。"
     section_engine: "\n=== 引擎配置 ==="
-    section_auth: "\n=== Web 认证 ==="
     section_advanced: "\n=== 高级配置 ==="
     section_write: "\n=== 写入配置 ==="
     output_file: "输出文件：%s"
     write_cancelled: "已取消写入。"
     written: "配置文件已写入：%s"
-    next_plugins: "下一步：启动 openbee（openbee server -d），然后用 openbee plugin search 添加聊天渠道"
+    next_plugins: "下一步：启动 openbee（openbee server -d），在 Web 控制台创建管理员账户，然后用 openbee plugin search 添加聊天渠道"
     jwt_regenerated: "JWT 密钥已重新生成。"
     jwt_generated: "JWT 密钥已生成。"
     rpc_token_secret_generated: "已生成 RPC Token Secret：%s"
     rpc_token_secret_regenerated: "RPC Token Secret 已重新生成。"
-    password_generated: "已生成密码：%s"
     claude_found: "在 PATH 中找到 Claude：%s，将自动使用。"
     claude_manual_entry: "请手动输入 Claude 路径。"
     codex_found: "在 PATH 中找到 Codex：%s，将自动使用。"
@@ -284,6 +285,8 @@ validate:
   file_not_found: "文件不存在：%s"
   path_is_dir: "路径是目录而非文件：%s"
   file_not_exec: "文件不可执行：%s"
+  password_short: "密码至少需要 %d 个字符"
+  password_match: "两次输入的密码不一致"
 runtime:
   failure_notifier:
     task_failed: "❌ 任务执行失败"
