@@ -10,6 +10,8 @@ import {
   ingestChatEvent,
   hasUnknownWorker,
   previewOf,
+  reconnectDelay,
+  resyncCaches,
   workerCacheUpdater,
   workerIdsOf,
   type ChatEvent,
@@ -527,5 +529,48 @@ describe("ingestChatEvent", () => {
 
     expect(unreadWhenResynced).toEqual([1])
     expect(queryClient.getQueryState(CONVERSATIONS_KEY)?.isInvalidated).toBe(true)
+  })
+})
+
+describe("reconnectDelay", () => {
+  it.each([
+    [1, 2000],
+    [2, 4000],
+    [3, 8000],
+    [4, 16_000],
+    [5, 30_000],
+    [6, 30_000],
+    [50, 30_000],
+    [5000, 30_000],
+  ])("waits a capped backoff before attempt %i", (attempt, delay) => {
+    expect(reconnectDelay(attempt)).toBe(delay)
+  })
+})
+
+describe("resyncCaches", () => {
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    queryClient = new QueryClient()
+  })
+
+  afterEach(() => {
+    queryClient.clear()
+    vi.useRealTimers()
+  })
+
+  it("invalidates the conversation list and every workers query", () => {
+    const workerKeys = [["workers", { departmentId: undefined }], ["workers", "w1"]]
+    queryClient.setQueryData(CONVERSATIONS_KEY, [summary("bee")])
+    for (const key of workerKeys) queryClient.setQueryData(key, [])
+    queryClient.setQueryData(["departments"], [])
+
+    resyncCaches(queryClient)
+
+    for (const key of [CONVERSATIONS_KEY, ...workerKeys]) {
+      expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)
+    }
+    expect(queryClient.getQueryState(["departments"])?.isInvalidated).toBe(false)
   })
 })

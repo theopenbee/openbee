@@ -9,14 +9,10 @@ import {
   type ReactNode,
 } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { tokenParam } from "@/lib/auth"
-import { CONVERSATIONS_KEY, ingestChatEvent, type ChatEvent, type TaskEvent } from "@/lib/chat-events"
+import { ensureFreshToken, tokenParam } from "@/lib/auth"
+import { ingestChatEvent, reconnectDelay, resyncCaches, type ChatEvent, type TaskEvent } from "@/lib/chat-events"
 import { config } from "@/lib/config"
 import type { ChatMessage, ConversationId } from "@/lib/types"
-
-const MAX_RECONNECT_ATTEMPTS = 5
-const RECONNECT_BASE_DELAY_MS = 2000
-const RECONNECT_MAX_DELAY_MS = 30_000
 
 export interface ChatEventHandler {
   onMessage?: (conversationId: ConversationId, message: ChatMessage) => void
@@ -79,7 +75,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
 
     const resync = () => {
       lastSeq = null
-      queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
+      resyncCaches(queryClient)
       for (const handler of handlersRef.current) handler.onResync?.()
     }
 
@@ -92,6 +88,10 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
         resync,
       )
       notify(handlersRef.current, event)
+    }
+
+    const open = () => {
+      ensureFreshToken().then(connect, connect)
     }
 
     const connect = () => {
@@ -112,14 +112,12 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
       es.onerror = () => {
         es.close()
         clearTimeout(reconnectTimer)
-        if (attempts >= MAX_RECONNECT_ATTEMPTS) return
         attempts += 1
-        const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (attempts - 1), RECONNECT_MAX_DELAY_MS)
-        reconnectTimer = setTimeout(connect, delay)
+        reconnectTimer = setTimeout(open, reconnectDelay(attempts))
       }
     }
 
-    connect()
+    open()
 
     return () => {
       stopped = true

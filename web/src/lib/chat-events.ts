@@ -46,6 +46,9 @@ export const CONVERSATIONS_KEY = ["conversations"] as const
 
 const WORKERS_KEY = ["workers"] as const
 
+const RECONNECT_BASE_DELAY_MS = 2000
+const RECONNECT_MAX_DELAY_MS = 30_000
+
 const PREVIEW_MAX_CODE_POINTS = 120
 const MEDIA_MARKERS = ["\u0000[file] ", "[file] "]
 const WHITESPACE = /[\t\n\v\f\r \x85\xa0\u{1680}\u{2000}-\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}]+/u
@@ -67,6 +70,15 @@ export function previewOf(message: ChatMessage): string {
 
 export function detectGap(lastSeq: number | null, seq: number): boolean {
   return lastSeq !== null && seq !== lastSeq + 1
+}
+
+export function reconnectDelay(attempt: number): number {
+  return Math.min(RECONNECT_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1), RECONNECT_MAX_DELAY_MS)
+}
+
+export function resyncCaches(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
+  queryClient.invalidateQueries({ queryKey: WORKERS_KEY })
 }
 
 function updateConversation(
