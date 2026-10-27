@@ -18,6 +18,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform/local"
 	"go.uber.org/zap"
 )
 
@@ -49,6 +50,10 @@ func WithWorkerDispatch(lookup *store.WorkerStore) Option {
 	}
 }
 
+func WithLocalMediaRoot(root string) Option {
+	return func(f *Feeder) { f.localMediaRoot = root }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -62,6 +67,7 @@ type Feeder struct {
 	failureNotifier FailureNotifier
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
+	localMediaRoot  string
 	runningMu       sync.Mutex
 	running         map[string]context.CancelFunc
 }
@@ -166,6 +172,10 @@ func (f *Feeder) tick(ctx context.Context) {
 
 // processBeeGroup invokes bee for a single sessionKey's messages, managing session continuity.
 func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []store.ClaimedMessage) {
+	if workerID, ok := local.WorkerIDFromSessionKey(sessionKey); ok {
+		f.dispatchWorkerChat(ctx, workerID, msgs)
+		return
+	}
 	if f.tryDirectDispatch(ctx, msgs) {
 		return
 	}
@@ -419,4 +429,64 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		log.Error("direct: mark bee_processed", zap.Error(err))
 	}
 	return true
+}
+
+func (f *Feeder) dispatchWorkerChat(ctx context.Context, workerID string, msgs []store.ClaimedMessage) {
+	if len(msgs) == 0 {
+		return
+	}
+	primary := msgs[len(msgs)-1]
+
+	if f.workerLookup == nil {
+		log.Warn("worker chat: worker lookup unavailable", zap.String("workerID", workerID))
+		f.failMessages(ctx, msgs, "worker not found")
+		return
+	}
+	worker, err := f.workerLookup.GetByID(workerID)
+	if err != nil {
+		log.Warn("worker chat: worker lookup failed", zap.String("workerID", workerID), zap.Error(err))
+		f.failMessages(ctx, msgs, "worker not found")
+		return
+	}
+
+	parts := make([]string, 0, len(msgs)+1)
+	for _, m := range msgs {
+		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
+		if err != nil {
+			log.Error("worker chat: fetch merged content", zap.String("msgID", m.ID), zap.Error(err))
+			f.failMessages(ctx, msgs, err.Error())
+			return
+		}
+		parts = append(parts, merged...)
+		parts = append(parts, m.Content)
+	}
+	if mediaDir, err := local.MediaDir(f.localMediaRoot, primary.SessionKey); err != nil {
+		log.Warn("worker chat: media dir unavailable, keeping attachment markers",
+			zap.String("sessionKey", primary.SessionKey), zap.Error(err))
+	} else {
+		for i, part := range parts {
+			parts[i] = local.RenderAttachments(part, mediaDir)
+		}
+	}
+
+	_, err = f.taskStore.Create(ctx, model.Task{
+		MessageID:   primary.ID,
+		SessionKey:  primary.SessionKey,
+		Platform:    primary.Platform,
+		WorkerID:    worker.ID,
+		Instruction: strings.Join(parts, "\n\n"),
+		Type:        model.TaskTypeImmediate,
+		Status:      model.TaskStatusPending,
+	})
+	if err != nil {
+		log.Error("worker chat: create task record", zap.String("workerID", workerID), zap.Error(err))
+		f.failMessages(ctx, msgs, err.Error())
+		return
+	}
+
+	log.Info("worker chat: dispatched task to worker via scheduler", zap.String("workerID", worker.ID))
+
+	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
+		log.Error("worker chat: mark bee_processed", zap.Error(err))
+	}
 }

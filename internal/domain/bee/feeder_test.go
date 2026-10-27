@@ -21,6 +21,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 func setupFeederDB(t *testing.T) (*sql.DB, *store.MessageStore, *store.TaskStore, *store.SessionStore, *store.ExecutionStore) {
@@ -612,4 +613,238 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 			assert.Equal(t, store.MsgStatusBeeProcessed, msgStatus)
 		})
 	}
+}
+
+type workerChatEnv struct {
+	db       *sql.DB
+	ms       *store.MessageStore
+	ws       *store.WorkerStore
+	runner   *mockBeeRunner
+	notifier *mockFailureNotifier
+	root     string
+}
+
+func startWorkerChatFeeder(t *testing.T, opts ...bee.Option) *workerChatEnv {
+	t.Helper()
+	db, ms, ts, ss, es := setupFeederDB(t)
+	env := &workerChatEnv{
+		db:       db,
+		ms:       ms,
+		ws:       store.NewWorkerStore(db),
+		runner:   &mockBeeRunner{},
+		notifier: &mockFailureNotifier{},
+		root:     t.TempDir(),
+	}
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	all := append([]bee.Option{
+		bee.WithWorkerDispatch(env.ws),
+		bee.WithFailureNotifier(env.notifier),
+		bee.WithLocalMediaRoot(env.root),
+	}, opts...)
+	f := bee.NewFeeder(ms, ts, ss, es, env.runner, "/tmp", cfg, enginecfg.NewStore(""), all...)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go f.Run(ctx)
+	return env
+}
+
+func (e *workerChatEnv) createWorker(t *testing.T, name string) model.Worker {
+	t.Helper()
+	w, err := e.ws.Create(model.Worker{Name: name, WorkDir: t.TempDir()})
+	require.NoError(t, err)
+	return w
+}
+
+func (e *workerChatEnv) awaitStatus(t *testing.T, id, want string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var status string
+		if err := e.db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id=?`, id).Scan(&status); err != nil {
+			return false
+		}
+		return status == want
+	}, 5*time.Second, 50*time.Millisecond, "message %s did not reach status %s", id, want)
+}
+
+func (e *workerChatEnv) taskCount(t *testing.T) int {
+	t.Helper()
+	var n int
+	require.NoError(t, e.db.QueryRow(`SELECT COUNT(*) FROM bee_tasks`).Scan(&n))
+	return n
+}
+
+type taskRow struct {
+	messageID, sessionKey, platform, workerID, instruction, taskType, status string
+}
+
+func (e *workerChatEnv) onlyTask(t *testing.T) taskRow {
+	t.Helper()
+	require.Equal(t, 1, e.taskCount(t))
+	var r taskRow
+	require.NoError(t, e.db.QueryRow(
+		`SELECT message_id, session_key, platform, worker_id, instruction, type, status FROM bee_tasks`,
+	).Scan(&r.messageID, &r.sessionKey, &r.platform, &r.workerID, &r.instruction, &r.taskType, &r.status))
+	return r
+}
+
+func insertLocalMessage(t *testing.T, db *sql.DB, id, sessionKey, content string) {
+	t.Helper()
+	now := time.Now().UnixMilli()
+	_, err := db.Exec(
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+		 VALUES (?, ?, 'local', ?, 'received', ?, ?, ?)`,
+		id, sessionKey, content, now, now, now,
+	)
+	require.NoError(t, err)
+}
+
+func TestFeederWorkerChatCreatesTaskWithoutBee(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	key := local.WorkerSessionKey("u1", w.ID)
+	insertLocalMessage(t, env.db, "m1", key, "draft the release notes")
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	task := env.onlyTask(t)
+	assert.Equal(t, "m1", task.messageID)
+	assert.Equal(t, key, task.sessionKey)
+	assert.Equal(t, local.PlatformID, task.platform)
+	assert.Equal(t, w.ID, task.workerID)
+	assert.Equal(t, "draft the release notes", task.instruction)
+	assert.Equal(t, model.TaskTypeImmediate, task.taskType)
+	assert.Equal(t, model.TaskStatusPending, task.status)
+	assert.Empty(t, env.runner.getCalls(), "bee must never run for a worker conversation")
+	assert.Empty(t, env.notifier.getCalls())
+}
+
+func TestFeederWorkerChatIgnoresDirectMention(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	other := env.createWorker(t, "editor")
+	key := local.WorkerSessionKey("u1", w.ID)
+	insertLocalMessage(t, env.db, "m1", key, "@editor please review this")
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	task := env.onlyTask(t)
+	assert.Equal(t, w.ID, task.workerID)
+	assert.NotEqual(t, other.ID, task.workerID)
+	assert.Equal(t, "@editor please review this", task.instruction)
+	assert.Empty(t, env.runner.getCalls())
+}
+
+func TestFeederWorkerChatMergesBurst(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	key := local.WorkerSessionKey("u1", w.ID)
+	base := time.Now().Add(-time.Minute).UnixMilli()
+	_, err := env.ms.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "m1", SessionKey: key, Platform: local.PlatformID, Content: "first", MessageTime: base, Status: store.MsgStatusMerged, MergedInto: "m3"},
+		{ID: "m2", SessionKey: key, Platform: local.PlatformID, Content: "second", MessageTime: base + 1, Status: store.MsgStatusMerged, MergedInto: "m3"},
+		{ID: "m3", SessionKey: key, Platform: local.PlatformID, Content: "third", MessageTime: base + 2, Status: store.MsgStatusReceived},
+	})
+	require.NoError(t, err)
+
+	env.awaitStatus(t, "m3", store.MsgStatusBeeProcessed)
+
+	task := env.onlyTask(t)
+	assert.Equal(t, "m3", task.messageID)
+	assert.Equal(t, "first\n\nsecond\n\nthird", task.instruction)
+	assert.Empty(t, env.runner.getCalls())
+}
+
+func TestFeederWorkerChatRendersAttachments(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	key := local.WorkerSessionKey("u1", w.ID)
+	insertLocalMessage(t, env.db, "m1", key, local.EncodeMediaPaths([]string{"a_x.png"}, "see"))
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	task := env.onlyTask(t)
+	assert.Contains(t, task.instruction, "[attachment] "+filepath.Join(env.root, "u1", "a_x.png"))
+	assert.Contains(t, task.instruction, "see")
+	assert.NotContains(t, task.instruction, "\x00")
+}
+
+func TestFeederWorkerChatRendersAttachmentsInMergedMessages(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	key := local.WorkerSessionKey("u1", w.ID)
+	base := time.Now().Add(-time.Minute).UnixMilli()
+	_, err := env.ms.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "m1", SessionKey: key, Platform: local.PlatformID, Content: local.EncodeMediaPaths([]string{"a_x.png"}, "first"), MessageTime: base, Status: store.MsgStatusMerged, MergedInto: "m2"},
+		{ID: "m2", SessionKey: key, Platform: local.PlatformID, Content: local.EncodeMediaPaths([]string{"b_y.pdf"}, "second"), MessageTime: base + 1, Status: store.MsgStatusReceived},
+	})
+	require.NoError(t, err)
+
+	env.awaitStatus(t, "m2", store.MsgStatusBeeProcessed)
+
+	dir := filepath.Join(env.root, "u1")
+	want := "[attachment] " + filepath.Join(dir, "a_x.png") + "\nfirst\n\n[attachment] " + filepath.Join(dir, "b_y.pdf") + "\nsecond"
+	assert.Equal(t, want, env.onlyTask(t).instruction)
+}
+
+func TestFeederWorkerChatWithoutMediaRootKeepsMarkers(t *testing.T) {
+	env := startWorkerChatFeeder(t, bee.WithLocalMediaRoot(""))
+	w := env.createWorker(t, "writer")
+	key := local.WorkerSessionKey("u1", w.ID)
+	content := local.EncodeMediaPaths([]string{"a_x.png"}, "see")
+	insertLocalMessage(t, env.db, "m1", key, content)
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	assert.Equal(t, content, env.onlyTask(t).instruction)
+	assert.Empty(t, env.runner.getCalls())
+}
+
+func TestFeederWorkerChatDeletedWorker(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	key := local.WorkerSessionKey("u1", "missing-worker")
+	insertLocalMessage(t, env.db, "m1", key, "anyone there?")
+
+	env.awaitStatus(t, "m1", store.MsgStatusFailed)
+
+	assert.Equal(t, 0, env.taskCount(t))
+	assert.Empty(t, env.runner.getCalls(), "bee must never run for a worker conversation")
+	calls := env.notifier.getCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "m1", calls[0].messageID)
+	assert.Equal(t, "worker not found", calls[0].info.Reason)
+}
+
+func TestFeederWorkerChatWithoutWorkerLookupFails(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	runner := &mockBeeRunner{}
+	notifier := &mockFailureNotifier{}
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""), bee.WithFailureNotifier(notifier))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go f.Run(ctx)
+
+	insertLocalMessage(t, db, "m1", local.WorkerSessionKey("u1", "w1"), "hello")
+
+	require.Eventually(t, func() bool {
+		var status string
+		db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status)
+		return status == store.MsgStatusFailed
+	}, 5*time.Second, 50*time.Millisecond)
+	assert.Empty(t, runner.getCalls())
+	assert.Len(t, notifier.getCalls(), 1)
+}
+
+func TestFeederBeeChatStillRunsBee(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	insertLocalMessage(t, env.db, "m1", local.SessionKey("u1"), "hello bee")
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	assert.NotEmpty(t, env.runner.getCalls())
+	assert.Equal(t, 0, env.taskCount(t))
 }

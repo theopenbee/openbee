@@ -122,6 +122,28 @@ func TestRenderAttachmentsMultipleAndLegacy(t *testing.T) {
 	assert.Equal(t, "[attachment] /m/u1/old.png\nhey", local.RenderAttachments("[file] old.png\nhey", "/m/u1"))
 }
 
+func TestRenderAttachmentsStaysInsideMediaDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"legacy parent traversal", "[file] ../../x\nhi", "[attachment] /m/u1/x\nhi"},
+		{"absolute path", "[file] /etc/passwd\nhi", "[attachment] /m/u1/passwd\nhi"},
+		{"nested traversal", "\x00[file] a/../../b.png\nhi", "[attachment] /m/u1/b.png\nhi"},
+		{"dot dot name is skipped", "\x00[file] ..\nhi", "hi"},
+		{"dot name is skipped", "\x00[file] .\nhi", "hi"},
+		{"empty name is skipped", "\x00[file] \nhi", "hi"},
+		{"root name is skipped", "\x00[file] /\nhi", "hi"},
+		{"skipped name between valid names", "\x00[file] a.png\n\x00[file] ..\n\x00[file] b.png\nhi", "[attachment] /m/u1/a.png\n[attachment] /m/u1/b.png\nhi"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, local.RenderAttachments(tc.content, "/m/u1"))
+		})
+	}
+}
+
 func TestRenderAttachmentsWithoutMarkers(t *testing.T) {
 	assert.Equal(t, "plain text", local.RenderAttachments("plain text", "/m/u1"))
 	assert.Equal(t, "[file] just text", local.RenderAttachments("[file] just text", "/m/u1"))

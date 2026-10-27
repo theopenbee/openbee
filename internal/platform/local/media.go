@@ -58,8 +58,12 @@ func RenderAttachments(content, mediaDir string) string {
 	}
 	var sb strings.Builder
 	for _, p := range paths {
+		name := filepath.Base(p)
+		if name == "." || name == ".." || name == string(filepath.Separator) {
+			continue
+		}
 		sb.WriteString(attachmentPrefix)
-		sb.WriteString(filepath.Join(mediaDir, p))
+		sb.WriteString(filepath.Join(mediaDir, name))
 		sb.WriteByte('\n')
 	}
 	sb.WriteString(text)

@@ -143,16 +143,16 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform := platform.NewSenderRegistry()
 
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc)
+	localMediaRoot, err := config.LocalUploadsDir()
+	if err != nil {
+		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
+	}
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc, localMediaRoot)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
 	localPub := local.NewEventPublisher(localHub)
 	localReceiver := local.NewLocalReceiver(64)
-	localMediaRoot, err := config.LocalUploadsDir()
-	if err != nil {
-		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
-	}
 	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
 	rawLocalSender := local.NewLocalSender(localPub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
@@ -312,12 +312,13 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) (*bee.Feeder, *task.Scheduler) {
+	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string) (*bee.Feeder, *task.Scheduler) {
 	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
-		bee.WithWorkerDispatch(s.workerStore))
+		bee.WithWorkerDispatch(s.workerStore),
+		bee.WithLocalMediaRoot(localMediaRoot))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
