@@ -13,6 +13,11 @@ const (
 	OutboundStatusFailed = "failed"
 )
 
+const (
+	OutboundKindMessage = "message"
+	OutboundKindHandoff = "handoff"
+)
+
 // Outbound message source type constants.
 const (
 	SourceTypeBee    = "bee"
@@ -21,7 +26,7 @@ const (
 )
 
 const outboundMessageColumns = `id, session_key, platform, content, media_path, status, platform_msg_id,
-	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at`
+	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload`
 
 // OutboundMessage is a row from the bee_outbound_messages table.
 type OutboundMessage struct {
@@ -39,6 +44,8 @@ type OutboundMessage struct {
 	RetryCount    int    `json:"retry_count"`
 	SentAt        int64  `json:"sent_at"`
 	CreatedAt     int64  `json:"created_at"`
+	Kind          string `json:"kind"`
+	Payload       string `json:"payload"`
 }
 
 // OutboundMessageStore manages the bee_outbound_messages table.
@@ -57,6 +64,7 @@ func scanOutboundMessage(scanner interface{ Scan(...any) error }) (OutboundMessa
 		&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.MediaPath,
 		&m.Status, &m.PlatformMsgID, &m.SourceType, &m.SourceID,
 		&m.InboundMsgID, &m.Error, &m.RetryCount, &m.SentAt, &m.CreatedAt,
+		&m.Kind, &m.Payload,
 	)
 	return m, err
 }
@@ -79,14 +87,18 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	if msg.SentAt == 0 {
 		msg.SentAt = now
 	}
+	if msg.Kind == "" {
+		msg.Kind = OutboundKindMessage
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO bee_outbound_messages
 		 (id, session_key, platform, content, media_path, status, platform_msg_id,
-		  source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.SessionKey, msg.Platform, msg.Content, msg.MediaPath,
 		msg.Status, msg.PlatformMsgID, msg.SourceType, msg.SourceID,
 		msg.InboundMsgID, msg.Error, msg.RetryCount, msg.SentAt, now,
+		msg.Kind, msg.Payload,
 	)
 	return err
 }

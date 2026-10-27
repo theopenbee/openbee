@@ -388,3 +388,85 @@ func TestSessionStore_ClaimSessionKey_KeepsFirstOwnerAndResweeps(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_outbound_messages WHERE id = 'late'`).Scan(&key))
 	assert.Equal(t, "local:first", key)
 }
+
+func sessionKeysFor(t *testing.T, db *sql.DB, query string, args ...any) []string {
+	t.Helper()
+	rows, err := db.Query(query, args...)
+	require.NoError(t, err)
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var key string
+		require.NoError(t, rows.Scan(&key))
+		keys = append(keys, key)
+	}
+	require.NoError(t, rows.Err())
+	return keys
+}
+
+func TestSplitLocalWorkerSessions(t *testing.T) {
+	db, ss := setupSessionDB(t)
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','w1','/','idle',1,1)`,
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at)
+		 VALUES ('m1','local:u1','local','hi','','',1,1,1)`,
+		`INSERT INTO bee_session_contexts (session_key, agent_id, engine, session_id, updated_at) VALUES
+			('local:u1','bee','claude','s-bee',1),
+			('local:u1','w1','claude','s-w1',1),
+			('local:u2','w1','claude','s-u2',1),
+			('telegram:1:2','w1','claude','s-tg',1),
+			('local:default','w1','claude','s-default',1),
+			('local:u1','w3','claude','s-w3-old',1),
+			('local:u1:worker:w3','w3','claude','s-w3-new',1)`,
+		`INSERT INTO bee_tasks (id, message_id, worker_id, instruction, type, status, session_key, platform, created_at, updated_at) VALUES
+			('t-sched','m1','w1','go','scheduled','pending','local:u1','local',1,1),
+			('t-count','m1','w1','go','countdown','pending','local:u1','local',1,1),
+			('t-imm','m1','w1','go','immediate','pending','local:u1','local',1,1),
+			('t-other-user','m1','w1','go','scheduled','pending','local:u2','local',1,1),
+			('t-tg','m1','w1','go','scheduled','pending','telegram:1:2','telegram',1,1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, ss.SplitLocalWorkerSessions(ctx, "local:u1"))
+
+	contexts := func(agent string) []string {
+		return sessionKeysFor(t, db, `SELECT session_key FROM bee_session_contexts WHERE agent_id = ? ORDER BY session_key`, agent)
+	}
+	assert.Equal(t, []string{"local:u1"}, contexts("bee"))
+	assert.Equal(t, []string{"local:default", "local:u1:worker:w1", "local:u2", "telegram:1:2"}, contexts("w1"))
+	assert.Equal(t, []string{"local:u1", "local:u1:worker:w3"}, contexts("w3"))
+
+	for id, want := range map[string]string{
+		"t-sched":      "local:u1:worker:w1",
+		"t-count":      "local:u1:worker:w1",
+		"t-imm":        "local:u1",
+		"t-other-user": "local:u2",
+		"t-tg":         "telegram:1:2",
+	} {
+		got := sessionKeysFor(t, db, `SELECT session_key FROM bee_tasks WHERE id = ?`, id)
+		assert.Equal(t, []string{want}, got, id)
+	}
+
+	require.NoError(t, ss.SplitLocalWorkerSessions(ctx, "local:u1"))
+	assert.Equal(t, []string{"local:default", "local:u1:worker:w1", "local:u2", "telegram:1:2"}, contexts("w1"))
+}
+
+func TestSplitLocalWorkerSessionsIgnoresNonLocalKeys(t *testing.T) {
+	db, ss := setupSessionDB(t)
+	ctx := context.Background()
+	_, err := db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, engine, session_id, updated_at) VALUES
+		('telegram:1:2','w1','claude','s-tg',1),
+		('local:default','w1','claude','s-default',1),
+		('local:u1:worker:w1','w1','claude','s-split',1)`)
+	require.NoError(t, err)
+
+	for _, key := range []string{"telegram:1:2", "local:default", "local:u1:worker:w1"} {
+		require.NoError(t, ss.SplitLocalWorkerSessions(ctx, key))
+	}
+
+	got := sessionKeysFor(t, db, `SELECT session_key FROM bee_session_contexts ORDER BY session_key`)
+	assert.Equal(t, []string{"local:default", "local:u1:worker:w1", "telegram:1:2"}, got)
+}

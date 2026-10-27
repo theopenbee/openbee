@@ -19,6 +19,11 @@ const (
 	MsgStatusStale        = "stale"
 )
 
+const (
+	SenderTypeUser = "user"
+	SenderTypeBee  = "bee"
+)
+
 // BatchMsg is a single row for a bulk insert via CreateBatch.
 type BatchMsg struct {
 	ID            string
@@ -30,6 +35,7 @@ type BatchMsg struct {
 	MessageTime   int64
 	Status        string // "received" or "merged"
 	MergedInto    string // non-empty only when Status == "merged"
+	SenderType    string
 }
 
 // MessageStore persists platform messages to the bee_platform_messages table.
@@ -270,22 +276,22 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 	}
 
 	now := time.Now().UnixMilli()
-	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
+	placeholders := strings.Repeat("(?,?,?,?,?,?,?,?,?,?,?,?),", len(msgs))
 	placeholders = placeholders[:len(placeholders)-1]
 
-	args := make([]any, 0, len(msgs)*11)
+	args := make([]any, 0, len(msgs)*12)
 	for _, m := range msgs {
 		mt := m.MessageTime
 		if mt == 0 {
 			mt = now
 		}
 		args = append(args, m.ID, m.SessionKey, m.Platform, m.Content, m.Raw,
-			m.PlatformMsgID, mt, m.Status, m.MergedInto, now, now)
+			m.PlatformMsgID, mt, m.Status, m.MergedInto, normalizeSenderType(m.SenderType), now, now)
 	}
 
 	result, err := s.db.ExecContext(ctx,
 		fmt.Sprintf(`INSERT OR IGNORE INTO bee_platform_messages
-			(id, session_key, platform, content, raw, platform_msg_id, received_at, status, merged_into, created_at, updated_at)
+			(id, session_key, platform, content, raw, platform_msg_id, received_at, status, merged_into, sender_type, created_at, updated_at)
 			VALUES %s`, placeholders),
 		args...,
 	)
@@ -293,6 +299,42 @@ func (s *MessageStore) CreateBatch(ctx context.Context, msgs []BatchMsg) (int64,
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+func normalizeSenderType(senderType string) string {
+	if senderType == "" {
+		return SenderTypeUser
+	}
+	return senderType
+}
+
+type ProcessedMsg struct {
+	ID         string
+	SessionKey string
+	Platform   string
+	Content    string
+	SenderType string
+	ReceivedAt int64
+}
+
+func (s *MessageStore) InsertProcessed(ctx context.Context, m ProcessedMsg) error {
+	now := time.Now().UnixMilli()
+	if m.ReceivedAt == 0 {
+		m.ReceivedAt = now
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO bee_platform_messages
+		 (id, session_key, platform, content, raw, platform_msg_id, received_at, status, sender_type, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, '', '', ?, ?, ?, ?, ?)`,
+		m.ID, m.SessionKey, m.Platform, m.Content, m.ReceivedAt, MsgStatusBeeProcessed,
+		normalizeSenderType(m.SenderType), now, now,
+	)
+	return err
+}
+
+func (s *MessageStore) DeleteByID(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM bee_platform_messages WHERE id = ?`, id)
+	return err
 }
 
 // StoredMessage is the subset of bee_platform_messages fields needed by platform senders.
@@ -337,6 +379,7 @@ type InboundMessage struct {
 	PlatformMsgID string
 	Content       string
 	ReceivedAt    int64
+	SenderType    string
 }
 
 // ListedMessage is a bee_platform_messages row for admin/API listing purposes.
@@ -419,12 +462,12 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 		args  []any
 	)
 	if before > 0 {
-		query = `SELECT id, platform_msg_id, content, received_at FROM bee_platform_messages
+		query = `SELECT id, platform_msg_id, content, received_at, sender_type FROM bee_platform_messages
                  WHERE session_key = ? AND status != ? AND received_at < ?
                  ORDER BY received_at DESC LIMIT ?`
 		args = []any{sessionKey, MsgStatusMerged, before, limit}
 	} else {
-		query = `SELECT id, platform_msg_id, content, received_at FROM bee_platform_messages
+		query = `SELECT id, platform_msg_id, content, received_at, sender_type FROM bee_platform_messages
                  WHERE session_key = ? AND status != ?
                  ORDER BY received_at DESC LIMIT ?`
 		args = []any{sessionKey, MsgStatusMerged, limit}
@@ -437,7 +480,7 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	var msgs []InboundMessage
 	for rows.Next() {
 		var m InboundMessage
-		if err := rows.Scan(&m.ID, &m.PlatformMsgID, &m.Content, &m.ReceivedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PlatformMsgID, &m.Content, &m.ReceivedAt, &m.SenderType); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)

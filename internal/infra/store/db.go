@@ -520,6 +520,53 @@ ALTER TABLE bee_users DROP COLUMN status;
 ALTER TABLE bee_users DROP COLUMN created_by;
 `,
 	},
+	{
+		version: 54,
+		name:    "add_sender_type_to_platform_messages",
+		sql:     `ALTER TABLE bee_platform_messages ADD COLUMN sender_type TEXT NOT NULL DEFAULT 'user'`,
+	},
+	{
+		version: 55,
+		name:    "add_kind_payload_to_outbound_messages",
+		sql: `ALTER TABLE bee_outbound_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'message';
+ALTER TABLE bee_outbound_messages ADD COLUMN payload TEXT NOT NULL DEFAULT '';`,
+	},
+	{
+		version: 56,
+		name:    "create_table_bee_local_reads",
+		sql: `CREATE TABLE IF NOT EXISTS bee_local_reads (
+	user_id         TEXT NOT NULL,
+	conversation_id TEXT NOT NULL,
+	last_read_at    INTEGER NOT NULL,
+	PRIMARY KEY (user_id, conversation_id)
+)`,
+	},
+	{
+		version: 57,
+		name:    "split_local_worker_sessions",
+		sql: `UPDATE OR IGNORE bee_session_contexts
+   SET session_key = session_key || ':worker:' || agent_id
+ WHERE session_key LIKE 'local:%'
+   AND instr(substr(session_key, 7), ':') = 0
+   AND session_key <> 'local:default'
+   AND agent_id <> 'bee';
+UPDATE bee_tasks
+   SET session_key = session_key || ':worker:' || worker_id
+ WHERE platform = 'local'
+   AND session_key LIKE 'local:%'
+   AND instr(substr(session_key, 7), ':') = 0
+   AND session_key <> 'local:default'
+   AND worker_id <> ''
+   AND type IN ('countdown', 'scheduled')
+   AND status = 'pending';
+UPDATE bee_outbound_messages
+   SET content = substr(content, (SELECT length(w.name) FROM bee_workers w WHERE w.id = bee_outbound_messages.source_id) + 2)
+ WHERE platform = 'local'
+   AND source_type = 'worker'
+   AND EXISTS (SELECT 1 FROM bee_workers w
+                WHERE w.id = bee_outbound_messages.source_id
+                  AND substr(bee_outbound_messages.content, 1, length(w.name) + 1) = w.name || char(10));`,
+	},
 }
 
 type whereBuilder struct {

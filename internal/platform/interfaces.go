@@ -27,6 +27,8 @@ type OutboundMessage struct {
 	SourceType   string // "bee" | "worker" | "system" — who sent this message
 	SourceID     string // worker_id when SourceType is "worker"
 	InboundMsgID string // ID of the bee_platform_messages row that triggered this reply
+	Kind         string
+	Payload      string
 }
 
 // PlatformReceiverAdapter receives inbound messages and dispatches them.

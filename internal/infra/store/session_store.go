@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
 // BeeAgentID is the agent_id value used for bee brain session tracking.
@@ -199,6 +200,44 @@ func (s *SessionStore) ClaimSessionKey(ctx context.Context, from, to string) (st
 		return "", err
 	}
 	return owner, nil
+}
+
+func (s *SessionStore) SplitLocalWorkerSessions(ctx context.Context, beeSessionKey string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE OR IGNORE bee_session_contexts
+		    SET session_key = session_key || ':worker:' || agent_id
+		  WHERE session_key = ?
+		    AND session_key LIKE 'local:%'
+		    AND instr(substr(session_key, 7), ':') = 0
+		    AND session_key <> 'local:default'
+		    AND agent_id <> 'bee'`,
+		beeSessionKey,
+	); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE bee_tasks
+		    SET session_key = session_key || ':worker:' || worker_id
+		  WHERE session_key = ?
+		    AND platform = 'local'
+		    AND session_key LIKE 'local:%'
+		    AND instr(substr(session_key, 7), ':') = 0
+		    AND session_key <> 'local:default'
+		    AND worker_id <> ''
+		    AND type IN (?, ?)
+		    AND status = ?`,
+		beeSessionKey, model.TaskTypeCountdown, model.TaskTypeScheduled, model.TaskStatusPending,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // SessionAgent represents one agent's session context entry, enriched with

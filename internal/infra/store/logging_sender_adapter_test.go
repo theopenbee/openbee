@@ -61,3 +61,32 @@ func TestLoggingPlatformSenderAdapter_SendsTextWithMedia(t *testing.T) {
 	assert.True(t, platform.SendsTextWithMedia(combined))
 	assert.False(t, platform.SendsTextWithMedia(plain))
 }
+
+func TestLoggingPlatformSenderAdapter_RecordsKindAndPayload(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+	adapter := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "local")
+
+	require.NoError(t, adapter.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:s1", Content: "handoff", Kind: store.OutboundKindHandoff, Payload: `{"task_id":"t1"}`,
+	}))
+	require.NoError(t, adapter.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:s2", Content: "plain",
+	}))
+
+	require.Eventually(t, func() bool {
+		a, errA := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+		b, errB := outboundStore.ListBySessionKey(context.Background(), "local:s2", 0, 10)
+		return errA == nil && errB == nil && len(a) == 1 && len(b) == 1
+	}, time.Second, 10*time.Millisecond)
+	handoff, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, store.OutboundKindHandoff, handoff[0].Kind)
+	assert.Equal(t, `{"task_id":"t1"}`, handoff[0].Payload)
+	plain, err := outboundStore.ListBySessionKey(context.Background(), "local:s2", 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, store.OutboundKindMessage, plain[0].Kind)
+	assert.Empty(t, plain[0].Payload)
+}

@@ -105,3 +105,20 @@ func TestOutboundMessageStore_ListFiltered_BySentAtRange(t *testing.T) {
 	require.EqualValues(t, 1, total)
 	assert.Equal(t, "o2", msgs[0].ID)
 }
+
+func TestOutboundMessageStore_KindAndPayload(t *testing.T) {
+	s := setupOutboundStore(t)
+	seedOutbound(t, s, []OutboundMessage{
+		{ID: "o1", SessionKey: "local:u1", Platform: "local", Status: OutboundStatusSent, SentAt: 1000},
+		{ID: "o2", SessionKey: "local:u1", Platform: "local", Status: OutboundStatusSent, SentAt: 2000,
+			Kind: OutboundKindHandoff, Payload: `{"worker_id":"w1"}`},
+	})
+
+	msgs, err := s.ListBySessionKey(context.Background(), "local:u1", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, OutboundKindMessage, msgs[0].Kind)
+	assert.Empty(t, msgs[0].Payload)
+	assert.Equal(t, OutboundKindHandoff, msgs[1].Kind)
+	assert.Equal(t, `{"worker_id":"w1"}`, msgs[1].Payload)
+}

@@ -669,3 +669,60 @@ func TestTaskStore_MigrateSessionKeyPrefix(t *testing.T) {
 		assert.Equal(t, want, got.SessionKey)
 	}
 }
+
+func TestListIncludeWorkerChats(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+	ctx := context.Background()
+
+	bee := seedTask(t, ts, model.Task{SessionKey: "local:u1", Platform: "local"})
+	w1 := seedTask(t, ts, model.Task{SessionKey: "local:u1:worker:w1", Platform: "local"})
+	w2 := seedTask(t, ts, model.Task{SessionKey: "local:u1:worker:w2", Platform: "local"})
+	otherUser := seedTask(t, ts, model.Task{SessionKey: "local:u10:worker:w1", Platform: "local"})
+	prefixUser := seedTask(t, ts, model.Task{SessionKey: "local:u1x", Platform: "local"})
+	wildcardUser := seedTask(t, ts, model.Task{SessionKey: "local:u_:worker:w9", Platform: "local"})
+
+	ids := func(f TaskFilter) []string {
+		tasks, err := ts.List(ctx, f)
+		require.NoError(t, err)
+		out := make([]string, len(tasks))
+		for i, task := range tasks {
+			out[i] = task.ID
+		}
+		return out
+	}
+
+	assert.ElementsMatch(t, []string{bee}, ids(TaskFilter{SessionKey: "local:u1"}))
+	assert.ElementsMatch(t, []string{bee, w1, w2}, ids(TaskFilter{SessionKey: "local:u1", IncludeWorkerChats: true}))
+	assert.ElementsMatch(t, []string{w1}, ids(TaskFilter{SessionKey: "local:u1:worker:w1", IncludeWorkerChats: true}))
+	assert.ElementsMatch(t, []string{wildcardUser}, ids(TaskFilter{SessionKey: "local:u_", IncludeWorkerChats: true}))
+	assert.ElementsMatch(t, []string{bee, w1, w2, otherUser, prefixUser, wildcardUser}, ids(TaskFilter{IncludeWorkerChats: true}))
+
+	count, err := ts.CountTasks(ctx, TaskFilter{SessionKey: "local:u1", IncludeWorkerChats: true})
+	require.NoError(t, err)
+	assert.Equal(t, 3, count)
+}
+
+func TestAbortRunKeepsCronPending(t *testing.T) {
+	ts := newTaskStoreForTest(t)
+	ctx := context.Background()
+
+	cron := seedTask(t, ts, model.Task{Type: model.TaskTypeScheduled, CronExpr: "0 9 * * *", Status: model.TaskStatusRunning})
+	countdown := seedTask(t, ts, model.Task{Type: model.TaskTypeCountdown, Status: model.TaskStatusRunning})
+	immediate := seedTask(t, ts, model.Task{Status: model.TaskStatusRunning})
+	cancelled := seedTask(t, ts, model.Task{Type: model.TaskTypeScheduled, CronExpr: "0 9 * * *", Status: model.TaskStatusCancelled})
+
+	for _, id := range []string{cron, countdown, immediate, cancelled} {
+		require.NoError(t, ts.AbortRun(ctx, id))
+	}
+
+	for id, want := range map[string]string{
+		cron:      model.TaskStatusPending,
+		countdown: model.TaskStatusCancelled,
+		immediate: model.TaskStatusCancelled,
+		cancelled: model.TaskStatusCancelled,
+	} {
+		got, err := ts.GetByID(ctx, id)
+		require.NoError(t, err)
+		assert.Equal(t, want, got.Status, id)
+	}
+}

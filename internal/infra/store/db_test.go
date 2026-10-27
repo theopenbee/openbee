@@ -172,13 +172,20 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	_, err = db.Exec(`CREATE TABLE bee_tasks (
 		id           TEXT PRIMARY KEY,
 		message_id   TEXT NOT NULL DEFAULT '',
-		execution_id TEXT NOT NULL DEFAULT ''
+		execution_id TEXT NOT NULL DEFAULT '',
+		worker_id    TEXT NOT NULL DEFAULT '',
+		type         TEXT NOT NULL DEFAULT 'immediate',
+		status       TEXT NOT NULL DEFAULT 'pending'
 	)`)
 	require.NoError(t, err)
 	// bee_outbound_messages is required by migration 34 (index on sent_at).
 	_, err = db.Exec(`CREATE TABLE bee_outbound_messages (
-		id      TEXT PRIMARY KEY,
-		sent_at INTEGER NOT NULL
+		id          TEXT PRIMARY KEY,
+		sent_at     INTEGER NOT NULL,
+		platform    TEXT NOT NULL DEFAULT '',
+		content     TEXT NOT NULL DEFAULT '',
+		source_type TEXT NOT NULL DEFAULT '',
+		source_id   TEXT NOT NULL DEFAULT ''
 	)`)
 	require.NoError(t, err)
 	// bee_platform_messages is required by migration 31 (drop retry_count).
@@ -352,4 +359,125 @@ func TestMigration_DropRBACOnEmptyUsers(t *testing.T) {
 	require.NoError(t, migrate(db))
 
 	assert.Empty(t, remainingUserIDs(t, db))
+}
+
+func sessionContextKeys(t *testing.T, db *sql.DB, agentID string) []string {
+	t.Helper()
+	rows, err := db.Query(`SELECT session_key FROM bee_session_contexts WHERE agent_id = ? ORDER BY session_key`, agentID)
+	require.NoError(t, err)
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var key string
+		require.NoError(t, rows.Scan(&key))
+		keys = append(keys, key)
+	}
+	require.NoError(t, rows.Err())
+	return keys
+}
+
+func TestMigrationSplitsLocalWorkerSessions(t *testing.T) {
+	db := openPreMigrationDB(t, 57)
+	for _, q := range []string{
+		seedWorkerSQL("w1"),
+		`INSERT INTO bee_session_contexts (session_key, agent_id, engine, session_id, updated_at) VALUES
+			('local:u1','bee','claude','s-bee',1),
+			('local:u1','w1','claude','s-w1',1),
+			('telegram:1:2','w1','claude','s-tg',1),
+			('local:default','w1','claude','s-default',1),
+			('local:u1','w3','claude','s-w3-old',1),
+			('local:u1:worker:w3','w3','claude','s-w3-new',1)`,
+		seedMessageSQL("m1", "local:u1"),
+		`INSERT INTO bee_tasks (id, message_id, worker_id, instruction, type, status, session_key, platform, created_at, updated_at) VALUES
+			('t-sched','m1','w1','go','scheduled','pending','local:u1','local',1,1),
+			('t-count','m1','w1','go','countdown','pending','local:u1','local',1,1),
+			('t-imm','m1','w1','go','immediate','pending','local:u1','local',1,1),
+			('t-done','m1','w1','go','countdown','completed','local:u1','local',1,1),
+			('t-running','m1','w1','go','scheduled','running','local:u1','local',1,1),
+			('t-tg','m1','w1','go','scheduled','pending','telegram:1:2','telegram',1,1),
+			('t-default','m1','w1','go','scheduled','pending','local:default','local',1,1),
+			('t-split','m1','w1','go','scheduled','pending','local:u1:worker:w1','local',1,1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, migrate(db))
+
+	assert.Equal(t, []string{"local:u1"}, sessionContextKeys(t, db, "bee"))
+	assert.Equal(t, []string{"local:default", "local:u1:worker:w1", "telegram:1:2"}, sessionContextKeys(t, db, "w1"))
+	assert.Equal(t, []string{"local:u1", "local:u1:worker:w3"}, sessionContextKeys(t, db, "w3"))
+
+	var sessionID string
+	require.NoError(t, db.QueryRow(`SELECT session_id FROM bee_session_contexts WHERE session_key = 'local:u1:worker:w1' AND agent_id = 'w1'`).Scan(&sessionID))
+	assert.Equal(t, "s-w1", sessionID)
+	require.NoError(t, db.QueryRow(`SELECT session_id FROM bee_session_contexts WHERE session_key = 'local:u1:worker:w3' AND agent_id = 'w3'`).Scan(&sessionID))
+	assert.Equal(t, "s-w3-new", sessionID)
+
+	for id, want := range map[string]string{
+		"t-sched":   "local:u1:worker:w1",
+		"t-count":   "local:u1:worker:w1",
+		"t-imm":     "local:u1",
+		"t-done":    "local:u1",
+		"t-running": "local:u1",
+		"t-tg":      "telegram:1:2",
+		"t-default": "local:default",
+		"t-split":   "local:u1:worker:w1",
+	} {
+		var got string
+		require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_tasks WHERE id = ?`, id).Scan(&got))
+		assert.Equal(t, want, got, id)
+	}
+}
+
+func TestMigrationStripsWorkerPrefixOnlyOnExactName(t *testing.T) {
+	db := openPreMigrationDB(t, 57)
+	for _, q := range []string{
+		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','林知夏','/','idle',1,1)`,
+		`INSERT INTO bee_outbound_messages (id, session_key, platform, content, source_type, source_id, sent_at, created_at) VALUES
+			('o-exact','local:u1','local','林知夏' || char(10) || 'hello','worker','w1',1,1),
+			('o-short','local:u1','local','林知' || char(10) || 'hello','worker','w1',1,1),
+			('o-tg','telegram:1:2','telegram','林知夏' || char(10) || 'hello','worker','w1',1,1),
+			('o-bee','local:u1','local','林知夏' || char(10) || 'hello','bee','',1,1),
+			('o-unknown','local:u1','local','林知夏' || char(10) || 'hello','worker','missing',1,1),
+			('o-name-only','local:u1','local','林知夏','worker','w1',1,1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, migrate(db))
+
+	for id, want := range map[string]string{
+		"o-exact":     "hello",
+		"o-short":     "林知\nhello",
+		"o-tg":        "林知夏\nhello",
+		"o-bee":       "林知夏\nhello",
+		"o-unknown":   "林知夏\nhello",
+		"o-name-only": "林知夏",
+	} {
+		var got string
+		require.NoError(t, db.QueryRow(`SELECT content FROM bee_outbound_messages WHERE id = ?`, id).Scan(&got))
+		assert.Equal(t, want, got, id)
+	}
+}
+
+func TestMigrationAddsLocalChatColumns(t *testing.T) {
+	db := newTestDB(t, seedWorkerSQL("w1"), seedMessageSQL("m1", "local:u1"))
+
+	var senderType string
+	require.NoError(t, db.QueryRow(`SELECT sender_type FROM bee_platform_messages WHERE id = 'm1'`).Scan(&senderType))
+	assert.Equal(t, "user", senderType)
+
+	_, err := db.Exec(`INSERT INTO bee_outbound_messages (id, session_key, platform, sent_at, created_at) VALUES ('o1','local:u1','local',1,1)`)
+	require.NoError(t, err)
+	var kind, payload string
+	require.NoError(t, db.QueryRow(`SELECT kind, payload FROM bee_outbound_messages WHERE id = 'o1'`).Scan(&kind, &payload))
+	assert.Equal(t, "message", kind)
+	assert.Empty(t, payload)
+
+	_, err = db.Exec(`INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at) VALUES ('u1','bee',5)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at) VALUES ('u1','bee',6)`)
+	require.Error(t, err)
 }

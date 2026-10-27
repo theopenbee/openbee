@@ -71,6 +71,8 @@ type TaskFilter struct {
 	Type       string // comma-separated, e.g. "immediate,countdown"
 	Limit      int    // 0 means no limit
 	Offset     int
+
+	IncludeWorkerChats bool
 }
 
 // buildFilterWhere appends the JOIN (if needed) and WHERE clauses for a TaskFilter
@@ -86,7 +88,11 @@ func buildFilterWhere(q string, f TaskFilter) (string, []any) {
 		q += ` AND t.message_id = ?`
 		args = append(args, f.MessageID)
 	}
-	if f.SessionKey != "" {
+	if f.SessionKey != "" && f.IncludeWorkerChats {
+		workerPrefix := f.SessionKey + ":worker:"
+		q += ` AND (t.session_key = ? OR substr(t.session_key, 1, ?) = ?)`
+		args = append(args, f.SessionKey, utf8.RuneCountInString(workerPrefix), workerPrefix)
+	} else if f.SessionKey != "" {
 		q += ` AND t.session_key = ?`
 		args = append(args, f.SessionKey)
 	}
@@ -357,6 +363,10 @@ func (s *TaskStore) FailTask(ctx context.Context, taskID string) error {
 // task is picked up again on the next scheduled run.
 func (s *TaskStore) CompleteTask(ctx context.Context, taskID string) error {
 	return s.finalize(ctx, taskID, model.TaskStatusCompleted)
+}
+
+func (s *TaskStore) AbortRun(ctx context.Context, taskID string) error {
+	return s.finalize(ctx, taskID, model.TaskStatusCancelled)
 }
 
 // CountPendingByWorkerID returns the number of pending tasks for a given worker.
