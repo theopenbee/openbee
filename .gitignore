@@ -14,3 +14,4 @@ aibot-node-sdk-main/
 dist/
 npm/packages/cli/README.md.worktrees/
 docs/superpowers/
+__pycache__/
