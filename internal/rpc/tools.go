@@ -495,6 +495,8 @@ func (s *Server) toolListTasks(ctx context.Context, args json.RawMessage) (any, 
 		Type:       params.Type,
 		Limit:      pageSize,
 		Offset:     offset,
+
+		IncludeWorkerChats: local.IsBeeSessionKey(params.SessionKey),
 	}
 	var (
 		total       int

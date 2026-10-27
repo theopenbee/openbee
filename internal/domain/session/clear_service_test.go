@@ -45,6 +45,7 @@ func (f *fakeSessionStore) DeleteSessionContextForEngine(_ context.Context, sess
 
 type fakeTaskStore struct {
 	tasks      []model.Task
+	byType     map[string][]model.Task
 	listErr    error
 	cancelled  int64
 	cancelErr  error
@@ -54,6 +55,9 @@ type fakeTaskStore struct {
 
 func (f *fakeTaskStore) List(_ context.Context, fl store.TaskFilter) ([]model.Task, error) {
 	f.listCalls = append(f.listCalls, fl)
+	if f.byType != nil {
+		return f.byType[fl.Type], f.listErr
+	}
 	return f.tasks, f.listErr
 }
 
@@ -94,7 +98,10 @@ func (f *fakeExecFinalizer) MarkAbandoned(_ context.Context, id, _ string) (bool
 type fakeDispatcher struct {
 	sessions []string
 	workers  []string
+	aborted  []string
 }
+
+func (f *fakeDispatcher) AbortRun(taskID string) { f.aborted = append(f.aborted, taskID) }
 
 func (f *fakeDispatcher) ClearSession(sk string) { f.sessions = append(f.sessions, sk) }
 func (f *fakeDispatcher) ClearWorker(sk, wid string) {
@@ -356,6 +363,152 @@ func TestStopWorker_CancelError_ReturnsErrorAndSkipsDispatcher(t *testing.T) {
 	require.Error(t, err)
 	require.Empty(t, disp.workers, "dispatcher.ClearWorker must not run after cancel failure")
 	require.Empty(t, sessions.deletedCalls, "StopWorker must never delete context")
+}
+
+func TestStopWorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1", SessionKey: "local:u1:worker:w1"}}, cancelled: 1}
+	disp := &fakeDispatcher{}
+	stopper := &fakeExecStopper{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	got, err := svc.StopWorker(context.Background(), "local:u1", model.Worker{ID: "w1", Engine: "claude"})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, got.CancelledTasks)
+	require.Len(t, tasks.listCalls, 1)
+	require.Equal(t, "local:u1:worker:w1", tasks.listCalls[0].SessionKey)
+	require.Equal(t, []store.CancelFilter{{SessionKey: "local:u1:worker:w1", WorkerID: "w1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Equal(t, []string{"local:u1:worker:w1::w1"}, disp.workers)
+	require.Equal(t, []string{"exec-1"}, stopper.stopped)
+}
+
+func TestStopWorkerFromWorkerChatKeepsKey(t *testing.T) {
+	tasks := &fakeTaskStore{}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.StopWorker(context.Background(), "local:u1:worker:w1", model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.Equal(t, []store.CancelFilter{{SessionKey: "local:u1:worker:w1", WorkerID: "w1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Equal(t, []string{"local:u1:worker:w1::w1"}, disp.workers)
+}
+
+func TestStopWorkerTelegramUnchanged(t *testing.T) {
+	const key = "telegram:chat1:userA"
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1", SessionKey: key}}, cancelled: 1}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.StopWorker(context.Background(), key, model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.Len(t, tasks.listCalls, 1)
+	require.Equal(t, key, tasks.listCalls[0].SessionKey)
+	require.Equal(t, []store.CancelFilter{{SessionKey: key, WorkerID: "w1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Equal(t, []string{key + "::w1"}, disp.workers)
+}
+
+func TestEvaluateAndClearWorkerFromBeeChatTargetWorkerChat(t *testing.T) {
+	sessions := &fakeSessionStore{deleted: true}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}, cancelled: 1}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, sessions, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+	w := model.Worker{ID: "w1", Engine: "claude"}
+
+	preview, err := svc.EvaluateClearWorker(context.Background(), "local:u1", w)
+	require.NoError(t, err)
+	require.Len(t, tasks.listCalls, 1)
+	require.Equal(t, "local:u1:worker:w1", tasks.listCalls[0].SessionKey)
+
+	_, err = svc.ClearWorker(context.Background(), "local:u1", w, preview)
+	require.NoError(t, err)
+	require.Equal(t, []store.CancelFilter{{SessionKey: "local:u1:worker:w1", WorkerID: "w1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Equal(t, []deletedCall{{"local:u1:worker:w1", "w1", "claude"}}, sessions.deletedCalls)
+	require.Equal(t, []string{"local:u1:worker:w1::w1"}, disp.workers)
+}
+
+func TestClearSessionFromBeeChatKeepsBeeKey(t *testing.T) {
+	tasks := &fakeTaskStore{}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.ClearSession(context.Background(), "local:u1", session.ClearSessionPreview{})
+	require.NoError(t, err)
+	require.Equal(t, []store.CancelFilter{{SessionKey: "local:u1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Equal(t, []string{"local:u1"}, disp.sessions)
+}
+
+func TestStopConversationAbortsScheduledRunKeepsSchedule(t *testing.T) {
+	tasks := &fakeTaskStore{
+		byType: map[string][]model.Task{
+			model.TaskTypeImmediate: {{ID: "imm1", WorkerID: "w1"}},
+			"countdown,scheduled": {
+				{ID: "sched1", WorkerID: "w1", Type: model.TaskTypeScheduled, Status: model.TaskStatusRunning},
+				{ID: "count1", WorkerID: "w1", Type: model.TaskTypeCountdown, Status: model.TaskStatusRunning},
+			},
+		},
+		cancelled: 1,
+	}
+	disp := &fakeDispatcher{}
+	stopper := &fakeExecStopper{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, stopper, &fakeExecFinalizer{}, disp,
+		fakeRunningExecs{"imm1": "exec-imm", "sched1": "exec-sched", "count1": "exec-count"})
+
+	got, err := svc.StopConversation(context.Background(), "local:u1", model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, got.CancelledTasks)
+
+	require.Equal(t, []string{"sched1", "count1"}, disp.aborted)
+	require.Equal(t, []string{"exec-imm"}, stopper.stopped, "scheduled runs are stopped by AbortRun, never by the service")
+	require.Equal(t, []store.CancelFilter{{SessionKey: "local:u1:worker:w1", WorkerID: "w1", Type: model.TaskTypeImmediate}}, tasks.cancelCall)
+	require.Contains(t, tasks.listCalls, store.TaskFilter{
+		SessionKey: "local:u1:worker:w1",
+		WorkerID:   "w1",
+		Status:     model.TaskStatusActive,
+		Type:       "countdown,scheduled",
+	})
+	require.Equal(t, []string{"local:u1:worker:w1::w1"}, disp.workers)
+}
+
+func TestStopConversationOnWorkerChatKey(t *testing.T) {
+	tasks := &fakeTaskStore{
+		byType: map[string][]model.Task{
+			"countdown,scheduled": {{ID: "sched1", WorkerID: "w1", Type: model.TaskTypeScheduled}},
+		},
+	}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.StopConversation(context.Background(), "local:u1:worker:w1", model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"sched1"}, disp.aborted)
+	require.Contains(t, tasks.listCalls, store.TaskFilter{
+		SessionKey: "local:u1:worker:w1",
+		WorkerID:   "w1",
+		Status:     model.TaskStatusActive,
+		Type:       "countdown,scheduled",
+	})
+}
+
+func TestStopConversationStopWorkerErrorSkipsAbort(t *testing.T) {
+	tasks := &fakeTaskStore{
+		byType:    map[string][]model.Task{"countdown,scheduled": {{ID: "sched1", WorkerID: "w1"}}},
+		cancelErr: errors.New("db down"),
+	}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.StopConversation(context.Background(), "local:u1", model.Worker{ID: "w1"})
+	require.Error(t, err)
+	require.Empty(t, disp.aborted)
+}
+
+func TestStopConversationListErrorReturnsError(t *testing.T) {
+	tasks := &fakeTaskStore{listErr: errors.New("db down")}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, &fakeExecStopper{}, &fakeExecFinalizer{}, disp, nil)
+
+	_, err := svc.StopConversation(context.Background(), "local:u1", model.Worker{ID: "w1"})
+	require.Error(t, err)
+	require.Empty(t, disp.aborted)
 }
 
 func TestCancelTask_StopsAndFinalizesOnError(t *testing.T) {

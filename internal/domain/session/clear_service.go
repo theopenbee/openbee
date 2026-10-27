@@ -15,6 +15,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 var log = logger.With(zap.String("component", "session"))
@@ -48,6 +49,7 @@ type ExecutionFinalizer interface {
 type Dispatcher interface {
 	ClearSession(sessionKey string)
 	ClearWorker(sessionKey, workerID string)
+	AbortRun(taskID string)
 }
 
 // TaskCanceller marks a single task cancelled in the DB and (for in-process
@@ -156,6 +158,7 @@ type ClearWorkerPreview struct {
 // EvaluateClearWorker is a read-only lookup of what a ClearWorker call would
 // touch for one worker in sessionKey.
 func (s *ClearService) EvaluateClearWorker(ctx context.Context, sessionKey string, w model.Worker) (ClearWorkerPreview, error) {
+	sessionKey = local.WorkerScopedSessionKey(sessionKey, w.ID)
 	engine := s.engineCfg.Resolve(w.Engine)
 	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
 	if err != nil {
@@ -187,6 +190,7 @@ type ClearWorkerResult struct {
 // dispatcher queue for the pair. Always executes; callers pass the preview
 // returned by EvaluateClearWorker so this method doesn't repeat the lookups.
 func (s *ClearService) ClearWorker(ctx context.Context, sessionKey string, w model.Worker, preview ClearWorkerPreview) (ClearWorkerResult, error) {
+	sessionKey = local.WorkerScopedSessionKey(sessionKey, w.ID)
 	cancelled, err := s.stopWorkerTasks(ctx, sessionKey, w, preview.ActiveTasks)
 	if err != nil {
 		return ClearWorkerResult{Engine: preview.Engine}, err
@@ -214,6 +218,7 @@ type StopWorkerResult struct {
 // but WITHOUT deleting the worker's session context. This backs /stop
 // {workerName}: interrupt in-flight work while preserving conversation memory.
 func (s *ClearService) StopWorker(ctx context.Context, sessionKey string, w model.Worker) (StopWorkerResult, error) {
+	sessionKey = local.WorkerScopedSessionKey(sessionKey, w.ID)
 	activeTasks, err := s.listActiveImmediateTasks(ctx, sessionKey, w.ID)
 	if err != nil {
 		return StopWorkerResult{}, err
@@ -223,6 +228,26 @@ func (s *ClearService) StopWorker(ctx context.Context, sessionKey string, w mode
 		return StopWorkerResult{}, err
 	}
 	return StopWorkerResult{CancelledTasks: cancelled}, nil
+}
+
+func (s *ClearService) StopConversation(ctx context.Context, sessionKey string, w model.Worker) (StopWorkerResult, error) {
+	result, err := s.StopWorker(ctx, sessionKey, w)
+	if err != nil {
+		return StopWorkerResult{}, err
+	}
+	runs, err := s.tasks.List(ctx, store.TaskFilter{
+		SessionKey: local.WorkerScopedSessionKey(sessionKey, w.ID),
+		WorkerID:   w.ID,
+		Status:     model.TaskStatusActive,
+		Type:       model.TaskTypeCountdown + "," + model.TaskTypeScheduled,
+	})
+	if err != nil {
+		return result, fmt.Errorf("list scheduled runs for worker %s: %w", w.ID, err)
+	}
+	for _, t := range runs {
+		s.dispatcher.AbortRun(t.ID)
+	}
+	return result, nil
 }
 
 // stopWorkerTasks stops the running executions for activeTasks, cancels the

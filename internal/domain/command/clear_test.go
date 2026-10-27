@@ -83,6 +83,7 @@ func (f *fakeClearExecStopper) StopExecution(executionID string) error {
 type fakeClearSessionDispatcher struct {
 	cleared        []string
 	clearedWorkers []string // captured (sessionKey+"::"+workerID)
+	aborted        []string
 }
 
 func (f *fakeClearSessionDispatcher) ClearSession(sessionKey string) {
@@ -91,6 +92,10 @@ func (f *fakeClearSessionDispatcher) ClearSession(sessionKey string) {
 
 func (f *fakeClearSessionDispatcher) ClearWorker(sessionKey, workerID string) {
 	f.clearedWorkers = append(f.clearedWorkers, sessionKey+"::"+workerID)
+}
+
+func (f *fakeClearSessionDispatcher) AbortRun(taskID string) {
+	f.aborted = append(f.aborted, taskID)
 }
 
 type clearFixture struct {
@@ -430,4 +435,39 @@ func TestClearCommand_ConfirmPromptFallsBackToWorkerID(t *testing.T) {
 	require.Len(t, fx.sender.sent, 1)
 	out := fx.sender.sent[0]
 	assert.Contains(t, out, "[ghost] do something")
+}
+
+func TestClearCommand_WorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
+	const beeKey = "local:u1"
+	const workerKey = "local:u1:worker:w1"
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	fx := makeClearFixture(nil, nil, nil, withClearClock(fixedClock(clock)))
+	fx.sessions.deleted = true
+	worker := model.Worker{ID: "w1", Name: "徐晃", Engine: "claude"}
+	workers := &fakeClearWorkerLookup{
+		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": worker}},
+		byName:                map[string][]model.Worker{"徐晃": {worker}},
+	}
+	execs := fakeRunningExecs{}
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     fx.sessions,
+		Tasks:        fx.tasks,
+		ExecStopper:  fx.stopper,
+		Dispatcher:   fx.disp,
+		RunningExecs: execs,
+		EngineCfg:    enginecfg.NewStore("claude"),
+	})
+	fx.handler = command.NewClearCommandHandler(workers, svc, platform.SenderMap{"beta": fx.sender}, execs)
+	command.SetClearClockForTest(fx.handler, fixedClock(clock))
+
+	replyTo := makeReplyTo()
+	replyTo.SessionKey = beeKey
+	fx.handler.HandleCommand(context.Background(), "/clear 徐晃", replyTo)
+
+	require.Len(t, fx.sender.sent, 1)
+	assert.Contains(t, fx.sender.sent[0], "✅ 已清除 徐晃")
+	assert.Equal(t, []string{workerKey + "::w1"}, fx.tasks.workerListCalls)
+	assert.Equal(t, []string{workerKey + "::w1"}, fx.tasks.workerCancelCalls)
+	assert.Equal(t, []string{workerKey + "::w1"}, fx.disp.clearedWorkers)
+	assert.Equal(t, []string{workerKey}, fx.sessions.deletedSessions)
 }

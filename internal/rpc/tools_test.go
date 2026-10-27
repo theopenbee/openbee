@@ -76,6 +76,7 @@ type mockClearDispatcher struct {
 	mu             sync.Mutex
 	cleared        []string
 	clearedWorkers []string // sessionKey + "::" + workerID
+	aborted        []string
 }
 
 func (m *mockClearDispatcher) ClearSession(sessionKey string) {
@@ -88,6 +89,12 @@ func (m *mockClearDispatcher) ClearWorker(sessionKey, workerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.clearedWorkers = append(m.clearedWorkers, sessionKey+"::"+workerID)
+}
+
+func (m *mockClearDispatcher) AbortRun(taskID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.aborted = append(m.aborted, taskID)
 }
 
 // newTestServer builds a Bee RPC server on a fresh SQLite DB with the given platform senders.
@@ -759,6 +766,92 @@ func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
 	require.NoError(t, err)
 	tasks, _ := decodePagedTaskItems(t, result)
 	assert.Len(t, tasks, 1)
+}
+
+func TestListTasksBeeKeyIncludesWorkerChats(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ts := store.NewTaskStore(db)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	keys := map[string]string{
+		"bee":      "local:u1",
+		"worker":   "local:u1:worker:" + w.ID,
+		"other":    "local:u2:worker:" + w.ID,
+		"telegram": "telegram:chat1:userA",
+	}
+	ids := map[string]string{}
+	for name, key := range keys {
+		msgID := "msg-" + name
+		ms.Create(ctx, msgID, key, "beta", "hi", `{}`, "", 0) //nolint
+		id, err := ts.Create(ctx, model.Task{
+			MessageID: msgID, SessionKey: key, WorkerID: w.ID, Instruction: name,
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+			CreatedAt: 1, UpdatedAt: 1,
+		})
+		require.NoError(t, err)
+		ids[name] = id
+	}
+
+	listIDs := func(sessionKey string) ([]string, int) {
+		result, err := s.CallTool(ctx, "list_tasks", mustMarshal(t, map[string]any{"session_key": sessionKey}))
+		require.NoError(t, err)
+		items, page := decodePagedTaskItems(t, result)
+		got := make([]string, 0, len(items))
+		for _, item := range items {
+			got = append(got, item["ID"].(string))
+		}
+		return got, int(page["total"].(float64))
+	}
+
+	got, total := listIDs("local:u1")
+	assert.ElementsMatch(t, []string{ids["bee"], ids["worker"]}, got)
+	assert.Equal(t, 2, total)
+
+	got, total = listIDs("local:u1:worker:" + w.ID)
+	assert.ElementsMatch(t, []string{ids["worker"]}, got)
+	assert.Equal(t, 1, total)
+
+	got, total = listIDs("telegram:chat1:userA")
+	assert.ElementsMatch(t, []string{ids["telegram"]}, got)
+	assert.Equal(t, 1, total)
+}
+
+func TestCallTool_ClearWorkerSession_FromBeeChatCancelsWorkerChatTask(t *testing.T) {
+	s, db, _, disp := setupServerWithClear(t)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	workerKey := "local:u1:worker:" + w.ID
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-bee-cw", workerKey, "beta", "hi", `{}`, "", 0) //nolint
+	ts := store.NewTaskStore(db)
+	taskID, err := ts.Create(ctx, model.Task{
+		MessageID: "msg-bee-cw", SessionKey: workerKey, WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	require.NoError(t, err)
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "local:u1",
+		"worker_id":   w.ID,
+		"force":       true,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["cleared"])
+	assert.EqualValues(t, 1, m["cancelled_tasks"])
+
+	tasks, err := ts.List(ctx, store.TaskFilter{TaskID: taskID})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, model.TaskStatusCancelled, tasks[0].Status)
+
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	assert.Equal(t, []string{workerKey + "::" + w.ID}, disp.clearedWorkers)
 }
 
 func TestCallTool_ClearSession_EmptySession_ReturnsNoContext(t *testing.T) {

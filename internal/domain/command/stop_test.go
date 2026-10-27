@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/domain/command"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -146,6 +147,37 @@ func TestStop_Worker_StopsTasks(t *testing.T) {
 	require.Equal(t, []string{"beta:chat1:userA::w-1"}, stop.calls)
 	require.Len(t, sender.sent, 1)
 	assert.Contains(t, sender.sent[0], "alice")
+}
+
+func TestStop_WorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
+	const workerKey = "local:u1:worker:w-1"
+	fx := makeClearFixture(nil, nil, nil)
+	fx.tasks.workerTasks = map[string][]model.Task{
+		"w-1": {{ID: "t1", WorkerID: "w-1", SessionKey: workerKey, Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning}},
+	}
+	fx.tasks.workerCancelled = map[string]int64{"w-1": 1}
+	execs := fakeRunningExecs{"t1": "exec-1"}
+	svc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:     fx.sessions,
+		Tasks:        fx.tasks,
+		ExecStopper:  fx.stopper,
+		Dispatcher:   fx.disp,
+		RunningExecs: execs,
+		EngineCfg:    enginecfg.NewStore("claude"),
+	})
+	sender := &fakeStopSender{}
+	h := newStopWorkerHandler(workerLookup("alice", model.Worker{ID: "w-1", Name: "alice"}), svc, sender)
+
+	replyTo := makeStopReplyTo()
+	replyTo.SessionKey = "local:u1"
+	h.HandleCommand(context.Background(), "/stop alice", replyTo)
+
+	require.Len(t, sender.sent, 1)
+	assert.Equal(t, []string{workerKey + "::w-1"}, fx.tasks.workerListCalls)
+	assert.Equal(t, []string{workerKey + "::w-1"}, fx.tasks.workerCancelCalls)
+	assert.Equal(t, []string{workerKey + "::w-1"}, fx.disp.clearedWorkers)
+	assert.Equal(t, []string{"exec-1"}, fx.stopper.stopped)
+	assert.Empty(t, fx.sessions.deletedSessions)
 }
 
 func TestStop_Worker_NothingToStop(t *testing.T) {
