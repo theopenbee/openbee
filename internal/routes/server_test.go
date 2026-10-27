@@ -44,3 +44,39 @@ func TestServer_AdminTokenReachesOnlyPluginRoutes(t *testing.T) {
 	s.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/workers", nil))
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
+
+func TestServer_LocalChatRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	jwt := auth.NewJWTService("s", time.Hour, time.Hour)
+	s, err := NewServer(ServerParams{
+		LocalChat:      api.NewLocalChatHandler(api.LocalChatDeps{}),
+		AuthMiddleware: auth.AuthMiddleware(jwt, activeUsers{}),
+		StaticFS:       fstest.MapFS{"dist/index.html": {Data: []byte("spa")}},
+	})
+	require.NoError(t, err)
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/local/conversations"},
+		{http.MethodGet, "/api/local/conversations/worker:w1/messages"},
+		{http.MethodPost, "/api/local/conversations/worker:w1/messages"},
+		{http.MethodPost, "/api/local/conversations/bee/read"},
+		{http.MethodPost, "/api/local/conversations/bee/clear"},
+		{http.MethodPost, "/api/local/conversations/worker:w1/stop"},
+		{http.MethodPost, "/api/local/media"},
+		{http.MethodGet, "/api/local/media/a.png"},
+		{http.MethodGet, "/api/local/stream"},
+	} {
+		rec := httptest.NewRecorder()
+		s.router.ServeHTTP(rec, httptest.NewRequest(route.method, route.path, nil))
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, route.method+" "+route.path)
+	}
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/local/messages"},
+		{http.MethodPost, "/api/local/messages"},
+	} {
+		rec := httptest.NewRecorder()
+		s.router.ServeHTTP(rec, httptest.NewRequest(route.method, route.path, nil))
+		assert.Equal(t, "spa", rec.Body.String(), route.method+" "+route.path)
+	}
+}

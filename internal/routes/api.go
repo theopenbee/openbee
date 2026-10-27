@@ -31,8 +31,12 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.PUT("/workers/:id/departments", s.Departments.SetWorkerDepartments)
 
 	// Local chat & messages
-	r.POST("/local/messages", s.LocalChat.SendMessage)
-	r.GET("/local/messages", s.LocalChat.GetMessages)
+	r.GET("/local/conversations", s.LocalChat.ListConversations)
+	r.GET("/local/conversations/:cid/messages", s.LocalChat.GetMessages)
+	r.POST("/local/conversations/:cid/messages", s.LocalChat.SendMessage)
+	r.POST("/local/conversations/:cid/read", s.LocalChat.MarkRead)
+	r.POST("/local/conversations/:cid/clear", s.LocalChat.Clear)
+	r.POST("/local/conversations/:cid/stop", s.LocalChat.Stop)
 	r.POST("/local/media", s.LocalChat.UploadMedia)
 	r.GET("/local/media/:filename", s.LocalChat.ServeMedia)
 	r.GET("/local/stream", s.LocalChat.StreamReplies)

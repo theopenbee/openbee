@@ -237,12 +237,17 @@ func BuildApp(cfg config.Config) (*App, error) {
 		pluginMgr.Start(ctx, ingest.Dispatch, ingest.SetPlatformBotNames)
 	})
 
-	localChatHandler := api.NewLocalChatHandler(
-		localReceiver, localHub,
-		s.outboundMsgStore,
-		s.msgStore,
-		localMediaRoot,
-	)
+	localChatHandler := api.NewLocalChatHandler(api.LocalChatDeps{
+		Receiver:  localReceiver,
+		Hub:       localHub,
+		Publisher: localPub,
+		Messages:  s.msgStore,
+		Outbound:  s.outboundMsgStore,
+		Chats:     s.localChatStore,
+		Workers:   s.workerStore,
+		Clear:     clearSvc,
+		MediaRoot: localMediaRoot,
+	})
 
 	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
 	if err != nil {
@@ -269,6 +274,7 @@ type appStores struct {
 	tokenStatsStore   *store.TokenStatsStore
 	userStore         *store.UserStore
 	pluginSettings    *store.PluginSettingsStore
+	localChatStore    *store.LocalChatStore
 }
 
 func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
@@ -290,6 +296,7 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		tokenStatsStore:   store.NewTokenStatsStore(db),
 		userStore:         store.NewUserStore(db),
 		pluginSettings:    store.NewPluginSettingsStore(db),
+		localChatStore:    store.NewLocalChatStore(db),
 	}, nil
 }
 
