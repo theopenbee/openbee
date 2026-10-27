@@ -86,7 +86,7 @@ export function WorkerPanel({ workerId, panel, onPanelChange }: WorkerPanelProps
         >
           <TabsList aria-label={t("workerDetail.sectionNav")}>
             {SECTIONS.map(({ key, labelKey }) => (
-              <TabsTrigger key={key} value={key} className="min-w-0!">
+              <TabsTrigger key={key} value={key} className="min-w-0! px-2!">
                 {t(labelKey)}
               </TabsTrigger>
             ))}
