@@ -83,7 +83,7 @@ $T channel <telegram|discord|feishu|dingtalk|wecom|linear|weixin> [--src <plugin
 
 ### 4. Change code mid-test
 
-`$T restart --rebuild [--skip-web]` rebuilds from the same `--src` and restarts, keeping DB and plugins. It refuses while a message or task is in flight, because restarting then breaks the reply the user is waiting for. Wait, or pass `--force` only if the user agrees.
+`$T restart --rebuild [--skip-web]` rebuilds from the same `--src` and restarts, keeping DB and plugins. Add `--src <checkout>` to rebuild from another checkout, e.g. to upgrade an env started from an older build and test its migrations. It refuses while a message or task is in flight, because restarting then breaks the reply the user is waiting for. Wait, or pass `--force` only if the user agrees.
 
 ### 5. Down
 

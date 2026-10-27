@@ -697,11 +697,19 @@ def busy(meta):
 
 def cmd_restart(a):
     meta = load_meta(a.name)
+    if a.src:
+        if not a.rebuild:
+            die("--src needs --rebuild")
+        src = Path(a.src).expanduser().resolve()
+        if not (src / "cmd" / "openbee").is_dir():
+            die(f"{src} is not an openbee checkout")
     work = busy(meta) if pid_of(meta) else []
     if work and not a.force:
         die("; ".join(work) + " - restarting now breaks the reply the user is waiting for; retry later or pass --force")
     stop(meta)
     if a.rebuild:
+        if a.src:
+            meta["src"] = str(src)
         build(meta, a.skip_web)
         install_skills(meta)
         save_meta(meta)
@@ -848,6 +856,7 @@ def main():
 
     p = cmd("restart", cmd_restart)
     p.add_argument("--rebuild", action="store_true")
+    p.add_argument("--src")
     p.add_argument("--skip-web", action="store_true")
     p.add_argument("--force", action="store_true")
 
