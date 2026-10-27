@@ -86,6 +86,7 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		envService:      envSvc,
 		botNames:        func() []string { return botNames },
 		activeProcesses: make(map[string]ai.Process),
+		monitorDone:     make(map[string]chan struct{}),
 	}
 	return m
 }
@@ -521,5 +522,144 @@ func TestManagerStatusObserver(t *testing.T) {
 
 		require.Error(t, mgr.setStatus("w1", model.WorkerStatusIdle))
 		assert.Zero(t, calls)
+	})
+}
+
+type heldEngine struct {
+	out chan ai.Output
+}
+
+func (e *heldEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
+
+func (e *heldEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
+	return ai.RunResult{Process: &mockProcess{}, Output: e.out, ExtractResult: func(string) string { return "" }}, nil
+}
+
+func (e *heldEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
+	return nil, ai.ErrSessionDataNotFound
+}
+
+type statusLog struct {
+	mu       sync.Mutex
+	statuses []model.WorkerStatus
+}
+
+func (l *statusLog) record(_ string, status model.WorkerStatus) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.statuses = append(l.statuses, status)
+}
+
+func (l *statusLog) list() []model.WorkerStatus {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]model.WorkerStatus(nil), l.statuses...)
+}
+
+type stoppedRun struct {
+	mgr    *Manager
+	engine *heldEngine
+	worker model.Worker
+	exec   model.WorkerExecution
+	log    *statusLog
+}
+
+func startStoppedRun(t *testing.T) *stoppedRun {
+	t.Helper()
+	engine := &heldEngine{out: make(chan ai.Output, 1)}
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: engine}, ai.EngineClaude)
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "stopped"})
+	require.NoError(t, err)
+	log := &statusLog{}
+	mgr.SetStatusObserver(log.record)
+	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "sleep", SessionID: "s1"})
+	require.NoError(t, err)
+	return &stoppedRun{mgr: mgr, engine: engine, worker: w, exec: exec, log: log}
+}
+
+func (r *stoppedRun) kill() {
+	r.engine.out <- ai.Output{Type: ai.OutputError, Content: "signal: killed"}
+	close(r.engine.out)
+}
+
+func (r *stoppedRun) storedStatus(t *testing.T) model.WorkerStatus {
+	t.Helper()
+	w, err := r.mgr.workerStore.GetByID(r.worker.ID)
+	require.NoError(t, err)
+	return w.Status
+}
+
+func (r *stoppedRun) waitForMonitor(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		r.mgr.mu.RLock()
+		defer r.mgr.mu.RUnlock()
+		_, live := r.mgr.activeProcesses[r.exec.ID]
+		return !live
+	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func TestManagerSettleStopped(t *testing.T) {
+	t.Run("AfterMonitorFinished", func(t *testing.T) {
+		run := startStoppedRun(t)
+		run.kill()
+		run.waitForMonitor(t)
+
+		run.mgr.SettleStopped(context.Background(), run.exec.ID, run.worker.ID)
+
+		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusError, model.WorkerStatusIdle}, run.log.list())
+		assert.Equal(t, model.WorkerStatusIdle, run.storedStatus(t))
+	})
+
+	t.Run("WaitsForMonitor", func(t *testing.T) {
+		run := startStoppedRun(t)
+		settled := make(chan struct{})
+		go func() {
+			run.mgr.SettleStopped(context.Background(), run.exec.ID, run.worker.ID)
+			close(settled)
+		}()
+		assert.Never(t, func() bool {
+			select {
+			case <-settled:
+				return true
+			default:
+				return false
+			}
+		}, 50*time.Millisecond, 5*time.Millisecond)
+
+		run.kill()
+		select {
+		case <-settled:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "SettleStopped did not return after the run ended")
+		}
+
+		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusError, model.WorkerStatusIdle}, run.log.list())
+		assert.Equal(t, model.WorkerStatusIdle, run.storedStatus(t))
+	})
+
+	t.Run("KeepsStatusWhileAnotherRunIsActive", func(t *testing.T) {
+		run := startStoppedRun(t)
+		run.kill()
+		run.waitForMonitor(t)
+		_, err := run.mgr.executionStore.Create(store.ExecutionCreate{WorkerID: run.worker.ID, TriggerInput: "next", SessionID: "s2"})
+		require.NoError(t, err)
+
+		run.mgr.SettleStopped(context.Background(), run.exec.ID, run.worker.ID)
+
+		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusError}, run.log.list())
+		assert.Equal(t, model.WorkerStatusError, run.storedStatus(t))
+	})
+
+	t.Run("GivesUpWhenContextEnds", func(t *testing.T) {
+		run := startStoppedRun(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		run.mgr.SettleStopped(ctx, run.exec.ID, run.worker.ID)
+		run.kill()
+		run.waitForMonitor(t)
+
+		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusError}, run.log.list())
 	})
 }

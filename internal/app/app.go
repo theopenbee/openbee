@@ -350,6 +350,7 @@ func buildDispatcher(
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
 		task.WithTaskObserver(observer),
+		task.WithStopSettler(mgr),
 	)
 }
 

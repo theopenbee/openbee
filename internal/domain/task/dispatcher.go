@@ -30,7 +30,8 @@ type taskMeta struct {
 }
 
 const (
-	pollInterval = 2 * time.Second
+	pollInterval      = 2 * time.Second
+	stopSettleTimeout = 10 * time.Second
 )
 
 const (
@@ -43,6 +44,10 @@ const (
 
 type TaskObserver interface {
 	TaskStateChanged(t DispatchTask, state string, queuedAhead int)
+}
+
+type StopSettler interface {
+	SettleStopped(ctx context.Context, executionID, workerID string)
 }
 
 // ExecutionManager manages worker executions.
@@ -120,6 +125,7 @@ type TaskDispatcher struct {
 	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
 	cancelCh        chan string
 	observer        TaskObserver
+	stopSettler     StopSettler
 	aborted         sync.Map
 }
 
@@ -159,6 +165,10 @@ func WithWorkerLookup(lookup WorkerLookup) Option {
 
 func WithTaskObserver(o TaskObserver) Option {
 	return func(d *TaskDispatcher) { d.observer = o }
+}
+
+func WithStopSettler(s StopSettler) Option {
+	return func(d *TaskDispatcher) { d.stopSettler = s }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
@@ -228,6 +238,19 @@ func (d *TaskDispatcher) finishCancelled(task DispatchTask) {
 		}
 	}
 	d.emit(task, StateCancelled, 0)
+}
+
+func (d *TaskDispatcher) finishStopped(task DispatchTask, executionID string) {
+	d.finishCancelled(task)
+	if d.stopSettler == nil || d.ctx.Err() != nil {
+		return
+	}
+	if _, _, ok := local.ParseSessionKey(task.SessionKey); !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(d.ctx, stopSettleTimeout)
+	defer cancel()
+	d.stopSettler.SettleStopped(ctx, executionID, task.WorkerID)
 }
 
 // ClearWorker removes queued tasks for the given (sessionKey, workerID) pair from the
@@ -369,7 +392,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName, worker)
 	if err != nil {
 		if _, aborted := d.aborted.Load(task.TaskID); aborted && taskCtx.Err() != nil {
-			d.finishCancelled(task)
+			d.finishStopped(task, exec.ID)
 			return
 		}
 		log.Error("execute error",
@@ -398,7 +421,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
 		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
-		d.finishCancelled(task)
+		d.finishStopped(task, exec.ID)
 		return
 	}
 
@@ -496,7 +519,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
 			if ctx.Err() != nil {
 				d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
-				d.finishCancelled(task)
+				d.finishStopped(task, executionID)
 				return
 			}
 			d.emit(task, StateFailed, 0)
@@ -520,7 +543,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case model.ExecStatusFailed:
 			if d.stoppedInLocalChat(task) {
 				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
-				d.finishCancelled(task)
+				d.finishStopped(task, executionID)
 				return
 			}
 			// Persist session context even on failure so the next dispatch can attempt
@@ -544,7 +567,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case <-ctx.Done():
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
-			d.finishCancelled(task)
+			d.finishStopped(task, executionID)
 			return
 		}
 	}

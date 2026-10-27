@@ -38,6 +38,7 @@ type Manager struct {
 	statusObserver func(workerID string, status model.WorkerStatus)
 
 	activeProcesses map[string]ai.Process // execution_id -> process
+	monitorDone     map[string]chan struct{}
 	mu              sync.RWMutex
 }
 
@@ -63,6 +64,7 @@ func NewManager(
 		envService:      envService,
 		sysConfigStore:  sysConfigStore,
 		activeProcesses: make(map[string]ai.Process),
+		monitorDone:     make(map[string]chan struct{}),
 	}
 }
 

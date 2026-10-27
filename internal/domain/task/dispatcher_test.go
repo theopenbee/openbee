@@ -1836,13 +1836,13 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 	})
 }
 
-func runKilledTask(t *testing.T, sessionKey, platformID, status string) (*mockFailureNotifier, *mockTaskStore, *recordingObserver) {
+func runKilledTask(t *testing.T, sessionKey, platformID, status string, opts ...task.Option) (*mockFailureNotifier, *mockTaskStore, *recordingObserver) {
 	t.Helper()
 	mgr := &tableExecManager{execResult: model.WorkerExecution{ID: "exec-stop", SessionID: "sess-stop"}}
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-stop", Status: model.ExecStatusFailed, Result: "signal: killed", WorkerName: "tester"}}
 	fn := &mockFailureNotifier{}
 	obs := &recordingObserver{}
-	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn), task.WithTaskObserver(obs))
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), append(opts, task.WithFailureNotifier(fn), task.WithTaskObserver(obs))...)
 	ts.statuses = map[string]string{"task-stop": status}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1950,4 +1950,100 @@ func TestForcedIMClearStillRestoresContext(t *testing.T) {
 	ss := runForcedClear(t, "telegram:1:2:3", "telegram", task.StateFailed)
 
 	assert.Equal(t, "sess-old", ss.sessionID("telegram:1:2:3", "w1", ""))
+}
+
+type recordingSettler struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (s *recordingSettler) SettleStopped(_ context.Context, executionID, workerID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, executionID+":"+workerID)
+}
+
+func (s *recordingSettler) list() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.calls...)
+}
+
+func runAbortedRun(t *testing.T, sessionKey string, stop func(d *task.TaskDispatcher), opts ...task.Option) *recordingObserver {
+	t.Helper()
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusRunning}}
+	d, in, _, obs := startObservedDispatcher(t, mgr, eq, newMockSessionStore(), opts...)
+	in <- proactiveTaskFor("t1", sessionKey, model.TaskTypeScheduled)
+	require.True(t, waitForExecCount(mgr, 1, 2*time.Second), "ExecuteWorker was not called within timeout")
+	stop(d)
+	obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+	return obs
+}
+
+func TestStoppedLocalRunSettlesWorker(t *testing.T) {
+	t.Run("KilledByStop", func(t *testing.T) {
+		settler := &recordingSettler{}
+		_, _, obs := runKilledTask(t, "local:u1:worker:w1", "local", model.TaskStatusCancelled, task.WithStopSettler(settler))
+
+		obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateCancelled})
+
+		require.Eventually(t, func() bool { return len(settler.list()) > 0 }, 2*time.Second, 5*time.Millisecond)
+		assert.Equal(t, []string{"exec-stop:w1"}, settler.list())
+	})
+
+	t.Run("AbortedRun", func(t *testing.T) {
+		settler := &recordingSettler{}
+		runAbortedRun(t, "local:u1:worker:w1", func(d *task.TaskDispatcher) { d.AbortRun("t1") }, task.WithStopSettler(settler))
+
+		require.Eventually(t, func() bool { return len(settler.list()) > 0 }, 2*time.Second, 5*time.Millisecond)
+		assert.Equal(t, []string{"exec-1:w1"}, settler.list())
+	})
+
+	t.Run("AbortedDuringLaunch", func(t *testing.T) {
+		settler := &recordingSettler{}
+		mgr := &launchCancelledExecManager{entered: make(chan struct{})}
+		d, in, _, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore(), task.WithStopSettler(settler))
+
+		in <- proactiveTaskFor("t1", "local:u1:worker:w1", model.TaskTypeCountdown)
+		select {
+		case <-mgr.entered:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "ExecuteWorker was not called within timeout")
+		}
+		d.AbortRun("t1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+
+		require.Eventually(t, func() bool { return len(settler.list()) > 0 }, 2*time.Second, 5*time.Millisecond)
+		assert.Equal(t, []string{"exec-1:w1"}, settler.list())
+	})
+}
+
+func TestUnstoppedOrIMRunDoesNotSettleWorker(t *testing.T) {
+	t.Run("IMKilledByStop", func(t *testing.T) {
+		settler := &recordingSettler{}
+		_, _, obs := runKilledTask(t, "telegram:1:2:3", "telegram", model.TaskStatusCancelled, task.WithStopSettler(settler))
+
+		obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateFailed})
+
+		assert.Never(t, func() bool { return len(settler.list()) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
+	})
+
+	t.Run("IMCancelledWhileRunning", func(t *testing.T) {
+		settler := &recordingSettler{}
+		runAbortedRun(t, "telegram:1:2:3", func(d *task.TaskDispatcher) {
+			require.NoError(t, d.CancelTask(context.Background(), "t1"))
+		}, task.WithStopSettler(settler))
+
+		assert.Never(t, func() bool { return len(settler.list()) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
+	})
+
+	t.Run("LocalRunFailedOnItsOwn", func(t *testing.T) {
+		settler := &recordingSettler{}
+		_, _, obs := runKilledTask(t, "local:u1:worker:w1", "local", model.TaskStatusRunning, task.WithStopSettler(settler))
+
+		obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateFailed})
+
+		assert.Never(t, func() bool { return len(settler.list()) > 0 }, 100*time.Millisecond, 10*time.Millisecond)
+	})
 }

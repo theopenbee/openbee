@@ -113,6 +113,7 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 
 	m.mu.Lock()
 	m.activeProcesses[exec.ID] = runRes.Process
+	m.monitorDone[exec.ID] = make(chan struct{})
 	m.mu.Unlock()
 
 	m.executionStore.UpdatePID(exec.ID, runRes.Process.PID())
@@ -158,6 +159,10 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 
 	m.mu.Lock()
 	delete(m.activeProcesses, exec.ID)
+	if done, ok := m.monitorDone[exec.ID]; ok {
+		close(done)
+		delete(m.monitorDone, exec.ID)
+	}
 	m.mu.Unlock()
 }
 
@@ -170,6 +175,30 @@ func (m *Manager) StopExecution(executionID string) error {
 		return fmt.Errorf("no active process for execution %s", executionID)
 	}
 	return proc.Stop()
+}
+
+func (m *Manager) SettleStopped(ctx context.Context, executionID, workerID string) {
+	m.mu.RLock()
+	done := m.monitorDone[executionID]
+	m.mu.RUnlock()
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return
+		}
+	}
+	busy, err := m.executionStore.HasActiveExecutionsByWorkerID(ctx, workerID)
+	if err != nil {
+		log.Error("check active executions", zap.String("worker_id", workerID), zap.Error(err))
+		return
+	}
+	if busy {
+		return
+	}
+	if err := m.setStatus(workerID, model.WorkerStatusIdle); err != nil {
+		log.Error("settle stopped worker status", zap.String("worker_id", workerID), zap.Error(err))
+	}
 }
 
 // CancelExecution implements task.ExecutionManager.
