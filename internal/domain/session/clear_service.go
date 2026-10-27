@@ -256,7 +256,10 @@ func (s *ClearService) StopConversation(ctx context.Context, sessionKey string, 
 // deletion on top. Callers pass the already-evaluated activeTasks so this
 // doesn't repeat the lookup.
 func (s *ClearService) stopWorkerTasks(ctx context.Context, sessionKey string, w model.Worker, activeTasks []model.Task) (int64, error) {
-	s.stopRunningExecutions(ctx, activeTasks)
+	_, _, cancelFirst := local.ParseSessionKey(sessionKey)
+	if !cancelFirst {
+		s.stopRunningExecutions(ctx, activeTasks)
+	}
 
 	cancelled, err := s.tasks.Cancel(ctx, store.CancelFilter{
 		SessionKey: sessionKey,
@@ -265,6 +268,10 @@ func (s *ClearService) stopWorkerTasks(ctx context.Context, sessionKey string, w
 	})
 	if err != nil {
 		return 0, fmt.Errorf("cancel tasks for worker %s: %w", w.ID, err)
+	}
+
+	if cancelFirst {
+		s.stopRunningExecutions(ctx, activeTasks)
 	}
 
 	s.dispatcher.ClearWorker(sessionKey, w.ID)

@@ -58,6 +58,7 @@ type ExecutionQuerier interface {
 
 // TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
 type TaskStore interface {
+	GetByID(ctx context.Context, id string) (model.Task, error)
 	UpdateStatus(ctx context.Context, taskID, status string) error
 	CompleteTask(ctx context.Context, taskID string) error
 	FailTask(ctx context.Context, taskID string) error
@@ -520,6 +521,11 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			// Persist session context even on failure so the next dispatch can attempt
 			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
 			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+			if d.stoppedInLocalChat(task) {
+				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+				d.finishCancelled(task)
+				return
+			}
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
@@ -542,6 +548,18 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		}
 	}
+}
+
+func (d *TaskDispatcher) stoppedInLocalChat(task DispatchTask) bool {
+	if _, _, ok := local.ParseSessionKey(task.SessionKey); !ok || task.TaskID == "" {
+		return false
+	}
+	t, err := d.taskStore.GetByID(context.Background(), task.TaskID)
+	if err != nil {
+		log.Error("read stopped task", zap.String("taskID", task.TaskID), zap.Error(err))
+		return false
+	}
+	return t.Status == model.TaskStatusCancelled
 }
 
 func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID, engineName string) {

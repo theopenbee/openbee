@@ -43,6 +43,26 @@ func (f *fakeSessionStore) DeleteSessionContextForEngine(_ context.Context, sess
 	return f.deleted, f.deleteErr
 }
 
+type callLog struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (l *callLog) add(call string) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls = append(l.calls, call)
+}
+
+func (l *callLog) snapshot() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.calls...)
+}
+
 type fakeTaskStore struct {
 	tasks      []model.Task
 	byType     map[string][]model.Task
@@ -51,6 +71,7 @@ type fakeTaskStore struct {
 	cancelErr  error
 	listCalls  []store.TaskFilter
 	cancelCall []store.CancelFilter
+	log        *callLog
 }
 
 func (f *fakeTaskStore) List(_ context.Context, fl store.TaskFilter) ([]model.Task, error) {
@@ -63,6 +84,7 @@ func (f *fakeTaskStore) List(_ context.Context, fl store.TaskFilter) ([]model.Ta
 
 func (f *fakeTaskStore) Cancel(_ context.Context, fl store.CancelFilter) (int64, error) {
 	f.cancelCall = append(f.cancelCall, fl)
+	f.log.add("cancel " + fl.Type)
 	return f.cancelled, f.cancelErr
 }
 
@@ -71,6 +93,7 @@ type fakeExecStopper struct {
 	stopped []string
 	err     error
 	delay   <-chan struct{}
+	log     *callLog
 }
 
 func (f *fakeExecStopper) StopExecution(id string) error {
@@ -80,6 +103,7 @@ func (f *fakeExecStopper) StopExecution(id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stopped = append(f.stopped, id)
+	f.log.add("stop " + id)
 	return f.err
 }
 
@@ -509,6 +533,62 @@ func TestStopConversationListErrorReturnsError(t *testing.T) {
 	_, err := svc.StopConversation(context.Background(), "local:u1", model.Worker{ID: "w1"})
 	require.Error(t, err)
 	require.Empty(t, disp.aborted)
+}
+
+func TestStopConversationCancelsLocalTasksBeforeKillingThem(t *testing.T) {
+	calls := &callLog{}
+	tasks := &fakeTaskStore{
+		byType:    map[string][]model.Task{model.TaskTypeImmediate: {{ID: "t1", WorkerID: "w1"}}},
+		cancelled: 1,
+		log:       calls,
+	}
+	stopper := &fakeExecStopper{log: calls}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, stopper, &fakeExecFinalizer{}, &fakeDispatcher{}, fakeRunningExecs{"t1": "exec-1"})
+
+	_, err := svc.StopConversation(context.Background(), "local:u1:worker:w1", model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"cancel " + model.TaskTypeImmediate, "stop exec-1"}, calls.snapshot())
+}
+
+func TestClearWorkerCancelsLocalTasksBeforeKillingThem(t *testing.T) {
+	calls := &callLog{}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1"}}, cancelled: 1, log: calls}
+	stopper := &fakeExecStopper{log: calls}
+	svc := newSvc(t, &fakeSessionStore{deleted: true}, tasks, stopper, &fakeExecFinalizer{}, &fakeDispatcher{}, fakeRunningExecs{"t1": "exec-1"})
+	w := model.Worker{ID: "w1", Engine: "claude"}
+
+	preview, err := svc.EvaluateClearWorker(context.Background(), "local:u1", w)
+	require.NoError(t, err)
+	_, err = svc.ClearWorker(context.Background(), "local:u1", w, preview)
+	require.NoError(t, err)
+	require.Equal(t, []string{"cancel " + model.TaskTypeImmediate, "stop exec-1"}, calls.snapshot())
+}
+
+func TestStopConversationCancelErrorKillsNothing(t *testing.T) {
+	tasks := &fakeTaskStore{
+		byType:    map[string][]model.Task{model.TaskTypeImmediate: {{ID: "t1", WorkerID: "w1"}}},
+		cancelErr: errors.New("db down"),
+	}
+	stopper := &fakeExecStopper{}
+	disp := &fakeDispatcher{}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, stopper, &fakeExecFinalizer{}, disp, fakeRunningExecs{"t1": "exec-1"})
+
+	_, err := svc.StopConversation(context.Background(), "local:u1:worker:w1", model.Worker{ID: "w1"})
+	require.Error(t, err)
+	require.Empty(t, stopper.stopped)
+	require.Empty(t, disp.workers)
+}
+
+func TestStopWorkerTelegramKillsBeforeCancelling(t *testing.T) {
+	const key = "telegram:chat1:userA"
+	calls := &callLog{}
+	tasks := &fakeTaskStore{tasks: []model.Task{{ID: "t1", WorkerID: "w1", SessionKey: key}}, cancelled: 1, log: calls}
+	stopper := &fakeExecStopper{log: calls}
+	svc := newSvc(t, &fakeSessionStore{}, tasks, stopper, &fakeExecFinalizer{}, &fakeDispatcher{}, fakeRunningExecs{"t1": "exec-1"})
+
+	_, err := svc.StopWorker(context.Background(), key, model.Worker{ID: "w1"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"stop exec-1", "cancel " + model.TaskTypeImmediate}, calls.snapshot())
 }
 
 func TestCancelTask_StopsAndFinalizesOnError(t *testing.T) {

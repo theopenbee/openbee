@@ -88,6 +88,13 @@ type mockTaskStore struct {
 	cancelledTasks []string
 	abortedTasks   []string
 	abortCtxErrs   []error
+	statuses       map[string]string
+}
+
+func (s *mockTaskStore) GetByID(_ context.Context, taskID string) (model.Task, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return model.Task{ID: taskID, Status: s.statuses[taskID]}, nil
 }
 
 func (s *mockTaskStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }
@@ -1827,4 +1834,70 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		assert.NotContains(t, mgr.ran(), "t2")
 		ts.assertAbortCtxLive(t)
 	})
+}
+
+func runKilledTask(t *testing.T, sessionKey, platformID, status string) (*mockFailureNotifier, *mockTaskStore, *recordingObserver) {
+	t.Helper()
+	mgr := &tableExecManager{execResult: model.WorkerExecution{ID: "exec-stop", SessionID: "sess-stop"}}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-stop", Status: model.ExecStatusFailed, Result: "signal: killed", WorkerName: "tester"}}
+	fn := &mockFailureNotifier{}
+	obs := &recordingObserver{}
+	d, in, ts := newTaskDispatcher(mgr, eq, newMockSessionStore(), task.WithFailureNotifier(fn), task.WithTaskObserver(obs))
+	ts.statuses = map[string]string{"task-stop": status}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go d.Run(ctx)
+
+	in <- task.DispatchTask{
+		TaskID:      "task-stop",
+		WorkerID:    "w1",
+		SessionKey:  sessionKey,
+		Instruction: "sleep 120",
+		ReplyTo:     platform.InboundMessage{Platform: platformID, SessionKey: sessionKey},
+		TaskType:    model.TaskTypeImmediate,
+		MessageID:   "msg-stop",
+	}
+	return fn, ts, obs
+}
+
+func TestTaskDispatcher_StoppedLocalTaskReportsCancel(t *testing.T) {
+	fn, ts, obs := runKilledTask(t, "local:u1:worker:w1", "local", model.TaskStatusCancelled)
+
+	require.True(t, fn.waitForCancelCall(2*time.Second), "expected NotifyTaskCancelled for a stopped local task")
+	obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateCancelled})
+
+	fn.mu.Lock()
+	assert.Empty(t, fn.calls, "a stopped local task must not report a failure")
+	assert.Equal(t, []cancelCall{{messageID: "msg-stop", workerName: "tester"}}, fn.cancelCalls)
+	fn.mu.Unlock()
+	assert.Empty(t, ts.failed())
+	assert.False(t, obs.has(taskEvent{TaskID: "task-stop", State: task.StateFailed}))
+}
+
+func TestTaskDispatcher_StoppedIMTaskStillReportsFailure(t *testing.T) {
+	fn, ts, obs := runKilledTask(t, "telegram:1:2:3", "telegram", model.TaskStatusCancelled)
+
+	require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure for an IM task")
+	obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateFailed})
+
+	fn.mu.Lock()
+	assert.Equal(t, []failureCall{{messageID: "msg-stop", info: model.FailureInfo{Reason: "signal: killed", WorkerName: "tester"}}}, fn.calls)
+	assert.Empty(t, fn.cancelCalls)
+	fn.mu.Unlock()
+	assert.Equal(t, []string{"task-stop"}, ts.failed())
+	assert.False(t, obs.has(taskEvent{TaskID: "task-stop", State: task.StateCancelled}))
+}
+
+func TestTaskDispatcher_FailedLocalTaskStillReportsFailure(t *testing.T) {
+	fn, ts, obs := runKilledTask(t, "local:u1:worker:w1", "local", model.TaskStatusRunning)
+
+	require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure for a local task that was not stopped")
+	obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateFailed})
+
+	fn.mu.Lock()
+	assert.Equal(t, "signal: killed", fn.calls[0].info.Reason)
+	assert.Empty(t, fn.cancelCalls)
+	fn.mu.Unlock()
+	assert.Equal(t, []string{"task-stop"}, ts.failed())
 }
