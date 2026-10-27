@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useId, useRef, useMemo } from "react"
-import { Avatar } from "@/components/arc/avatar/avatar"
+import { WorkerAvatar } from "@/components/worker-avatar"
 import { cn, isImeComposing } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
 
-type MentionWorker = Pick<Worker, "id" | "name">
+type MentionWorker = Pick<Worker, "id" | "name" | "status">
 
 interface MentionTextareaProps {
   value: string
@@ -194,7 +194,7 @@ function MentionPanel({
               onSelect(worker)
             }}
           >
-            <Avatar name={worker.name} size="sm" aria-hidden="true" />
+            <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="sm" />
             <span className="truncate">{worker.name}</span>
           </li>
         ))}
