@@ -11,6 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"go.uber.org/zap"
@@ -28,6 +29,10 @@ const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 
+type WorkerChatCleaner interface {
+	DeleteWorkerChats(ctx context.Context, w model.Worker) error
+}
+
 // Server dispatches tool calls.
 type Server struct {
 	workerStore          *store.WorkerStore
@@ -42,6 +47,7 @@ type Server struct {
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
 	handoff              *localchat.Handoff
+	chats                WorkerChatCleaner
 }
 
 func NewBeeServer(
@@ -57,6 +63,7 @@ func NewBeeServer(
 	sessionStore *store.SessionStore,
 	ds *store.DepartmentStore,
 	handoff *localchat.Handoff,
+	chats WorkerChatCleaner,
 ) *Server {
 	return &Server{
 		workerStore:          ws,
@@ -71,6 +78,7 @@ func NewBeeServer(
 		sessionStore:         sessionStore,
 		departmentStore:      ds,
 		handoff:              handoff,
+		chats:                chats,
 	}
 }
 

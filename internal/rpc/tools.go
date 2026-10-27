@@ -73,7 +73,7 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 	case utils.UpdateWorker:
 		return s.toolUpdateWorker(args)
 	case utils.DeleteWorker:
-		return s.toolDeleteWorker(args)
+		return s.toolDeleteWorker(ctx, args)
 	case utils.CreateTask:
 		return s.toolCreateTask(ctx, args)
 	case utils.ListTasks:
@@ -321,7 +321,7 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	return w, nil
 }
 
-func (s *Server) toolDeleteWorker(args json.RawMessage) (any, error) {
+func (s *Server) toolDeleteWorker(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
 		WorkerID      string `json:"worker_id"`
 		DeleteWorkDir bool   `json:"delete_work_dir"`
@@ -332,10 +332,30 @@ func (s *Server) toolDeleteWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
+	if err := s.deleteWorkerChats(ctx, params.WorkerID); err != nil {
+		return nil, err
+	}
 	if err := s.manager.DeleteWorker(params.WorkerID, params.DeleteWorkDir); err != nil {
 		return nil, err
 	}
 	return map[string]string{"status": "deleted"}, nil
+}
+
+func (s *Server) deleteWorkerChats(ctx context.Context, workerID string) error {
+	if s.chats == nil {
+		return nil
+	}
+	w, err := s.workerStore.GetByID(workerID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("get worker: %w", err)
+	}
+	if err := s.chats.DeleteWorkerChats(ctx, w); err != nil {
+		return fmt.Errorf("delete worker chats: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any, error) {

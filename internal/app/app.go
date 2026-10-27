@@ -202,7 +202,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff)
+	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff, workerChats)
 
 	if err := legacyChat.Restore(context.Background(), s.userStore.AdminID); err != nil {
 		logger.Error("restore legacy local chat", zap.Error(err))
@@ -248,8 +249,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 		Clear:     clearSvc,
 		MediaRoot: localMediaRoot,
 	})
-
-	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc)
 
 	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
 	if err != nil {

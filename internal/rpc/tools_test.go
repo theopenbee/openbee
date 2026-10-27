@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -103,7 +104,17 @@ func newTestServer(t *testing.T, senders platform.SenderMap) (*rpc.Server, *sql.
 	return newTestServerWithCards(t, senders, &mockSender{})
 }
 
+func newTestServerWithCleaner(t *testing.T, chats rpc.WorkerChatCleaner) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	return newTestServerFull(t, nil, &mockSender{}, chats)
+}
+
 func newTestServerWithCards(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	return newTestServerFull(t, senders, cards, nil)
+}
+
+func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter, chats rpc.WorkerChatCleaner) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
 	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
@@ -136,7 +147,7 @@ func newTestServerWithCards(t *testing.T, senders platform.SenderMap, cards plat
 	})
 	ms := store.NewMessageStore(db)
 	handoff := localchat.NewHandoff(ms, ts, cards, local.NewEventPublisher(local.NewSSEHub()))
-	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db), handoff)
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db), handoff, chats)
 	return srv, db, stopper, disp
 }
 
@@ -252,6 +263,53 @@ func TestCallTool_DeleteWorker(t *testing.T) {
 
 	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
 	assert.Error(t, err)
+}
+
+type recordingChatCleaner struct {
+	deleted []model.Worker
+	err     error
+}
+
+func (r *recordingChatCleaner) DeleteWorkerChats(_ context.Context, w model.Worker) error {
+	r.deleted = append(r.deleted, w)
+	return r.err
+}
+
+func TestDeleteWorkerToolCleansChats(t *testing.T) {
+	cleaner := &recordingChatCleaner{}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+
+	require.NoError(t, err)
+	require.Len(t, cleaner.deleted, 1)
+	assert.Equal(t, w.ID, cleaner.deleted[0].ID)
+	assert.Equal(t, "Bot", cleaner.deleted[0].Name)
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	assert.Error(t, err)
+}
+
+func TestDeleteWorkerToolCleanupErrorKeepsWorker(t *testing.T) {
+	cleaner := &recordingChatCleaner{err: errors.New("cleanup failed")}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+
+	require.ErrorContains(t, err, "cleanup failed")
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	assert.NoError(t, err)
+}
+
+func TestDeleteWorkerToolUnknownIDSkipsCleanup(t *testing.T) {
+	cleaner := &recordingChatCleaner{}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": "missing"}))
+
+	require.NoError(t, err)
+	assert.Empty(t, cleaner.deleted)
 }
 
 // TestCallTool_InvalidArgs covers tool calls that must fail validation; each
