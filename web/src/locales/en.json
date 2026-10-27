@@ -268,6 +268,7 @@
   },
   "departments": {
     "title": "Departments",
+    "settingsDescription": "Manage department structure and members",
     "filter": "Filter",
     "allWorkers": "All workers",
     "ungrouped": "Ungrouped",

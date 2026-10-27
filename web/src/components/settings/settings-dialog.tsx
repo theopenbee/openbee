@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useState, type CSSProperties, type ReactNode } from "react"
+import { lazy, Suspense, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { KeyRoundIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
+import { KeyRoundIcon, NetworkIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
 import { PresenceContext } from "motion/react"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { navActiveClass, navItemClass } from "@/components/nav-main"
@@ -17,11 +17,15 @@ const PluginsSettings = lazy(() =>
 const PluginDetailSettings = lazy(() =>
   import("@/components/settings/plugin-detail-settings").then((m) => ({ default: m.PluginDetailSettings })),
 )
+const DepartmentsSettings = lazy(() =>
+  import("@/components/settings/departments-settings").then((m) => ({ default: m.DepartmentsSettings })),
+)
 
 const SECTIONS: { id: SettingsSection; titleKey: string; descriptionKey: string; icon: LucideIcon }[] = [
   { id: "env", titleKey: "envConfig.title", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
   { id: "system", titleKey: "systemSettings.title", descriptionKey: "systemSettings.subtitle", icon: SlidersHorizontalIcon },
   { id: "plugins", titleKey: "plugins.title", descriptionKey: "plugins.subtitle", icon: PuzzleIcon },
+  { id: "departments", titleKey: "departments.title", descriptionKey: "departments.settingsDescription", icon: NetworkIcon },
 ]
 
 const DIALOG_STYLE: CSSProperties = {
@@ -38,9 +42,11 @@ export function SettingsDialogProvider({ children }: { children: ReactNode }) {
     setTarget(next)
     setOpen(true)
   }, [])
+  const close = useCallback(() => setOpen(false), [])
+  const api = useMemo(() => ({ show, close }), [show, close])
 
   return (
-    <SettingsDialogContext.Provider value={show}>
+    <SettingsDialogContext.Provider value={api}>
       {children}
       <SettingsDialog open={open} onOpenChange={setOpen} target={target} onNavigate={show} />
     </SettingsDialogContext.Provider>
@@ -66,7 +72,7 @@ function SettingsDialog({
       <DialogContent
         title={t(current.titleKey)}
         description={t(current.descriptionKey)}
-        className="grid grid-rows-[auto_minmax(0,1fr)]"
+        className="grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]"
         style={DIALOG_STYLE}
       >
         <div className="-m-6 flex h-[calc(100%+3rem)] flex-col md:flex-row">
@@ -110,6 +116,8 @@ function SectionBody({ target }: { target: SettingsTarget }) {
   switch (target.section) {
     case "system":
       return <SystemSettings />
+    case "departments":
+      return <DepartmentsSettings />
     case "plugins":
       return target.plugin ? <PluginDetailSettings id={target.plugin} /> : <PluginsSettings initialTab={target.tab} />
     default:

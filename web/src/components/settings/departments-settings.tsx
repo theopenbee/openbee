@@ -7,8 +7,9 @@ import { useCreateDepartment, useDeleteDepartment, useDepartments, useUpdateDepa
 import { useWorkers } from "@/hooks/use-workers"
 import { flattenDeptTree } from "@/lib/department-utils"
 import { formatRelative, formatTimestamp } from "@/lib/format"
+import { conversationPath, workerConversationId } from "@/lib/conversations"
 import { getErrorMessage } from "@/lib/utils"
-import { PageHeader } from "@/components/page-header"
+import { useCloseSettingsDialog } from "@/hooks/use-settings-dialog"
 import { Panel } from "@/components/panel"
 import { FadeIn } from "@/components/fade-in"
 import { EmptyState } from "@/components/empty-state"
@@ -64,7 +65,7 @@ function subtreeIds(node: DepartmentNode): Set<string> {
   return ids
 }
 
-export function Departments() {
+export function DepartmentsSettings() {
   const { t } = useTranslation()
   const reduced = useReducedMotion()
   const departmentsQuery = useDepartments()
@@ -99,11 +100,9 @@ export function Departments() {
 
   const select = (id: string) => {
     setSelectedId(id)
-    if (window.matchMedia("(max-width: 1023px)").matches) {
-      requestAnimationFrame(() =>
-        detailsRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }),
-      )
-    }
+    requestAnimationFrame(() =>
+      detailsRef.current?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }),
+    )
   }
 
   const openCreate = (parentId: string | null = null) => {
@@ -188,10 +187,12 @@ export function Departments() {
         : ""
     : ""
 
+  const isEmpty = !departmentsQuery.isLoading && !departmentsQuery.error && !selected
+
   const renderBody = () => {
     if (departmentsQuery.isLoading) {
       return (
-        <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]" aria-busy="true">
+        <div className="grid gap-6 @3xl:grid-cols-[18rem_minmax(0,1fr)]" aria-busy="true">
           <SkeletonCard className="h-80" />
           <div className="grid content-start gap-6">
             <SkeletonCard />
@@ -212,7 +213,7 @@ export function Departments() {
         </Alert>
       )
     }
-    if (departments.length === 0 || !selected) {
+    if (!selected) {
       return (
         <div className="rounded-surface border border-border bg-surface">
           <EmptyState
@@ -225,14 +226,14 @@ export function Departments() {
       )
     }
     return (
-      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start">
-        <div className="min-w-0 lg:sticky lg:top-8">
+      <div className="grid gap-6 @3xl:grid-cols-[18rem_minmax(0,1fr)] @3xl:items-start">
+        <div className="min-w-0 @3xl:sticky @3xl:top-6">
           <Panel
             title={t("departments.tree.title")}
             action={<span className="text-xs text-secondary tabular">{flat.length}</span>}
             flush
           >
-            <div className="px-3 lg:max-h-[calc(100dvh-10rem)] lg:overflow-y-auto">
+            <div className="px-3 @3xl:max-h-[calc(min(100dvh-2rem,52rem)-11rem)] @3xl:overflow-y-auto">
               <DepartmentTree
                 departments={departments}
                 selectedId={selected.id}
@@ -242,7 +243,7 @@ export function Departments() {
             </div>
           </Panel>
         </div>
-        <div ref={detailsRef} className="min-w-0 scroll-mt-4">
+        <div ref={detailsRef} className="@container min-w-0 scroll-mt-6">
           <DepartmentDetails
             key={selected.id}
             node={selected}
@@ -258,11 +259,14 @@ export function Departments() {
 
   return (
     <FadeIn>
-      <PageHeader
-        title={t("departments.title")}
-        subtitle={flat.length > 0 ? t("departments.summary", { count: flat.length }) : undefined}
-        actions={createButton}
-      />
+      {!isEmpty && (
+        <div className="mb-6 flex items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-secondary">
+            {flat.length > 0 ? t("departments.summary", { count: flat.length }) : null}
+          </p>
+          {createButton}
+        </div>
+      )}
 
       {renderBody()}
 
@@ -345,6 +349,7 @@ function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: Departm
   const { t } = useTranslation()
   const workers = useWorkers(node.id)
   const workerCount = workers.data ? workers.data.length : null
+  const closeSettings = useCloseSettingsDialog()
 
   return (
     <div className="grid gap-6">
@@ -379,7 +384,7 @@ function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: Departm
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 @md:grid-cols-3">
           <DetailOverviewStat
             label={t("departments.detail.subDepartments")}
             value={node.children.length}
@@ -391,7 +396,7 @@ function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: Departm
             valueClassName="tabular"
           />
           <DetailOverviewStat
-            className="col-span-2 sm:col-span-1"
+            className="col-span-2 @md:col-span-1"
             label={t("departments.detail.updated")}
             value={formatRelative(node.updated_at, t)}
             hint={t("departments.detail.created", { time: formatTimestamp(node.created_at) })}
@@ -433,7 +438,8 @@ function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: Departm
             {(workers.data ?? []).map((worker) => (
               <li key={worker.id} className="border-t border-border-subtle">
                 <Link
-                  to={`/workers/${worker.id}`}
+                  to={conversationPath(workerConversationId(worker.id))}
+                  onClick={closeSettings}
                   className="flex min-w-0 items-center gap-3 px-6 py-3 transition-colors hover:bg-surface-muted"
                 >
                   <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="sm" />
