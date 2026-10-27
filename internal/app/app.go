@@ -249,7 +249,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 		MediaRoot: localMediaRoot,
 	})
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
+	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc)
+
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -360,7 +362,7 @@ func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, q
 	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead)
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -369,7 +371,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
-		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
+		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, workerChats, language),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
 		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
 		LocalChat:         localChat,

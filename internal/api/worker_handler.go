@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -85,15 +86,20 @@ func toWorkerWithDepartmentsResponse(w model.Worker, depts []model.DepartmentBri
 	return workerWithDepartmentsResponse{workerResponse: resp, Departments: depts}, nil
 }
 
+type WorkerChatCleaner interface {
+	DeleteWorkerChats(ctx context.Context, w model.Worker) error
+}
+
 type WorkerHandler struct {
 	workers     *store.WorkerStore
 	departments *store.DepartmentStore
 	manager     *worker.Manager
+	chats       WorkerChatCleaner
 	language    string
 }
 
-func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager, lang string) *WorkerHandler {
-	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, language: lang}
+func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager, chats WorkerChatCleaner, lang string) *WorkerHandler {
+	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, chats: chats, language: lang}
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -224,6 +230,15 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 func (h *WorkerHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	deleteWorkDir := c.Query("delete_work_dir") == "true"
+	w, err := h.workers.GetByID(id)
+	if err != nil {
+		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
+		return
+	}
+	if err := h.chats.DeleteWorkerChats(c.Request.Context(), w); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	if err := h.manager.DeleteWorker(id, deleteWorkDir); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
