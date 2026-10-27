@@ -48,7 +48,7 @@ export function WorkerAvatar({ workerId, name, status, size = "default", classNa
       <Avatar
         name={Array.from(initials(name)).join(" ")}
         size={sizes[size]}
-        className="bg-transparent! text-background!"
+        className="bg-transparent! text-avatar-foreground!"
         aria-hidden="true"
       />
       <span

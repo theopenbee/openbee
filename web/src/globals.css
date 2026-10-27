@@ -81,6 +81,7 @@
   --color-avatar-6: var(--avatar-6);
   --color-avatar-7: var(--avatar-7);
   --color-avatar-8: var(--avatar-8);
+  --color-avatar-foreground: var(--avatar-foreground);
 
   --color-muted-foreground: var(--text-secondary);
   --color-card: var(--surface);
@@ -122,6 +123,7 @@
   --avatar-6: oklch(0.72 0.11 240);
   --avatar-7: oklch(0.72 0.11 285);
   --avatar-8: oklch(0.72 0.11 330);
+  --avatar-foreground: var(--neutral-11);
 }
 
 :root[data-theme="dark"] {
