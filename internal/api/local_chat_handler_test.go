@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -10,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ var testSessionKey = local.SessionKey(testUserID)
 type localChatTestServer struct {
 	router        *gin.Engine
 	receiver      *local.LocalReceiver
+	hub           *local.SSEHub
 	msgStore      *store.MessageStore
 	outboundStore *store.OutboundMessageStore
 	mediaRoot     string
@@ -45,7 +48,8 @@ func newLocalChatServer(t *testing.T) localChatTestServer {
 	outboundStore := store.NewOutboundMessageStore(db)
 	receiver := local.NewLocalReceiver(4)
 	mediaRoot := t.TempDir()
-	h := NewLocalChatHandler(receiver, local.NewSSEHub(), outboundStore, msgStore, mediaRoot)
+	hub := local.NewSSEHub()
+	h := NewLocalChatHandler(receiver, hub, outboundStore, msgStore, mediaRoot)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -60,7 +64,7 @@ func newLocalChatServer(t *testing.T) localChatTestServer {
 	r.POST("/local/media", h.UploadMedia)
 	r.GET("/local/media/:filename", h.ServeMedia)
 	r.GET("/local/stream", h.StreamReplies)
-	return localChatTestServer{router: r, receiver: receiver, msgStore: msgStore, outboundStore: outboundStore, mediaRoot: mediaRoot}
+	return localChatTestServer{router: r, receiver: receiver, hub: hub, msgStore: msgStore, outboundStore: outboundStore, mediaRoot: mediaRoot}
 }
 
 func newLocalChatTestServer(t *testing.T) (*gin.Engine, *local.LocalReceiver, *store.MessageStore, *store.OutboundMessageStore) {
@@ -258,6 +262,44 @@ func TestLocalChat_RejectsRequestsWithoutUser(t *testing.T) {
 		rec := serveAs(s.router, req, anonymousUser)
 		assert.Equal(t, http.StatusUnauthorized, rec.Code, req.Method+" "+req.URL.Path)
 	}
+}
+
+func TestStreamReplies_DeliversOnlyCurrentUsersEvents(t *testing.T) {
+	s := newLocalChatServer(t)
+	srv := httptest.NewServer(s.router)
+	defer srv.Close()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				s.hub.Publish("user-1", local.Event{Type: local.EventTask, TaskID: "other"})
+				s.hub.Publish("user-2", local.Event{Type: local.EventTask, TaskID: "mine"})
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/local/stream", nil)
+	require.NoError(t, err)
+	req.Header.Set(testUserHeader, "user-2")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	line, err := bufio.NewReader(resp.Body).ReadString('\n')
+	require.NoError(t, err)
+	var ev local.Event
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev))
+	assert.Equal(t, "mine", ev.TaskID)
+	assert.Positive(t, ev.Seq)
 }
 
 func TestSendMessage_UsesCurrentUserSession(t *testing.T) {

@@ -147,13 +147,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
+	localPub := local.NewEventPublisher(localHub)
 	localReceiver := local.NewLocalReceiver(64)
 	localMediaRoot, err := config.LocalUploadsDir()
 	if err != nil {
 		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
 	}
 	legacyChat := local.NewLegacySession(s.sessionStore, localMediaRoot)
-	rawLocalSender := local.NewLocalSender(localHub, localMediaRoot)
+	rawLocalSender := local.NewLocalSender(localPub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform.Set(local.PlatformID, localSender)
 

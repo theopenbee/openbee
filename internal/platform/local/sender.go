@@ -14,43 +14,44 @@ import (
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
-// LocalSender implements platform.PlatformSenderAdapter.
-// It broadcasts replies to connected SSE clients via SSEHub.
 type LocalSender struct {
-	hub       *SSEHub
+	pub       *EventPublisher
 	mediaRoot string
 }
 
-// NewLocalSender constructs a LocalSender.
-func NewLocalSender(hub *SSEHub, mediaRoot string) *LocalSender {
-	return &LocalSender{hub: hub, mediaRoot: mediaRoot}
+func NewLocalSender(pub *EventPublisher, mediaRoot string) *LocalSender {
+	return &LocalSender{pub: pub, mediaRoot: mediaRoot}
 }
 
-// Send broadcasts the reply to any connected SSE clients for the session.
 func (s *LocalSender) Send(_ context.Context, msg platform.OutboundMessage) error {
 	if msg.ID == "" {
 		msg.ID = uuid.New().String()
 	}
 	sessionKey := cmp.Or(msg.ReplyTo.SessionKey, msg.SessionKey)
 
-	payload := map[string]any{
-		"id":         msg.ID,
-		"content":    msg.Content,
-		"created_at": time.Now().UnixMilli(),
+	chat := ChatMessage{
+		ID:      msg.ID,
+		Sender:  Sender{Type: cmp.Or(msg.SourceType, SenderBee), ID: msg.SourceID},
+		Kind:    cmp.Or(msg.Kind, KindMessage),
+		Content: msg.Content,
+		TS:      time.Now().UnixMilli(),
+	}
+	if chat.Kind == KindHandoff {
+		var info HandoffInfo
+		if err := json.Unmarshal([]byte(msg.Payload), &info); err != nil {
+			return fmt.Errorf("decode handoff payload: %w", err)
+		}
+		chat.Handoff = &info
 	}
 	if msg.MediaPath != "" {
 		name, err := s.stageMedia(sessionKey, msg.ID, msg.MediaPath)
 		if err != nil {
 			return fmt.Errorf("stage media: %w", err)
 		}
-		payload["media_paths"] = []string{name}
+		chat.MediaPaths = []string{name}
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal SSE payload: %w", err)
-	}
-	s.hub.Broadcast(sessionKey, string(data))
+	s.pub.Message(sessionKey, chat)
 	return nil
 }
 

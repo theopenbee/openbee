@@ -2,10 +2,10 @@ package local_test
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,23 +14,16 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
-type ssePayload struct {
-	ID         string   `json:"id"`
-	Content    string   `json:"content"`
-	MediaPaths []string `json:"media_paths"`
+func receiveChat(t *testing.T, ch <-chan string) local.ChatMessage {
+	t.Helper()
+	ev := recvEvent(t, ch)
+	require.Equal(t, "message", ev.Type)
+	require.NotNil(t, ev.Message)
+	return *ev.Message
 }
 
-func receivePayload(t *testing.T, ch <-chan string) ssePayload {
-	t.Helper()
-	select {
-	case data := <-ch:
-		var payload ssePayload
-		require.NoError(t, json.Unmarshal([]byte(data), &payload))
-		return payload
-	default:
-		t.Fatal("expected SSE broadcast but channel was empty")
-		return ssePayload{}
-	}
+func newTestSender(hub *local.SSEHub, mediaRoot string) *local.LocalSender {
+	return local.NewLocalSender(local.NewEventPublisher(hub), mediaRoot)
 }
 
 func writeAgentFile(t *testing.T, name, content string) string {
@@ -42,11 +35,12 @@ func writeAgentFile(t *testing.T, name, content string) string {
 
 func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(hub, t.TempDir())
+	sender := newTestSender(hub, t.TempDir())
 
-	ch, unsub := hub.Subscribe("local:sess-1")
+	ch, unsub := hub.Subscribe("sess-1")
 	defer unsub()
 
+	before := time.Now().UnixMilli()
 	msg := platform.OutboundMessage{
 		ID:      "out-1",
 		ReplyTo: platform.InboundMessage{SessionKey: "local:sess-1"},
@@ -54,24 +48,129 @@ func TestLocalSender_Send_Broadcasts(t *testing.T) {
 	}
 	require.NoError(t, sender.Send(context.Background(), msg))
 
-	payload := receivePayload(t, ch)
-	assert.Equal(t, "Reply content", payload.Content)
-	assert.Equal(t, "out-1", payload.ID)
+	ev := recvEvent(t, ch)
+	assert.Equal(t, "message", ev.Type)
+	assert.Equal(t, "bee", ev.ConversationID)
+	require.NotNil(t, ev.Message)
+	assert.Equal(t, "out-1", ev.Message.ID)
+	assert.Equal(t, "Reply content", ev.Message.Content)
+	assert.Equal(t, local.Sender{Type: "bee"}, ev.Message.Sender)
+	assert.Equal(t, "message", ev.Message.Kind)
+	assert.GreaterOrEqual(t, ev.Message.TS, before)
+	assert.Nil(t, ev.Message.Handoff)
+}
+
+func TestSendWorkerMessageAttribution(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:u1:worker:w1",
+		Content:    "done",
+		SourceType: "worker",
+		SourceID:   "w1",
+	}))
+
+	ev := recvEvent(t, ch)
+	assert.Equal(t, "worker:w1", ev.ConversationID)
+	require.NotNil(t, ev.Message)
+	assert.Equal(t, local.Sender{Type: "worker", ID: "w1"}, ev.Message.Sender)
+	assert.Equal(t, "message", ev.Message.Kind)
+}
+
+func TestSendHandoffCard(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:u1",
+		Content:    "handed to w1",
+		Kind:       "handoff",
+		Payload:    `{"worker_id":"w1","task_id":"t1","task_type":"scheduled","cron_expr":"0 9 * * *","scheduled_at":1700000000000,"conversation_id":"worker:w1"}`,
+	}))
+
+	msg := receiveChat(t, ch)
+	assert.Equal(t, "handoff", msg.Kind)
+	require.NotNil(t, msg.Handoff)
+	scheduledAt := int64(1700000000000)
+	assert.Equal(t, local.HandoffInfo{
+		WorkerID:       "w1",
+		TaskID:         "t1",
+		TaskType:       "scheduled",
+		CronExpr:       "0 9 * * *",
+		ScheduledAt:    &scheduledAt,
+		ConversationID: "worker:w1",
+	}, *msg.Handoff)
+}
+
+func TestSendHandoffRejectsBadPayload(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	for _, payload := range []string{"", "not json"} {
+		err := sender.Send(context.Background(), platform.OutboundMessage{
+			SessionKey: "local:u1",
+			Kind:       "handoff",
+			Payload:    payload,
+		})
+		require.ErrorContains(t, err, "handoff payload", payload)
+	}
+	assertNoEvent(t, ch)
+}
+
+func TestSendIgnoresPayloadForPlainMessages(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:u1",
+		Content:    "hi",
+		Payload:    `{"task_id":"t1"}`,
+	}))
+
+	assert.Nil(t, receiveChat(t, ch).Handoff)
+}
+
+func TestSendStagesWorkerChatMediaInUserDir(t *testing.T) {
+	root := t.TempDir()
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, root)
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+	src := writeAgentFile(t, "chart.png", "x")
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		ID:         "out-9",
+		SessionKey: "local:u1:worker:w1",
+		MediaPath:  src,
+	}))
+
+	msg := receiveChat(t, ch)
+	assert.Equal(t, []string{"out-9_chart.png"}, msg.MediaPaths)
+	assert.FileExists(t, filepath.Join(root, "u1", "out-9_chart.png"))
 }
 
 func TestLocalSender_Send_FallsBackToSessionKeyAndGeneratesID(t *testing.T) {
 	hub := local.NewSSEHub()
 	root := t.TempDir()
-	sender := local.NewLocalSender(hub, root)
+	sender := newTestSender(hub, root)
 	src := writeAgentFile(t, "a.png", "a")
 
-	ch, unsub := hub.Subscribe("local:user-1")
+	ch, unsub := hub.Subscribe("user-1")
 	defer unsub()
 
 	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{SessionKey: "local:user-1", MediaPath: src}))
 	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{SessionKey: "local:user-1", MediaPath: src}))
 
-	first, second := receivePayload(t, ch), receivePayload(t, ch)
+	first, second := receiveChat(t, ch), receiveChat(t, ch)
 	require.NotEmpty(t, first.ID)
 	require.NotEqual(t, first.ID, second.ID)
 	assert.Equal(t, []string{first.ID + "_a.png"}, first.MediaPaths)
@@ -82,7 +181,7 @@ func TestLocalSender_Send_FallsBackToSessionKeyAndGeneratesID(t *testing.T) {
 
 func TestLocalSender_Send_CopiesMediaSoLaterRewritesDoNotLeak(t *testing.T) {
 	root := t.TempDir()
-	sender := local.NewLocalSender(local.NewSSEHub(), root)
+	sender := newTestSender(local.NewSSEHub(), root)
 	src := writeAgentFile(t, "chart.png", "v1")
 
 	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
@@ -105,7 +204,7 @@ func TestLocalSender_Send_CopiesMediaSoLaterRewritesDoNotLeak(t *testing.T) {
 
 func TestLocalSender_Send_StagesFileAlreadyInMediaDir(t *testing.T) {
 	root := t.TempDir()
-	sender := local.NewLocalSender(local.NewSSEHub(), root)
+	sender := newTestSender(local.NewSSEHub(), root)
 	userDir := filepath.Join(root, "user-1")
 	require.NoError(t, os.MkdirAll(userDir, 0o755))
 	src := filepath.Join(userDir, "upload_a.png")
@@ -126,7 +225,7 @@ func TestLocalSender_Send_RejectsUnreadableMediaSources(t *testing.T) {
 	require.NoError(t, os.MkdirAll(userDir, 0o755))
 	dangling := filepath.Join(t.TempDir(), "dangling")
 	require.NoError(t, os.Symlink("../missing-target", dangling))
-	sender := local.NewLocalSender(local.NewSSEHub(), root)
+	sender := newTestSender(local.NewSSEHub(), root)
 
 	for name, src := range map[string]string{
 		"missing in media dir": filepath.Join(userDir, "typo.png"),
@@ -146,7 +245,7 @@ func TestLocalSender_Send_RejectsUnreadableMediaSources(t *testing.T) {
 }
 
 func TestLocalSender_Send_FailsWithoutMediaRoot(t *testing.T) {
-	sender := local.NewLocalSender(local.NewSSEHub(), "")
+	sender := newTestSender(local.NewSSEHub(), "")
 	src := writeAgentFile(t, "a.png", "a")
 
 	err := sender.Send(context.Background(), platform.OutboundMessage{
@@ -160,9 +259,9 @@ func TestLocalSender_Send_FailsWithoutMediaRoot(t *testing.T) {
 
 func TestLocalSender_Send_MissingMediaFails(t *testing.T) {
 	hub := local.NewSSEHub()
-	sender := local.NewLocalSender(hub, t.TempDir())
+	sender := newTestSender(hub, t.TempDir())
 
-	ch, unsub := hub.Subscribe("local:user-1")
+	ch, unsub := hub.Subscribe("user-1")
 	defer unsub()
 
 	msg := platform.OutboundMessage{

@@ -1,6 +1,7 @@
 package local
 
 import (
+	"encoding/json"
 	"sync"
 
 	"go.uber.org/zap"
@@ -10,51 +11,70 @@ import (
 
 var log = logger.With(zap.String("component", "local"))
 
-// SSEHub manages Server-Sent Events subscriptions keyed by session key.
 type SSEHub struct {
 	mu          sync.Mutex
 	subscribers map[string][]chan string
+	seq         map[string]uint64
 }
 
-// NewSSEHub constructs an SSEHub.
 func NewSSEHub() *SSEHub {
-	return &SSEHub{subscribers: make(map[string][]chan string)}
+	return &SSEHub{
+		subscribers: make(map[string][]chan string),
+		seq:         make(map[string]uint64),
+	}
 }
 
-// Subscribe registers a new SSE client for the given session key.
-// Returns the receive channel and an unsubscribe function the caller must invoke on disconnect.
-func (h *SSEHub) Subscribe(sessionKey string) (<-chan string, func()) {
+func (h *SSEHub) Subscribe(userID string) (<-chan string, func()) {
 	ch := make(chan string, 8)
 	h.mu.Lock()
-	h.subscribers[sessionKey] = append(h.subscribers[sessionKey], ch)
+	h.subscribers[userID] = append(h.subscribers[userID], ch)
 	h.mu.Unlock()
 
 	return ch, func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
-		subs := h.subscribers[sessionKey]
+		subs := h.subscribers[userID]
 		for i, s := range subs {
 			if s == ch {
-				h.subscribers[sessionKey] = append(subs[:i], subs[i+1:]...)
+				subs = append(subs[:i], subs[i+1:]...)
 				break
 			}
 		}
+		if len(subs) == 0 {
+			delete(h.subscribers, userID)
+			return
+		}
+		h.subscribers[userID] = subs
 	}
 }
 
-// Broadcast sends data to all subscribers of the given session key.
-// If a subscriber's channel is full, it is dropped with a warning.
-func (h *SSEHub) Broadcast(sessionKey, data string) {
+func (h *SSEHub) Publish(userID string, ev Event) {
 	h.mu.Lock()
-	subs := make([]chan string, len(h.subscribers[sessionKey]))
-	copy(subs, h.subscribers[sessionKey])
-	h.mu.Unlock()
+	defer h.mu.Unlock()
+	h.publishLocked(userID, ev)
+}
 
-	for _, ch := range subs {
+func (h *SSEHub) PublishAll(ev Event) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for userID := range h.subscribers {
+		h.publishLocked(userID, ev)
+	}
+}
+
+func (h *SSEHub) publishLocked(userID string, ev Event) {
+	h.seq[userID]++
+	ev.Seq = h.seq[userID]
+	data, err := json.Marshal(ev)
+	if err != nil {
+		log.Error("sse hub: marshal event", zap.String("userID", userID), zap.Error(err))
+		return
+	}
+	for _, ch := range h.subscribers[userID] {
 		select {
-		case ch <- data:
+		case ch <- string(data):
 		default:
-			log.Warn("sse hub: subscriber channel full, dropping", zap.String("sessionKey", sessionKey))
+			log.Warn("sse hub: subscriber channel full, dropping", zap.String("userID", userID), zap.Uint64("seq", ev.Seq))
 		}
 	}
 }

@@ -88,7 +88,7 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 
-	ch, unsub := h.hub.Subscribe(local.SessionKey(uid))
+	ch, unsub := h.hub.Subscribe(uid)
 	defer unsub()
 
 	ctx := c.Request.Context()
