@@ -571,7 +571,7 @@ UPDATE bee_outbound_messages
 		version: 58,
 		name:    "seed_local_bee_read_marks",
 		sql: `INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at)
-SELECT DISTINCT substr(session_key, 7), 'bee', CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+SELECT DISTINCT substr(session_key, 7), 'bee', CAST(ROUND((julianday('now') - 2440587.5) * 86400000) AS INTEGER)
   FROM (SELECT session_key FROM bee_platform_messages
         UNION
         SELECT session_key FROM bee_outbound_messages)
