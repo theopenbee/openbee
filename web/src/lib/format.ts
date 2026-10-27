@@ -21,6 +21,19 @@ export function isSameDay(left: number, right: number) {
   )
 }
 
+export function formatListTime(ts: number, now: number, locale: string, yesterdayLabel: string): string {
+  if (isSameDay(ts, now)) {
+    return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hour12: false }).format(ts)
+  }
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (isSameDay(ts, yesterday.getTime())) return yesterdayLabel
+  if (new Date(ts).getFullYear() === new Date(now).getFullYear()) {
+    return new Intl.DateTimeFormat(locale, { month: "numeric", day: "numeric" }).format(ts)
+  }
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "numeric", day: "numeric" }).format(ts)
+}
+
 type RelativeTranslate = (key: string, options?: { count: number }) => string
 
 export function formatRelative(ms: number | null, t: RelativeTranslate): string {

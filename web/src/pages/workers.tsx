@@ -267,7 +267,7 @@ export function Workers() {
                 <tr key={w.id} className="border-t border-border-subtle transition-colors hover:bg-surface-muted">
                   <td className={TD}>
                     <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                      <WorkerAvatar name={w.name} status={w.status} />
+                      <WorkerAvatar workerId={w.id} name={w.name} status={w.status} />
                       <div className="grid min-w-0 gap-0.5">
                         <WorkerLink
                           id={w.id}

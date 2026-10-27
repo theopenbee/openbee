@@ -436,7 +436,7 @@ function DepartmentDetails({ node, path, onEdit, onAddChild, onDelete }: Departm
                   to={`/workers/${worker.id}`}
                   className="flex min-w-0 items-center gap-3 px-6 py-3 transition-colors hover:bg-surface-muted"
                 >
-                  <WorkerAvatar name={worker.name} status={worker.status} size="sm" />
+                  <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">{worker.name}</div>
                     {worker.description && (

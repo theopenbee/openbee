@@ -128,7 +128,7 @@ function Overview({ worker }: { worker: Worker }) {
     <div className="grid gap-6">
       <DetailSection className="p-6">
         <div className="flex min-w-0 items-start gap-4">
-          <WorkerAvatar name={worker.name} status={worker.status} size="lg" />
+          <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="lg" />
           <div className="grid min-w-0 flex-1 gap-1.5">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <h2 className="min-w-0 truncate text-xl font-medium text-foreground">{worker.name}</h2>
@@ -323,7 +323,7 @@ export function WorkerDetail() {
           <BackLink />
         </div>
         <div className="flex min-w-0 items-center gap-3 px-4 py-4 sm:px-6 lg:px-6 lg:pt-4 lg:pb-5">
-          <WorkerAvatar name={worker.name} status={worker.status} />
+          <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} />
           <div className="grid min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{worker.name}</p>
             <p className="truncate text-xs text-secondary">
