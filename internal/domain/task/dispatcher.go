@@ -367,6 +367,10 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	instruction := buildInstruction(task)
 	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName, worker)
 	if err != nil {
+		if _, aborted := d.aborted.Load(task.TaskID); aborted && taskCtx.Err() != nil {
+			d.finishCancelled(task)
+			return
+		}
 		log.Error("execute error",
 			zap.String("workerID", task.WorkerID),
 			zap.String("taskID", task.TaskID),

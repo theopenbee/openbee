@@ -87,6 +87,7 @@ type mockTaskStore struct {
 	completedTasks []string
 	cancelledTasks []string
 	abortedTasks   []string
+	abortCtxErrs   []error
 }
 
 func (s *mockTaskStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }
@@ -108,10 +109,11 @@ func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error {
 	s.cancelledTasks = append(s.cancelledTasks, taskID)
 	return nil
 }
-func (s *mockTaskStore) AbortRun(_ context.Context, taskID string) error {
+func (s *mockTaskStore) AbortRun(ctx context.Context, taskID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.abortedTasks = append(s.abortedTasks, taskID)
+	s.abortCtxErrs = append(s.abortCtxErrs, ctx.Err())
 	return nil
 }
 
@@ -119,6 +121,21 @@ func (s *mockTaskStore) snapshot() (aborted, cancelled []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.abortedTasks...), append([]string(nil), s.cancelledTasks...)
+}
+
+func (s *mockTaskStore) assertAbortCtxLive(t *testing.T) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, err := range s.abortCtxErrs {
+		assert.NoError(t, err, "AbortRun called with a cancelled ctx")
+	}
+}
+
+func (s *mockTaskStore) failed() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.failedTasks...)
 }
 
 type mockSessionStore struct {
@@ -1500,6 +1517,18 @@ func (p *pollFailsAfterCancel) GetByID(_ string) (model.WorkerExecution, error) 
 	return model.WorkerExecution{}, errors.New("db poll error")
 }
 
+type launchCancelledExecManager struct {
+	entered chan struct{}
+}
+
+func (m *launchCancelledExecManager) ExecuteWorker(ctx context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
+	close(m.entered)
+	<-ctx.Done()
+	return model.WorkerExecution{ID: "exec-1"}, fmt.Errorf("start runtime: %w", ctx.Err())
+}
+
+func (m *launchCancelledExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
 func taskFor(id, sessionKey string) task.DispatchTask {
 	t := immediateTask(sessionKey, "w1", "do "+id)
 	t.TaskID = id
@@ -1517,10 +1546,10 @@ func proactiveTaskFor(id, sessionKey, taskType string) task.DispatchTask {
 	}
 }
 
-func startObservedDispatcher(t *testing.T, mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore, *recordingObserver) {
+func startObservedDispatcher(t *testing.T, mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore, *recordingObserver) {
 	t.Helper()
 	obs := &recordingObserver{}
-	d, in, ts := newTaskDispatcher(mgr, eq, ss, task.WithTaskObserver(obs))
+	d, in, ts := newTaskDispatcher(mgr, eq, ss, append(opts, task.WithTaskObserver(obs))...)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go d.Run(ctx)
@@ -1727,6 +1756,33 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		assert.Equal(t, []string{"t1"}, aborted)
 		assert.Empty(t, cancelled)
 		assert.Equal(t, 1, obs.terminalCount("t1"))
+		ts.assertAbortCtxLive(t)
+	})
+
+	t.Run("DuringLaunch", func(t *testing.T) {
+		mgr := &launchCancelledExecManager{entered: make(chan struct{})}
+		fn := &mockFailureNotifier{}
+		d, in, ts, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore(), task.WithFailureNotifier(fn))
+
+		in <- proactiveTaskFor("t1", "local:u1:worker:w1", model.TaskTypeCountdown)
+		select {
+		case <-mgr.entered:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "ExecuteWorker was not called within timeout")
+		}
+
+		d.AbortRun("t1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+		assert.Never(t, func() bool { return obs.terminalCount("t1") > 1 }, 100*time.Millisecond, 10*time.Millisecond)
+
+		aborted, cancelled := ts.snapshot()
+		assert.Equal(t, []string{"t1"}, aborted)
+		assert.Empty(t, cancelled)
+		assert.Empty(t, ts.failed())
+		ts.assertAbortCtxLive(t)
+		fn.mu.Lock()
+		defer fn.mu.Unlock()
+		assert.Empty(t, fn.calls)
 	})
 
 	t.Run("PollErrorAfterAbort", func(t *testing.T) {
@@ -1747,6 +1803,7 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		assert.Equal(t, []string{"t1"}, aborted)
 		assert.Empty(t, cancelled)
 		assert.Equal(t, 1, obs.terminalCount("t1"))
+		ts.assertAbortCtxLive(t)
 	})
 
 	t.Run("Queued", func(t *testing.T) {
@@ -1768,5 +1825,6 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		assert.Equal(t, []string{"t2"}, aborted)
 		assert.Empty(t, cancelled)
 		assert.NotContains(t, mgr.ran(), "t2")
+		ts.assertAbortCtxLive(t)
 	})
 }
