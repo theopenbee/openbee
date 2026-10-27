@@ -19,7 +19,7 @@ export function BeeAvatar({ size = "default", className }: BeeAvatarProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted dark:bg-foreground",
+        "inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-avatar-bee",
         dimensions[size],
         className,
       )}

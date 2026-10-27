@@ -82,6 +82,7 @@
   --color-avatar-7: var(--avatar-7);
   --color-avatar-8: var(--avatar-8);
   --color-avatar-foreground: var(--avatar-foreground);
+  --color-avatar-bee: var(--avatar-bee);
 
   --color-muted-foreground: var(--text-secondary);
   --color-card: var(--surface);
@@ -124,6 +125,7 @@
   --avatar-7: oklch(0.72 0.11 285);
   --avatar-8: oklch(0.72 0.11 330);
   --avatar-foreground: var(--neutral-11);
+  --avatar-bee: var(--surface-muted);
 }
 
 :root[data-theme="dark"] {
@@ -136,6 +138,7 @@
   --avatar-6: oklch(0.58 0.11 240);
   --avatar-7: oklch(0.58 0.11 285);
   --avatar-8: oklch(0.58 0.11 330);
+  --avatar-bee: oklch(0.62 0 0);
 }
 
 :root[data-theme="dark"][data-accent="orange"] {
