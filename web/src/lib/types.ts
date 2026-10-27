@@ -80,6 +80,12 @@ export interface ConversationSummary {
   activity: ConversationActivity
 }
 
+export interface ActiveTask {
+  id: string
+  instruction: string
+  type: string
+}
+
 export interface ConversationMessagesResponse {
   messages: ChatMessage[]
   has_more: boolean

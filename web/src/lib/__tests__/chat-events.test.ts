@@ -8,8 +8,10 @@ import {
   applyWorkerStatus,
   detectGap,
   ingestChatEvent,
+  hasUnknownWorker,
   previewOf,
   workerCacheUpdater,
+  workerIdsOf,
   type ChatEvent,
 } from "../chat-events"
 
@@ -280,6 +282,30 @@ const statusEvent = (workerId: string, status: Worker["status"]): ChatEvent => (
   status,
 })
 
+describe("workerIdsOf", () => {
+  it("names the handoff target, the chat's worker and the task or status worker", () => {
+    expect(workerIdsOf(messageEvent("bee", message("x", {
+      sender: { type: "bee" },
+      kind: "handoff",
+      handoff: { worker_id: "w2", task_id: "t1", task_type: "scheduled", cron_expr: "0 9 * * *", conversation_id: "worker:w2" },
+    })))).toEqual(["w2"])
+    expect(workerIdsOf(messageEvent("worker:w1", message("x")))).toEqual(["w1"])
+    expect(workerIdsOf(taskEvent("running"))).toEqual(["w1"])
+    expect(workerIdsOf(statusEvent("w3", "idle"))).toEqual(["w3"])
+    expect(workerIdsOf(messageEvent("bee", message("x", { sender: { type: "bee" } })))).toEqual([])
+  })
+})
+
+describe("hasUnknownWorker", () => {
+  it("is true only when a named worker is missing", () => {
+    const known = new Set(["w1"])
+
+    expect(hasUnknownWorker(messageEvent("worker:w1", message("x")), known)).toBe(false)
+    expect(hasUnknownWorker(statusEvent("w2", "idle"), known)).toBe(true)
+    expect(hasUnknownWorker(messageEvent("bee", message("x", { sender: { type: "bee" } })), new Set())).toBe(false)
+  })
+})
+
 describe("workerCacheUpdater", () => {
   it("returns undefined when nothing is cached", () => {
     expect(workerCacheUpdater(statusEvent("w1", "working"))(undefined)).toBeUndefined()
@@ -402,6 +428,45 @@ describe("applyEventToCaches", () => {
     applyEventToCaches(queryClient, messageEvent("worker:w1", message("hi")), idle)
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  const handoffEvent = (workerId: string) =>
+    messageEvent("bee", message("do it", {
+      sender: { type: "bee" },
+      kind: "handoff",
+      handoff: { worker_id: workerId, task_id: "t1", task_type: "immediate", conversation_id: `worker:${workerId}` },
+    }))
+
+  it.each([
+    ["a handoff to a new worker", handoffEvent("new")],
+    ["a message in a new worker chat", messageEvent("worker:new", message("hi"))],
+    ["a task of a new worker", { ...taskEvent("queued"), worker_id: "new", conversation_id: "worker:new" } as ChatEvent],
+    ["the status of a new worker", statusEvent("new", "working")],
+  ])("invalidates the workers for %s", (_, event) => {
+    seedWorkers()
+
+    applyEventToCaches(queryClient, event, idle)
+
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true)
+  })
+
+  it("leaves workers that have not loaded yet alone", () => {
+    queryClient.getQueryCache().build(queryClient, { queryKey: listKey })
+
+    applyEventToCaches(queryClient, statusEvent("new", "working"), idle)
+
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(false)
+  })
+
+  it("keeps the workers fresh when every named worker is cached", () => {
+    seedWorkers()
+
+    applyEventToCaches(queryClient, handoffEvent("w2"), idle)
+    applyEventToCaches(queryClient, messageEvent("worker:w1", message("hi")), idle)
+    applyEventToCaches(queryClient, taskEvent("running"), idle)
+    applyEventToCaches(queryClient, statusEvent("w2", "working"), idle)
+
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(false)
   })
 
   it("invalidates the list for a conversation it does not know", () => {

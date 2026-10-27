@@ -208,7 +208,33 @@
     "newWorker": "New worker",
     "search": "Search",
     "noWorkersHint": "No digital workers yet. Click + at the top right to create one.",
-    "back": "Back"
+    "back": "Back",
+    "you": "You",
+    "system": "System",
+    "fromBee": "Bee handoff",
+    "status": {
+      "queued": "Queued · {{count}} ahead",
+      "running": "Working"
+    },
+    "newConversation": "New conversation",
+    "newConversationConfirm": "Start a new conversation? The worker forgets the earlier context. The chat history stays.",
+    "newConversationConfirmBee": "Start a new conversation? The Bee forgets the earlier context. The chat history stays.",
+    "newConversationActive": "These tasks are still running. Starting a new conversation stops them first:",
+    "newConversationFailed": "Couldn't start a new conversation",
+    "stopAndRestart": "Stop and start over",
+    "stop": "Stop",
+    "stopFailed": "Couldn't stop the work",
+    "openPanel": "Show worker info",
+    "closePanel": "Hide worker info",
+    "messagePlaceholder": "Message {{name}}",
+    "emptyWorker": "Say hello to {{name}} and hand over work directly.",
+    "sendFailed": "Message not sent. Your text is back in the box.",
+    "composerHintPlain": "Enter to send, Shift+Enter for a new line",
+    "composerHintTouchPlain": "Ctrl/⌘+Enter to send",
+    "taskType": {
+      "countdown": "Runs once",
+      "scheduled": "Recurring"
+    }
   },
   "breadcrumb": {
     "detail": "Detail"

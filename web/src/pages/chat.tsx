@@ -1,12 +1,12 @@
-import { Link, Navigate, useLocation } from "react-router-dom"
-import { useTranslation } from "react-i18next"
-import { ChevronLeftIcon } from "lucide-react"
-import { BeeAvatar } from "@/components/chat/bee-avatar"
+import { Navigate, useLocation } from "react-router-dom"
+import { ChatHeaderPlaceholder } from "@/components/chat/chat-header"
 import { useChatRoute } from "@/components/chat/chat-shell"
-import { WorkerAvatar } from "@/components/worker-avatar"
+import { ChatSkeleton } from "@/components/chat/chat-skeleton"
+import { ChatView } from "@/components/chat/chat-view"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { useWorkers } from "@/hooks/use-workers"
-import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
+import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
+import { CHAT_COLUMN } from "@/lib/styles"
+import { cn } from "@/lib/utils"
 
 const DESKTOP_QUERY = "(min-width: 48rem)"
 
@@ -18,29 +18,18 @@ export function ChatIndex() {
 }
 
 export function Chat() {
-  const { t } = useTranslation()
   const { conversation } = useChatRoute()
-  const { data: workers } = useWorkers()
-  const workerId = conversation ? workerIdOf(conversation) : null
-  const worker = workerId ? workers?.find((item) => item.id === workerId) : undefined
 
-  return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-3 md:px-5">
-      <Link
-        to="/chat"
-        aria-label={t("chat.back")}
-        className="grid size-10 shrink-0 place-items-center rounded-control text-secondary transition-colors hover:bg-surface-muted hover:text-foreground md:hidden"
-      >
-        <ChevronLeftIcon size={20} strokeWidth={1.75} aria-hidden="true" />
-      </Link>
-      {conversation && (
-        <>
-          {worker ? <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} /> : <BeeAvatar />}
-          <h1 className="truncate text-base font-medium text-foreground">
-            {worker ? worker.name : t("localChat.beeLabel")}
-          </h1>
-        </>
-      )}
-    </header>
-  )
+  if (!conversation) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ChatHeaderPlaceholder />
+        <div className={cn(CHAT_COLUMN, "pt-6 md:pt-10")}>
+          <ChatSkeleton />
+        </div>
+      </div>
+    )
+  }
+
+  return <ChatView key={conversation} conversation={conversation} />
 }

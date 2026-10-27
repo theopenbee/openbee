@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query"
+import { workerIdOf } from "@/lib/conversations"
 import type {
   ChatMessage,
   ConversationActivity,
@@ -42,6 +43,8 @@ export interface ConversationView {
 }
 
 export const CONVERSATIONS_KEY = ["conversations"] as const
+
+const WORKERS_KEY = ["workers"] as const
 
 const PREVIEW_MAX_CODE_POINTS = 120
 const MEDIA_MARKERS = ["\u0000[file] ", "[file] "]
@@ -132,6 +135,35 @@ export function workerCacheUpdater(event: ChatEvent) {
   }
 }
 
+export function workerIdsOf(event: ChatEvent): string[] {
+  const ids =
+    event.type === "worker_status"
+      ? [event.worker_id]
+      : event.type === "task"
+        ? [event.worker_id, workerIdOf(event.conversation_id)]
+        : [event.message.handoff?.worker_id, workerIdOf(event.conversation_id)]
+  return [...new Set(ids.filter((id): id is string => !!id))]
+}
+
+export function hasUnknownWorker(event: ChatEvent, known: ReadonlySet<string>): boolean {
+  return workerIdsOf(event).some((id) => !known.has(id))
+}
+
+function cachedWorkerIds(queryClient: QueryClient): Set<string> | null {
+  const cached = queryClient
+    .getQueriesData<Worker | Worker[]>({ queryKey: WORKERS_KEY })
+    .flatMap(([, data]) => (data === undefined ? [] : [data]))
+  if (cached.length === 0) return null
+  return new Set(cached.flatMap((data) => (Array.isArray(data) ? data : [data])).map((worker) => worker.id))
+}
+
+function refreshUnknownWorkers(queryClient: QueryClient, event: ChatEvent) {
+  const known = cachedWorkerIds(queryClient)
+  if (known && hasUnknownWorker(event, known)) {
+    queryClient.invalidateQueries({ queryKey: WORKERS_KEY }, { cancelRefetch: false })
+  }
+}
+
 function updateConversationCache(
   queryClient: QueryClient,
   event: ChatMessageEvent | TaskEvent,
@@ -148,6 +180,7 @@ function updateConversationCache(
 }
 
 export function applyEventToCaches(queryClient: QueryClient, event: ChatEvent, view: ConversationView) {
+  refreshUnknownWorkers(queryClient, event)
   switch (event.type) {
     case "message":
     case "task":

@@ -47,6 +47,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
     const content = input.trim()
     if (!content && pendingMediaPaths.length === 0) return
 
+    const text = input
     const paths = [...pendingMediaPaths]
 
     setInput("")
@@ -57,6 +58,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
     try {
       await onSend(content, paths)
     } catch {
+      setInput((prev) => (prev ? `${text}\n${prev}` : text))
       setPendingMediaPaths((prev) => [...paths, ...prev])
     } finally {
       setIsSending(false)
@@ -110,6 +112,9 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
 
   const canSend = input.trim().length > 0 || pendingMediaPaths.length > 0
   const controlSize = isTouchOnly ? "md" : "sm"
+  const hint = mentions
+    ? t(isTouchOnly ? "localChat.composerHintTouch" : "localChat.composerHint")
+    : t(isTouchOnly ? "chat.composerHintTouchPlain" : "chat.composerHintPlain")
 
   return (
     <div className="shrink-0 bg-background">
@@ -198,7 +203,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
             </Button>
           </span>
           <span className={cn(composerStyles.hint, "truncate text-xs text-muted")}>
-            {isTouchOnly ? t("localChat.composerHintTouch") : t("localChat.composerHint")}
+            {hint}
           </span>
           <span className={composerStyles.send}>
             <Button

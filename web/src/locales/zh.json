@@ -207,7 +207,33 @@
     "newWorker": "新建员工",
     "search": "搜索",
     "noWorkersHint": "还没有数字员工，点右上角 + 新建一个",
-    "back": "返回"
+    "back": "返回",
+    "you": "你",
+    "system": "系统",
+    "fromBee": "Bee 转交",
+    "status": {
+      "queued": "排队中 · 前面 {{count}} 个",
+      "running": "处理中"
+    },
+    "newConversation": "新对话",
+    "newConversationConfirm": "开始新对话？员工会忘记之前的上下文，聊天记录会保留。",
+    "newConversationConfirmBee": "开始新对话？Bee 会忘记之前的上下文，聊天记录会保留。",
+    "newConversationActive": "这些任务还在进行，开始新对话会先停止它们：",
+    "newConversationFailed": "无法开始新对话",
+    "stopAndRestart": "停止并开始新对话",
+    "stop": "停止",
+    "stopFailed": "停止失败",
+    "openPanel": "查看员工信息",
+    "closePanel": "收起员工信息",
+    "messagePlaceholder": "给 {{name}} 发消息",
+    "emptyWorker": "和 {{name}} 打个招呼，直接交代工作吧。",
+    "sendFailed": "消息没有发出，内容已放回输入框。",
+    "composerHintPlain": "回车发送，Shift+Enter 换行",
+    "composerHintTouchPlain": "Ctrl/⌘+Enter 发送",
+    "taskType": {
+      "countdown": "定时一次",
+      "scheduled": "周期任务"
+    }
   },
   "breadcrumb": {
     "detail": "详情"

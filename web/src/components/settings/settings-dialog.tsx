@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next"
 import { KeyRoundIcon, NetworkIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
 import { PresenceContext } from "motion/react"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
-import { navActiveClass, navItemClass } from "@/components/nav-main"
 import { SettingsDialogContext, type SettingsSection, type SettingsTarget } from "@/hooks/use-settings-dialog"
+import { navActiveClass, navItemClass } from "@/lib/styles"
 import { cn } from "@/lib/utils"
 
 const EnvSettings = lazy(() => import("@/components/settings/env-settings").then((m) => ({ default: m.EnvSettings })))
