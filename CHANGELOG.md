@@ -4,6 +4,7 @@
 
 ### Added
 - Add `openbee reset-password` to reset the admin password.
+- Chat directly with each worker in the web console.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
