@@ -13,9 +13,9 @@ export function SkeletonCard({ className }: { className?: string }) {
   )
 }
 
-export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
+export function SkeletonTable({ rows = 5, columns = 5, className }: { rows?: number; columns?: number; className?: string }) {
   return (
-    <div className="overflow-hidden rounded-surface border border-border bg-surface" aria-busy="true">
+    <div className={cn("overflow-hidden rounded-surface border border-border bg-surface", className)} aria-busy="true">
       <div className="flex gap-8 border-b border-border-subtle px-6 py-4">
         {Array.from({ length: columns }).map((_, i) => (
           <div key={i} className="skeleton h-3 w-20" />
@@ -32,19 +32,6 @@ export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; column
           ))}
         </div>
       ))}
-    </div>
-  )
-}
-
-export function SkeletonPage() {
-  return (
-    <div className="grid gap-6" aria-busy="true">
-      <div className="grid gap-3">
-        <div className="skeleton h-9 w-56" />
-        <div className="skeleton h-4 w-40" />
-      </div>
-      <SkeletonCard />
-      <SkeletonCard />
     </div>
   )
 }

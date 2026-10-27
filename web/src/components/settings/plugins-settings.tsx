@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 import { BotIcon, CheckIcon, DownloadIcon, EllipsisIcon, PackagePlusIcon, PuzzleIcon, RefreshCwIcon, RotateCwIcon, SearchXIcon, Trash2Icon } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
-import { PageHeader } from "@/components/page-header"
 import { Panel } from "@/components/panel"
 import { EmptyState } from "@/components/empty-state"
 import { SkeletonCard, SkeletonTable } from "@/components/skeleton-loader"
@@ -36,48 +34,40 @@ import {
   useUninstallPlugin,
   type PluginAction,
 } from "@/hooks/use-plugins"
+import { useSettingsDialog, type PluginsTab } from "@/hooks/use-settings-dialog"
 import { filterCatalog, localize, marketAction, pendingInstalls } from "@/lib/plugins"
 import { getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginOperation, PluginStatus } from "@/lib/types"
 
-type Tab = "market" | "installed"
-
 const ALL_TAGS = "__all__"
-const INSTALLED_GRID = "md:grid-cols-[minmax(0,1fr)_5.5rem_minmax(0,12rem)_minmax(0,10rem)_auto]"
+const INSTALLED_GRID = "@3xl:grid-cols-[minmax(0,1fr)_5.5rem_minmax(0,12rem)_minmax(0,10rem)_auto]"
 
-export function Plugins() {
+export function PluginsSettings({ initialTab = "market" }: { initialTab?: PluginsTab }) {
   const { t } = useTranslation()
-  const [params, setParams] = useSearchParams()
-  const tab: Tab = params.get("tab") === "installed" ? "installed" : "market"
+  const [tab, setTab] = useState<PluginsTab>(initialTab)
   const plugins = usePlugins()
   const operations = usePluginOperationToasts()
   const [installOpen, setInstallOpen] = useState(false)
   const ops = operations.data ?? []
 
-  const setTab = (next: Tab) => setParams(next === "market" ? {} : { tab: next }, { replace: true })
-
   return (
     <FadeIn>
-      <PageHeader
-        title={t("plugins.title")}
-        subtitle={t("plugins.subtitle")}
-        actions={
-          <Button variant="secondary" onClick={() => setInstallOpen(true)}>
+      <Tabs value={tab} onValueChange={(value) => setTab(value === "installed" ? "installed" : "market")}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList aria-label={t("plugins.title")}>
+            <TabsTrigger value="market">{t("plugins.tabs.market")}</TabsTrigger>
+            <TabsTrigger value="installed">
+              <span className="inline-flex items-center gap-1.5">
+                {t("plugins.tabs.installed")}
+                {plugins.data && <span className="text-xs text-secondary tabular">{plugins.data.length}</span>}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          <Button variant="secondary" size="sm" onClick={() => setInstallOpen(true)}>
             <PackagePlusIcon size={16} strokeWidth={1.75} aria-hidden="true" />
             {t("plugins.installDialog.open")}
           </Button>
-        }
-      />
-      <Tabs value={tab} onValueChange={(value) => setTab(value === "installed" ? "installed" : "market")}>
-        <TabsList aria-label={t("plugins.title")}>
-          <TabsTrigger value="market">{t("plugins.tabs.market")}</TabsTrigger>
-          <TabsTrigger value="installed">
-            <span className="inline-flex items-center gap-1.5">
-              {t("plugins.tabs.installed")}
-              {plugins.data && <span className="text-xs text-secondary tabular">{plugins.data.length}</span>}
-            </span>
-          </TabsTrigger>
-        </TabsList>
+        </div>
         <TabsContent value="market">
           <div className="pt-2">
             <Market operations={ops} />
@@ -96,7 +86,7 @@ export function Plugins() {
 
 function Market({ operations }: { operations: PluginOperation[] }) {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
+  const show = useSettingsDialog()
   const catalog = usePluginCatalog()
   const refresh = useRefreshPluginCatalog()
   const install = useInstallPlugin()
@@ -109,7 +99,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
 
   const toolbar = (
     <div className="mb-6 flex flex-wrap items-end gap-4">
-      <div className="w-full min-w-0 sm:w-72">
+      <div className="w-full min-w-0 @xl:w-72">
         <SearchField
           label={t("plugins.search")}
           value={query}
@@ -151,8 +141,8 @@ function Market({ operations }: { operations: PluginOperation[] }) {
     return (
       <>
         {toolbar}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true">
-          {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)}
+        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3" aria-busy="true">
+          {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} className="rounded-inset" />)}
         </div>
       </>
     )
@@ -194,7 +184,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
     <>
       {toolbar}
       {list.length === 0 ? (
-        <div className="rounded-surface border border-border bg-surface">
+        <div className="rounded-inset border border-border bg-surface">
           <EmptyState
             icon={<SearchXIcon size={24} strokeWidth={1.5} />}
             title={t("plugins.noResults")}
@@ -213,7 +203,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
           />
         </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
           {list.map((p) => {
             const op = pending[p.package]
             const action = marketAction(p, Boolean(op) || requested.has(p.package))
@@ -221,7 +211,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
             const deprecated = localize(p.deprecated, lang)
             const description = localize(p.description, lang)
             return (
-              <li key={p.id} className="flex min-w-0 flex-col rounded-surface border border-border bg-surface p-6">
+              <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-6">
                 <div className="flex-1">
                   <div className="flex items-start gap-3">
                     <PluginAvatar name={name} />
@@ -264,7 +254,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                     op={op}
                     now={now}
                     onInstall={() => startInstall(p)}
-                    onConfigure={() => navigate(`/plugins/${p.id}`)}
+                    onConfigure={() => show({ section: "plugins", plugin: p.id })}
                   />
                 </div>
               </li>
@@ -321,7 +311,7 @@ function MarketAction({
 
 function Installed({ operations, onBrowse }: { operations: PluginOperation[]; onBrowse: () => void }) {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
+  const show = useSettingsDialog()
   const plugins = usePlugins()
   const action = usePluginAction()
   const uninstall = useUninstallPlugin()
@@ -331,7 +321,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
   const removing = useMemo(() => pendingUninstalls(operations), [operations])
   const lang = i18n.language
 
-  if (plugins.isLoading) return <SkeletonTable rows={4} columns={5} />
+  if (plugins.isLoading) return <SkeletonTable rows={4} columns={5} className="rounded-inset" />
   if (plugins.error) {
     return (
       <Alert tone="danger" title={t("plugins.installedError")}>
@@ -348,7 +338,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
   const list = plugins.data ?? []
   if (list.length === 0) {
     return (
-      <div className="rounded-surface border border-border bg-surface">
+      <div className="rounded-inset border border-border bg-surface">
         <EmptyState
           icon={<PuzzleIcon size={24} strokeWidth={1.5} />}
           title={t("plugins.emptyInstalled.title")}
@@ -382,10 +372,11 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
     <>
       <Panel
         title={t("plugins.installedTitle")}
+        className="rounded-inset"
         flush
         action={<span className="text-xs text-secondary tabular">{t("plugins.installedSummary", { count: list.length, running })}</span>}
       >
-        <div className={`hidden gap-4 px-6 pb-2 text-xs text-secondary md:grid ${INSTALLED_GRID}`} aria-hidden="true">
+        <div className={`hidden gap-4 px-6 pb-2 text-xs text-secondary @3xl:grid ${INSTALLED_GRID}`} aria-hidden="true">
           <span>{t("plugins.columns.plugin")}</span>
           <span>{t("plugins.columns.version")}</span>
           <span>{t("plugins.columns.status")}</span>
@@ -403,16 +394,20 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
                 key={p.id}
                 className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-t border-border-subtle px-6 py-4 ${INSTALLED_GRID}`}
               >
-                <Link to={`/plugins/${p.id}`} className="group flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => show({ section: "plugins", plugin: p.id })}
+                  className="group flex min-w-0 items-center gap-3 text-left"
+                >
                   <PluginAvatar name={name} />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-foreground group-hover:text-accent-strong">{name}</span>
                     <span className="block truncate font-mono text-xs text-secondary">{p.id}</span>
                   </span>
-                </Link>
-                <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 md:contents">
+                </button>
+                <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @3xl:contents">
                   <span className="font-mono text-sm text-secondary tabular">{p.version ? `v${p.version}` : "–"}</span>
-                  <div className={showError ? "order-first w-full min-w-0 md:order-none md:w-auto" : "order-first min-w-0 md:order-none"}>
+                  <div className={showError ? "order-first w-full min-w-0 @3xl:order-none @3xl:w-auto" : "order-first min-w-0 @3xl:order-none"}>
                     <PluginStateBadge state={p.state} uninstalling={busy} />
                     {showError && (
                       <p className="mt-1 truncate text-xs text-danger" title={p.error}>
@@ -421,19 +416,19 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
                     )}
                   </div>
                   <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-                    <BotIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted md:hidden" aria-hidden="true" />
+                    <BotIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted @3xl:hidden" aria-hidden="true" />
                     <span className="truncate">{p.bot_name || <span className="text-muted">–</span>}</span>
                   </span>
                 </div>
-                <div className="row-start-1 col-start-2 flex items-center justify-end gap-2 md:col-start-auto md:row-start-auto md:w-44">
+                <div className="row-start-1 col-start-2 flex items-center justify-end gap-2 @3xl:col-start-auto @3xl:row-start-auto @3xl:w-44">
                   <Switch
                     aria-label={t("plugins.action.toggle", { name })}
                     checked={enabled}
                     disabled={busy || action.isPending || (!p.enabled && p.state === "not_configured")}
                     onCheckedChange={(checked) => run(p, checked ? "enable" : "disable")}
                   />
-                  <span className="hidden sm:inline-flex">
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => navigate(`/plugins/${p.id}`)}>
+                  <span className="hidden @lg:inline-flex">
+                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => show({ section: "plugins", plugin: p.id })}>
                       {t("plugins.action.configure")}
                     </Button>
                   </span>

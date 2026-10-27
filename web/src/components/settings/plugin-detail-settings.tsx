@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { ArrowLeftIcon, CheckIcon, ExternalLinkIcon, PackageXIcon, QrCodeIcon, RotateCwIcon, Trash2Icon } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
-import { PageHeader } from "@/components/page-header"
 import { Panel } from "@/components/panel"
 import { EmptyState } from "@/components/empty-state"
-import { SkeletonPage } from "@/components/skeleton-loader"
+import { SkeletonCard } from "@/components/skeleton-loader"
 import { DetailField } from "@/components/detail-primitives"
 import { PluginSetupDialog } from "@/components/plugin-setup-dialog"
 import { PluginStateBadge, UninstallPluginDialog, pendingUninstalls, usePluginOperationToasts } from "@/components/plugin-ui"
@@ -27,6 +25,7 @@ import {
   useUpdatePluginSettings,
   type PluginAction,
 } from "@/hooks/use-plugins"
+import { useSettingsDialog } from "@/hooks/use-settings-dialog"
 import { ApiError } from "@/lib/api"
 import { buildSettingsPayload, initialFormValues, invalidIntFields, localize, pendingInstalls, type FormValues } from "@/lib/plugins"
 import { getErrorMessage } from "@/lib/utils"
@@ -34,10 +33,9 @@ import type { CatalogPlugin, PluginConfigField, PluginDetail as Detail, PluginSe
 
 const SAVED_FEEDBACK_MS = 2500
 
-export function PluginDetail() {
-  const { id = "" } = useParams()
+export function PluginDetailSettings({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
+  const show = useSettingsDialog()
   const detail = usePlugin(id)
   const catalog = usePluginCatalog()
   const action = usePluginAction()
@@ -56,19 +54,26 @@ export function PluginDetail() {
     return () => clearTimeout(timer)
   }, [savedAt])
 
-  if (detail.isLoading) return <SkeletonPage />
+  if (detail.isLoading) {
+    return (
+      <div className="grid gap-6" aria-busy="true">
+        <SkeletonCard className="rounded-inset" />
+        <SkeletonCard className="rounded-inset" />
+      </div>
+    )
+  }
   if (detail.error || !detail.data) {
     const missing = detail.error instanceof ApiError && detail.error.status === 404
     return (
       <FadeIn>
         <BackLink />
         {missing ? (
-          <div className="rounded-surface border border-border bg-surface">
+          <div className="rounded-inset border border-border bg-surface">
             <EmptyState
               icon={<PackageXIcon size={24} strokeWidth={1.5} />}
               title={t("plugins.detail.notFound")}
               description={t("plugins.detail.notFoundHint")}
-              action={<Button onClick={() => navigate("/plugins")}>{t("plugins.emptyInstalled.action")}</Button>}
+              action={<Button onClick={() => show({ section: "plugins" })}>{t("plugins.emptyInstalled.action")}</Button>}
             />
           </div>
         ) : (
@@ -107,59 +112,61 @@ export function PluginDetail() {
   return (
     <FadeIn>
       <BackLink />
-      <PageHeader
-        title={name}
-        subtitle={
-          <span className="flex flex-wrap items-center gap-2">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0">
+          <h3 className="text-xl font-medium text-foreground">{name}</h3>
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-secondary" aria-live="polite">
             <PluginStateBadge state={d.state} uninstalling={removing} />
             {entry?.official && <Badge size="sm">{t("plugins.official")}</Badge>}
             <span className="min-w-0 font-mono text-xs wrap-anywhere">{[d.package, d.id].filter(Boolean).join(" · ")}</span>
-          </span>
-        }
-        actions={
-          <>
-            {d.enabled ? (
-              <Button
-                variant="secondary"
-                loading={pendingKind === "disable"}
-                disabled={removing || (action.isPending && pendingKind !== "disable")}
-                onClick={() => run("disable")}
-              >
-                {t("plugins.action.disable")}
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                loading={pendingKind === "enable"}
-                disabled={removing || d.state === "not_configured" || (action.isPending && pendingKind !== "enable")}
-                onClick={() => run("enable")}
-              >
-                {t("plugins.action.enable")}
-              </Button>
-            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {d.enabled ? (
             <Button
               variant="secondary"
-              loading={pendingKind === "restart"}
-              disabled={removing || !d.enabled || (action.isPending && pendingKind !== "restart")}
-              onClick={() => run("restart")}
+              size="sm"
+              loading={pendingKind === "disable"}
+              disabled={removing || (action.isPending && pendingKind !== "disable")}
+              onClick={() => run("disable")}
             >
-              <RotateCwIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t("plugins.action.restart")}
+              {t("plugins.action.disable")}
             </Button>
+          ) : (
             <Button
-              variant="danger"
-              disabled={removing}
-              onClick={() => {
-                setUninstallError("")
-                setConfirmUninstall(true)
-              }}
+              variant="secondary"
+              size="sm"
+              loading={pendingKind === "enable"}
+              disabled={removing || d.state === "not_configured" || (action.isPending && pendingKind !== "enable")}
+              onClick={() => run("enable")}
             >
-              <Trash2Icon size={16} strokeWidth={1.75} aria-hidden="true" />
-              {t("plugins.action.uninstall")}
+              {t("plugins.action.enable")}
             </Button>
-          </>
-        }
-      />
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={pendingKind === "restart"}
+            disabled={removing || !d.enabled || (action.isPending && pendingKind !== "restart")}
+            onClick={() => run("restart")}
+          >
+            <RotateCwIcon size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t("plugins.action.restart")}
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={removing}
+            onClick={() => {
+              setUninstallError("")
+              setConfirmUninstall(true)
+            }}
+          >
+            <Trash2Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t("plugins.action.uninstall")}
+          </Button>
+        </div>
+      </header>
 
       {showError && (
         <div className="mb-6">
@@ -179,10 +186,10 @@ export function PluginDetail() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_17rem] @3xl:items-start">
         <div className="grid min-w-0 gap-6">
           {d.has_setup && (
-            <section className="flex flex-wrap items-center justify-between gap-4 rounded-surface border border-border bg-surface px-6 py-5">
+            <section className="flex flex-wrap items-center justify-between gap-4 rounded-inset border border-border bg-surface px-6 py-5">
               <div className="min-w-0">
                 <h2 className="text-base font-medium text-foreground">{setupLabel}</h2>
                 <p className="mt-1 text-sm text-secondary">{t("plugins.setup.cardHint")}</p>
@@ -193,7 +200,11 @@ export function PluginDetail() {
               </Button>
             </section>
           )}
-          <Panel title={t("plugins.detail.settings")} description={t("plugins.detail.settingsHint", { name })}>
+          <Panel
+            title={t("plugins.detail.settings")}
+            description={t("plugins.detail.settingsHint", { name })}
+            className="rounded-inset"
+          >
             <SettingsForm
               key={`${resetKey}:${JSON.stringify(d.config)}:${d.bot_name}`}
               detail={d}
@@ -224,7 +235,7 @@ export function PluginDetail() {
         onConfirm={() => {
           setUninstallError("")
           uninstall.mutate(d.id, {
-            onSuccess: () => navigate("/plugins?tab=installed"),
+            onSuccess: () => show({ section: "plugins", tab: "installed" }),
             onError: (err) => setUninstallError(getErrorMessage(err)),
           })
         }}
@@ -235,14 +246,16 @@ export function PluginDetail() {
 
 function BackLink() {
   const { t } = useTranslation()
+  const show = useSettingsDialog()
   return (
-    <Link
-      to="/plugins?tab=installed"
+    <button
+      type="button"
+      onClick={() => show({ section: "plugins", tab: "installed" })}
       className="mb-4 inline-flex min-h-9 items-center gap-1.5 text-sm text-secondary transition-colors hover:text-foreground"
     >
       <ArrowLeftIcon size={16} strokeWidth={1.75} aria-hidden="true" />
       {t("plugins.detail.back")}
-    </Link>
+    </button>
   )
 }
 
@@ -415,7 +428,7 @@ function InfoPanel({
     detail.source === "npm" ? t("plugins.detail.sourceNpm") : detail.source === "path" ? t("plugins.detail.sourcePath") : detail.source
   const repo = entry?.repository
   return (
-    <Panel title={t("plugins.detail.info")}>
+    <Panel title={t("plugins.detail.info")} className="rounded-inset">
       <div className="grid gap-5">
         {detail.package && <DetailField label={t("plugins.detail.package")} value={detail.package} mono />}
         <DetailField

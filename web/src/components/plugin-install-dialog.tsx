@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { Input } from "@/components/arc/input/input"
 import { OperationProgress, useNow } from "@/components/plugin-ui"
 import { useInstallPlugin } from "@/hooks/use-plugins"
+import { useSettingsDialog } from "@/hooks/use-settings-dialog"
 import { getErrorMessage } from "@/lib/utils"
 import type { PluginOperation } from "@/lib/types"
 
@@ -20,7 +20,7 @@ export function PluginInstallDialog({
   operations: PluginOperation[]
 }) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const show = useSettingsDialog()
   const install = useInstallPlugin()
   const [spec, setSpec] = useState("")
   const [opId, setOpId] = useState<string | null>(null)
@@ -91,7 +91,7 @@ export function PluginInstallDialog({
                 type="button"
                 onClick={() => {
                   close(false)
-                  navigate(`/plugins/${op.plugin_id}`)
+                  show({ section: "plugins", plugin: op.plugin_id })
                 }}
               >
                 {t("plugins.installDialog.configure")}

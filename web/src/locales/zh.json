@@ -15,12 +15,7 @@
     "tasks": "定时任务",
     "departments": "部门",
     "digitalEmployees": "数字员工",
-    "settings": "环境变量",
-    "systemSettings": "系统设置",
-    "systemConfig": "系统",
-    "collapseNav": "收起导航",
-    "expandNav": "展开导航",
-    "plugins": "插件"
+    "settings": "设置"
   },
   "common": {
     "save": "保存",
@@ -663,7 +658,6 @@
     "updateAvailable": "已安装 v{{version}}，有新版本",
     "installDone": "{{name}} 已安装",
     "updateDone": "{{name}} 已更新到 {{version}}",
-    "installGoConfigure": "去配置",
     "installFailed": "{{name}} 安装失败：{{error}}",
     "uninstallDone": "已卸载 {{name}}",
     "uninstallFailed": "{{name}} 卸载失败：{{error}}",

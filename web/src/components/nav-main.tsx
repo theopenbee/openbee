@@ -1,43 +1,35 @@
-import { Fragment, useState, type ReactElement } from "react"
+import { Fragment, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ChevronDownIcon } from "lucide-react"
-import { Tooltip } from "@/components/arc/tooltip/tooltip"
 import { motionTokens } from "@/components/arc/lib/motion-tokens"
 import { NAV, type NavGroupDef, type NavLeafDef, isNavActive, isNavGroup } from "@/lib/nav"
 import { cn } from "@/lib/utils"
 
-const itemClass =
+export const navItemClass =
   "flex h-9 w-full min-w-0 items-center gap-3 rounded-control px-3 text-sm text-secondary transition-colors duration-150 hover:bg-surface-muted hover:text-foreground"
-const activeClass = "bg-accent-subtle text-foreground hover:bg-accent-subtle"
+export const navActiveClass = "bg-accent-subtle text-foreground hover:bg-accent-subtle"
 
-function Collapsed({ label, children }: { label: string; children: ReactElement }) {
-  return <Tooltip content={label} side="right">{children}</Tooltip>
-}
-
-function LeafItem({ item, collapsed, onNavigate }: { item: NavLeafDef; collapsed: boolean; onNavigate?: () => void }) {
+function LeafItem({ item, onNavigate }: { item: NavLeafDef; onNavigate?: () => void }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const active = isNavActive(pathname, item.url)
   const Icon = item.icon
-  const label = t(item.titleKey)
-  const link = (
+  return (
     <Link
       to={item.url}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      aria-label={collapsed ? label : undefined}
-      className={cn(itemClass, active && activeClass, collapsed && "justify-center px-0")}
+      className={cn(navItemClass, active && navActiveClass)}
     >
       <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={cn("shrink-0", active && "text-accent-strong")} />
-      {!collapsed && <span className="truncate">{label}</span>}
+      <span className="truncate">{t(item.titleKey)}</span>
     </Link>
   )
-  return collapsed ? <Collapsed label={label}>{link}</Collapsed> : link
 }
 
-function GroupItem({ group, collapsed, onNavigate }: { group: NavGroupDef; collapsed: boolean; onNavigate?: () => void }) {
+function GroupItem({ group, onNavigate }: { group: NavGroupDef; onNavigate?: () => void }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const reduced = useReducedMotion()
@@ -49,23 +41,6 @@ function GroupItem({ group, collapsed, onNavigate }: { group: NavGroupDef; colla
     if (childActive && !open) setOpen(true)
   }
   const Icon = group.icon
-  const label = t(group.titleKey)
-
-  if (collapsed) {
-    const first = group.items[0]
-    return (
-      <Collapsed label={label}>
-        <Link
-          to={first.url}
-          onClick={onNavigate}
-          aria-label={label}
-          className={cn(itemClass, "justify-center px-0", childActive && activeClass)}
-        >
-          <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={cn("shrink-0", childActive && "text-accent-strong")} />
-        </Link>
-      </Collapsed>
-    )
-  }
 
   return (
     <div>
@@ -73,10 +48,10 @@ function GroupItem({ group, collapsed, onNavigate }: { group: NavGroupDef; colla
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className={cn(itemClass, childActive && !open && activeClass)}
+        className={cn(navItemClass, childActive && !open && navActiveClass)}
       >
         <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={cn("shrink-0", childActive && "text-accent-strong")} />
-        <span className="truncate">{label}</span>
+        <span className="truncate">{t(group.titleKey)}</span>
         <ChevronDownIcon
           size={16}
           strokeWidth={1.75}
@@ -106,7 +81,7 @@ function GroupItem({ group, collapsed, onNavigate }: { group: NavGroupDef; colla
                         to={sub.url}
                         onClick={onNavigate}
                         aria-current={active ? "page" : undefined}
-                        className={cn(itemClass, "h-8", active && activeClass)}
+                        className={cn(navItemClass, "h-8", active && navActiveClass)}
                       >
                         <span className="truncate">{t(sub.titleKey)}</span>
                       </Link>
@@ -122,7 +97,7 @@ function GroupItem({ group, collapsed, onNavigate }: { group: NavGroupDef; colla
   )
 }
 
-export function NavMain({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+export function NavMain({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation()
   return (
     <nav aria-label={t("nav.primary", "Primary")}>
@@ -130,9 +105,9 @@ export function NavMain({ collapsed = false, onNavigate }: { collapsed?: boolean
         {NAV.map((entry) => (
           <li key={entry.titleKey}>
             {isNavGroup(entry) ? (
-              <GroupItem group={entry} collapsed={collapsed} onNavigate={onNavigate} />
+              <GroupItem group={entry} onNavigate={onNavigate} />
             ) : (
-              <LeafItem item={entry} collapsed={collapsed} onNavigate={onNavigate} />
+              <LeafItem item={entry} onNavigate={onNavigate} />
             )}
           </li>
         ))}

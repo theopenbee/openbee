@@ -6,7 +6,6 @@ import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
 import { Select } from "@/components/arc/select/select"
 import { FadeIn } from "@/components/fade-in"
-import { PageHeader } from "@/components/page-header"
 import { useEngineOptions } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -33,7 +32,7 @@ function SettingsRow({
   children: ReactNode
 }) {
   return (
-    <div className="grid gap-4 px-4 py-5 sm:px-6 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-8">
+    <div className="grid gap-4 px-4 py-5 @lg:px-6 @2xl:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] @2xl:gap-8">
       <div className="grid content-start gap-1">
         <h3 className="text-sm font-medium text-foreground">{title}</h3>
         <p className="text-sm text-secondary">{description}</p>
@@ -45,7 +44,7 @@ function SettingsRow({
 
 function SettingsGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="divide-y divide-border-subtle overflow-hidden rounded-surface border border-border bg-surface">
+    <div className="divide-y divide-border-subtle overflow-hidden rounded-inset border border-border bg-surface">
       {children}
     </div>
   )
@@ -57,9 +56,9 @@ function SettingsSkeleton() {
       {[1, 2].map((group) => (
         <div key={group} className="grid gap-4">
           <div className="skeleton h-5 w-32" />
-          <div className="divide-y divide-border-subtle rounded-surface border border-border bg-surface">
+          <div className="divide-y divide-border-subtle rounded-inset border border-border bg-surface">
             {Array.from({ length: group }).map((_, row) => (
-              <div key={row} className="grid gap-4 px-6 py-5 md:grid-cols-[14rem_1fr] md:gap-8">
+              <div key={row} className="grid gap-4 px-6 py-5 @2xl:grid-cols-[14rem_1fr] @2xl:gap-8">
                 <div className="grid content-start gap-2">
                   <div className="skeleton h-4 w-24" />
                   <div className="skeleton h-4 w-40" />
@@ -153,98 +152,94 @@ export function SystemSettings() {
 
   return (
     <FadeIn>
-      <div className="max-w-form">
-        <PageHeader title={t("systemSettings.title")} subtitle={t("systemSettings.subtitle")} />
+      {loadError ? (
+        <Alert tone="danger" title={t("systemSettings.loadError")}>
+          <span className="grid justify-items-start gap-3">
+            <span>{loadError.message}</span>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              {t("common.retry")}
+            </Button>
+          </span>
+        </Alert>
+      ) : isLoading ? (
+        <SettingsSkeleton />
+      ) : (
+        <form onSubmit={handleSubmit} className="grid gap-10">
+          <section className="grid gap-4" aria-labelledby="settings-engine">
+            <h2 id="settings-engine" className="text-base font-medium text-foreground">
+              {t("systemSettings.engineSection.title")}
+            </h2>
+            <SettingsGroup>
+              <SettingsRow
+                title={t("systemSettings.engineSection.rowTitle")}
+                description={t("systemSettings.engineSection.description")}
+              >
+                <Select
+                  label={t("systemSettings.engineSection.label")}
+                  options={engineOptions}
+                  value={engine}
+                  onValueChange={edit(setPendingEngine)}
+                  disabled={saving}
+                />
+              </SettingsRow>
+            </SettingsGroup>
+          </section>
 
-        {loadError ? (
-          <Alert tone="danger" title={t("systemSettings.loadError")}>
-            <span className="grid justify-items-start gap-3">
-              <span>{loadError.message}</span>
-              <Button variant="secondary" size="sm" onClick={() => refetch()}>
-                {t("common.retry")}
-              </Button>
-            </span>
-          </Alert>
-        ) : isLoading ? (
-          <SettingsSkeleton />
-        ) : (
-          <form onSubmit={handleSubmit} className="grid gap-10">
-            <section className="grid gap-4" aria-labelledby="settings-engine">
-              <h2 id="settings-engine" className="text-base font-medium text-foreground">
-                {t("systemSettings.engineSection.title")}
+          <section className="grid gap-4" aria-labelledby="settings-args">
+            <div className="grid gap-1">
+              <h2 id="settings-args" className="text-base font-medium text-foreground">
+                {t("systemSettings.argsSection.title")}
               </h2>
-              <SettingsGroup>
-                <SettingsRow
-                  title={t("systemSettings.engineSection.rowTitle")}
-                  description={t("systemSettings.engineSection.description")}
-                >
-                  <Select
-                    label={t("systemSettings.engineSection.label")}
-                    options={engineOptions}
-                    value={engine}
-                    onValueChange={edit(setPendingEngine)}
-                    disabled={saving}
-                  />
-                </SettingsRow>
-              </SettingsGroup>
-            </section>
-
-            <section className="grid gap-4" aria-labelledby="settings-args">
-              <div className="grid gap-1">
-                <h2 id="settings-args" className="text-base font-medium text-foreground">
-                  {t("systemSettings.argsSection.title")}
-                </h2>
-                <p className="text-sm text-secondary">{t("systemSettings.argsSection.description")}</p>
-              </div>
-              <SettingsGroup>
-                <SettingsRow
-                  title={t("systemSettings.globalArgsSection.title")}
-                  description={t("systemSettings.globalArgsSection.description")}
-                >
-                  <EngineArgsSection
-                    engines={enabledEngines}
-                    value={globalArgs}
-                    onChange={edit(setPendingGlobalArgs)}
-                    idPrefix="global-args"
-                    disabled={saving}
-                  />
-                </SettingsRow>
-                <SettingsRow
-                  title={t("systemSettings.beeArgsSection.title")}
-                  description={t("systemSettings.beeArgsSection.description")}
-                >
-                  <EngineArgsSection
-                    engines={enabledEngines}
-                    value={beeArgs}
-                    onChange={edit(setPendingBeeArgs)}
-                    idPrefix="bee-args"
-                    disabled={saving}
-                  />
-                </SettingsRow>
-              </SettingsGroup>
-            </section>
-
-            {status === "error" && (
-              <Alert tone="danger" title={t("systemSettings.saveError")}>
-                {saveError}
-              </Alert>
-            )}
-
-            <div className="flex justify-end">
-              <Button type="submit" loading={saving} disabled={!dirty && status !== "error"}>
-                {status === "saved" ? (
-                  <>
-                    <Check size={16} strokeWidth={1.75} aria-hidden="true" />
-                    {t("systemSettings.saved")}
-                  </>
-                ) : (
-                  t("systemSettings.save")
-                )}
-              </Button>
+              <p className="text-sm text-secondary">{t("systemSettings.argsSection.description")}</p>
             </div>
-          </form>
-        )}
-      </div>
+            <SettingsGroup>
+              <SettingsRow
+                title={t("systemSettings.globalArgsSection.title")}
+                description={t("systemSettings.globalArgsSection.description")}
+              >
+                <EngineArgsSection
+                  engines={enabledEngines}
+                  value={globalArgs}
+                  onChange={edit(setPendingGlobalArgs)}
+                  idPrefix="global-args"
+                  disabled={saving}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title={t("systemSettings.beeArgsSection.title")}
+                description={t("systemSettings.beeArgsSection.description")}
+              >
+                <EngineArgsSection
+                  engines={enabledEngines}
+                  value={beeArgs}
+                  onChange={edit(setPendingBeeArgs)}
+                  idPrefix="bee-args"
+                  disabled={saving}
+                />
+              </SettingsRow>
+            </SettingsGroup>
+          </section>
+
+          {status === "error" && (
+            <Alert tone="danger" title={t("systemSettings.saveError")}>
+              {saveError}
+            </Alert>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="submit" loading={saving} disabled={!dirty && status !== "error"}>
+              {status === "saved" ? (
+                <>
+                  <Check size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {t("systemSettings.saved")}
+                </>
+              ) : (
+                t("systemSettings.save")
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
     </FadeIn>
   )
 }

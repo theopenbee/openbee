@@ -15,12 +15,7 @@
     "tasks": "Scheduled",
     "departments": "Departments",
     "digitalEmployees": "Digital Employees",
-    "settings": "Environment variables",
-    "systemSettings": "Settings",
-    "systemConfig": "System",
-    "collapseNav": "Collapse navigation",
-    "expandNav": "Expand navigation",
-    "plugins": "Plugins"
+    "settings": "Settings"
   },
   "common": {
     "save": "Save",
@@ -601,7 +596,7 @@
     "valueLengthSpace_other": "{{count}} characters. Starts or ends with a space."
   },
   "systemSettings": {
-    "title": "Settings",
+    "title": "System settings",
     "engineSection": {
       "title": "Default engine",
       "rowTitle": "New workers",
@@ -668,7 +663,6 @@
     "updateAvailable": "Installed v{{version}}, update available",
     "installDone": "{{name}} installed",
     "updateDone": "{{name}} updated to {{version}}",
-    "installGoConfigure": "Configure",
     "installFailed": "Could not install {{name}}: {{error}}",
     "uninstallDone": "{{name}} uninstalled",
     "uninstallFailed": "Could not uninstall {{name}}: {{error}}",

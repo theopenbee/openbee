@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { LoaderCircleIcon } from "lucide-react"
@@ -91,7 +90,6 @@ export function useNow(active: boolean, intervalMs = 1000): number {
 
 export function usePluginOperationToasts() {
   const { t, i18n } = useTranslation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const describe = (op: PluginOperation) => {
@@ -113,9 +111,7 @@ export function usePluginOperationToasts() {
       if (op.status === "succeeded" && update) {
         toast.success(t("plugins.updateDone", { name, version }))
       } else if (op.status === "succeeded") {
-        toast.success(t("plugins.installDone", { name }), op.plugin_id
-          ? { action: { label: t("plugins.installGoConfigure"), onClick: () => navigate(`/plugins/${op.plugin_id}`) } }
-          : undefined)
+        toast.success(t("plugins.installDone", { name }))
       } else {
         toast.error(t("plugins.installFailed", { name, error: op.error ?? "" }))
       }

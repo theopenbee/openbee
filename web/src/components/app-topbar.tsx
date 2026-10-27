@@ -1,11 +1,12 @@
 import { useEffect, useState, type CSSProperties } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { GithubIcon, MenuIcon } from "lucide-react"
+import { MenuIcon } from "lucide-react"
 import { Drawer, DrawerContent } from "@/components/arc/drawer/drawer"
 import { LogoFull } from "@/components/brand/logo"
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
+import { SettingsButton } from "@/components/settings/settings-button"
 import { cn } from "@/lib/utils"
 
 export function AppTopbar({ className }: { className?: string }) {
@@ -30,23 +31,13 @@ export function AppTopbar({ className }: { className?: string }) {
       <Link to="/" aria-label="OpenBee" className="flex items-center rounded-control">
         <LogoFull className="h-6 w-auto" />
       </Link>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1">
+        <SettingsButton />
         <NavUser align="end" />
       </div>
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerContent side="left" title={t("nav.menu", "Menu")} style={{ "--drawer-size": "min(18rem, calc(100vw - 3rem))" } as CSSProperties}>
-          <div className="grid gap-4">
-            <NavMain onNavigate={() => setOpen(false)} />
-            <a
-              href="https://github.com/theopenbee/openbee"
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-9 items-center gap-3 rounded-control px-3 text-sm text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
-            >
-              <GithubIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-              GitHub
-            </a>
-          </div>
+          <NavMain onNavigate={() => setOpen(false)} />
         </DrawerContent>
       </Drawer>
     </header>

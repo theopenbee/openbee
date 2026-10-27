@@ -1,9 +1,10 @@
-import { lazy, Suspense } from "react"
-import { HashRouter, Routes, Route } from "react-router-dom"
+import { lazy, Suspense, useEffect } from "react"
+import { HashRouter, Navigate, Routes, Route, useParams } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
 import { Toaster } from "@/components/toaster"
+import { useSettingsDialog, type SettingsSection } from "@/hooks/use-settings-dialog"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
@@ -16,10 +17,6 @@ const SessionDetail = lazy(() => import("@/pages/session-detail").then(m => ({ d
 const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
 const Tasks = lazy(() => import("@/pages/tasks").then(m => ({ default: m.Tasks })))
 const Departments = lazy(() => import("@/pages/departments").then(m => ({ default: m.Departments })))
-const Env = lazy(() => import("@/pages/env").then(m => ({ default: m.Settings })))
-const SystemSettings = lazy(() => import("@/pages/settings").then(m => ({ default: m.SystemSettings })))
-const Plugins = lazy(() => import("@/pages/plugins").then(m => ({ default: m.Plugins })))
-const PluginDetail = lazy(() => import("@/pages/plugin-detail").then(m => ({ default: m.PluginDetail })))
 const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
 
 const queryClient = new QueryClient({
@@ -30,6 +27,13 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+function SettingsRedirect({ section }: { section: SettingsSection }) {
+  const { id } = useParams()
+  const show = useSettingsDialog()
+  useEffect(() => show({ section, plugin: id }), [show, section, id])
+  return <Navigate to="/" replace />
+}
 
 export function App() {
   return (
@@ -50,10 +54,10 @@ export function App() {
               <Route path="/sessions/detail" element={<SessionDetail />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/chat" element={<LocalChat />} />
-              <Route path="/env" element={<Env />} />
-              <Route path="/settings" element={<SystemSettings />} />
-              <Route path="/plugins" element={<Plugins />} />
-              <Route path="/plugins/:id" element={<PluginDetail />} />
+              <Route path="/env" element={<SettingsRedirect section="env" />} />
+              <Route path="/settings" element={<SettingsRedirect section="system" />} />
+              <Route path="/plugins" element={<SettingsRedirect section="plugins" />} />
+              <Route path="/plugins/:id" element={<SettingsRedirect section="plugins" />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

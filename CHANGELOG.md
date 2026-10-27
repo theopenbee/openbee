@@ -7,9 +7,11 @@
 
 ### Changed
 - Redesign the web console on the Arc UI library.
+- Manage variables, settings and plugins in a settings dialog.
 
 ### Removed
 - Remove user and role management; keep one admin account.
+- Remove the GitHub link and sidebar collapse from the console.
 - Remove unused web username and password from config.
 - Remove CLI translations; the CLI is English only.
 

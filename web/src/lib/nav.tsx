@@ -5,7 +5,6 @@ import {
   ClockIcon,
   LayoutDashboardIcon,
   MessageCircleIcon,
-  Settings2Icon,
 } from "lucide-react"
 
 export type NavSubDef = { titleKey: string; url: string; sectionKey?: string }
@@ -34,13 +33,4 @@ export const NAV: NavDef[] = [
   },
   { titleKey: "nav.sessions", url: "/sessions", icon: ActivityIcon },
   { titleKey: "nav.tasks", url: "/tasks", icon: ClockIcon },
-  {
-    titleKey: "nav.systemConfig",
-    icon: Settings2Icon,
-    items: [
-      { titleKey: "nav.settings", url: "/env" },
-      { titleKey: "nav.systemSettings", url: "/settings" },
-      { titleKey: "nav.plugins", url: "/plugins" },
-    ],
-  },
 ]
