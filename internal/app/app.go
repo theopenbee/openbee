@@ -202,7 +202,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc)
+	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc, s.taskStore)
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff, workerChats)
 
 	if err := legacyChat.Restore(context.Background(), s.userStore.AdminID); err != nil {

@@ -59,6 +59,7 @@ type workerDeleteEnv struct {
 	workers *store.WorkerStore
 	msgs    *store.MessageStore
 	chats   *store.LocalChatStore
+	tasks   *store.TaskStore
 	clear   *fakeClearer
 }
 
@@ -71,6 +72,7 @@ func newWorkerDeleteEnv(t *testing.T, cleaner func(env *workerDeleteEnv) WorkerC
 		workers: store.NewWorkerStore(db),
 		msgs:    store.NewMessageStore(db),
 		chats:   store.NewLocalChatStore(db),
+		tasks:   store.NewTaskStore(db),
 		clear:   &fakeClearer{},
 	}
 	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, env.workers, nil, nil, nil, nil, nil)
@@ -89,7 +91,7 @@ func (e *workerDeleteEnv) delete(id string) *httptest.ResponseRecorder {
 
 func TestDeleteWorkerRemovesChats(t *testing.T) {
 	env := newWorkerDeleteEnv(t, func(env *workerDeleteEnv) WorkerChatCleaner {
-		return localchat.NewChatCleanup(env.chats, env.clear)
+		return localchat.NewChatCleanup(env.chats, env.clear, env.tasks)
 	})
 	w, err := env.workers.Create(model.Worker{Name: "worker"})
 	require.NoError(t, err)
