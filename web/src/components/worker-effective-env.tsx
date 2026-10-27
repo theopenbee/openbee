@@ -13,9 +13,6 @@ const SOURCE_LABEL: Record<EnvSource, string> = {
   worker: "envConfig.sourceWorker",
 }
 
-const TH = "px-6 py-3 text-left text-xs font-normal text-secondary"
-const TD = "px-6 py-3"
-
 export function WorkerEffectiveEnv({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
   const { t } = useTranslation()
   const { data: globalEnvs = [], isLoading: globalLoading } = useEnvList("global")
@@ -49,28 +46,29 @@ export function WorkerEffectiveEnv({ workerId, departmentIds }: { workerId: stri
       ) : rows.length === 0 ? (
         <p className="px-6 pb-4 text-sm text-secondary">{t("envConfig.noEffective")}</p>
       ) : (
-        <div className="overflow-x-auto overscroll-x-contain">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-t border-border-subtle">
-                <th scope="col" className={TH}>{t("envConfig.key")}</th>
-                <th scope="col" className={TH}>{t("envConfig.masked")}</th>
-                <th scope="col" className={TH}>{t("envConfig.source")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(([key, { masked, source }]) => (
-                <tr key={key} className="border-t border-border-subtle">
-                  <td className={cn(TD, "font-mono break-all text-foreground")}>{key}</td>
-                  <td className={cn(TD, "font-mono break-all text-secondary")}>{masked}</td>
-                  <td className={cn(TD, "whitespace-nowrap", source === "worker" ? "font-medium text-foreground" : "text-secondary")}>
-                    {t(SOURCE_LABEL[source])}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul>
+          {rows.map(([key, { masked, source }]) => (
+            <li
+              key={key}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 border-t border-border-subtle px-6 py-3"
+            >
+              <span className="font-mono text-sm break-all text-foreground">{key}</span>
+              <span
+                className={cn(
+                  "text-xs whitespace-nowrap",
+                  source === "worker" ? "font-medium text-foreground" : "text-secondary",
+                )}
+              >
+                <span className="sr-only">{t("envConfig.source")}: </span>
+                {t(SOURCE_LABEL[source])}
+              </span>
+              <span className="col-span-2 font-mono text-xs break-all text-secondary">
+                <span className="sr-only">{t("envConfig.masked")}: </span>
+                {masked}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </Panel>
   )
