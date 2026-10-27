@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { KeyRoundIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
+import { PresenceContext } from "motion/react"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { navActiveClass, navItemClass } from "@/components/nav-main"
 import { SettingsDialogContext, type SettingsSection, type SettingsTarget } from "@/hooks/use-settings-dialog"
@@ -93,9 +94,11 @@ function SettingsDialog({
             key={`${current.id}:${target.plugin ?? ""}`}
             className="@container min-h-0 min-w-0 flex-1 overflow-y-auto p-6"
           >
-            <Suspense fallback={null}>
-              <SectionBody target={target} />
-            </Suspense>
+            <PresenceContext.Provider value={null}>
+              <Suspense fallback={null}>
+                <SectionBody target={target} />
+              </Suspense>
+            </PresenceContext.Provider>
           </div>
         </div>
       </DialogContent>

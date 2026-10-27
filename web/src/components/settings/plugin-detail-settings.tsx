@@ -186,7 +186,7 @@ export function PluginDetailSettings({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_17rem] @3xl:items-start">
+      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:items-start">
         <div className="grid min-w-0 gap-6">
           {d.has_setup && (
             <section className="flex flex-wrap items-center justify-between gap-4 rounded-inset border border-border bg-surface px-6 py-5">
