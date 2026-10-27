@@ -34,6 +34,10 @@ const DIALOG_STYLE: CSSProperties = {
   overflow: "hidden",
 }
 
+function revealNavItem(node: HTMLButtonElement | null) {
+  node?.scrollIntoView({ block: "nearest", inline: "nearest" })
+}
+
 export function SettingsDialogProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [target, setTarget] = useState<SettingsTarget>({ section: "env" })
@@ -78,13 +82,14 @@ function SettingsDialog({
         <div className="-m-6 flex h-[calc(100%+3rem)] flex-col md:flex-row">
           <nav
             aria-label={t("nav.settings")}
-            className="flex shrink-0 gap-1 overflow-x-auto border-b border-border-subtle px-4 py-3 md:w-56 md:flex-col md:gap-0.5 md:overflow-visible md:border-r md:border-b-0 md:p-4"
+            className="flex shrink-0 scroll-px-4 gap-1 overflow-x-auto border-b border-border-subtle px-4 py-3 md:w-56 md:flex-col md:gap-0.5 md:overflow-visible md:border-r md:border-b-0 md:p-4"
           >
             {SECTIONS.map(({ id, titleKey, icon: Icon }) => {
               const active = id === current.id
               return (
                 <button
                   key={id}
+                  ref={active ? revealNavItem : undefined}
                   type="button"
                   aria-current={active ? "page" : undefined}
                   onClick={() => onNavigate({ section: id })}
