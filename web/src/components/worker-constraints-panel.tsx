@@ -109,7 +109,7 @@ export function WorkerConstraintsPanel({ worker }: { worker: Worker }) {
           <p className="text-sm text-secondary tabular">
             {t("workerDetail.constraintsPanel.charCount", { count: constraints.length })}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             <CopyButton value={constraints} />
             <Button size="sm" variant="secondary" onClick={() => startEditing(constraints)}>
               <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
