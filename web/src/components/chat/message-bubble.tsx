@@ -110,16 +110,14 @@ export const MessageBubble = memo(function MessageBubble({
             <Attachments paths={mediaPaths} hasContent={hasContent} isUser={false} />
 
             {hasContent && (
-              <>
-                <div className="w-full min-w-0">
-                  <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
-                    <ChatMarkdown breaks>{message.content}</ChatMarkdown>
-                  </ExpandableContent>
-                </div>
-                <div className={cn("-mb-1 -ml-2.5 flex", COPY_REVEAL)}>
+              <div className="relative w-full min-w-0">
+                <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
+                  <ChatMarkdown breaks>{message.content}</ChatMarkdown>
+                </ExpandableContent>
+                <span className={cn("absolute -top-1.5 right-full mr-0.5 inline-flex", COPY_REVEAL)}>
                   <CopyButton value={message.content} label={t("chat.copyMessage")} />
-                </div>
-              </>
+                </span>
+              </div>
             )}
           </>
         )}
