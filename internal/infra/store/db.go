@@ -567,6 +567,21 @@ UPDATE bee_outbound_messages
                 WHERE w.id = bee_outbound_messages.source_id
                   AND substr(bee_outbound_messages.content, 1, length(w.name) + 1) = w.name || char(10));`,
 	},
+	{
+		version: 58,
+		name:    "seed_local_bee_read_marks",
+		sql: `INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at)
+SELECT DISTINCT substr(session_key, 7), 'bee', CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)
+  FROM (SELECT session_key FROM bee_platform_messages
+        UNION
+        SELECT session_key FROM bee_outbound_messages)
+ WHERE substr(session_key, 1, 6) = 'local:'
+   AND length(session_key) > 6
+   AND instr(substr(session_key, 7), ':') = 0
+   AND session_key <> 'local:default'
+ON CONFLICT(user_id, conversation_id) DO UPDATE
+   SET last_read_at = MAX(last_read_at, excluded.last_read_at)`,
+	},
 }
 
 type whereBuilder struct {

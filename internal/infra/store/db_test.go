@@ -1,9 +1,13 @@
 package store
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -181,6 +185,7 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	// bee_outbound_messages is required by migration 34 (index on sent_at).
 	_, err = db.Exec(`CREATE TABLE bee_outbound_messages (
 		id          TEXT PRIMARY KEY,
+		session_key TEXT NOT NULL DEFAULT '',
 		sent_at     INTEGER NOT NULL,
 		platform    TEXT NOT NULL DEFAULT '',
 		content     TEXT NOT NULL DEFAULT '',
@@ -427,6 +432,64 @@ func TestMigrationSplitsLocalWorkerSessions(t *testing.T) {
 		var got string
 		require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_tasks WHERE id = ?`, id).Scan(&got))
 		assert.Equal(t, want, got, id)
+	}
+}
+
+func localReadMarks(t *testing.T, db *sql.DB) map[string]int64 {
+	t.Helper()
+	rows, err := db.Query(`SELECT user_id, last_read_at FROM bee_local_reads WHERE conversation_id = 'bee'`)
+	require.NoError(t, err)
+	defer rows.Close()
+	marks := make(map[string]int64)
+	for rows.Next() {
+		var userID string
+		var ts int64
+		require.NoError(t, rows.Scan(&userID, &ts))
+		marks[userID] = ts
+	}
+	require.NoError(t, rows.Err())
+	return marks
+}
+
+func TestMigrationSeedsLocalBeeReadMarks(t *testing.T) {
+	db := openPreMigrationDB(t, 58)
+	old := time.Now().Add(-time.Minute).UnixMilli()
+	for _, q := range []string{
+		fmt.Sprintf(`INSERT INTO bee_platform_messages (id, session_key, platform, content, raw, platform_msg_id, received_at, created_at, updated_at) VALUES
+			('m-u1','local:u1','local','hi','','',%[1]d,1,1),
+			('m-u4','local:u4','local','hi','','',%[1]d,1,1),
+			('m-default','local:default','local','hi','','',%[1]d,1,1),
+			('m-tg','telegram:1:2','telegram','hi','','',%[1]d,1,1)`, old),
+		fmt.Sprintf(`INSERT INTO bee_outbound_messages (id, session_key, platform, content, source_type, source_id, sent_at, created_at) VALUES
+			('o-u1-bee','local:u1','local','reply','bee','',%[1]d,1),
+			('o-u1-worker','local:u1','local','done','worker','w1',%[1]d,1),
+			('o-u2','local:u2','local','reply','bee','',%[1]d,1),
+			('o-u3-chat','local:u3:worker:w1','local','done','worker','w1',%[1]d,1),
+			('o-default','local:default','local','reply','bee','',%[1]d,1),
+			('o-tg','telegram:1:2','telegram','reply','bee','',%[1]d,1)`, old),
+		`INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at) VALUES ('u2','bee',5), ('u1','worker:w1',7)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+	before := time.Now().UnixMilli()
+
+	require.NoError(t, migrate(db))
+
+	marks := localReadMarks(t, db)
+	assert.ElementsMatch(t, []string{"u1", "u2", "u4"}, slices.Collect(maps.Keys(marks)))
+	for userID, ts := range marks {
+		assert.GreaterOrEqual(t, ts, before, userID)
+		assert.LessOrEqual(t, ts, time.Now().UnixMilli(), userID)
+	}
+	var workerMark int64
+	require.NoError(t, db.QueryRow(`SELECT last_read_at FROM bee_local_reads WHERE user_id = 'u1' AND conversation_id = 'worker:w1'`).Scan(&workerMark))
+	assert.Equal(t, int64(7), workerMark)
+	chats := NewLocalChatStore(db)
+	for _, userID := range []string{"u1", "u2"} {
+		unread, err := chats.UnreadCount(context.Background(), "local:"+userID, marks[userID])
+		require.NoError(t, err)
+		assert.Zero(t, unread, userID)
 	}
 }
 

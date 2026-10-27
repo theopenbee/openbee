@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -387,6 +388,32 @@ func TestSessionStore_ClaimSessionKey_KeepsFirstOwnerAndResweeps(t *testing.T) {
 	var key string
 	require.NoError(t, db.QueryRow(`SELECT session_key FROM bee_outbound_messages WHERE id = 'late'`).Scan(&key))
 	assert.Equal(t, "local:first", key)
+}
+
+func TestSessionStore_ClaimSessionKey_MarksAdoptedBeeHistoryRead(t *testing.T) {
+	db, ss := setupSessionDB(t)
+	ctx := context.Background()
+	old := time.Now().Add(-time.Hour).UnixMilli()
+	_, err := db.Exec(`INSERT INTO bee_outbound_messages (id, session_key, platform, content, status, sent_at, created_at)
+		 VALUES ('out-old', 'local:default', 'local', 'hello', 'sent', ?, ?)`, old, old)
+	require.NoError(t, err)
+	chats := store.NewLocalChatStore(db)
+	before := time.Now().UnixMilli()
+
+	_, err = ss.ClaimSessionKey(ctx, "local:default", "local:u1")
+	require.NoError(t, err)
+	_, err = ss.ClaimSessionKey(ctx, "local:other", "local:u2")
+	require.NoError(t, err)
+
+	marks, err := chats.ReadMarks(ctx, "u1")
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, marks["bee"], before)
+	unread, err := chats.UnreadCount(ctx, "local:u1", marks["bee"])
+	require.NoError(t, err)
+	assert.Zero(t, unread)
+	marks, err = chats.ReadMarks(ctx, "u2")
+	require.NoError(t, err)
+	assert.Empty(t, marks, "a claim that adopts no history must not mark anything read")
 }
 
 func sessionKeysFor(t *testing.T, db *sql.DB, query string, args ...any) []string {

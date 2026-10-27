@@ -185,13 +185,34 @@ func (s *SessionStore) ClaimSessionKey(ctx context.Context, from, to string) (st
 		return "", err
 	}
 
+	var adopted int64
 	for _, q := range []string{
 		`UPDATE bee_platform_messages SET session_key = ? WHERE session_key = ?`,
 		`UPDATE bee_outbound_messages SET session_key = ? WHERE session_key = ?`,
+	} {
+		res, err := tx.ExecContext(ctx, q, owner, from)
+		if err != nil {
+			return "", err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return "", err
+		}
+		adopted += n
+	}
+	for _, q := range []string{
 		`UPDATE OR IGNORE bee_session_contexts SET session_key = ? WHERE session_key = ?`,
 		`UPDATE OR IGNORE bee_constraints SET scope = ? WHERE scope = ?`,
 	} {
 		if _, err := tx.ExecContext(ctx, q, owner, from); err != nil {
+			return "", err
+		}
+	}
+	if adopted > 0 {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT OR IGNORE INTO bee_local_reads (user_id, conversation_id, last_read_at) VALUES (substr(?, 7), 'bee', ?)`,
+			owner, time.Now().UnixMilli(),
+		); err != nil {
 			return "", err
 		}
 	}
