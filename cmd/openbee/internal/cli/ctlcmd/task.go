@@ -2,20 +2,18 @@ package ctlcmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newTaskCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlTask
 	cmd := &cobra.Command{
 		Use:   "task",
-		Short: subs.Short,
+		Short: "Manage tasks",
 	}
 	cmd.AddCommand(
-		newTaskListCommand(run, subs.Sub("list")),
-		newTaskCreateCommand(run, subs.Sub("create")),
-		newTaskCancelCommand(run, subs.Sub("cancel")),
+		newTaskListCommand(run, "List tasks (requires --session-key, --message-id, or --worker-id)"),
+		newTaskCreateCommand(run, "Create a task"),
+		newTaskCancelCommand(run, "Cancel a pending or running task"),
 	)
 	return cmd
 }

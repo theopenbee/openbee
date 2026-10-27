@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 //go:embed templates/launchd.plist.tmpl
@@ -53,7 +51,7 @@ func (m darwinManager) Install(ctx context.Context, opts InstallOptions) error {
 		return err
 	}
 	if _, err := os.Stat(pp); err == nil && !opts.Force {
-		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
+		return errors.New("service already installed; pass --force to overwrite or run 'openbee service uninstall' first")
 	}
 	if err := os.MkdirAll(filepath.Dir(pp), 0o755); err != nil {
 		return err

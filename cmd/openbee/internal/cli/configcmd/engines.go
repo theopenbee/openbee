@@ -4,36 +4,22 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync"
 
 	"github.com/AlecAivazis/survey/v2"
 	ai "github.com/theopenbee/openbee/internal/ai"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/skillinstall"
 )
 
 type engineMapping struct{ name, label string }
 
-var (
-	engineMappingsOnce  sync.Once
-	engineMappingsCache []engineMapping
-)
-
-// engineMappings returns the (name, label) table for all known engines, computed
-// once after i18n has been loaded.
-func engineMappings() []engineMapping {
-	engineMappingsOnce.Do(func() {
-		engineMappingsCache = []engineMapping{
-			{ai.EngineClaude, i18n.M.Prompt.OptionEngineClaude},
-			{ai.EngineCodex, i18n.M.Prompt.OptionEngineCodex},
-			{ai.EnginePi, i18n.M.Prompt.OptionEnginePi},
-		}
-	})
-	return engineMappingsCache
+var engineMappings = []engineMapping{
+	{ai.EngineClaude, "Claude Code"},
+	{ai.EngineCodex, "Codex"},
+	{ai.EnginePi, "Pi"},
 }
 
 func engineLabel(name string) string {
-	for _, m := range engineMappings() {
+	for _, m := range engineMappings {
 		if m.name == name {
 			return m.label
 		}
@@ -42,7 +28,7 @@ func engineLabel(name string) string {
 }
 
 func engineName(label string) string {
-	for _, m := range engineMappings() {
+	for _, m := range engineMappings {
 		if m.label == label {
 			return m.name
 		}
@@ -70,13 +56,13 @@ func executablePathValidator(val any) error {
 	path, _ := val.(string)
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf(i18n.M.Validate.FileNotFound, path)
+		return fmt.Errorf("file not found: %s", path)
 	}
 	if info.IsDir() {
-		return fmt.Errorf(i18n.M.Validate.PathIsDir, path)
+		return fmt.Errorf("path is a directory, not a file: %s", path)
 	}
 	if info.Mode()&0111 == 0 {
-		return fmt.Errorf(i18n.M.Validate.FileNotExec, path)
+		return fmt.Errorf("file is not executable: %s", path)
 	}
 	return nil
 }
@@ -84,17 +70,17 @@ func executablePathValidator(val any) error {
 func installBuiltinSkills() {
 	results, err := skillinstall.InstallSkillsToDefaults()
 	if err != nil {
-		fmt.Printf(i18n.M.Output.Config.SkillsInstallWarning+"\n", err)
+		fmt.Printf("skills install warning (skipped): %v\n", err)
 		return
 	}
 	for _, r := range results {
 		switch r.Action {
 		case skillinstall.ActionInstalled:
-			fmt.Printf(i18n.M.Output.Config.SkillInstalled+"\n", r.Name)
+			fmt.Printf("skill %s installed\n", r.Name)
 		case skillinstall.ActionUpdated:
-			fmt.Printf(i18n.M.Output.Config.SkillUpdated+"\n", r.Name)
+			fmt.Printf("skill %s updated\n", r.Name)
 		case skillinstall.ActionUpToDate:
-			fmt.Printf(i18n.M.Output.Config.SkillUpToDate+"\n", r.Name)
+			fmt.Printf("skill %s up to date (skipped)\n", r.Name)
 		}
 	}
 }

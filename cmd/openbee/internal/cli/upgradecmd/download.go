@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 const maxDownloadBytes = 512 * 1024 * 1024 // 512 MiB guard against runaway responses
@@ -102,7 +100,7 @@ func fetchVerifiedArchive(relBase, archiveName, dir string) (string, error) {
 		return "", fmt.Errorf("download: %w", err)
 	}
 
-	fmt.Println(i18n.M.Output.Upgrade.Verifying)
+	fmt.Println("Verifying SHA256...")
 	checksums, err := os.ReadFile(checksumPath)
 	if err != nil {
 		return "", fmt.Errorf("read checksums: %w", err)
@@ -110,6 +108,6 @@ func fetchVerifiedArchive(relBase, archiveName, dir string) (string, error) {
 	if err := verifyChecksum(checksums, archiveName, h.Sum(nil)); err != nil {
 		return "", err
 	}
-	fmt.Println(i18n.M.Output.Upgrade.Verified)
+	fmt.Println("SHA256 verified.")
 	return archivePath, nil
 }

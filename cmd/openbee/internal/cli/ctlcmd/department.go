@@ -2,22 +2,20 @@ package ctlcmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newDepartmentCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlDepartment
 	cmd := &cobra.Command{
 		Use:   "department",
-		Short: subs.Short,
+		Short: "Manage departments",
 	}
 	cmd.AddCommand(
-		newDepartmentListCommand(run, subs.Sub("list")),
-		newDepartmentGetCommand(run, subs.Sub("get")),
-		newDepartmentCreateCommand(run, subs.Sub("create")),
-		newDepartmentUpdateCommand(run, subs.Sub("update")),
-		newDepartmentDeleteCommand(run, subs.Sub("delete")),
+		newDepartmentListCommand(run, "List all departments (tree structure)"),
+		newDepartmentGetCommand(run, "Get a department by ID or name"),
+		newDepartmentCreateCommand(run, "Create a new department"),
+		newDepartmentUpdateCommand(run, "Update a department (patch: omitted fields unchanged)"),
+		newDepartmentDeleteCommand(run, "Delete a department"),
 	)
 	return cmd
 }

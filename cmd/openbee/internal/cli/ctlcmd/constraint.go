@@ -2,20 +2,18 @@ package ctlcmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newConstraintCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlConstraint
 	cmd := &cobra.Command{
 		Use:   "constraint",
-		Short: subs.Short,
+		Short: "Manage constraint entries",
 	}
 	cmd.AddCommand(
-		newConstraintGetCommand(run, subs.Sub("get")),
-		newConstraintSaveCommand(run, subs.Sub("save")),
-		newConstraintDeleteCommand(run, subs.Sub("delete")),
+		newConstraintGetCommand(run, "Read constraint entries (omit --key to list all in scope)"),
+		newConstraintSaveCommand(run, "Save or update a constraint entry"),
+		newConstraintDeleteCommand(run, "Delete a constraint entry"),
 	)
 	return cmd
 }

@@ -5,20 +5,18 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newMessageCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlMessage
 	cmd := &cobra.Command{
 		Use:   "message",
-		Short: subs.Short,
+		Short: "Send messages to platform users",
 	}
 	cmd.AddCommand(
-		newMessageSendCommand(run, subs.Sub("send")),
-		newMessageListCommand(run, subs.Sub("list"), false),
-		newMessageListCommand(run, subs.Sub("list-outbound"), true),
+		newMessageSendCommand(run, "Send a message to the user on the originating platform"),
+		newMessageListCommand(run, "List platform messages with optional filters", false),
+		newMessageListCommand(run, "List outbound (sent) messages with optional filters", true),
 	)
 	return cmd
 }

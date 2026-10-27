@@ -12,47 +12,26 @@ import (
 func TestLoad_zh(t *testing.T) {
 	require.NoError(t, i18n.Load("zh"))
 	require.NotNil(t, i18n.M)
-	assert.NotEmpty(t, i18n.M.Cmd.Root.Short)
-	assert.NotEmpty(t, i18n.M.Prompt.ServerPort)
+	assert.NotEmpty(t, i18n.M.Runtime.StatusCommand.Usage)
+	assert.NotEmpty(t, i18n.M.Runtime.FailureNotifier.TaskFailed)
 }
 
 func TestLoad_en(t *testing.T) {
 	require.NoError(t, i18n.Load("en"))
-	assert.Equal(t, "OpenBee core service", i18n.M.Cmd.Root.Short)
-	assert.Equal(t, "Server port:", i18n.M.Prompt.ServerPort)
-	got := i18n.M.Cmd.CtlWorker.Sub("list")
-	assert.Equal(t, "List all workers", got)
-	assert.Equal(t, "Manage departments", i18n.M.Cmd.CtlDepartment.Short)
+	assert.NotEmpty(t, i18n.M.Runtime.StatusCommand.Usage)
+	assert.NotEmpty(t, i18n.M.Runtime.FailureNotifier.TaskFailed)
 }
 
-func TestLoad_unsupported_fallbacks_to_zh(t *testing.T) {
-	// load zh as baseline
+func TestLoad_unsupportedFallsBackToEn(t *testing.T) {
+	require.NoError(t, i18n.Load("en"))
+	enUsage := i18n.M.Runtime.StatusCommand.Usage
+
 	require.NoError(t, i18n.Load("zh"))
-	zhShort := i18n.M.Cmd.Root.Short
+	require.NotEqual(t, enUsage, i18n.M.Runtime.StatusCommand.Usage)
 
-	// loading an unsupported language should fall back to zh
 	require.NoError(t, i18n.Load("fr"))
-	assert.Equal(t, zhShort, i18n.M.Cmd.Root.Short, "fallback to zh")
-}
+	assert.Equal(t, enUsage, i18n.M.Runtime.StatusCommand.Usage)
 
-func TestSupportedLangs(t *testing.T) {
-	assert.GreaterOrEqual(t, len(i18n.SupportedLangs), 2)
-}
-
-func TestLoad_pluginMessages(t *testing.T) {
-	for _, lang := range []string{"en", "zh"} {
-		require.NoError(t, i18n.Load(lang))
-		p := i18n.M.Output.Plugin
-		for name, v := range map[string]string{
-			"install_ok": p.InstallOK, "trust_warning": p.TrustWarning, "configure_hint": p.ConfigureHint,
-			"not_running": p.NotRunning, "agent_environment": p.AgentEnvironment, "running": p.States["running"],
-			"list_header": p.ListHeader, "list_empty": p.ListEmpty, "removed": p.Removed,
-		} {
-			assert.NotEmpty(t, v, "%s %s", lang, name)
-		}
-		for _, sub := range []string{"search", "install", "configure", "list", "enable", "disable", "restart", "update", "remove"} {
-			assert.NotEmpty(t, i18n.M.Cmd.Plugin.Sub(sub), "%s %s", lang, sub)
-		}
-		assert.NotEmpty(t, i18n.M.Cmd.Plugin.Short, lang)
-	}
+	require.NoError(t, i18n.Load(""))
+	assert.Equal(t, enUsage, i18n.M.Runtime.StatusCommand.Usage)
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/plugin"
 	"github.com/theopenbee/openbee/internal/plugin/catalog"
 )
@@ -84,7 +83,6 @@ func TestResolveSpec_DoesNotLoadCatalogForExplicitSpecs(t *testing.T) {
 }
 
 func TestInstallAll_SequentialWithSummary(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	api := newFakeAPI()
 	api.failInstall["@theopenbee/channel-dingtalk@0.1.0"] = "npm error ETARGET"
 	c := api.client(t)
@@ -108,15 +106,13 @@ func TestWaitOperation_Timeout(t *testing.T) {
 
 func runCmd(t *testing.T, api *fakeAPI, p Prompter, args ...string) (string, error) {
 	t.Helper()
-	require.NoError(t, i18n.Load("en"))
 	var out bytes.Buffer
 	cmd := newCommand(deps{
 		Out:        &out,
 		Prompter:   p,
-		Lang:       "en",
 		Interval:   time.Millisecond,
 		NewClient:  func(string) (*Client, error) { return api.client(t), nil },
-		RunSetup:   func(string, string) (map[string]any, error) { return nil, errors.New("no setup in tests") },
+		RunSetup:   func(string) (map[string]any, error) { return nil, errors.New("no setup in tests") },
 		Getenv:     noEnv,
 		OpTimeout:  time.Second,
 		RunTimeout: 200 * time.Millisecond,
@@ -193,7 +189,6 @@ func TestUpdate_NothingToUpdate(t *testing.T) {
 }
 
 func TestResolveSpec_ErrorMessagesAreNotDuplicated(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	_, err := resolveSpec("telegramx", staticCatalog(testCatalog(), nil), os.Stat)
 	assert.Equal(t, "telegramx is not in the plugin catalog; to install the npm package with that name use npm:telegramx", err.Error())
 

@@ -13,7 +13,6 @@ import (
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/plugincmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/servicecmd"
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/upgradecmd"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // BuildInfo holds build-time metadata injected via -ldflags.
@@ -23,12 +22,11 @@ type BuildInfo struct {
 	Date    string
 }
 
-// NewRoot constructs the openbee root cobra command. It assumes i18n has already
-// been loaded by the caller so that translated short/long fields are available.
+// NewRoot constructs the openbee root cobra command.
 func NewRoot(info BuildInfo) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "openbee",
-		Short:         i18n.M.Cmd.Root.Short,
+		Short:         "OpenBee core service",
 		Version:       info.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,

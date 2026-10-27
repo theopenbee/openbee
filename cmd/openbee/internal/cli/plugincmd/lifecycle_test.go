@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
@@ -103,13 +101,12 @@ func TestRemove_NonInteractiveNeedsYes(t *testing.T) {
 
 func runWithDeps(t *testing.T, d deps, args ...string) (string, error) {
 	t.Helper()
-	require.NoError(t, i18n.Load("en"))
 	var out bytes.Buffer
 	d.Out = &out
 	if d.Prompter == nil {
 		d.Prompter = &fakePrompter{}
 	}
-	d.Lang, d.Interval, d.OpTimeout, d.RunTimeout = "en", time.Millisecond, time.Second, 100*time.Millisecond
+	d.Interval, d.OpTimeout, d.RunTimeout = time.Millisecond, time.Second, 100*time.Millisecond
 	if d.Getenv == nil {
 		d.Getenv = noEnv
 	}
@@ -185,10 +182,4 @@ func TestInstallByIDWhenOpenbeeIsDown(t *testing.T) {
 	_, err := runWithDeps(t, d, "install", "lark")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "openbee server -d")
-}
-
-func TestLoadLanguageDefaultsToEnglish(t *testing.T) {
-	path := writeClientConfig(t, 12999, clientSecret)
-	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 1\n"), 0o600))
-	assert.Equal(t, i18n.LangEN, loadLanguage(path))
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
@@ -36,19 +35,19 @@ func parseSets(fields []plugin.ConfigField, sets []string) (map[string]any, erro
 	for _, set := range sets {
 		key, value, ok := strings.Cut(set, "=")
 		if !ok || key == "" {
-			return nil, fmt.Errorf(i18n.M.Output.Plugin.SetInvalid, set)
+			return nil, fmt.Errorf("invalid --set %q: expected key=value", set)
 		}
 		switch types[key] {
 		case plugin.FieldBool:
 			b, err := strconv.ParseBool(value)
 			if err != nil {
-				return nil, fmt.Errorf(i18n.M.Output.Plugin.SetType, key, err)
+				return nil, fmt.Errorf("--set %s: %v", key, err)
 			}
 			out[key] = b
 		case plugin.FieldInt:
 			n, err := strconv.Atoi(value)
 			if err != nil {
-				return nil, fmt.Errorf(i18n.M.Output.Plugin.SetType, key, err)
+				return nil, fmt.Errorf("--set %s: %v", key, err)
 			}
 			out[key] = n
 		case plugin.FieldList:
@@ -99,29 +98,28 @@ func textDefault(v any) string {
 	return fmt.Sprint(v)
 }
 
-func fieldLabel(f plugin.ConfigField, lang string) string {
-	if l := f.Label.Get(lang); l != "" {
+func fieldLabel(f plugin.ConfigField) string {
+	if l := f.Label.Get(cliLang); l != "" {
 		return l
 	}
 	return f.Key
 }
 
-func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang string) (map[string]any, error), out io.Writer) (*string, map[string]any, error) {
-	m := i18n.M.Output.Plugin
+func collectSettings(d Detail, p Prompter, runSetup func(path string) (map[string]any, error), out io.Writer) (*string, map[string]any, error) {
 	cfg := map[string]any{}
 	if d.HasSetup {
-		label := d.SetupLabel.Get(lang)
+		label := d.SetupLabel.Get(cliLang)
 		if label == "" {
-			label = i18n.M.Prompt.PluginSetup
+			label = "setup"
 		}
-		run, err := p.Confirm(fmt.Sprintf(m.SetupRun, label), missingRequired(d))
+		run, err := p.Confirm(fmt.Sprintf("Run %s now?", label), missingRequired(d))
 		if err != nil {
 			return nil, nil, err
 		}
 		if run {
-			values, err := runSetup(d.Path, lang)
+			values, err := runSetup(d.Path)
 			if err != nil {
-				fmt.Fprintf(out, m.SetupFailed+"\n", label, err)
+				fmt.Fprintf(out, "%s failed: %v. Enter the settings manually.\n", label, err)
 			}
 			for k, v := range values {
 				cfg[k] = v
@@ -132,14 +130,14 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 		if _, done := cfg[f.Key]; done {
 			continue
 		}
-		if err := askField(f, d.Config, p, lang, cfg, out); err != nil {
+		if err := askField(f, d.Config, p, cfg, out); err != nil {
 			return nil, nil, err
 		}
 	}
-	fmt.Fprintf(out, "  %s\n", m.BotNameHelp)
-	msg := m.BotNamePrompt
+	fmt.Fprintln(out, "  The name users @mention in group chats; leave empty for none.")
+	msg := "Bot name"
 	if d.BotName != "" {
-		msg = fmt.Sprintf(m.ClearHint, msg)
+		msg = fmt.Sprintf("%s (enter - to clear)", msg)
 	}
 	name, err := p.Input(msg, "", d.BotName, nil)
 	if err != nil {
@@ -156,23 +154,22 @@ func collectSettings(d Detail, p Prompter, lang string, runSetup func(path, lang
 
 const clearValue = "-"
 
-func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang string, cfg map[string]any, out io.Writer) error {
-	m := i18n.M.Output.Plugin
+func askField(f plugin.ConfigField, config map[string]any, p Prompter, cfg map[string]any, out io.Writer) error {
 	current, present := config[f.Key]
 	hasCur := present && hasValue(current)
-	label := fieldLabel(f, lang)
-	if help := f.Help.Get(lang); help != "" {
+	label := fieldLabel(f)
+	if help := f.Help.Get(cliLang); help != "" {
 		fmt.Fprintf(out, "  %s\n", help)
 	}
 	withDefault := func(msg string) string {
 		if !present && f.Default != nil {
-			return fmt.Sprintf(m.WithDefault, msg, textDefault(f.Default))
+			return fmt.Sprintf("%s (default %s)", msg, textDefault(f.Default))
 		}
 		return msg
 	}
 	withClear := func(msg, def string) string {
 		if def != "" {
-			return fmt.Sprintf(m.ClearHint, msg)
+			return fmt.Sprintf("%s (enter - to clear)", msg)
 		}
 		return msg
 	}
@@ -180,7 +177,7 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 	case plugin.FieldSecret:
 		msg := label
 		if hasCur {
-			msg = fmt.Sprintf(m.KeepSecret, label, current)
+			msg = fmt.Sprintf("%s (press Enter to keep %s)", label, current)
 		}
 		for {
 			v, err := p.Password(msg, "")
@@ -194,7 +191,7 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 			if hasCur || !f.Required {
 				return nil
 			}
-			fmt.Fprintf(out, m.FieldRequired+"\n", label)
+			fmt.Fprintf(out, "%s is required\n", label)
 		}
 	case plugin.FieldBool:
 		def, _ := current.(bool)
@@ -217,7 +214,7 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 				return nil
 			}
 			if _, err := strconv.Atoi(s); err != nil {
-				return errors.New(m.IntInvalid)
+				return errors.New("Enter a whole number")
 			}
 			return nil
 		})
@@ -234,7 +231,7 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 		}
 	case plugin.FieldList:
 		def := textDefault(current)
-		v, err := p.Input(withClear(fmt.Sprintf(m.ListPrompt, label), def), "", def, nil)
+		v, err := p.Input(withClear(fmt.Sprintf("%s (comma-separated)", label), def), "", def, nil)
 		if err != nil {
 			return err
 		}
@@ -256,7 +253,7 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 		required := f.Required && !hasCur
 		v, err := p.Input(withClear(withDefault(label), def), "", def, func(s string) error {
 			if required && (strings.TrimSpace(s) == "" || s == clearValue) {
-				return fmt.Errorf(m.FieldRequired, label)
+				return fmt.Errorf("%s is required", label)
 			}
 			return nil
 		})
@@ -276,7 +273,6 @@ func askField(f plugin.ConfigField, config map[string]any, p Prompter, lang stri
 }
 
 func waitRunning(ctx context.Context, c *Client, id string, out io.Writer, interval, timeout time.Duration) error {
-	m := i18n.M.Output.Plugin
 	deadline := time.Now().Add(timeout)
 	for {
 		d, err := c.Get(ctx, id)
@@ -285,13 +281,13 @@ func waitRunning(ctx context.Context, c *Client, id string, out io.Writer, inter
 		}
 		switch {
 		case d.State == "running":
-			fmt.Fprintf(out, m.Started+"\n", id)
+			fmt.Fprintf(out, "%s is running\n", id)
 			return nil
 		case d.State == "failed", d.State == "retrying" && d.Error != "":
-			return fmt.Errorf(m.StartFailed, id, d.Error)
+			return fmt.Errorf("%s failed to start: %s", id, d.Error)
 		}
 		if time.Now().After(deadline) {
-			fmt.Fprintf(out, m.StillStarting+"\n", id)
+			fmt.Fprintf(out, "%s is still starting; check later with openbee plugin list\n", id)
 			return nil
 		}
 		select {
@@ -308,10 +304,9 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 	var enable bool
 	cmd := &cobra.Command{
 		Use:   "configure <id>",
-		Short: i18n.M.Cmd.Plugin.Sub("configure"),
+		Short: "Configure a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m := i18n.M.Output.Plugin
 			id := args[0]
 			c, err := client()
 			if err != nil {
@@ -333,26 +328,26 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 				}
 			} else {
 				if !d.Prompter.Interactive() {
-					return errors.New(m.NeedTerminal)
+					return errors.New("Not running in a terminal; pass the settings with --set key=value (and --bot-name, --enable).")
 				}
-				if namePtr, cfg, err = collectSettings(detail, d.Prompter, d.Lang, d.RunSetup, d.Out); err != nil {
+				if namePtr, cfg, err = collectSettings(detail, d.Prompter, d.RunSetup, d.Out); err != nil {
 					return err
 				}
 			}
 			if err := c.UpdateSettings(ctx, id, namePtr, cfg); err != nil {
 				return err
 			}
-			fmt.Fprintf(d.Out, m.Saved+"\n", id)
+			fmt.Fprintf(d.Out, "Saved settings of %s\n", id)
 			if detail.Enabled {
 				return waitRunning(ctx, c, id, d.Out, d.Interval, d.RunTimeout)
 			}
 			if !enable && d.Prompter.Interactive() && len(sets) == 0 && !cmd.Flags().Changed("bot-name") {
-				if enable, err = d.Prompter.Confirm(fmt.Sprintf(m.EnableNow, id), true); err != nil {
+				if enable, err = d.Prompter.Confirm(fmt.Sprintf("Enable %s now?", id), true); err != nil {
 					return err
 				}
 			}
 			if !enable {
-				fmt.Fprintf(d.Out, m.EnableLater+"\n", id)
+				fmt.Fprintf(d.Out, "Enable it later with: openbee plugin enable %s\n", id)
 				return nil
 			}
 			if err := c.Enable(ctx, id); err != nil {
@@ -361,9 +356,9 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 			return waitRunning(ctx, c, id, d.Out, d.Interval, d.RunTimeout)
 		},
 	}
-	cmd.Flags().StringArrayVar(&sets, "set", nil, i18n.M.Output.Plugin.SetFlag)
-	cmd.Flags().StringVar(&botName, "bot-name", "", i18n.M.Output.Plugin.BotNameFlag)
-	cmd.Flags().BoolVar(&enable, "enable", false, i18n.M.Output.Plugin.EnableFlag)
+	cmd.Flags().StringArrayVar(&sets, "set", nil, "Set a value without prompting, as key=value (repeatable)")
+	cmd.Flags().StringVar(&botName, "bot-name", "", "Bot name users @mention in group chats")
+	cmd.Flags().BoolVar(&enable, "enable", false, "Enable the plugin after saving")
 	return cmd
 }
 

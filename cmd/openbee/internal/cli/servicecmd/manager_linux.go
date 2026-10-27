@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func init() {
@@ -110,7 +108,7 @@ type linuxManager struct{}
 
 func NewManager() (Manager, error) {
 	if _, err := execLookPath("systemctl"); err != nil {
-		return nil, errors.New(i18n.M.Output.Service.SystemdUnavail)
+		return nil, errors.New("systemctl not found on this system; install systemd or use a distro that ships it")
 	}
 	return linuxManager{}, nil
 }
@@ -124,7 +122,7 @@ func (linuxManager) unitPath() string {
 // the user see one actionable error instead of a partial half-installed state.
 func preflightRoot() error {
 	if euid() != 0 {
-		return errors.New(i18n.M.Output.Service.MustBeRoot)
+		return errors.New("this command writes to /etc/systemd/system and must run as root; re-run with sudo")
 	}
 	return nil
 }
@@ -137,7 +135,7 @@ func (m linuxManager) Install(ctx context.Context, opts InstallOptions) error {
 	_, statErr := os.Stat(up)
 	overwroteExisting := statErr == nil
 	if overwroteExisting && !opts.Force {
-		return errors.New(i18n.M.Output.Service.AlreadyInstalled)
+		return errors.New("service already installed; pass --force to overwrite or run 'openbee service uninstall' first")
 	}
 	if err := os.MkdirAll(filepath.Dir(up), 0o755); err != nil {
 		return err

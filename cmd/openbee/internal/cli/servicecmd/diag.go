@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // verifyRunningTimeout bounds how long reportRunStateAfterStart waits for the
@@ -29,14 +27,14 @@ func reportRunStateAfterStart(ctx context.Context, mgr Manager, out io.Writer, l
 		return err
 	}
 	if st.RunState == RunStateRunning {
-		fmt.Fprintln(out, i18n.M.Output.Service.Started)
+		fmt.Fprintln(out, "service started")
 		if st.PID > 0 {
-			fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
+			fmt.Fprintf(out, "PID:       %d\n", st.PID)
 		}
 		return nil
 	}
 	printStartFailureDetails(out, st, logPath)
-	return errors.New(i18n.M.Output.Service.StartFailedSeeStatus)
+	return errors.New("service did not enter running state; run 'openbee service status' for details")
 }
 
 func waitRunning(ctx context.Context, mgr Manager, timeout time.Duration) (Status, error) {
@@ -62,26 +60,26 @@ func waitRunning(ctx context.Context, mgr Manager, timeout time.Duration) (Statu
 
 func printStartFailureDetails(out io.Writer, st Status, logPath string) {
 	if st.LastExitCode != "" {
-		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitCode+"\n", st.LastExitCode)
+		fmt.Fprintf(out, "Last exit code:   %s\n", st.LastExitCode)
 	}
 	if st.LastExitReason != "" {
-		fmt.Fprintf(out, i18n.M.Output.Service.StatusLastExitReason+"\n", st.LastExitReason)
+		fmt.Fprintf(out, "Last exit reason: %s\n", st.LastExitReason)
 	}
 	if logPath == "" {
 		return
 	}
-	fmt.Fprintf(out, i18n.M.Output.Service.StatusLogPath+"\n", logPath)
+	fmt.Fprintf(out, "Log file:         %s\n", logPath)
 	tail, err := tailFile(logPath, 64*1024, 20)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Fprintf(out, i18n.M.Output.Service.StatusLogReadFailed+"\n", err)
+			fmt.Fprintf(out, "(could not read log: %v)\n", err)
 		}
 		return
 	}
 	if tail == "" {
 		return
 	}
-	fmt.Fprintln(out, i18n.M.Output.Service.StatusLogTailHeader)
+	fmt.Fprintln(out, "Last log lines:")
 	fmt.Fprintln(out, tail)
 }
 

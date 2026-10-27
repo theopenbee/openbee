@@ -8,13 +8,11 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func stateLabel(state string) string {
-	if l := i18n.M.Output.Plugin.States[state]; l != "" {
-		return l
+	if state == "not_configured" {
+		return "not configured"
 	}
 	return state
 }
@@ -29,7 +27,7 @@ func displayVersion(v string) string {
 func (d *deps) newListCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: i18n.M.Cmd.Plugin.Sub("list"),
+		Short: "List installed plugins and their state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -40,19 +38,18 @@ func (d *deps) newListCommand(client func() (*Client, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			m := i18n.M.Output.Plugin
 			if len(list) == 0 {
-				fmt.Fprintln(d.Out, m.ListEmpty)
+				fmt.Fprintln(d.Out, "No channel plugins installed.")
 				return nil
 			}
 			w := tabwriter.NewWriter(d.Out, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, m.ListHeader)
+			fmt.Fprintln(w, "ID\tNAME\tVERSION\tSTATE\tBOT NAME")
 			for _, p := range list {
 				bot := p.BotName
 				if bot == "" {
 					bot = "-"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(d.Lang), displayVersion(p.Version), stateLabel(p.State), bot)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), displayVersion(p.Version), stateLabel(p.State), bot)
 			}
 			if err := w.Flush(); err != nil {
 				return err
@@ -70,7 +67,7 @@ func (d *deps) newListCommand(client func() (*Client, error)) *cobra.Command {
 func (d *deps) newEnableCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable <id>",
-		Short: i18n.M.Cmd.Plugin.Sub("enable"),
+		Short: "Enable a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -88,7 +85,7 @@ func (d *deps) newEnableCommand(client func() (*Client, error)) *cobra.Command {
 func (d *deps) newDisableCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable <id>",
-		Short: i18n.M.Cmd.Plugin.Sub("disable"),
+		Short: "Disable a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -98,7 +95,7 @@ func (d *deps) newDisableCommand(client func() (*Client, error)) *cobra.Command 
 			if err := c.Disable(cmd.Context(), args[0]); err != nil {
 				return err
 			}
-			fmt.Fprintf(d.Out, i18n.M.Output.Plugin.Disabled+"\n", args[0])
+			fmt.Fprintf(d.Out, "Disabled %s\n", args[0])
 			return nil
 		},
 	}
@@ -107,7 +104,7 @@ func (d *deps) newDisableCommand(client func() (*Client, error)) *cobra.Command 
 func (d *deps) newRestartCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart <id>",
-		Short: i18n.M.Cmd.Plugin.Sub("restart"),
+		Short: "Restart a plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -126,10 +123,9 @@ func (d *deps) newRemoveCommand(client func() (*Client, error)) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "remove <id>",
-		Short: i18n.M.Cmd.Plugin.Sub("remove"),
+		Short: "Remove a plugin with its settings and data",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m := i18n.M.Output.Plugin
 			id := args[0]
 			c, err := client()
 			if err != nil {
@@ -137,9 +133,9 @@ func (d *deps) newRemoveCommand(client func() (*Client, error)) *cobra.Command {
 			}
 			if !yes {
 				if !d.Prompter.Interactive() {
-					return errors.New(m.RemoveNeedsYes)
+					return errors.New("Not running in a terminal; pass --yes to confirm the removal.")
 				}
-				ok, err := d.Prompter.Confirm(fmt.Sprintf(m.RemoveConfirm, id), false)
+				ok, err := d.Prompter.Confirm(fmt.Sprintf("Remove %s? Its settings and data will be deleted.", id), false)
 				if err != nil || !ok {
 					return err
 				}
@@ -150,7 +146,7 @@ func (d *deps) newRemoveCommand(client func() (*Client, error)) *cobra.Command {
 			}
 			op, err = waitOperation(cmd.Context(), c, op.ID, d.Interval, d.OpTimeout)
 			if errors.Is(err, errOperationTimeout) {
-				fmt.Fprintf(d.Out, m.OpTimeout+"\n", id)
+				fmt.Fprintf(d.Out, "%s is still being processed; check later with openbee plugin list\n", id)
 				return nil
 			}
 			if err != nil {
@@ -159,16 +155,15 @@ func (d *deps) newRemoveCommand(client func() (*Client, error)) *cobra.Command {
 			if op.Status == "failed" {
 				return errors.New(op.Error)
 			}
-			fmt.Fprintf(d.Out, m.Removed+"\n", id)
+			fmt.Fprintf(d.Out, "Removed plugin %s\n", id)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, i18n.M.Output.Plugin.YesFlag)
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Remove without asking for confirmation")
 	return cmd
 }
 
 func friendlyError(err error, cfgPath string) error {
-	m := i18n.M.Output.Plugin
 	switch {
 	case err == nil:
 		return nil
@@ -177,15 +172,15 @@ func friendlyError(err error, cfgPath string) error {
 		if _, after, ok := strings.Cut(err.Error(), " at "); ok {
 			url = after
 		}
-		return fmt.Errorf(m.NotRunning, url)
+		return fmt.Errorf("openbee is not running at %s. Start it with: openbee server -d", url)
 	case errors.Is(err, errAgentEnvironment):
-		return errors.New(m.AgentEnvironment)
+		return errors.New("Plugin management is not available inside openbee agents.")
 	case errors.Is(err, errNoTokenSecret):
-		return fmt.Errorf(m.NoTokenSecret, cfgPath)
+		return fmt.Errorf("Set bee.rpc.token_secret in %s first, then restart openbee.", cfgPath)
 	}
 	var apiErr *APIError
 	if errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized {
-		return fmt.Errorf(m.Unauthorized, apiErr.URL, cfgPath)
+		return fmt.Errorf("openbee at %s rejected the CLI credentials. Make sure it runs with %s and was restarted after bee.rpc.token_secret changed.", apiErr.URL, cfgPath)
 	}
 	return err
 }

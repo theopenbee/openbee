@@ -3,23 +3,14 @@ package passwordcmd
 import (
 	"bytes"
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
-
-func TestMain(m *testing.M) {
-	if err := i18n.Load("en"); err != nil {
-		panic("i18n.Load: " + err.Error())
-	}
-	os.Exit(m.Run())
-}
 
 func noPrompt(t *testing.T) func() (string, error) {
 	return func() (string, error) {
@@ -100,7 +91,7 @@ func TestResetPassword_NoAdmin(t *testing.T) {
 
 	err := resetPassword(&bytes.Buffer{}, path, "new-secret", noPrompt(t))
 
-	require.EqualError(t, err, i18n.M.Output.Reset.NoAdmin)
+	require.EqualError(t, err, "No admin account yet. Open the web console to finish the first-run setup.")
 }
 
 func TestResetPassword_MissingDatabase(t *testing.T) {

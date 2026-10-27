@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 var (
@@ -42,21 +40,21 @@ func resolveSpec(arg string, loadCatalog func() (*Catalog, error), stat func(str
 		return arg, nil
 	}
 	if strings.ContainsRune(arg, '/') || strings.HasPrefix(arg, ".") {
-		return "", &resolveError{errNoSuchDirectory, fmt.Sprintf(i18n.M.Output.Plugin.NoSuchDirectory, arg)}
+		return "", &resolveError{errNoSuchDirectory, fmt.Sprintf("%s is not an existing directory; for a GitHub repository write github:owner/repo", arg)}
 	}
 	cat, err := loadCatalog()
 	if errors.Is(err, ErrNotRunning) {
 		return "", err
 	}
 	if err != nil {
-		return "", &resolveError{errCatalogRequired, fmt.Sprintf(i18n.M.Output.Plugin.CatalogRequired, arg, err)}
+		return "", &resolveError{errCatalogRequired, fmt.Sprintf("Cannot read the plugin catalog to find %s: %v", arg, err)}
 	}
 	for _, p := range cat.Plugins {
 		if p.ID == arg {
 			return p.Package + "@" + p.Version, nil
 		}
 	}
-	return "", &resolveError{errNotInCatalog, fmt.Sprintf(i18n.M.Output.Plugin.NotInCatalog, arg, arg)}
+	return "", &resolveError{errNotInCatalog, fmt.Sprintf("%s is not in the plugin catalog; to install the npm package with that name use npm:%s", arg, arg)}
 }
 
 func waitOperation(ctx context.Context, c *Client, id string, interval, timeout time.Duration) (Operation, error) {
@@ -81,11 +79,10 @@ func waitOperation(ctx context.Context, c *Client, id string, interval, timeout 
 }
 
 func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, interval, timeout time.Duration) ([]string, error) {
-	m := i18n.M.Output.Plugin
 	var installed []string
 	failed := 0
 	for _, spec := range specs {
-		fmt.Fprintf(out, m.Installing+"\n", spec)
+		fmt.Fprintf(out, "Installing %s ...\n", spec)
 		op, err := c.Install(ctx, spec)
 		if err == nil {
 			op, err = waitOperation(ctx, c, op.ID, interval, timeout)
@@ -93,23 +90,23 @@ func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, i
 		switch {
 		case errors.Is(err, errOperationTimeout):
 			failed++
-			fmt.Fprintf(out, m.OpTimeout+"\n", spec)
+			fmt.Fprintf(out, "%s is still being processed; check later with openbee plugin list\n", spec)
 		case err != nil:
 			failed++
-			fmt.Fprintf(out, m.InstallFailed+"\n", spec, err)
+			fmt.Fprintf(out, "Failed to install %s: %v\n", spec, err)
 		case op.Status == "failed":
 			failed++
-			fmt.Fprintf(out, m.InstallFailed+"\n", spec, op.Error)
+			fmt.Fprintf(out, "Failed to install %s: %v\n", spec, op.Error)
 		default:
 			installed = append(installed, op.PluginID)
-			fmt.Fprintf(out, m.InstallOK+"\n", op.PluginID)
+			fmt.Fprintf(out, "Installed %s\n", op.PluginID)
 		}
 	}
 	if len(specs) > 1 {
-		fmt.Fprintf(out, m.Summary+"\n", len(installed), failed)
+		fmt.Fprintf(out, "%d installed, %d failed\n", len(installed), failed)
 	}
 	if failed > 0 {
-		return installed, fmt.Errorf(m.Summary, len(installed), failed)
+		return installed, fmt.Errorf("%d installed, %d failed", len(installed), failed)
 	}
 	return installed, nil
 }
@@ -118,10 +115,9 @@ func printConfigureHints(out io.Writer, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	m := i18n.M.Output.Plugin
-	fmt.Fprintln(out, m.TrustWarning)
+	fmt.Fprintln(out, "Plugins run with your user permissions. Only install plugins you trust.")
 	for _, id := range ids {
-		fmt.Fprintf(out, m.ConfigureHint+"\n", id)
+		fmt.Fprintf(out, "Next: openbee plugin configure %s\n", id)
 	}
 }
 
@@ -153,23 +149,22 @@ func matchesKeyword(p CatalogPlugin, keyword string) bool {
 }
 
 func catalogStatus(p CatalogPlugin) string {
-	m := i18n.M.Output.Plugin
 	switch {
 	case p.Installed && p.UpdateAvailable:
-		return fmt.Sprintf(m.StatusUpdate, p.InstalledVersion, p.Version)
+		return fmt.Sprintf("update %s → %s", p.InstalledVersion, p.Version)
 	case p.Installed:
-		return m.StatusInstalled
+		return "installed"
 	case !p.Installable:
-		return m.StatusUnavailable
+		return "needs a newer openbee"
 	default:
-		return m.StatusAvailable
+		return "available"
 	}
 }
 
 func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "search [keyword]",
-		Short: i18n.M.Cmd.Plugin.Sub("search"),
+		Short: "Search the plugin catalog and install plugins",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -184,7 +179,6 @@ func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 			if len(args) == 1 {
 				keyword = args[0]
 			}
-			m := i18n.M.Output.Plugin
 			var matched, selectable []CatalogPlugin
 			for _, p := range cat.Plugins {
 				if !matchesKeyword(p, keyword) {
@@ -196,30 +190,30 @@ func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 				}
 			}
 			if len(matched) == 0 {
-				fmt.Fprintln(d.Out, m.SearchEmpty)
+				fmt.Fprintln(d.Out, "No plugins match.")
 				return nil
 			}
 			w := tabwriter.NewWriter(d.Out, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, m.SearchHeader)
+			fmt.Fprintln(w, "ID\tNAME\tVERSION\tSTATUS")
 			for _, p := range matched {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(d.Lang), p.Version, catalogStatus(p))
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), p.Version, catalogStatus(p))
 			}
 			if err := w.Flush(); err != nil {
 				return err
 			}
 			if !d.Prompter.Interactive() {
-				fmt.Fprintln(d.Out, m.SearchHint)
+				fmt.Fprintln(d.Out, "Install with: openbee plugin install <id> (several ids are allowed)")
 				return nil
 			}
 			if len(selectable) == 0 {
-				fmt.Fprintln(d.Out, m.SearchNothing)
+				fmt.Fprintln(d.Out, "Every matching plugin is already installed.")
 				return nil
 			}
 			options := make([]string, len(selectable))
 			for i, p := range selectable {
-				options[i] = fmt.Sprintf("%s  %s (%s)", p.ID, p.Name.Get(d.Lang), p.Version)
+				options[i] = fmt.Sprintf("%s  %s (%s)", p.ID, p.Name.Get(cliLang), p.Version)
 			}
-			picked, err := d.Prompter.MultiSelect(m.SearchSelect, options)
+			picked, err := d.Prompter.MultiSelect("Select plugins to install", options)
 			if err != nil || len(picked) == 0 {
 				return err
 			}
@@ -235,7 +229,7 @@ func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 func (d *deps) newInstallCommand(client func() (*Client, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install <id|npm-spec|path>...",
-		Short: i18n.M.Cmd.Plugin.Sub("install"),
+		Short: "Install plugins by catalog id, npm package or local directory",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
@@ -267,7 +261,7 @@ func (d *deps) newUpdateCommand(client func() (*Client, error)) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "update [id...]",
-		Short: i18n.M.Cmd.Plugin.Sub("update"),
+		Short: "Update plugins to the catalog version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := client()
 			if err != nil {
@@ -292,7 +286,7 @@ func (d *deps) newUpdateCommand(client func() (*Client, error)) *cobra.Command {
 				specs = append(specs, p.Package+"@"+p.Version)
 			}
 			if len(specs) == 0 {
-				fmt.Fprintln(d.Out, i18n.M.Output.Plugin.UpdateNone)
+				fmt.Fprintln(d.Out, "All plugins are up to date.")
 				return nil
 			}
 			ids, err := installAll(cmd.Context(), c, specs, d.Out, d.Interval, d.OpTimeout)
@@ -308,6 +302,6 @@ func (d *deps) newUpdateCommand(client func() (*Client, error)) *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().BoolVar(&all, "all", false, i18n.M.Output.Plugin.UpdateAllFlag)
+	cmd.Flags().BoolVar(&all, "all", false, "Update every plugin that has an update")
 	return cmd
 }

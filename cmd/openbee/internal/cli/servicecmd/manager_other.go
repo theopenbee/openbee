@@ -6,12 +6,10 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func unsupportedErr() error {
-	return fmt.Errorf(i18n.M.Output.Service.Unsupported, runtime.GOOS)
+	return fmt.Errorf("openbee service is not supported on %s", runtime.GOOS)
 }
 
 type unsupportedManager struct{}

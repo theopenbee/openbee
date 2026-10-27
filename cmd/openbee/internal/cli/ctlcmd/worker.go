@@ -5,26 +5,24 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 const engineArgsFlagName = "engine-args"
 
 func newWorkerCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlWorker
 	cmd := &cobra.Command{
 		Use:   "worker",
-		Short: subs.Short,
+		Short: "Manage workers",
 	}
 
 	cmd.AddCommand(
-		newWorkerListCommand(run, subs.Sub("list")),
-		newWorkerGetCommand(run, subs.Sub("get")),
-		newWorkerStatusCommand(run, subs.Sub("status")),
-		newWorkerCreateCommand(run, subs.Sub("create")),
-		newWorkerUpdateCommand(run, subs.Sub("update")),
-		newWorkerDeleteCommand(run, subs.Sub("delete")),
+		newWorkerListCommand(run, "List all workers"),
+		newWorkerGetCommand(run, "Get a worker by ID"),
+		newWorkerStatusCommand(run, "Get current status of a worker"),
+		newWorkerCreateCommand(run, "Create a new worker"),
+		newWorkerUpdateCommand(run, "Update a worker (patch: omitted fields unchanged)"),
+		newWorkerDeleteCommand(run, "Delete a worker"),
 	)
 	return cmd
 }

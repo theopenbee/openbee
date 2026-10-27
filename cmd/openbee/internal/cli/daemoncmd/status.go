@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
@@ -16,7 +15,7 @@ import (
 func NewStatusCommand(exitCode ExitCodeFunc) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: i18n.M.Cmd.Status.Short,
+		Short: "Show the status of the OpenBee daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pidFile, err := config.DaemonPIDFile()
 			if err != nil {
@@ -37,14 +36,14 @@ func NewStatusCommand(exitCode ExitCodeFunc) *cobra.Command {
 func daemonStatus(pidFilePath string) (running bool, msg string) {
 	pid, startTS, err := readPIDFileFrom(pidFilePath)
 	if err != nil {
-		return false, i18n.M.Output.Status.NotRunning
+		return false, "○ openbee is not running"
 	}
 
 	if !utils.IsProcessAlive(pid) {
 		_ = os.Remove(pidFilePath) // clean up stale file
-		return false, i18n.M.Output.Status.NotRunningStale
+		return false, "○ openbee is not running (stale PID file removed)"
 	}
 
 	uptime := time.Now().Unix() - startTS
-	return true, fmt.Sprintf(i18n.M.Output.Status.Running, pid, utils.FormatUptime(uptime))
+	return true, fmt.Sprintf("● openbee is running   (PID: %d, uptime: %s)", pid, utils.FormatUptime(uptime))
 }

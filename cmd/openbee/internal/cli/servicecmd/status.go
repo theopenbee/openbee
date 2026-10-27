@@ -6,13 +6,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func newStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: i18n.M.Cmd.Service.StatusS,
+		Short: "Show autostart installation and run state",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr, err := newManager()
 			if err != nil {
@@ -23,10 +22,10 @@ func newStatusCommand() *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, i18n.M.Output.Service.StatusInstalled+"\n", boolYesNo(st.Installed))
-			fmt.Fprintf(out, i18n.M.Output.Service.StatusRunState+"\n", st.RunState.String())
+			fmt.Fprintf(out, "Installed: %s\n", boolYesNo(st.Installed))
+			fmt.Fprintf(out, "State:     %s\n", st.RunState.String())
 			if st.RunState == RunStateRunning && st.PID > 0 {
-				fmt.Fprintf(out, i18n.M.Output.Service.StatusPID+"\n", st.PID)
+				fmt.Fprintf(out, "PID:       %d\n", st.PID)
 			}
 			if st.Installed && st.RunState != RunStateRunning {
 				logPath, _ := config.DaemonLogFile()
@@ -39,7 +38,7 @@ func newStatusCommand() *cobra.Command {
 
 func boolYesNo(b bool) string {
 	if b {
-		return i18n.M.Output.Service.StatusYes
+		return "yes"
 	}
-	return i18n.M.Output.Service.StatusNo
+	return "no"
 }

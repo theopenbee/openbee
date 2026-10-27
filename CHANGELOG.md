@@ -8,6 +8,7 @@
 ### Removed
 - Remove user and role management; keep one admin account.
 - Remove unused web username and password from config.
+- Remove CLI translations; the CLI is English only.
 
 ### Fixed
 - Actually enable SQLite WAL mode and the busy timeout.

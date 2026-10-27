@@ -7,7 +7,6 @@ import (
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/daemoncmd"
 	"github.com/theopenbee/openbee/internal/infra/backup"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func NewRestoreCommand(appVersion string) *cobra.Command {
@@ -18,15 +17,15 @@ func NewRestoreCommand(appVersion string) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "restore <backup-file>",
-		Short: i18n.M.Cmd.Restore.Short,
+		Short: "Restore openbee data from a backup archive",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runRestore(args, appVersion, cfgPath, restorePassword, restoreForce)
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
-	cmd.Flags().StringVar(&restorePassword, "password", "", i18n.M.Flag.RestorePassword)
-	cmd.Flags().BoolVar(&restoreForce, "force", false, i18n.M.Flag.RestoreForce)
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVar(&restorePassword, "password", "", "password to decrypt the backup archive")
+	cmd.Flags().BoolVar(&restoreForce, "force", false, "overwrite existing data")
 	return cmd
 }
 
@@ -64,6 +63,6 @@ func runRestore(args []string, appVersion, cfgPath, password string, force bool)
 		return err
 	}
 
-	fmt.Println(i18n.M.Output.Restore.Complete)
+	fmt.Println("Restore complete.")
 	return nil
 }

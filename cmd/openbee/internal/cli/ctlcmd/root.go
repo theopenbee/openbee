@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/ctlclient"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 // Runner invokes a ctl tool against the server identified by the persistent --config flag.
@@ -18,9 +17,9 @@ func NewCommand() *cobra.Command {
 	var cfgPath string
 	cmd := &cobra.Command{
 		Use:   "ctl",
-		Short: i18n.M.Cmd.Ctl.Short,
+		Short: "Control the running openbee server",
 	}
-	cmd.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
+	cmd.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
 
 	run := func(toolName string, args any) error {
 		return doCtlRun(cfgPath, toolName, args)

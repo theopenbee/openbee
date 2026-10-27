@@ -5,8 +5,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"golang.org/x/term"
-
-	"github.com/theopenbee/openbee/cmd/openbee/internal/cli/surveyhint"
 )
 
 type Prompter interface {
@@ -49,7 +47,6 @@ func (surveyPrompter) Password(message, help string) (string, error) {
 }
 
 func (surveyPrompter) MultiSelect(message string, options []string) ([]int, error) {
-	surveyhint.Apply()
 	var v []int
 	err := survey.AskOne(&survey.MultiSelect{Message: message, Options: options, PageSize: 15}, &v)
 	return v, err

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
@@ -78,7 +77,7 @@ func daemonize(cfgPath string) error {
 	// Check for an existing live daemon.
 	if pid, _, err := readPIDFileFrom(pidFile); err == nil {
 		if utils.IsProcessAlive(pid) {
-			return fmt.Errorf(i18n.M.Output.Daemon.AlreadyRunning, pid)
+			return fmt.Errorf("daemon already running (PID: %d)", pid)
 		}
 		// Stale file — clean up before spawning.
 		_ = os.Remove(pidFile)
@@ -115,6 +114,6 @@ func daemonize(cfgPath string) error {
 		return fmt.Errorf("write pid file: %w", err)
 	}
 
-	fmt.Printf(i18n.M.Output.Daemon.Started+"\n", pid)
+	fmt.Printf("Daemon started (PID: %d)\n", pid)
 	return nil
 }

@@ -6,20 +6,18 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
+
+const cliLang = "en"
 
 type deps struct {
 	Out        io.Writer
 	Prompter   Prompter
-	Lang       string
 	Interval   time.Duration
 	OpTimeout  time.Duration
 	RunTimeout time.Duration
 	NewClient  func(cfgPath string) (*Client, error)
-	RunSetup   func(path, lang string) (map[string]any, error)
+	RunSetup   func(path string) (map[string]any, error)
 	Getenv     func(string) string
 }
 
@@ -43,17 +41,13 @@ func newCommand(dd deps) *cobra.Command {
 	var cfgPath string
 	root := &cobra.Command{
 		Use:          "plugin",
-		Short:        i18n.M.Cmd.Plugin.Short,
+		Short:        "Manage channel plugins",
 		SilenceUsage: true,
 	}
-	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
+	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
 	client := func() (*Client, error) {
 		if d.Getenv("OPENBEE_API_KEY") != "" {
 			return nil, errAgentEnvironment
-		}
-		if d.Lang == "" {
-			d.Lang = loadLanguage(cfgPath)
-			_ = i18n.Load(d.Lang)
 		}
 		return d.NewClient(cfgPath)
 	}
@@ -75,12 +69,4 @@ func newCommand(dd deps) *cobra.Command {
 		}
 	}
 	return root
-}
-
-func loadLanguage(cfgPath string) string {
-	cfg, err := config.Load(cfgPath)
-	if err != nil || cfg.Language == "" {
-		return i18n.LangEN
-	}
-	return cfg.Language
 }

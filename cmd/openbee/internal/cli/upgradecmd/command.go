@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
@@ -42,35 +41,35 @@ func NewCommand(currentVersion string) *cobra.Command {
 	var checkOnly bool
 	cmd := &cobra.Command{
 		Use:   "upgrade",
-		Short: i18n.M.Cmd.Upgrade.Short,
+		Short: "Upgrade openbee to the latest version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUpgrade(currentVersion, checkOnly)
 		},
 	}
-	cmd.Flags().BoolVar(&checkOnly, "check", false, i18n.M.Flag.UpgradeCheck)
+	cmd.Flags().BoolVar(&checkOnly, "check", false, "check for updates only, do not upgrade")
 	return cmd
 }
 
 func runUpgrade(current string, checkOnly bool) error {
-	fmt.Printf(i18n.M.Output.Upgrade.CurrentVersion+"\n", current)
-	fmt.Println(i18n.M.Output.Upgrade.Checking)
+	fmt.Printf("Current version: %s\n", current)
+	fmt.Println("Checking for latest version...")
 
 	tag, latest, err := fetchLatestVersion(githubAPILatest)
 	if err != nil {
 		return fmt.Errorf("fetch latest version: %w", err)
 	}
 
-	fmt.Printf(i18n.M.Output.Upgrade.LatestVersion+"\n", latest)
+	fmt.Printf("Latest version: %s\n", latest)
 
 	if !isNewer(latest, current) {
-		fmt.Println(i18n.M.Output.Upgrade.UpToDate)
+		fmt.Println("Already up to date.")
 		return nil
 	}
 
-	fmt.Printf(i18n.M.Output.Upgrade.NewVersion+"\n", latest)
+	fmt.Printf("New version available: %s\n", latest)
 
 	if checkOnly {
-		fmt.Println(i18n.M.Output.Upgrade.RunCmd)
+		fmt.Println("Run 'openbee upgrade' to upgrade.")
 		return nil
 	}
 
@@ -204,7 +203,7 @@ func releaseDownload(tag, goos, goarch string) (relBase, archiveName string) {
 func doUpgrade(tag, newVersion string) error {
 	relBase, archiveName := releaseDownload(tag, runtime.GOOS, runtime.GOARCH)
 
-	fmt.Printf(i18n.M.Output.Upgrade.Downloading+"\n", archiveName)
+	fmt.Printf("Downloading %s...\n", archiveName)
 
 	tmpDir, err := os.MkdirTemp("", "openbee-upgrade-*")
 	if err != nil {
@@ -221,7 +220,7 @@ func doUpgrade(tag, newVersion string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf(i18n.M.Output.Upgrade.BinaryAt+"\n", execPath)
+	fmt.Printf("Upgrading binary at: %s\n", execPath)
 
 	// Extract into a temp file next to the target (same filesystem), then swap it in.
 	dir := filepath.Dir(execPath)
@@ -255,6 +254,6 @@ func doUpgrade(tag, newVersion string) error {
 		return fmt.Errorf("replace binary (may need sudo): %w", err)
 	}
 
-	fmt.Printf(i18n.M.Output.Upgrade.Success+"\n", newVersion)
+	fmt.Printf("Successfully upgraded openbee to %s.\n", newVersion)
 	return nil
 }

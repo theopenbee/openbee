@@ -223,17 +223,3 @@ func GenerateRandomSecret() string {
 	}
 	return fmt.Sprintf("%x", b)
 }
-
-func GetLang(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	var cfg struct {
-		Language string `yaml:"language"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return ""
-	}
-	return cfg.Language
-}

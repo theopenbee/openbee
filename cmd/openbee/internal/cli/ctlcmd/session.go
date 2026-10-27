@@ -2,20 +2,18 @@ package ctlcmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 func newSessionCommand(run Runner) *cobra.Command {
-	subs := i18n.M.Cmd.CtlSession
 	cmd := &cobra.Command{
 		Use:   "session",
-		Short: subs.Short,
+		Short: "Manage session contexts",
 	}
 	cmd.AddCommand(
-		newSessionListCommand(run, subs.Sub("list")),
-		newSessionClearCommand(run, subs.Sub("clear")),
-		newSessionClearWorkerCommand(run, subs.Sub("clear-worker")),
+		newSessionListCommand(run, "List all agents with active session contexts for a session key"),
+		newSessionClearCommand(run, "Cancel all active tasks and clear all session contexts for a session key"),
+		newSessionClearWorkerCommand(run, "Cancel one worker's active tasks and reset its session context within a session"),
 	)
 	return cmd
 }

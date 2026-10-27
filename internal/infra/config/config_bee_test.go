@@ -87,34 +87,6 @@ bee:
 	assert.Equal(t, 30*time.Minute, cfg.Bee.Engine.Timeout.Worker)
 }
 
-func TestGetLang_fromFile(t *testing.T) {
-	f, err := os.CreateTemp("", "*.yaml")
-	require.NoError(t, err)
-	f.WriteString(`language: en`)
-	f.Close()
-	defer os.Remove(f.Name())
-
-	got := GetLang(f.Name())
-	assert.Equal(t, "en", got)
-}
-
-func TestGetLang_missing(t *testing.T) {
-	got := GetLang("/nonexistent/path.yaml")
-	assert.Empty(t, got)
-}
-
-func TestGetLang_notSet(t *testing.T) {
-	f, err := os.CreateTemp("", "*.yaml")
-	require.NoError(t, err)
-	f.WriteString(`server:
-  port: 8080`)
-	f.Close()
-	defer os.Remove(f.Name())
-
-	got := GetLang(f.Name())
-	assert.Empty(t, got)
-}
-
 func TestBeeConfig_TokenTTLDefault(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`server:

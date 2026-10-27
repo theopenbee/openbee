@@ -4,13 +4,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func newStartCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
-		Short: i18n.M.Cmd.Service.Start,
+		Short: "Start the service via the OS service manager",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr, err := newManager()
 			if err != nil {

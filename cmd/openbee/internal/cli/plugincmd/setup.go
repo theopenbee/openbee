@@ -7,10 +7,10 @@ import (
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
-func runLocalSetup(path, lang string) (map[string]any, error) {
+func runLocalSetup(path string) (map[string]any, error) {
 	m, err := plugin.LoadManifest(path)
 	if err != nil {
 		return nil, err
 	}
-	return plugin.RunSetup(context.Background(), plugin.NewRuntimeResolver(), m, lang, os.Stdin, os.Stderr)
+	return plugin.RunSetup(context.Background(), plugin.NewRuntimeResolver(), m, cliLang, os.Stdin, os.Stderr)
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/infra/backup"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 )
 
 func NewBackupCommand(appVersion string) *cobra.Command {
@@ -17,14 +16,14 @@ func NewBackupCommand(appVersion string) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "backup [output-dir]",
-		Short: i18n.M.Cmd.Backup.Short,
+		Short: "Create a backup archive of the openbee database, config, and state",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBackup(args, appVersion, cfgPath, backupPassword)
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", i18n.M.Flag.ConfigPath)
-	cmd.Flags().StringVar(&backupPassword, "password", "", i18n.M.Flag.BackupPassword)
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVar(&backupPassword, "password", "", "encrypt the backup with this password")
 	return cmd
 }
 
@@ -58,6 +57,6 @@ func runBackup(args []string, appVersion, cfgPath, password string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf(i18n.M.Output.Backup.Created+"\n", archivePath)
+	fmt.Printf("Backup created: %s\n", archivePath)
 	return nil
 }

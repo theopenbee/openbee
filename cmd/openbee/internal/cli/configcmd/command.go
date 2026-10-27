@@ -10,7 +10,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 
 	"github.com/spf13/cobra"
 )
@@ -24,11 +23,11 @@ var configTemplate = config.ConfigTemplate
 
 var configOutputPath string
 
-// NewCommand constructs the `config` cobra command. i18n must already be loaded.
+// NewCommand constructs the `config` cobra command.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: i18n.M.Cmd.Config.Short,
+		Short: "Interactively generate a config file",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			err := runConfig()
 			if errors.Is(err, errInterrupted) {
@@ -37,7 +36,7 @@ func NewCommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", i18n.M.Flag.ConfigOutput)
+	cmd.Flags().StringVarP(&configOutputPath, "output", "o", "config.yaml", "output config file path")
 	return cmd
 }
 
@@ -76,28 +75,19 @@ func renderConfig(vals configValues) ([]byte, error) {
 func runConfig() error {
 	vals := defaultValues()
 
-	// If an existing config file exists, load its values as defaults silently
-	// (do NOT print anything yet — language hasn't been selected).
-	existingFound := false
 	if existing := loadExistingConfig(configOutputPath); existing != nil {
-		existingFound = true
 		vals = *existing
+		fmt.Printf("Found existing config at %s, using its values as defaults.\n", configOutputPath)
 	}
 
-	// Language selection — always shown first, before all other prompts
 	lang, err := runLanguageStep(vals.Language)
 	if err != nil {
 		return err
 	}
 	vals.Language = lang
 
-	// Now print the "found existing" message using the selected locale
-	if existingFound {
-		fmt.Printf(i18n.M.Output.Config.FoundExisting+"\n", configOutputPath)
-	}
-
 	// Step 1 — Engine config
-	fmt.Println(i18n.M.Output.Config.SectionEngine)
+	fmt.Println("\n=== Engine Configuration ===")
 
 	enabledByName := map[string]bool{
 		ai.EngineClaude: vals.ClaudeEnabled,
@@ -114,7 +104,7 @@ func runConfig() error {
 		defaultEngines = []string{engineLabel(ai.EngineClaude)}
 	}
 
-	mappings := engineMappings()
+	mappings := engineMappings
 	allEngineLabels := make([]string, len(mappings))
 	for i, m := range mappings {
 		allEngineLabels[i] = m.label
@@ -122,7 +112,7 @@ func runConfig() error {
 
 	var selectedEngines []string
 	if err := survey.AskOne(&survey.MultiSelect{
-		Message: i18n.M.Prompt.EngineSelect,
+		Message: "Select AI engine:",
 		Options: allEngineLabels,
 		Default: defaultEngines,
 	}, &selectedEngines, survey.WithValidator(func(ans any) error {
@@ -174,7 +164,7 @@ func runConfig() error {
 		selectedDefault = selectedEngines[0]
 	} else {
 		if err := survey.AskOne(&survey.Select{
-			Message: i18n.M.Prompt.EngineDefault,
+			Message: "Default engine:",
 			Options: selectedEngines,
 			Default: defaultEngineOpt,
 		}, &selectedDefault); err != nil {
@@ -185,14 +175,14 @@ func runConfig() error {
 	vals.EngineDefault = engineName(selectedDefault)
 
 	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.EngineTimeoutBee,
+		Message: "Bee timeout:",
 		Default: vals.EngineTimeoutBee,
 	}, &vals.EngineTimeoutBee); err != nil {
 		return handleSurveyErr(err)
 	}
 
 	if err := survey.AskOne(&survey.Input{
-		Message: i18n.M.Prompt.EngineTimeoutWorker,
+		Message: "Worker timeout:",
 		Default: vals.EngineTimeoutWorker,
 	}, &vals.EngineTimeoutWorker); err != nil {
 		return handleSurveyErr(err)
@@ -201,11 +191,11 @@ func runConfig() error {
 	installBuiltinSkills()
 
 	// Step 2 — Advanced config
-	fmt.Println(i18n.M.Output.Config.SectionAdvanced)
+	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: i18n.M.Prompt.AdvancedConfirm,
+		Message: "Customize advanced settings?",
 		Default: false,
 	}, &customAdvanced); err != nil {
 		return handleSurveyErr(err)
@@ -228,18 +218,18 @@ func runConfig() error {
 	}
 
 	// Step 3 — Confirm write
-	fmt.Println(i18n.M.Output.Config.SectionWrite)
-	fmt.Printf(i18n.M.Output.Config.OutputFile+"\n", configOutputPath)
+	fmt.Println("\n=== Write Configuration ===")
+	fmt.Printf("Output file: %s\n", configOutputPath)
 
 	var confirmWrite bool
 	if err := survey.AskOne(&survey.Confirm{
-		Message: i18n.M.Prompt.ConfirmWrite,
+		Message: "Confirm write config file?",
 		Default: true,
 	}, &confirmWrite); err != nil {
 		return handleSurveyErr(err)
 	}
 	if !confirmWrite {
-		fmt.Println(i18n.M.Output.Config.WriteCancelled)
+		fmt.Println("Write cancelled.")
 		return nil
 	}
 
@@ -252,7 +242,7 @@ func runConfig() error {
 		return fmt.Errorf("write file: %w", err)
 	}
 
-	fmt.Printf(i18n.M.Output.Config.Written+"\n", configOutputPath)
-	fmt.Println(i18n.M.Output.Config.NextPlugins)
+	fmt.Printf("Config file written to: %s\n", configOutputPath)
+	fmt.Println("Next: start openbee (openbee server -d), create the admin account in the web console, then add chat channels with: openbee plugin search")
 	return nil
 }

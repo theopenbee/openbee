@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
@@ -29,7 +28,7 @@ func tgDetail(config map[string]any) Detail {
 	return Detail{Plugin: Plugin{ID: "telegram", State: "disabled", Path: "/plugins/telegram"}, Fields: tgFields(), Config: config}
 }
 
-func noSetup(string, string) (map[string]any, error) { return nil, errors.New("unexpected setup") }
+func noSetup(string) (map[string]any, error) { return nil, errors.New("unexpected setup") }
 
 func TestParseSets(t *testing.T) {
 	got, err := parseSets(tgFields(), []string{"token=abc=def", "max_media_size=42", "debug=true", "allowed=a, b ,c", "auth_code=", "extra=1"})
@@ -48,9 +47,8 @@ func TestParseSets(t *testing.T) {
 }
 
 func TestCollectSettings_KeepsSecretAndClearedRandomDefaultIsEmpty(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	p := &fakePrompter{interactive: true, answers: []any{"", "-", "10", false, "", "TBot"}}
-	bot, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd"}), p, "en", noSetup, &bytes.Buffer{})
+	bot, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd"}), p, noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.NotContains(t, cfg, "token")
 	assert.Equal(t, "", cfg["auth_code"])
@@ -69,9 +67,8 @@ func TestCollectSettings_KeepsSecretAndClearedRandomDefaultIsEmpty(t *testing.T)
 }
 
 func TestCollectSettings_RequiredSecretAskedAgain(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	p := &fakePrompter{interactive: true, answers: []any{"", "tok", "abc", "", false, "a, b", ""}}
-	bot, cfg, err := collectSettings(tgDetail(nil), p, "en", noSetup, &bytes.Buffer{})
+	bot, cfg, err := collectSettings(tgDetail(nil), p, noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.Equal(t, "tok", cfg["token"])
 	assert.Equal(t, "abc", cfg["auth_code"])
@@ -81,17 +78,16 @@ func TestCollectSettings_RequiredSecretAskedAgain(t *testing.T) {
 }
 
 func TestCollectSettings_SetupFillsFields(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	d := tgDetail(nil)
 	d.HasSetup = true
 	d.SetupLabel = plugin.LocalizedText{"en": "QR login"}
 	var setupPath string
-	setup := func(path, lang string) (map[string]any, error) {
+	setup := func(path string) (map[string]any, error) {
 		setupPath = path
 		return map[string]any{"token": "from-qr"}, nil
 	}
 	p := &fakePrompter{interactive: true, answers: []any{true, "", "", false, "", ""}}
-	_, cfg, err := collectSettings(d, p, "en", setup, &bytes.Buffer{})
+	_, cfg, err := collectSettings(d, p, setup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.Equal(t, "/plugins/telegram", setupPath)
 	assert.Equal(t, "from-qr", cfg["token"])
@@ -99,13 +95,12 @@ func TestCollectSettings_SetupFillsFields(t *testing.T) {
 }
 
 func TestCollectSettings_SetupFailureFallsBack(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	d := tgDetail(nil)
 	d.HasSetup = true
-	failing := func(string, string) (map[string]any, error) { return nil, errors.New("qr expired") }
+	failing := func(string) (map[string]any, error) { return nil, errors.New("qr expired") }
 	p := &fakePrompter{interactive: true, answers: []any{true, "manual", "", "", false, "", ""}}
 	var out bytes.Buffer
-	_, cfg, err := collectSettings(d, p, "en", failing, &out)
+	_, cfg, err := collectSettings(d, p, failing, &out)
 	require.NoError(t, err)
 	assert.Equal(t, "manual", cfg["token"])
 	assert.Contains(t, out.String(), "qr expired")
@@ -166,7 +161,6 @@ func TestConfigure_EnabledPluginRestartsAndWaits(t *testing.T) {
 }
 
 func TestWaitRunning_StillStarting(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	api := newFakeAPI()
 	api.addPlugin(tgDetail(nil))
 	api.states["telegram"] = []string{"starting"}
@@ -177,28 +171,25 @@ func TestWaitRunning_StillStarting(t *testing.T) {
 }
 
 func TestCollectSettings_ExplicitEmptyRandomDefaultIsNotRefilled(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", ""}}
-	_, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd", "auth_code": ""}), p, "en", noSetup, &bytes.Buffer{})
+	_, cfg, err := collectSettings(tgDetail(map[string]any{"token": "****abcd", "auth_code": ""}), p, noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.Equal(t, "", cfg["auth_code"])
 }
 
 func TestCollectSettings_EnterAcceptsPrefilledRandomDefault(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	p := &fakePrompter{interactive: true, answers: []any{"tok", "", "", false, "", ""}}
-	_, cfg, err := collectSettings(tgDetail(nil), p, "en", noSetup, &bytes.Buffer{})
+	_, cfg, err := collectSettings(tgDetail(nil), p, noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.Regexp(t, `^[0-9a-f]{16}$`, cfg["auth_code"])
 	assert.NotContains(t, cfg, "max_media_size")
 }
 
 func TestCollectSettings_DashClearsCurrentValues(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	d := tgDetail(map[string]any{"token": "****abcd", "auth_code": "abc", "max_media_size": 20.0, "allowed": []any{"a"}})
 	d.BotName = "TBot"
 	p := &fakePrompter{interactive: true, answers: []any{"", "-", "-", false, "-", "-"}}
-	bot, cfg, err := collectSettings(d, p, "en", noSetup, &bytes.Buffer{})
+	bot, cfg, err := collectSettings(d, p, noSetup, &bytes.Buffer{})
 	require.NoError(t, err)
 	assert.Equal(t, "", cfg["auth_code"])
 	assert.Equal(t, []string{}, cfg["allowed"])
@@ -210,12 +201,11 @@ func TestCollectSettings_DashClearsCurrentValues(t *testing.T) {
 }
 
 func TestCollectSettings_ShowsKeepHintAndHelp(t *testing.T) {
-	require.NoError(t, i18n.Load("en"))
 	d := tgDetail(map[string]any{"token": "****abcd"})
 	d.Fields[0].Help = plugin.LocalizedText{"en": "Get it from @BotFather"}
 	p := &fakePrompter{interactive: true, answers: []any{"", "", "", false, "", ""}}
 	var out bytes.Buffer
-	_, _, err := collectSettings(d, p, "en", noSetup, &out)
+	_, _, err := collectSettings(d, p, noSetup, &out)
 	require.NoError(t, err)
 	assert.Contains(t, p.asked[0], "****abcd")
 	assert.Contains(t, out.String(), "Get it from @BotFather")

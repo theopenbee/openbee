@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
@@ -112,13 +111,13 @@ func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart
 	cfgInfo, err := os.Stat(cfgPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return InstallOptions{}, nil, fmt.Errorf(i18n.M.Output.Service.ConfigMissing, cfgPath)
+			return InstallOptions{}, nil, fmt.Errorf("config file not found at %s, run 'openbee config' first", cfgPath)
 		}
 		return InstallOptions{}, nil, fmt.Errorf("stat config: %w", err)
 	}
 	if cfgInfo.IsDir() {
 		return InstallOptions{}, nil, fmt.Errorf(
-			i18n.M.Output.Service.ConfigPathIsDir,
+			"--config must point to a config file, not a directory: %s (try %s)",
 			cfgPath,
 			filepath.Join(cfgPath, "config.yaml"),
 		)
@@ -179,11 +178,11 @@ func resolveRunAs(runAsFlag string) (string, string, string, error) {
 		name = os.Getenv("SUDO_USER")
 	}
 	if name == "" {
-		return "", "", "", errors.New(i18n.M.Output.Service.RunAsRequired)
+		return "", "", "", errors.New("could not determine which user should run the daemon; pass --run-as <user> (or run via 'sudo' so SUDO_USER is set)")
 	}
 	u, err := user.Lookup(name)
 	if err != nil {
-		return "", "", "", fmt.Errorf(i18n.M.Output.Service.RunAsUserUnknown, name)
+		return "", "", "", fmt.Errorf("user %q does not exist on this system; pass an existing username via --run-as", name)
 	}
 	g, err := user.LookupGroupId(u.Gid)
 	if err != nil {
@@ -210,7 +209,7 @@ func resolveEnvPath(runAsUser string) (string, string) {
 	defer cancel()
 	userPath, err := lookupRunAsEnvPath(ctx, runAsUser)
 	if err != nil {
-		return installerPath, fmt.Sprintf(i18n.M.Output.Service.RunAsPathResolveFailed, runAsUser, err)
+		return installerPath, fmt.Sprintf("warning: could not resolve PATH for run-as user %q (%v); falling back to the installer's PATH, which may not match what the daemon actually sees at runtime", runAsUser, err)
 	}
 	if userPath == "" {
 		return installerPath, ""
@@ -231,15 +230,15 @@ func appendNodeWarning(warnings []string, runAsUser, envPath string) []string {
 	case nodeCheckOK:
 		return warnings
 	case nodeCheckMissing:
-		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
+		return append(warnings, fmt.Sprintf("warning: 'node' was not found on the PATH for run-as user %q (%s); claude/codex CLIs will fail to start because they are Node.js scripts. Install Node.js for that user (e.g. via their own nvm), then re-run 'openbee service install --force'.", runAsUser, envPath))
 	case nodeCheckNotExecutable:
-		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeNotExecutableWarning, runAsUser, envPath))
+		return append(warnings, fmt.Sprintf("warning: 'node' was found on the run-as user %q's PATH but is not executable by that user (PATH=%s); claude/codex CLIs will fail with 'Permission denied'. Install Node.js for that user (e.g. via the user's own nvm) or grant execute access, then re-run 'openbee service install --force'.", runAsUser, envPath))
 	}
 	if runAsUser != "" {
 		return warnings
 	}
 	if _, err := execLookPath("node"); err != nil {
-		return append(warnings, fmt.Sprintf(i18n.M.Output.Service.NodeMissingWarning, runAsUser, envPath))
+		return append(warnings, fmt.Sprintf("warning: 'node' was not found on the PATH for run-as user %q (%s); claude/codex CLIs will fail to start because they are Node.js scripts. Install Node.js for that user (e.g. via their own nvm), then re-run 'openbee service install --force'.", runAsUser, envPath))
 	}
 	return warnings
 }
