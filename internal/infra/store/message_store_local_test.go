@@ -10,24 +10,40 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 )
 
-func TestMessageStore_ListBySessionKey_ExcludesMerged(t *testing.T) {
+func TestMessageStore_ListBySessionKey_IncludesMergedBurst(t *testing.T) {
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	defer db.Close()
 	s := store.NewMessageStore(db)
 	ctx := context.Background()
 
-	s.CreateBatch(ctx, []store.BatchMsg{ //nolint:errcheck
-		{ID: "m1", SessionKey: "local:s1", Platform: "local", Content: "hello",
-			Status: "received", MessageTime: 1000},
-		{ID: "m2", SessionKey: "local:s1", Platform: "local", Content: "world",
-			Status: "merged", MergedInto: "m1", MessageTime: 900},
+	_, err = s.CreateBatch(ctx, []store.BatchMsg{
+		{ID: "before", SessionKey: "local:s1", Platform: "local", Content: "earlier",
+			Status: store.MsgStatusBeeProcessed, MessageTime: 500},
+		{ID: "first", SessionKey: "local:s1", Platform: "local", Content: "one",
+			Status: store.MsgStatusMerged, MergedInto: "third", MessageTime: 900},
+		{ID: "second", SessionKey: "local:s1", Platform: "local", Content: "two",
+			Status: store.MsgStatusMerged, MergedInto: "third", MessageTime: 900},
+		{ID: "third", SessionKey: "local:s1", Platform: "local", Content: "three",
+			Status: store.MsgStatusBeeProcessed, MessageTime: 1000},
 	})
+	require.NoError(t, err)
 
 	msgs, err := s.ListBySessionKey(ctx, "local:s1", 0, 50)
 	require.NoError(t, err)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "m1", msgs[0].ID)
+	ids := make([]string, len(msgs))
+	contents := make([]string, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+		contents[i] = m.Content
+	}
+	assert.Equal(t, []string{"before", "first", "second", "third"}, ids)
+	assert.Equal(t, []string{"earlier", "one", "two", "three"}, contents)
+
+	page, err := s.ListBySessionKey(ctx, "local:s1", 1000, 2)
+	require.NoError(t, err)
+	require.Len(t, page, 2)
+	assert.Equal(t, []string{"first", "second"}, []string{page[0].ID, page[1].ID})
 }
 
 func TestMessageStore_ListBySessionKey_Pagination(t *testing.T) {

@@ -374,7 +374,7 @@ func (s *MessageStore) LatestBySessionKey(ctx context.Context, sessionKey string
 	return m, true, nil
 }
 
-// InboundMessage is a non-merged bee_platform_messages row for display in chat history.
+// InboundMessage is a bee_platform_messages row for display in chat history.
 type InboundMessage struct {
 	ID            string
 	PlatformMsgID string
@@ -453,7 +453,7 @@ func messageFilterWhere(f MessageFilter) (string, []any) {
 	return b.build()
 }
 
-// ListBySessionKey returns non-merged messages for a session.
+// ListBySessionKey returns all inbound messages for a session, merged ones included.
 // If before > 0, only messages with received_at < before are returned.
 // Results are ordered by received_at ASC. limit must be > 0.
 // limit controls max rows returned. Callers typically pass limit+1 to enable has_more detection.
@@ -464,14 +464,14 @@ func (s *MessageStore) ListBySessionKey(ctx context.Context, sessionKey string, 
 	)
 	if before > 0 {
 		query = `SELECT id, platform_msg_id, content, received_at, sender_type FROM bee_platform_messages
-                 WHERE session_key = ? AND status != ? AND received_at < ?
-                 ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, MsgStatusMerged, before, limit}
+                 WHERE session_key = ? AND received_at < ?
+                 ORDER BY received_at DESC, rowid DESC LIMIT ?`
+		args = []any{sessionKey, before, limit}
 	} else {
 		query = `SELECT id, platform_msg_id, content, received_at, sender_type FROM bee_platform_messages
-                 WHERE session_key = ? AND status != ?
-                 ORDER BY received_at DESC LIMIT ?`
-		args = []any{sessionKey, MsgStatusMerged, limit}
+                 WHERE session_key = ?
+                 ORDER BY received_at DESC, rowid DESC LIMIT ?`
+		args = []any{sessionKey, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

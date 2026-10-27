@@ -372,6 +372,39 @@ func TestGetMessages_DecodesClientIDs(t *testing.T) {
 	assert.Equal(t, []string{"c1", "c2"}, []string{res.Messages[0].ID, res.Messages[1].ID})
 }
 
+func TestGetMessages_KeepsMergedBurstMessages(t *testing.T) {
+	s := newLocalChatServer(t)
+	w := s.createWorker(t, "alice")
+	key := local.WorkerSessionKey(testUserID, w.ID)
+	_, err := s.msgStore.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "row-1", SessionKey: key, Platform: local.PlatformID, Content: "one", PlatformMsgID: "local:user-1:c1", Status: store.MsgStatusMerged, MergedInto: "row-3", MessageTime: 100},
+		{ID: "row-2", SessionKey: key, Platform: local.PlatformID, Content: "two", PlatformMsgID: "local:user-1:c2", Status: store.MsgStatusMerged, MergedInto: "row-3", MessageTime: 110},
+		{ID: "row-3", SessionKey: key, Platform: local.PlatformID, Content: "three", PlatformMsgID: "local:user-1:c3", Status: store.MsgStatusBeeProcessed, MessageTime: 120},
+	})
+	require.NoError(t, err)
+
+	burst := listConversations(t, s.router, testUserID)[1]
+	require.NotNil(t, burst.LastMessage)
+	assert.Equal(t, "three", burst.LastMessage.Preview)
+	assert.Equal(t, 0, burst.Unread)
+
+	seedOutboundIn(t, s.outboundStore, key, store.OutboundMessage{ID: "reply", Content: "done", SourceType: store.SourceTypeWorker, SourceID: w.ID, SentAt: 200})
+
+	res := getConversationMessages(t, s.router, testUserID, local.WorkerConversationID(w.ID), "")
+
+	require.Len(t, res.Messages, 4)
+	assert.Equal(t, []string{"c1", "c2", "c3", "reply"}, []string{res.Messages[0].ID, res.Messages[1].ID, res.Messages[2].ID, res.Messages[3].ID})
+	assert.Equal(t, []string{"one", "two", "three"}, []string{res.Messages[0].Content, res.Messages[1].Content, res.Messages[2].Content})
+	for _, m := range res.Messages[:3] {
+		assert.Equal(t, local.Sender{Type: "user"}, m.Sender)
+	}
+
+	replied := listConversations(t, s.router, testUserID)[1]
+	require.NotNil(t, replied.LastMessage)
+	assert.Equal(t, "done", replied.LastMessage.Preview)
+	assert.Equal(t, 1, replied.Unread)
+}
+
 func TestLocalChat_RejectsRequestsWithoutUser(t *testing.T) {
 	s := newLocalChatServer(t)
 
