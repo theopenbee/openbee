@@ -40,6 +40,8 @@ const (
 
 const previewMaxRunes = 120
 
+const sseHeartbeatInterval = 25 * time.Second
+
 var messageIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type LocalChatWorkers interface {
@@ -65,6 +67,7 @@ type LocalChatDeps struct {
 	Workers   LocalChatWorkers
 	Clear     LocalChatClearer
 	MediaRoot string
+	Heartbeat time.Duration
 }
 
 type LocalChatHandler struct {
@@ -77,6 +80,7 @@ type LocalChatHandler struct {
 	workers       LocalChatWorkers
 	clear         LocalChatClearer
 	mediaRoot     string
+	heartbeat     time.Duration
 }
 
 func NewLocalChatHandler(d LocalChatDeps) *LocalChatHandler {
@@ -90,6 +94,7 @@ func NewLocalChatHandler(d LocalChatDeps) *LocalChatHandler {
 		workers:       d.Workers,
 		clear:         d.Clear,
 		mediaRoot:     d.MediaRoot,
+		heartbeat:     cmp.Or(d.Heartbeat, sseHeartbeatInterval),
 	}
 }
 
@@ -155,6 +160,12 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 	ch, unsub := h.hub.Subscribe(uid)
 	defer unsub()
 
+	fmt.Fprint(c.Writer, ": ok\n\n")
+	c.Writer.Flush()
+
+	heartbeat := time.NewTicker(h.heartbeat)
+	defer heartbeat.Stop()
+
 	ctx := c.Request.Context()
 	for {
 		select {
@@ -163,6 +174,9 @@ func (h *LocalChatHandler) StreamReplies(c *gin.Context) {
 				return
 			}
 			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			c.Writer.Flush()
+		case <-heartbeat.C:
+			fmt.Fprint(c.Writer, ": ping\n\n")
 			c.Writer.Flush()
 		case <-ctx.Done():
 			return

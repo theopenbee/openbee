@@ -454,12 +454,56 @@ func TestStreamDeliversEventsForUser(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	line, err := bufio.NewReader(resp.Body).ReadString('\n')
-	require.NoError(t, err)
+	line := nextStreamLine(t, bufio.NewReader(resp.Body), "data: ")
 	var ev local.Event
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev))
 	assert.Equal(t, "mine", ev.TaskID)
 	assert.Positive(t, ev.Seq)
+}
+
+func nextStreamLine(t *testing.T, r *bufio.Reader, prefix string) string {
+	t.Helper()
+	for {
+		line, err := r.ReadString('\n')
+		require.NoError(t, err)
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+}
+
+func openStream(t *testing.T, h *LocalChatHandler) (*http.Response, *bufio.Reader) {
+	t.Helper()
+	srv := httptest.NewServer(localChatRouter(h))
+	t.Cleanup(srv.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/local/stream", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp, bufio.NewReader(resp.Body)
+}
+
+func TestStreamOpensBeforeAnyEvent(t *testing.T) {
+	h := NewLocalChatHandler(LocalChatDeps{Hub: local.NewSSEHub()})
+
+	resp, body := openStream(t, h)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+	line, err := body.ReadString('\n')
+	require.NoError(t, err)
+	assert.Equal(t, ": ok\n", line)
+}
+
+func TestStreamSendsHeartbeat(t *testing.T) {
+	h := NewLocalChatHandler(LocalChatDeps{Hub: local.NewSSEHub(), Heartbeat: 20 * time.Millisecond})
+
+	_, body := openStream(t, h)
+
+	assert.Equal(t, ": ping\n", nextStreamLine(t, body, ": ping"))
 }
 
 func TestSendMessage_UsesCurrentUserSession(t *testing.T) {
