@@ -13,6 +13,7 @@ export function useWorker(id: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["workers", id],
     queryFn: () => api.workers.get(id),
+    enabled: options?.enabled,
   })
 }
 

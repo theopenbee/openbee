@@ -2,13 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef, useState, useCallback } from "react"
 import { api } from "@/lib/api"
 import { config } from "@/lib/config"
+import { BEE_CONVERSATION } from "@/lib/conversations"
 import { tokenParam } from "@/lib/auth"
-import type { ChatMessage, LocalMessagesResponse } from "@/lib/types"
+import type { ChatMessage, ConversationMessagesResponse } from "@/lib/types"
 
 export function useLocalMessages() {
   return useQuery({
     queryKey: ["local-messages"],
-    queryFn: () => api.localChat.getMessages(),
+    queryFn: () => api.chat.messages(BEE_CONVERSATION),
   })
 }
 
@@ -16,7 +17,7 @@ export function useLocalMessages() {
  * useLoadMoreMessages manages incremental loading of older messages.
  * Call `loadMore(earliestTs)` with the timestamp of the oldest message currently shown.
  */
-export function useLoadMoreMessages(onLoaded: (page: LocalMessagesResponse) => void) {
+export function useLoadMoreMessages(onLoaded: (page: ConversationMessagesResponse) => void) {
   const isLoadingRef = useRef(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState(false)
@@ -27,7 +28,7 @@ export function useLoadMoreMessages(onLoaded: (page: LocalMessagesResponse) => v
     setIsLoadingMore(true)
     setLoadError(false)
     try {
-      onLoaded(await api.localChat.getMessages(earliestTs))
+      onLoaded(await api.chat.messages(BEE_CONVERSATION, earliestTs))
     } catch {
       setLoadError(true)
     } finally {
@@ -42,7 +43,7 @@ export function useLoadMoreMessages(onLoaded: (page: LocalMessagesResponse) => v
 export function useSendMessage() {
   return useMutation({
     mutationFn: ({ id, content, mediaPaths }: { id: string; content: string; mediaPaths?: string[] }) =>
-      api.localChat.sendMessage(id, content, mediaPaths),
+      api.chat.send(BEE_CONVERSATION, id, content, mediaPaths),
   })
 }
 
@@ -77,7 +78,8 @@ export function useLocalChatStream(onReply: (msg: ChatMessage) => void) {
           const data = JSON.parse(event.data)
           onReplyRef.current({
             id: data.id,
-            role: "bee",
+            sender: { type: "bee" },
+            kind: "message",
             content: data.content,
             media_paths: data.media_paths,
             ts: data.created_at,

@@ -1,4 +1,4 @@
-import type { Worker, ChatMessage, LocalMessagesResponse, Department, DepartmentTree, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, Department, DepartmentTree, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -19,6 +19,7 @@ export class ApiError extends Error {
     message: string,
     public code?: string,
     public params?: Record<string, unknown>,
+    public details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = "ApiError"
@@ -66,7 +67,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new ApiError(res.status, err.error || res.statusText, err.code, err.params)
+    throw new ApiError(res.status, err.error || res.statusText, err.code, err.params, err)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -103,18 +104,34 @@ export const api = {
       }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
   },
-  localChat: {
-    sendMessage: (id: string, content: string, mediaPaths?: string[]) =>
-      fetchAPI<{ id: string; ts: number }>("/local/messages", {
-        method: "POST",
-        body: JSON.stringify({ id, content, media_paths: mediaPaths }),
-      }),
-    getMessages: async (before?: number, limit = 50): Promise<LocalMessagesResponse> => {
+  chat: {
+    conversations: async () => {
+      const list = await fetchAPI<ConversationSummary[] | null>("/local/conversations")
+      return Array.isArray(list) ? list : []
+    },
+    messages: async (id: ConversationId, before?: number, limit = 50): Promise<ConversationMessagesResponse> => {
       const qs = new URLSearchParams({ limit: String(limit) })
       if (before) qs.set("before", String(before))
-      const res = await fetchAPI<LocalMessagesResponse>(`/local/messages?${qs}`)
+      const res = await fetchAPI<ConversationMessagesResponse>(`/local/conversations/${encodeURIComponent(id)}/messages?${qs}`)
       return { messages: Array.isArray(res?.messages) ? res.messages : [], has_more: res?.has_more ?? false }
     },
+    send: (id: ConversationId, messageId: string, content: string, mediaPaths?: string[]) =>
+      fetchAPI<{ id: string; ts: number }>(`/local/conversations/${encodeURIComponent(id)}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ id: messageId, content, media_paths: mediaPaths }),
+      }),
+    markRead: (id: ConversationId, ts?: number) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/read`, {
+        method: "POST",
+        body: JSON.stringify({ ts }),
+      }),
+    clear: (id: ConversationId, force?: boolean) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/clear`, {
+        method: "POST",
+        ...(force ? { body: JSON.stringify({ force: true }) } : {}),
+      }),
+    stop: (id: ConversationId) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/stop`, { method: "POST" }),
     uploadMedia: async (file: File) => {
       const form = new FormData()
       form.append("file", file)

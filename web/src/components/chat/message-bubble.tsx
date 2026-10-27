@@ -20,7 +20,7 @@ export const MessageBubble = memo(function MessageBubble({
   onExpandToggle: () => void
 }) {
   const { t, i18n } = useTranslation()
-  const isUser = message.role === "user"
+  const isUser = message.sender.type === "user"
   const hasContent = message.content.trim().length > 0
   const mediaPaths = message.media_paths ?? []
   const timestamp = formatMessageTimestamp(message.ts, i18n.language)

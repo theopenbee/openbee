@@ -33,16 +33,53 @@ export interface DepartmentBrief {
   name: string
 }
 
+export type ConversationId = "bee" | `worker:${string}`
+
+export interface ChatSender {
+  type: "user" | "bee" | "worker" | "system"
+  id?: string
+}
+
+export interface HandoffInfo {
+  worker_id: string
+  task_id: string
+  task_type: "immediate" | "countdown" | "scheduled"
+  cron_expr?: string
+  scheduled_at?: number
+  conversation_id: ConversationId
+}
+
 export interface ChatMessage {
   id: string
-  role: "user" | "bee"
+  sender: ChatSender
+  kind: "message" | "handoff"
+  handoff?: HandoffInfo
   content: string
   media_paths?: string[]
   ts: number
   pending?: boolean
 }
 
-export interface LocalMessagesResponse {
+export interface ConversationActivity {
+  state: "idle" | "queued" | "running"
+  queued_ahead?: number
+}
+
+export interface ConversationSummary {
+  id: ConversationId
+  kind: "bee" | "worker"
+  worker_id?: string
+  last_message?: {
+    sender: ChatSender
+    kind: "message" | "handoff"
+    preview: string
+    ts: number
+  }
+  unread: number
+  activity: ConversationActivity
+}
+
+export interface ConversationMessagesResponse {
   messages: ChatMessage[]
   has_more: boolean
 }

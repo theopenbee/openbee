@@ -69,7 +69,7 @@ export function Composer({ placeholder, disabled, mentions, onSend }: ComposerPr
     setUploadError(null)
 
     const results = await Promise.allSettled(
-      files.map((file) => api.localChat.uploadMedia(file))
+      files.map((file) => api.chat.uploadMedia(file))
     )
     const succeeded = results.filter(
       (result): result is PromiseFulfilledResult<{ path: string }> => result.status === "fulfilled"
