@@ -459,6 +459,49 @@ func TestCallTool_SendMessage(t *testing.T) {
 	}
 }
 
+func TestSendMessageLocalWorkerNoPrefix(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "local", spy)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-local-worker", "local:user-1", "local", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-local-worker",
+		"content":    "hello",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, "hello", spy.sent[0].Content)
+	assert.Equal(t, store.SourceTypeWorker, spy.sent[0].SourceType)
+}
+
+func TestSendMessageIMWorkerKeepsPrefix(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "telegram", spy)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-telegram-worker", "telegram:chat1:userA", "telegram", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-telegram-worker",
+		"content":    "hello",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, "MaoMao\nhello", spy.sent[0].Content)
+}
+
 func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
 	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()

@@ -22,6 +22,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 // CallTool is exported for testing only.
@@ -574,9 +575,6 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
 		sourceType = store.SourceTypeWorker
 		sourceID = workerID
-		if params.Content != "" {
-			params.Content = s.workerDisplayName(workerID) + "\n" + params.Content
-		}
 	}
 
 	sender, base, err := s.delivery.Resolve(ctx, delivery.Target{MessageID: params.MessageID, SessionKey: params.SessionKey})
@@ -585,6 +583,10 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	}
 	base.SourceType = sourceType
 	base.SourceID = sourceID
+
+	if sourceType == store.SourceTypeWorker && params.Content != "" && base.ReplyTo.Platform != local.PlatformID {
+		params.Content = s.workerDisplayName(sourceID) + "\n" + params.Content
+	}
 
 	if platform.SendsTextWithMedia(sender) && params.Content != "" && params.MediaPath != "" {
 		outbound := base
