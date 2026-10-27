@@ -16,7 +16,7 @@ import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departm
 import { useCreateWorker, useWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
-import { DEFAULT_ENGINE, pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
+import { DEFAULT_ENGINE, availableEngine, pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
 interface WorkerInitialValues {
@@ -118,6 +118,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
+  const selectedEngine = availableEngine(engine, enabledEngines)
 
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -148,7 +149,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
     try {
       const worker = await createWorker.mutateAsync({
         name: name.trim(),
-        engine,
+        engine: selectedEngine,
         description,
         constraints: constraints || undefined,
         work_dir: workDir || undefined,
@@ -205,7 +206,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
           description={t("workers.form.engineHelper")}
           placeholder={t("workers.form.engineDefault")}
           options={engineOptions}
-          value={engine}
+          value={selectedEngine}
           onValueChange={(v) => v && setEngine(v as Engine)}
           disabled={isPending}
         />
@@ -247,7 +248,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
 
       <FormSection id="cw-section-other" title={t("workers.form.sectionOther")}>
         <EngineArgsSection
-          engines={[engine]}
+          engines={[selectedEngine]}
           value={engineArgs}
           onChange={setEngineArgs}
           idPrefix="cw-engine-args"

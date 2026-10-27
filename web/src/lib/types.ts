@@ -114,6 +114,10 @@ export function pickDefaultEngine(current: Engine | undefined, enabled: readonly
   return current ?? enabled[0] ?? DEFAULT_ENGINE
 }
 
+export function availableEngine(engine: Engine, enabled: readonly Engine[]): Engine {
+  return enabled.includes(engine) ? engine : (enabled[0] ?? engine)
+}
+
 export interface EnvConfig {
   id: string
   scope: EnvScope
