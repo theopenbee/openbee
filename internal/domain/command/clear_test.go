@@ -471,3 +471,76 @@ func TestClearCommand_WorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
 	assert.Equal(t, []string{workerKey + "::w1"}, fx.disp.clearedWorkers)
 	assert.Equal(t, []string{workerKey}, fx.sessions.deletedSessions)
 }
+
+const workerChatKey = "local:u1:worker:w-1"
+
+func workerChatReplyTo(sessionKey string) platform.InboundMessage {
+	replyTo := makeReplyTo()
+	replyTo.SessionKey = sessionKey
+	return replyTo
+}
+
+func TestClearCommand_WorkerChatClearsThatWorker(t *testing.T) {
+	agents := []store.SessionAgent{{AgentID: "bee", AgentType: "bee", Engine: "claude", Name: "bee"}}
+	fx := makeClearFixture(agents, nil, map[string]model.Worker{"w-1": {ID: "w-1", Name: "alice"}})
+
+	fx.handler.HandleCommand(context.Background(), "/clear", workerChatReplyTo(workerChatKey))
+
+	assert.Equal(t, []string{workerChatKey}, fx.sessions.deletedSessions)
+	assert.Equal(t, []string{workerChatKey + "::w-1"}, fx.tasks.workerCancelCalls)
+	assert.Equal(t, []string{workerChatKey + "::w-1"}, fx.disp.clearedWorkers)
+	assert.Empty(t, fx.disp.cleared)
+	require.Len(t, fx.sender.sent, 1)
+	assert.Contains(t, fx.sender.sent[0], "alice")
+}
+
+func TestClearCommand_WorkerChatConfirmsBeforeStoppingARun(t *testing.T) {
+	fx := makeClearFixture(nil, nil, map[string]model.Worker{"w-1": {ID: "w-1", Name: "alice"}},
+		withClearRunningExecs(fakeRunningExecs{"t1": "exec-1"}))
+	fx.tasks.workerTasks = map[string][]model.Task{
+		"w-1": {{ID: "t1", WorkerID: "w-1", SessionKey: workerChatKey, Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning}},
+	}
+	fx.tasks.workerCancelled = map[string]int64{"w-1": 1}
+	replyTo := workerChatReplyTo(workerChatKey)
+
+	fx.handler.HandleCommand(context.Background(), "/clear", replyTo)
+
+	require.Len(t, fx.sender.sent, 1)
+	assert.Contains(t, fx.sender.sent[0], "alice")
+	assert.Empty(t, fx.sessions.deletedSessions)
+	assert.Empty(t, fx.stopper.stopped)
+
+	fx.handler.HandleCommand(context.Background(), "/clear", replyTo)
+
+	require.Len(t, fx.sender.sent, 2)
+	assert.Equal(t, []string{"exec-1"}, fx.stopper.stopped)
+	assert.Equal(t, []string{workerChatKey}, fx.sessions.deletedSessions)
+	assert.Empty(t, fx.disp.cleared)
+}
+
+func TestClearCommand_WorkerChatWithoutWorker(t *testing.T) {
+	fx := makeClearFixture(nil, nil, nil)
+
+	fx.handler.HandleCommand(context.Background(), "/clear", workerChatReplyTo(workerChatKey))
+
+	require.Len(t, fx.sender.sent, 1)
+	assert.Empty(t, fx.sessions.deletedSessions)
+	assert.Empty(t, fx.tasks.workerListCalls)
+	assert.Empty(t, fx.disp.cleared)
+}
+
+func TestClearCommand_BeeAndIMChatsStillClearTheSession(t *testing.T) {
+	agents := []store.SessionAgent{{AgentID: "w-1", AgentType: "worker", Engine: "claude", Name: "alice"}}
+	for _, sessionKey := range []string{"local:u1", "beta:chat1:user1"} {
+		t.Run(sessionKey, func(t *testing.T) {
+			fx := makeClearFixture(agents, nil, map[string]model.Worker{"w-1": {ID: "w-1", Name: "alice"}})
+
+			fx.handler.HandleCommand(context.Background(), "/clear", workerChatReplyTo(sessionKey))
+
+			assert.Equal(t, []string{sessionKey}, fx.disp.cleared)
+			assert.Empty(t, fx.sessions.deletedSessions)
+			assert.Empty(t, fx.tasks.workerCancelCalls)
+			require.Len(t, fx.sender.sent, 1)
+		})
+	}
+}

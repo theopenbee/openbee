@@ -15,6 +15,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 const clearConfirmTimeout = 30 * time.Second
@@ -73,7 +74,11 @@ func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string,
 
 	switch len(fields) {
 	case 1:
-		h.handleClearAll(ctx, replyTo)
+		if workerID, ok := local.WorkerIDFromSessionKey(replyTo.SessionKey); ok {
+			h.handleClearChatWorker(ctx, replyTo, workerID)
+		} else {
+			h.handleClearAll(ctx, replyTo)
+		}
 	case 2:
 		h.handleClearWorker(ctx, replyTo, fields[1])
 	default:
@@ -121,7 +126,6 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 
 func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo platform.InboundMessage, workerName string) {
 	m := i18n.M.Runtime.ClearCommand
-	sessionKey := replyTo.SessionKey
 
 	w, ok := resolveSingleWorker(ctx, h.senders, h.workers, replyTo, workerName, workerResolveMessages{
 		LookupFailed: m.NoContext,
@@ -131,6 +135,25 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	if !ok {
 		return
 	}
+	h.clearWorker(ctx, replyTo, w)
+}
+
+func (h *ClearCommandHandler) handleClearChatWorker(ctx context.Context, replyTo platform.InboundMessage, workerID string) {
+	m := i18n.M.Runtime.ClearCommand
+
+	w, ok := resolveChatWorker(ctx, h.senders, h.workers, replyTo, workerID, workerResolveMessages{
+		LookupFailed: m.NoContext,
+		NotFound:     m.WorkerNotFound,
+	})
+	if !ok {
+		return
+	}
+	h.clearWorker(ctx, replyTo, w)
+}
+
+func (h *ClearCommandHandler) clearWorker(ctx context.Context, replyTo platform.InboundMessage, w model.Worker) {
+	m := i18n.M.Runtime.ClearCommand
+	sessionKey := replyTo.SessionKey
 
 	pendingKey := h.pendingKey(sessionKey, CmdClear+" "+w.ID)
 	confirmed := h.consumePending(pendingKey)

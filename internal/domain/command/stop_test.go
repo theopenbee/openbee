@@ -115,14 +115,95 @@ func TestStop_OnlyMessages(t *testing.T) {
 }
 
 type fakeWorkerStopper struct {
-	result session.StopWorkerResult
-	err    error
-	calls  []string // sessionKey::workerID
+	result            session.StopWorkerResult
+	err               error
+	calls             []string // sessionKey::workerID
+	conversationCalls []string
 }
 
 func (f *fakeWorkerStopper) StopWorker(_ context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error) {
 	f.calls = append(f.calls, sessionKey+"::"+w.ID)
 	return f.result, f.err
+}
+
+func (f *fakeWorkerStopper) StopConversation(_ context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error) {
+	f.conversationCalls = append(f.conversationCalls, sessionKey+"::"+w.ID)
+	return f.result, f.err
+}
+
+func workerChatStopReplyTo(sessionKey string) platform.InboundMessage {
+	return platform.InboundMessage{Platform: "beta", SessionKey: sessionKey, Content: "/stop"}
+}
+
+func TestStop_WorkerChatStopsThatWorker(t *testing.T) {
+	cases := []struct {
+		name      string
+		cancelled int64
+		wantReply string
+	}{
+		{name: "Stopped", cancelled: 2, wantReply: "alice"},
+		{name: "NothingToStop", cancelled: 0, wantReply: "alice"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &fakeStopSender{}
+			bee := &fakeBeeStopper{}
+			stop := &fakeWorkerStopper{result: session.StopWorkerResult{CancelledTasks: tc.cancelled}}
+			workers := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w-1": {ID: "w-1", Name: "alice"}}}}
+			h := command.NewStopCommandHandler(bee, &fakeStopMsgStore{}, workers, stop, platform.SenderMap{"beta": sender})
+
+			h.HandleCommand(context.Background(), "/stop", workerChatStopReplyTo("local:u1:worker:w-1"))
+
+			assert.Equal(t, []string{"local:u1:worker:w-1::w-1"}, stop.conversationCalls)
+			assert.Empty(t, stop.calls)
+			assert.False(t, bee.stopped, "the Bee session must not be stopped from a worker chat")
+			require.Len(t, sender.sent, 1)
+			assert.Contains(t, sender.sent[0], tc.wantReply)
+		})
+	}
+}
+
+func TestStop_WorkerChatWithoutWorker(t *testing.T) {
+	cases := []struct {
+		name    string
+		workers *fakeWorkerByIDsLookup
+	}{
+		{name: "Deleted", workers: &fakeWorkerByIDsLookup{}},
+		{name: "LookupError", workers: &fakeWorkerByIDsLookup{err: errors.New("db down")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := &fakeStopSender{}
+			bee := &fakeBeeStopper{}
+			stop := &fakeWorkerStopper{}
+			h := command.NewStopCommandHandler(bee, &fakeStopMsgStore{}, &fakeClearWorkerLookup{fakeWorkerByIDsLookup: tc.workers}, stop, platform.SenderMap{"beta": sender})
+
+			h.HandleCommand(context.Background(), "/stop", workerChatStopReplyTo("local:u1:worker:w-1"))
+
+			assert.Empty(t, stop.conversationCalls)
+			assert.False(t, bee.stopped)
+			require.Len(t, sender.sent, 1)
+		})
+	}
+}
+
+func TestStop_BeeAndIMChatsStillStopTheBee(t *testing.T) {
+	for _, sessionKey := range []string{"local:u1", "beta:chat1:userA"} {
+		t.Run(sessionKey, func(t *testing.T) {
+			sender := &fakeStopSender{}
+			bee := &fakeBeeStopper{}
+			stop := &fakeWorkerStopper{}
+			workers := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w-1": {ID: "w-1", Name: "alice"}}}}
+			h := command.NewStopCommandHandler(bee, &fakeStopMsgStore{}, workers, stop, platform.SenderMap{"beta": sender})
+
+			h.HandleCommand(context.Background(), "/stop", workerChatStopReplyTo(sessionKey))
+
+			assert.True(t, bee.stopped)
+			assert.Empty(t, stop.conversationCalls)
+			assert.Empty(t, stop.calls)
+			require.Len(t, sender.sent, 1)
+		})
+	}
 }
 
 func newStopWorkerHandler(workers command.WorkerNameLookup, stop command.WorkerStopper, sender *fakeStopSender) *command.StopCommandHandler {

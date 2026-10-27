@@ -11,6 +11,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 type BeeStopper interface {
@@ -25,6 +26,7 @@ type StopMessageStore interface {
 // deleting its session context. Implemented by *session.ClearService.
 type WorkerStopper interface {
 	StopWorker(ctx context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error)
+	StopConversation(ctx context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error)
 }
 
 type StopCommandHandler struct {
@@ -63,7 +65,11 @@ func (h *StopCommandHandler) HandleCommand(ctx context.Context, content string, 
 
 	switch len(fields) {
 	case 1:
-		h.handleStopBee(ctx, replyTo)
+		if workerID, ok := local.WorkerIDFromSessionKey(replyTo.SessionKey); ok {
+			h.handleStopChatWorker(ctx, replyTo, workerID)
+		} else {
+			h.handleStopBee(ctx, replyTo)
+		}
 	case 2:
 		h.handleStopWorker(ctx, replyTo, fields[1])
 	default:
@@ -111,6 +117,25 @@ func (h *StopCommandHandler) handleStopWorker(ctx context.Context, replyTo platf
 	}
 
 	result, err := h.workerStop.StopWorker(ctx, sessionKey, w)
+	h.replyWorkerStopped(ctx, replyTo, w, result, err)
+}
+
+func (h *StopCommandHandler) handleStopChatWorker(ctx context.Context, replyTo platform.InboundMessage, workerID string) {
+	m := i18n.M.Runtime.StopCommand
+	w, ok := resolveChatWorker(ctx, h.senders, h.workers, replyTo, workerID, workerResolveMessages{
+		LookupFailed: m.LookupFailed,
+		NotFound:     m.WorkerNotFound,
+	})
+	if !ok {
+		return
+	}
+
+	result, err := h.workerStop.StopConversation(ctx, replyTo.SessionKey, w)
+	h.replyWorkerStopped(ctx, replyTo, w, result, err)
+}
+
+func (h *StopCommandHandler) replyWorkerStopped(ctx context.Context, replyTo platform.InboundMessage, w model.Worker, result session.StopWorkerResult, err error) {
+	m := i18n.M.Runtime.StopCommand
 	if err != nil {
 		log.Error("stop worker", zap.String("workerID", w.ID), zap.Error(err))
 		sendReply(ctx, h.senders, replyTo, fmt.Sprintf(m.WorkerStopFailed, w.Name))

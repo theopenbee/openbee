@@ -52,3 +52,24 @@ func resolveSingleWorker(
 	}
 	return workersFound[0], true
 }
+
+func resolveChatWorker(
+	ctx context.Context,
+	senders platform.Senders,
+	workers WorkerNameLookup,
+	replyTo platform.InboundMessage,
+	workerID string,
+	msgs workerResolveMessages,
+) (model.Worker, bool) {
+	found, err := workers.GetByIDs([]string{workerID})
+	if err != nil {
+		log.Error("get chat worker", zap.String("workerID", workerID), zap.Error(err))
+		sendReply(ctx, senders, replyTo, msgs.LookupFailed)
+		return model.Worker{}, false
+	}
+	if len(found) == 0 {
+		sendReply(ctx, senders, replyTo, fmt.Sprintf(msgs.NotFound, workerID))
+		return model.Worker{}, false
+	}
+	return found[0], true
+}
