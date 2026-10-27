@@ -203,6 +203,7 @@
   "chat": {
     "youPrefix": "You: ",
     "handedOffTo": "Handed off to {{name}}",
+    "deletedWorker": "Deleted worker",
     "yesterday": "Yesterday",
     "newWorker": "New worker",
     "search": "Search",

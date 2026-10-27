@@ -55,3 +55,14 @@ export function filterConversations(
     return worker.name.toLowerCase().includes(needle) || worker.description.toLowerCase().includes(needle)
   })
 }
+
+type LastMessage = NonNullable<ConversationSummary["last_message"]>
+type Translate = (key: string, options?: Record<string, string>) => string
+
+export function previewText(last: LastMessage, workers: Map<string, Worker>, t: Translate): string {
+  if (last.kind === "handoff" && last.handoff_worker_id) {
+    const name = workers.get(last.handoff_worker_id)?.name ?? t("chat.deletedWorker")
+    return t("chat.handedOffTo", { name })
+  }
+  return last.sender.type === "user" ? `${t("chat.youPrefix")}${last.preview}` : last.preview
+}

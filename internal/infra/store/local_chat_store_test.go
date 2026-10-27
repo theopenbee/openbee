@@ -63,13 +63,15 @@ func TestLastMessagePicksNewestAcrossTables(t *testing.T) {
 	assert.Equal(t, LastMessage{SenderType: SenderTypeBee, Kind: OutboundKindMessage, Content: "in-i2", TS: 300}, last)
 
 	seedOutboundRow(t, db, "o2", key, SourceTypeWorker, "w1", OutboundKindHandoff, OutboundStatusSent, 400)
+	_, err = db.Exec(`UPDATE bee_outbound_messages SET payload = ? WHERE id = ?`, `{"worker_id":"w9"}`, "o2")
+	require.NoError(t, err)
 	seedOutboundRow(t, db, "o3", key, SourceTypeWorker, "w1", "", OutboundStatusFailed, 500)
 	seedInbound(t, db, "i3", key, SenderTypeUser, MsgStatusMerged, 600)
 	seedInbound(t, db, "i4", "local:u1:worker:w2", SenderTypeUser, MsgStatusReceived, 700)
 	last, ok, err = s.LastMessage(ctx, key)
 	require.NoError(t, err)
 	require.True(t, ok)
-	assert.Equal(t, LastMessage{SenderType: SourceTypeWorker, SenderID: "w1", Kind: OutboundKindHandoff, Content: "out-o2", TS: 400}, last)
+	assert.Equal(t, LastMessage{SenderType: SourceTypeWorker, SenderID: "w1", Kind: OutboundKindHandoff, Content: "out-o2", Payload: `{"worker_id":"w9"}`, TS: 400}, last)
 }
 
 func TestLastMessageSameTimestampPrefersReply(t *testing.T) {

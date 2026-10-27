@@ -5,6 +5,7 @@ import {
   conversationFromParam,
   conversationPath,
   filterConversations,
+  previewText,
   sortConversations,
   workerConversationId,
   workerIdOf,
@@ -119,5 +120,42 @@ describe("filterConversations", () => {
 
   it("drops workers that are not loaded", () => {
     expect(filterConversations(list, "papers", new Map()).map((item) => item.id)).toEqual(["bee"])
+  })
+})
+
+describe("previewText", () => {
+  const t = (key: string, options?: Record<string, string>) =>
+    options ? `${key}(${Object.values(options).join(",")})` : key
+  const workers = new Map([["w1", worker("w1", "Researcher", "")]])
+  const last = (extra: Partial<NonNullable<ConversationSummary["last_message"]>>) => ({
+    sender: { type: "bee" as const },
+    kind: "message" as const,
+    preview: "write the report",
+    ts: 1,
+    ...extra,
+  })
+
+  it("prefixes the user's own messages", () => {
+    expect(previewText(last({ sender: { type: "user" } }), workers, t)).toBe("chat.youPrefixwrite the report")
+  })
+
+  it("shows other senders' preview as is", () => {
+    expect(previewText(last({ sender: { type: "worker", id: "w1" } }), workers, t)).toBe("write the report")
+  })
+
+  it("names the handoff target", () => {
+    expect(previewText(last({ kind: "handoff", handoff_worker_id: "w1" }), workers, t)).toBe(
+      "chat.handedOffTo(Researcher)",
+    )
+  })
+
+  it("marks a handoff to a deleted worker", () => {
+    expect(previewText(last({ kind: "handoff", handoff_worker_id: "w9" }), workers, t)).toBe(
+      "chat.handedOffTo(chat.deletedWorker)",
+    )
+  })
+
+  it("falls back to the preview when the handoff target is missing", () => {
+    expect(previewText(last({ kind: "handoff" }), workers, t)).toBe("write the report")
   })
 })

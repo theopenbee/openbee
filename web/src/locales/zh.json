@@ -202,6 +202,7 @@
   "chat": {
     "youPrefix": "你：",
     "handedOffTo": "已交给 {{name}}",
+    "deletedWorker": "已删除的员工",
     "yesterday": "昨天",
     "newWorker": "新建员工",
     "search": "搜索",

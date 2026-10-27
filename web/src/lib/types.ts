@@ -73,6 +73,7 @@ export interface ConversationSummary {
     sender: ChatSender
     kind: "message" | "handoff"
     preview: string
+    handoff_worker_id?: string
     ts: number
   }
   unread: number

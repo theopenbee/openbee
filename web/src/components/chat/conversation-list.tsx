@@ -85,12 +85,7 @@ export function ConversationList({ active, className }: ConversationListProps) {
             <ul className="grid gap-0.5">
               {rows.map((item) => (
                 <li key={item.id}>
-                  <ConversationRow
-                    conversation={item}
-                    worker={item.worker_id ? workerMap.get(item.worker_id) : undefined}
-                    active={item.id === active}
-                    now={now}
-                  />
+                  <ConversationRow conversation={item} workers={workerMap} active={item.id === active} now={now} />
                 </li>
               ))}
             </ul>

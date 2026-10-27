@@ -98,6 +98,7 @@ export function applyEventToConversations(
           sender: message.sender,
           kind: message.kind,
           preview: previewOf(message),
+          ...(message.handoff ? { handoff_worker_id: message.handoff.worker_id } : {}),
           ts: message.ts,
         },
         unread: seen ? item.unread : item.unread + 1,

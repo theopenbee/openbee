@@ -710,6 +710,40 @@ func TestConversationsReportActivityAndHandoffPreview(t *testing.T) {
 	assert.Equal(t, "handoff", beeLast.Kind)
 	assert.Equal(t, local.Sender{Type: "bee"}, beeLast.Sender)
 	assert.Equal(t, "write the report", beeLast.Preview)
+	assert.Equal(t, alice.ID, beeLast.HandoffWorkerID)
+
+	rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/conversations", nil), testUserID)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"handoff_worker_id":"`+alice.ID+`"`)
+}
+
+func TestConversationsHandoffPreviewToleratesMalformedPayload(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	aliceKey := local.WorkerSessionKey(testUserID, alice.ID)
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{
+		ID: "h1", Content: "write the report", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff,
+		Payload: "not json", SentAt: 100,
+	})
+	seedOutboundIn(t, s.outboundStore, aliceKey, store.OutboundMessage{
+		ID: "a1", Content: "done", SourceType: store.SourceTypeWorker, SourceID: alice.ID,
+		Payload: handoffPayload(alice.ID, "t1"), SentAt: 200,
+	})
+
+	rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/conversations", nil), testUserID)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "handoff_worker_id")
+	byID := conversationsByID(listConversations(t, s.router, testUserID))
+	beeLast := byID[local.BeeConversationID].LastMessage
+	require.NotNil(t, beeLast)
+	assert.Equal(t, "handoff", beeLast.Kind)
+	assert.Equal(t, "write the report", beeLast.Preview)
+	assert.Empty(t, beeLast.HandoffWorkerID)
+	aliceLast := byID[local.WorkerConversationID(alice.ID)].LastMessage
+	require.NotNil(t, aliceLast)
+	assert.Equal(t, "message", aliceLast.Kind)
+	assert.Empty(t, aliceLast.HandoffWorkerID)
 }
 
 func TestConversationsScopeToCurrentUser(t *testing.T) {

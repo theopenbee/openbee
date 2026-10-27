@@ -143,6 +143,33 @@ describe("applyEventToConversations", () => {
     expect(next[0].unread).toBe(1)
   })
 
+  it("records the handoff worker and drops it on the next plain message", () => {
+    const list = [summary("bee")]
+    const handoff = message("write the report", {
+      kind: "handoff",
+      sender: { type: "bee" },
+      ts: 200,
+      handoff: { worker_id: "w2", task_id: "t1", task_type: "immediate", conversation_id: "worker:w2" },
+    })
+
+    const handedOff = applyEventToConversations(list, messageEvent("bee", handoff), idle)
+    const replied = applyEventToConversations(
+      handedOff,
+      messageEvent("bee", message("on it", { sender: { type: "bee" }, ts: 300 }), 2),
+      idle,
+    )
+
+    expect(handedOff[0].last_message).toEqual({
+      sender: { type: "bee" },
+      kind: "handoff",
+      preview: "write the report",
+      handoff_worker_id: "w2",
+      ts: 200,
+    })
+    expect(replied[0].last_message).not.toHaveProperty("handoff_worker_id")
+    expect(replied[0].last_message?.preview).toBe("on it")
+  })
+
   it("task queued then completed toggles activity", () => {
     const list = [summary("bee"), summary("worker:w1")]
 

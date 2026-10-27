@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/arc/badge/badge"
 import { BeeAvatar } from "@/components/chat/bee-avatar"
 import { WorkerAvatar } from "@/components/worker-avatar"
-import { conversationPath } from "@/lib/conversations"
+import { conversationPath, previewText } from "@/lib/conversations"
 import { formatListTime } from "@/lib/format"
 import type { ConversationSummary, Worker } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -12,18 +12,17 @@ const MAX_UNREAD = 99
 
 interface ConversationRowProps {
   conversation: ConversationSummary
-  worker?: Worker
+  workers: Map<string, Worker>
   active: boolean
   now: number
 }
 
-export function ConversationRow({ conversation, worker, active, now }: ConversationRowProps) {
+export function ConversationRow({ conversation, workers, active, now }: ConversationRowProps) {
   const { t, i18n } = useTranslation()
+  const worker = conversation.worker_id ? workers.get(conversation.worker_id) : undefined
   const last = conversation.last_message
   const name = worker ? worker.name : t("localChat.beeLabel")
-  const preview = last
-    ? `${last.sender.type === "user" ? t("chat.youPrefix") : ""}${last.preview}`
-    : (worker?.description ?? "")
+  const preview = last ? previewText(last, workers, t) : (worker?.description ?? "")
   const unread = conversation.unread > MAX_UNREAD ? `${MAX_UNREAD}+` : String(conversation.unread)
 
   return (

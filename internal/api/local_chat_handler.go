@@ -94,10 +94,11 @@ func NewLocalChatHandler(d LocalChatDeps) *LocalChatHandler {
 }
 
 type ConversationPreview struct {
-	Sender  local.Sender `json:"sender"`
-	Kind    string       `json:"kind"`
-	Preview string       `json:"preview"`
-	TS      int64        `json:"ts"`
+	Sender          local.Sender `json:"sender"`
+	Kind            string       `json:"kind"`
+	Preview         string       `json:"preview"`
+	HandoffWorkerID string       `json:"handoff_worker_id,omitempty"`
+	TS              int64        `json:"ts"`
 }
 
 type ConversationSummary struct {
@@ -229,6 +230,17 @@ func conversationPreview(content string) string {
 	return string([]rune(text)[:previewMaxRunes])
 }
 
+func handoffWorkerID(kind, payload string) string {
+	if kind != local.KindHandoff {
+		return ""
+	}
+	var info local.HandoffInfo
+	if err := json.Unmarshal([]byte(payload), &info); err != nil {
+		return ""
+	}
+	return info.WorkerID
+}
+
 func (h *LocalChatHandler) summarizeConversation(ctx context.Context, uid, workerID string, readMarks map[string]int64) (ConversationSummary, error) {
 	summary := ConversationSummary{ID: local.BeeConversationID, Kind: conversationKindBee}
 	sessionKey := local.SessionKey(uid)
@@ -242,10 +254,11 @@ func (h *LocalChatHandler) summarizeConversation(ctx context.Context, uid, worke
 	}
 	if found {
 		summary.LastMessage = &ConversationPreview{
-			Sender:  chatSender(last.SenderType, last.SenderID),
-			Kind:    last.Kind,
-			Preview: conversationPreview(last.Content),
-			TS:      last.TS,
+			Sender:          chatSender(last.SenderType, last.SenderID),
+			Kind:            last.Kind,
+			Preview:         conversationPreview(last.Content),
+			HandoffWorkerID: handoffWorkerID(last.Kind, last.Payload),
+			TS:              last.TS,
 		}
 	}
 	unread, err := h.chats.UnreadCount(ctx, sessionKey, readMarks[summary.ID])
