@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 var log = logger.With(zap.String("component", "taskdispatcher"))
@@ -30,6 +32,18 @@ type taskMeta struct {
 const (
 	pollInterval = 2 * time.Second
 )
+
+const (
+	StateQueued    = "queued"
+	StateRunning   = "running"
+	StateCompleted = "completed"
+	StateFailed    = "failed"
+	StateCancelled = "cancelled"
+)
+
+type TaskObserver interface {
+	TaskStateChanged(t DispatchTask, state string, queuedAhead int)
+}
 
 // ExecutionManager manages worker executions.
 type ExecutionManager interface {
@@ -48,6 +62,7 @@ type TaskStore interface {
 	CompleteTask(ctx context.Context, taskID string) error
 	FailTask(ctx context.Context, taskID string) error
 	CancelTask(ctx context.Context, taskID string) error
+	AbortRun(ctx context.Context, taskID string) error
 }
 
 // FailureNotifier sends failure and cancellation notifications to users.
@@ -103,6 +118,8 @@ type TaskDispatcher struct {
 	clearCh         chan clearRequest
 	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
 	cancelCh        chan string
+	observer        TaskObserver
+	aborted         sync.Map
 }
 
 // New constructs a TaskDispatcher.
@@ -137,6 +154,10 @@ func WithFailureNotifier(fn FailureNotifier) Option {
 // WithWorkerLookup sets the lookup used to fetch worker metadata for persona injection.
 func WithWorkerLookup(lookup WorkerLookup) Option {
 	return func(d *TaskDispatcher) { d.workerLookup = lookup }
+}
+
+func WithTaskObserver(o TaskObserver) Option {
+	return func(d *TaskDispatcher) { d.observer = o }
 }
 
 // Run processes tasks until ctx is cancelled. Call in a goroutine.
@@ -174,6 +195,7 @@ func (d *TaskDispatcher) handleInbound(task DispatchTask) {
 		d.startTask(key, task)
 	} else {
 		state.pendingTasks = append(state.pendingTasks, task)
+		d.emit(task, StateQueued, len(state.pendingTasks))
 	}
 }
 
@@ -182,7 +204,29 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 	if task.TaskID != "" {
 		d.cancelFuncs[task.TaskID] = cancel
 	}
+	d.emit(task, StateRunning, 0)
 	go d.executeAsync(taskCtx, cancel, key, task)
+}
+
+func (d *TaskDispatcher) emit(task DispatchTask, state string, queuedAhead int) {
+	if d.observer != nil {
+		d.observer.TaskStateChanged(task, state, queuedAhead)
+	}
+}
+
+func (d *TaskDispatcher) emitQueuePositions(state *queueState) {
+	for i, t := range state.pendingTasks {
+		d.emit(t, StateQueued, i+1)
+	}
+}
+
+func (d *TaskDispatcher) finishCancelled(task DispatchTask) {
+	if _, aborted := d.aborted.LoadAndDelete(task.TaskID); aborted {
+		if err := d.taskStore.AbortRun(context.Background(), task.TaskID); err != nil {
+			log.Error("abort task run", zap.String("taskID", task.TaskID), zap.Error(err))
+		}
+	}
+	d.emit(task, StateCancelled, 0)
 }
 
 // ClearWorker removes queued tasks for the given (sessionKey, workerID) pair from the
@@ -217,23 +261,15 @@ func (d *TaskDispatcher) sendClear(req clearRequest) {
 
 func (d *TaskDispatcher) handleCancel(taskID string) {
 	// Remove from any pending queue
-	for key, state := range d.queues {
-		var remaining []DispatchTask
-		for _, t := range state.pendingTasks {
-			if t.TaskID != taskID {
-				remaining = append(remaining, t)
-			}
-		}
-		state.pendingTasks = remaining
-		if !state.executing && len(state.pendingTasks) == 0 {
-			delete(d.queues, key)
-		}
-	}
+	d.dropQueued(func(t DispatchTask) bool { return t.TaskID != taskID })
 	// Interrupt executing goroutine if present
-	if cancel, ok := d.cancelFuncs[taskID]; ok {
-		cancel()
-		delete(d.cancelFuncs, taskID)
+	cancel, ok := d.cancelFuncs[taskID]
+	if !ok {
+		d.aborted.Delete(taskID)
+		return
 	}
+	cancel()
+	delete(d.cancelFuncs, taskID)
 }
 
 // CancelTask marks the task cancelled in DB and signals the Run loop to
@@ -251,17 +287,35 @@ func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
 	return nil
 }
 
+func (d *TaskDispatcher) AbortRun(taskID string) {
+	d.aborted.Store(taskID, struct{}{})
+	select {
+	case d.cancelCh <- taskID:
+	default:
+		d.aborted.Delete(taskID)
+		log.Warn("cancelCh full, abort dropped", zap.String("taskID", taskID))
+	}
+}
+
 // dropQueued removes pending tasks for which keep(task) is false from every queue.
 // Empty, idle queues are deleted from d.queues.
 func (d *TaskDispatcher) dropQueued(keep func(DispatchTask) bool) {
 	for key, state := range d.queues {
-		var remaining []DispatchTask
+		var remaining, dropped []DispatchTask
 		for _, t := range state.pendingTasks {
 			if keep(t) {
 				remaining = append(remaining, t)
+			} else {
+				dropped = append(dropped, t)
 			}
 		}
 		state.pendingTasks = remaining
+		for _, t := range dropped {
+			d.finishCancelled(t)
+		}
+		if len(dropped) > 0 {
+			d.emitQueuePositions(state)
+		}
 		if !state.executing && len(state.pendingTasks) == 0 {
 			delete(d.queues, key)
 		}
@@ -330,6 +384,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 			Reason:     err.Error(),
 			WorkerName: task.WorkerID,
 		})
+		d.emit(task, StateFailed, 0)
 		return
 	}
 
@@ -338,6 +393,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
 		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+		d.finishCancelled(task)
 		return
 	}
 
@@ -435,7 +491,10 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
 			if ctx.Err() != nil {
 				d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+				d.finishCancelled(task)
+				return
 			}
+			d.emit(task, StateFailed, 0)
 			return
 		}
 		if string(exec.Status) != lastStatus {
@@ -451,6 +510,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			}
 			// Persist session_id for future resume (only on success).
 			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+			d.emit(task, StateCompleted, 0)
 			return
 		case model.ExecStatusFailed:
 			// Persist session context even on failure so the next dispatch can attempt
@@ -466,6 +526,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				Reason:     exec.Result,
 				WorkerName: workerName(exec.WorkerName, task.WorkerID),
 			})
+			d.emit(task, StateFailed, 0)
 			return
 		}
 		select {
@@ -473,6 +534,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case <-ctx.Done():
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
 			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+			d.finishCancelled(task)
 			return
 		}
 	}
@@ -481,6 +543,11 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID, engineName string) {
 	if task.SessionKey == "" || task.WorkerID == "" || sessionID == "" {
 		return
+	}
+	if task.TaskType != model.TaskTypeImmediate {
+		if _, ok := local.WorkerIDFromSessionKey(task.SessionKey); ok {
+			return
+		}
 	}
 	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, engineName); err != nil {
 		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
@@ -516,6 +583,7 @@ func (d *TaskDispatcher) notifyCancel(ctx context.Context, task DispatchTask, wo
 
 func (d *TaskDispatcher) handleResult(res internalResult) {
 	delete(d.cancelFuncs, res.task.TaskID)
+	d.aborted.Delete(res.task.TaskID)
 
 	state, ok := d.queues[res.queueKey]
 	if !ok {
@@ -526,6 +594,7 @@ func (d *TaskDispatcher) handleResult(res internalResult) {
 		next := state.pendingTasks[0]
 		state.pendingTasks = state.pendingTasks[1:]
 		d.startTask(res.queueKey, next)
+		d.emitQueuePositions(state)
 	} else {
 		state.executing = false
 		delete(d.queues, res.queueKey)

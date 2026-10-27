@@ -35,6 +35,7 @@ type Manager struct {
 	envService     *env.Service
 	sysConfigStore systemConfigReader
 	botNames       func() []string
+	statusObserver func(workerID string, status model.WorkerStatus)
 
 	activeProcesses map[string]ai.Process // execution_id -> process
 	mu              sync.RWMutex
@@ -148,6 +149,25 @@ func (m *Manager) SetBotNameSource(fn func() []string) {
 	m.mu.Lock()
 	m.botNames = fn
 	m.mu.Unlock()
+}
+
+func (m *Manager) SetStatusObserver(fn func(workerID string, status model.WorkerStatus)) {
+	m.mu.Lock()
+	m.statusObserver = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) setStatus(workerID string, status model.WorkerStatus) error {
+	if err := m.workerStore.UpdateStatus(workerID, status); err != nil {
+		return err
+	}
+	m.mu.RLock()
+	fn := m.statusObserver
+	m.mu.RUnlock()
+	if fn != nil {
+		fn(workerID, status)
+	}
+	return nil
 }
 
 func (m *Manager) conflictsWithBotName(name string) bool {

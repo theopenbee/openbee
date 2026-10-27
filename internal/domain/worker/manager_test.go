@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -473,4 +474,52 @@ func TestManager_ValidateWorkerNameUsesBotNameSource(t *testing.T) {
 	names = nil
 	_, err = mgr.CreateWorker(CreateWorkerParams{Name: "delta"})
 	require.NoError(t, err)
+}
+
+func TestManagerStatusObserver(t *testing.T) {
+	t.Run("ReportsExecutionStatuses", func(t *testing.T) {
+		engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+		mgr := newTestManager(t, engines, ai.EngineClaude)
+		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "observed"})
+		require.NoError(t, err)
+
+		var mu sync.Mutex
+		var got []model.WorkerStatus
+		mgr.SetStatusObserver(func(workerID string, status model.WorkerStatus) {
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(t, w.ID, workerID)
+			got = append(got, status)
+		})
+
+		_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{
+			WorkerID:     w.ID,
+			TriggerInput: "hello",
+			SessionID:    "session-1",
+		})
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return len(got) == 2
+		}, 2*time.Second, 10*time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusIdle}, got)
+	})
+
+	t.Run("SkipsFailedUpdate", func(t *testing.T) {
+		mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+		db, err := store.InitDB(filepath.Join(t.TempDir(), "closed.db"))
+		require.NoError(t, err)
+		require.NoError(t, db.Close())
+		mgr.workerStore = store.NewWorkerStore(db)
+
+		calls := 0
+		mgr.SetStatusObserver(func(string, model.WorkerStatus) { calls++ })
+
+		require.Error(t, mgr.setStatus("w1", model.WorkerStatusIdle))
+		assert.Zero(t, calls)
+	})
 }

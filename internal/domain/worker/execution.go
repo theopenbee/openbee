@@ -45,14 +45,14 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 		return model.WorkerExecution{}, fmt.Errorf("create execution: %w", err)
 	}
 
-	if err := m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusWorking); err != nil {
+	if err := m.setStatus(worker.ID, model.WorkerStatusWorking); err != nil {
 		log.Error("failed to update worker status", zap.Error(err))
 	}
 
 	if err := os.MkdirAll(worker.WorkDir, 0o755); err != nil {
 		log.Error("ensure worker workdir", zap.String("op", "execute"), zap.String("work_dir", worker.WorkDir), zap.Error(err))
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		m.setStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("ensure worker workdir: %w", err)
 	}
 	// Prepare is best-effort; the runtime below surfaces the real error if it matters.
@@ -63,7 +63,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 
 	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, req.TriggerInput, req.Resume); err != nil {
 		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		m.setStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("start runtime: %w", err)
 	}
 
@@ -129,7 +129,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		case ai.OutputDone:
 			result := runRes.ExtractResult(logPath)
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusCompleted)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusIdle)
+			m.setStatus(worker.ID, model.WorkerStatusIdle)
 			finalized = true
 		case ai.OutputError:
 			result := runRes.ExtractResult(logPath)
@@ -137,7 +137,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 				result = out.Content
 			}
 			m.executionStore.UpdateResult(exec.ID, result, model.ExecStatusFailed)
-			m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+			m.setStatus(worker.ID, model.WorkerStatusError)
 			finalized = true
 		}
 	}
@@ -153,7 +153,7 @@ func (m *Manager) monitorExecution(exec model.WorkerExecution, worker model.Work
 		if _, err := m.executionStore.MarkAbandoned(context.Background(), exec.ID, result); err != nil {
 			log.Error("finalize abandoned execution", zap.String("executionID", exec.ID), zap.Error(err))
 		}
-		m.workerStore.UpdateStatus(worker.ID, model.WorkerStatusError)
+		m.setStatus(worker.ID, model.WorkerStatusError)
 	}
 
 	m.mu.Lock()

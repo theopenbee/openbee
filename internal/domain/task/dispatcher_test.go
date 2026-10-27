@@ -85,6 +85,8 @@ type mockTaskStore struct {
 	mu             sync.Mutex
 	failedTasks    []string
 	completedTasks []string
+	cancelledTasks []string
+	abortedTasks   []string
 }
 
 func (s *mockTaskStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }
@@ -100,13 +102,31 @@ func (s *mockTaskStore) CompleteTask(_ context.Context, taskID string) error {
 	s.completedTasks = append(s.completedTasks, taskID)
 	return nil
 }
-func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error { return nil }
+func (s *mockTaskStore) CancelTask(_ context.Context, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancelledTasks = append(s.cancelledTasks, taskID)
+	return nil
+}
+func (s *mockTaskStore) AbortRun(_ context.Context, taskID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.abortedTasks = append(s.abortedTasks, taskID)
+	return nil
+}
+
+func (s *mockTaskStore) snapshot() (aborted, cancelled []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.abortedTasks...), append([]string(nil), s.cancelledTasks...)
+}
 
 type mockSessionStore struct {
 	mu      sync.Mutex
 	data    map[mockSessionRef]string
 	cleared []string
 	deleted []mockSessionRef
+	upserts int
 }
 
 func newMockSessionStore() *mockSessionStore {
@@ -143,7 +163,14 @@ func (s *mockSessionStore) UpsertSessionContext(_ context.Context, sessionKey, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data[newMockSessionRef(sessionKey, agentID, engine)] = sessionID
+	s.upserts++
 	return nil
+}
+
+func (s *mockSessionStore) upsertCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.upserts
 }
 func (s *mockSessionStore) DeleteSessionContextForEngine(_ context.Context, sessionKey, agentID, engine string) (bool, error) {
 	s.mu.Lock()
@@ -1358,4 +1385,388 @@ func TestTaskDispatcher_PollError_WithCancel_KillsProcess(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	assert.NotZero(t, atomic.LoadInt64(&cancelCount), "expected CancelExecution to be called when poll error occurs after cancel")
+}
+
+type taskEvent struct {
+	TaskID      string
+	State       string
+	QueuedAhead int
+}
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	events []taskEvent
+}
+
+func (o *recordingObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, taskEvent{TaskID: t.TaskID, State: state, QueuedAhead: queuedAhead})
+}
+
+func (o *recordingObserver) snapshot() []taskEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]taskEvent(nil), o.events...)
+}
+
+func (o *recordingObserver) has(want taskEvent) bool {
+	for _, e := range o.snapshot() {
+		if e == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *recordingObserver) waitForEvent(t *testing.T, want taskEvent) {
+	t.Helper()
+	require.Eventually(t, func() bool { return o.has(want) }, 2*time.Second, 5*time.Millisecond,
+		"event %+v not observed", want)
+}
+
+func (o *recordingObserver) terminalCount(taskID string) int {
+	n := 0
+	for _, e := range o.snapshot() {
+		if e.TaskID != taskID {
+			continue
+		}
+		switch e.State {
+		case task.StateCompleted, task.StateFailed, task.StateCancelled:
+			n++
+		}
+	}
+	return n
+}
+
+type gatedExecManager struct {
+	mu    sync.Mutex
+	gates map[string]chan struct{}
+	runs  []string
+}
+
+func newGatedExecManager(taskIDs ...string) *gatedExecManager {
+	m := &gatedExecManager{gates: make(map[string]chan struct{})}
+	for _, id := range taskIDs {
+		m.gates[id] = make(chan struct{})
+	}
+	return m
+}
+
+func (m *gatedExecManager) ExecuteWorker(ctx context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error) {
+	m.mu.Lock()
+	m.runs = append(m.runs, req.TaskID)
+	gate := m.gates[req.TaskID]
+	m.mu.Unlock()
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+		}
+	}
+	return model.WorkerExecution{ID: "exec-" + req.TaskID}, nil
+}
+
+func (m *gatedExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
+
+func (m *gatedExecManager) release(taskID string) { close(m.gates[taskID]) }
+
+func (m *gatedExecManager) ran() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.runs...)
+}
+
+type pollFailsAfterCancel struct {
+	ctxCh   chan context.Context
+	polling chan struct{}
+}
+
+func newPollFailsAfterCancel() *pollFailsAfterCancel {
+	return &pollFailsAfterCancel{ctxCh: make(chan context.Context, 1), polling: make(chan struct{})}
+}
+
+func (p *pollFailsAfterCancel) ExecuteWorker(ctx context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
+	p.ctxCh <- ctx
+	return model.WorkerExecution{ID: "exec-1"}, nil
+}
+
+func (p *pollFailsAfterCancel) CancelExecution(_ context.Context, _ string) error { return nil }
+
+func (p *pollFailsAfterCancel) GetByID(_ string) (model.WorkerExecution, error) {
+	ctx := <-p.ctxCh
+	close(p.polling)
+	<-ctx.Done()
+	return model.WorkerExecution{}, errors.New("db poll error")
+}
+
+func taskFor(id, sessionKey string) task.DispatchTask {
+	t := immediateTask(sessionKey, "w1", "do "+id)
+	t.TaskID = id
+	return t
+}
+
+func proactiveTaskFor(id, sessionKey, taskType string) task.DispatchTask {
+	return task.DispatchTask{
+		TaskID:      id,
+		WorkerID:    "w1",
+		SessionKey:  sessionKey,
+		Instruction: "report",
+		ReplyTo:     platform.InboundMessage{Platform: "test", SessionKey: sessionKey},
+		TaskType:    taskType,
+	}
+}
+
+func startObservedDispatcher(t *testing.T, mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore, *recordingObserver) {
+	t.Helper()
+	obs := &recordingObserver{}
+	d, in, ts := newTaskDispatcher(mgr, eq, ss, task.WithTaskObserver(obs))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go d.Run(ctx)
+	return d, in, ts, obs
+}
+
+func completedQuerier() *mockExecutionQuerier {
+	return &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusCompleted}}
+}
+
+func TestDispatcherEmitsQueuedPosition(t *testing.T) {
+	mgr := newGatedExecManager("t1", "t2", "t3")
+	_, in, _, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
+
+	in <- taskFor("t1", "s1")
+	obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+	in <- taskFor("t2", "s1")
+	in <- taskFor("t3", "s1")
+	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2})
+
+	mgr.release("t1")
+	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1})
+	mgr.release("t2")
+	mgr.release("t3")
+	obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0})
+
+	assert.Equal(t, []taskEvent{
+		{"t1", task.StateRunning, 0},
+		{"t2", task.StateQueued, 1},
+		{"t3", task.StateQueued, 2},
+		{"t1", task.StateCompleted, 0},
+		{"t2", task.StateRunning, 0},
+		{"t3", task.StateQueued, 1},
+		{"t2", task.StateCompleted, 0},
+		{"t3", task.StateRunning, 0},
+		{"t3", task.StateCompleted, 0},
+	}, obs.snapshot())
+}
+
+func TestDispatcherCancelsQueuedTask(t *testing.T) {
+	cases := []struct {
+		name          string
+		drop          func(t *testing.T, d *task.TaskDispatcher)
+		wantCancelled []string
+	}{
+		{
+			name: "ClearWorker",
+			drop: func(_ *testing.T, d *task.TaskDispatcher) { d.ClearWorker("s1", "w1") },
+		},
+		{
+			name: "CancelTask",
+			drop: func(t *testing.T, d *task.TaskDispatcher) {
+				require.NoError(t, d.CancelTask(context.Background(), "t2"))
+			},
+			wantCancelled: []string{"t2"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := newGatedExecManager("t1")
+			d, in, ts, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
+
+			in <- taskFor("t1", "s1")
+			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+			in <- taskFor("t2", "s1")
+			in <- taskFor("t3", "s2")
+			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2})
+
+			tc.drop(t, d)
+			obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0})
+			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1})
+
+			mgr.release("t1")
+			obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0})
+
+			assert.Equal(t, 1, obs.terminalCount("t2"))
+			assert.NotContains(t, mgr.ran(), "t2")
+			aborted, cancelled := ts.snapshot()
+			assert.Empty(t, aborted)
+			assert.Equal(t, tc.wantCancelled, cancelled)
+		})
+	}
+}
+
+func TestDispatcherEmitsOneTerminalState(t *testing.T) {
+	pollFails := make(chan struct{})
+	close(pollFails)
+	cases := []struct {
+		name   string
+		mgr    task.ExecutionManager
+		eq     task.ExecutionQuerier
+		cancel bool
+		want   string
+	}{
+		{
+			name: "Completed",
+			mgr:  &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}},
+			eq:   completedQuerier(),
+			want: task.StateCompleted,
+		},
+		{
+			name: "ExecutionFailed",
+			mgr:  &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}},
+			eq:   &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusFailed}},
+			want: task.StateFailed,
+		},
+		{
+			name: "ExecuteError",
+			mgr:  &tableExecManager{execErr: errors.New("launch failed")},
+			eq:   completedQuerier(),
+			want: task.StateFailed,
+		},
+		{
+			name: "PollError",
+			mgr:  &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}},
+			eq:   &cancelGateQuerier{gate: pollFails},
+			want: task.StateFailed,
+		},
+		{
+			name:   "CancelWhileRunning",
+			mgr:    &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}},
+			eq:     &mockExecutionQuerier{result: model.WorkerExecution{Status: model.ExecStatusRunning}},
+			cancel: true,
+			want:   task.StateCancelled,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, in, _, obs := startObservedDispatcher(t, tc.mgr, tc.eq, newMockSessionStore())
+
+			in <- taskFor("t1", "s1")
+			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+			if tc.cancel {
+				require.NoError(t, d.CancelTask(context.Background(), "t1"))
+			}
+			obs.waitForEvent(t, taskEvent{"t1", tc.want, 0})
+			assert.Never(t, func() bool { return obs.terminalCount("t1") > 1 }, 100*time.Millisecond, 10*time.Millisecond)
+		})
+	}
+}
+
+func runToTerminal(t *testing.T, ss *mockSessionStore, dt task.DispatchTask, status model.ExecutionStatus) {
+	t.Helper()
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}}
+	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "sess-run", Status: status}}
+	_, in, _, obs := startObservedDispatcher(t, mgr, eq, ss)
+	in <- dt
+	want := task.StateCompleted
+	if status == model.ExecStatusFailed {
+		want = task.StateFailed
+	}
+	obs.waitForEvent(t, taskEvent{dt.TaskID, want, 0})
+}
+
+func TestScheduledLocalWorkerRunDoesNotUpsert(t *testing.T) {
+	for _, taskType := range []string{model.TaskTypeScheduled, model.TaskTypeCountdown} {
+		for _, status := range []model.ExecutionStatus{model.ExecStatusCompleted, model.ExecStatusFailed} {
+			t.Run(taskType+"_"+string(status), func(t *testing.T) {
+				ss := newMockSessionStore()
+				runToTerminal(t, ss, proactiveTaskFor("t1", "local:u1:worker:w1", taskType), status)
+				assert.Zero(t, ss.upsertCount())
+			})
+		}
+	}
+}
+
+func TestScheduledTelegramRunStillUpserts(t *testing.T) {
+	cases := []struct {
+		name       string
+		sessionKey string
+		taskType   string
+	}{
+		{name: "TelegramScheduled", sessionKey: "telegram:chat-1:user-1", taskType: model.TaskTypeScheduled},
+		{name: "TelegramCountdown", sessionKey: "telegram:chat-1:user-1", taskType: model.TaskTypeCountdown},
+		{name: "LocalBeeScheduled", sessionKey: "local:u1", taskType: model.TaskTypeScheduled},
+		{name: "LocalWorkerImmediate", sessionKey: "local:u1:worker:w1", taskType: model.TaskTypeImmediate},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ss := newMockSessionStore()
+			runToTerminal(t, ss, proactiveTaskFor("t1", tc.sessionKey, tc.taskType), model.ExecStatusCompleted)
+			assert.Equal(t, 2, ss.upsertCount())
+			assert.Equal(t, "sess-run", ss.sessionID(tc.sessionKey, "w1", ""))
+		})
+	}
+}
+
+func TestAbortRunFinalizesAsAborted(t *testing.T) {
+	t.Run("Executing", func(t *testing.T) {
+		mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}}
+		eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-1", Status: model.ExecStatusRunning}}
+		d, in, ts, obs := startObservedDispatcher(t, mgr, eq, newMockSessionStore())
+
+		in <- proactiveTaskFor("t1", "local:u1:worker:w1", model.TaskTypeScheduled)
+		require.True(t, waitForExecCount(mgr, 1, 2*time.Second), "ExecuteWorker was not called within timeout")
+
+		d.AbortRun("t1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+
+		aborted, cancelled := ts.snapshot()
+		assert.Equal(t, []string{"t1"}, aborted)
+		assert.Empty(t, cancelled)
+		assert.Equal(t, 1, obs.terminalCount("t1"))
+	})
+
+	t.Run("PollErrorAfterAbort", func(t *testing.T) {
+		fake := newPollFailsAfterCancel()
+		d, in, ts, obs := startObservedDispatcher(t, fake, fake, newMockSessionStore())
+
+		in <- proactiveTaskFor("t1", "local:u1:worker:w1", model.TaskTypeCountdown)
+		select {
+		case <-fake.polling:
+		case <-time.After(2 * time.Second):
+			require.Fail(t, "execution was never polled")
+		}
+
+		d.AbortRun("t1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+
+		aborted, cancelled := ts.snapshot()
+		assert.Equal(t, []string{"t1"}, aborted)
+		assert.Empty(t, cancelled)
+		assert.Equal(t, 1, obs.terminalCount("t1"))
+	})
+
+	t.Run("Queued", func(t *testing.T) {
+		mgr := newGatedExecManager("t1")
+		d, in, ts, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
+
+		in <- taskFor("t1", "local:u1:worker:w1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+		in <- proactiveTaskFor("t2", "local:u1:worker:w1", model.TaskTypeCountdown)
+		obs.waitForEvent(t, taskEvent{"t2", task.StateQueued, 1})
+
+		d.AbortRun("t2")
+		obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0})
+
+		mgr.release("t1")
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCompleted, 0})
+
+		aborted, cancelled := ts.snapshot()
+		assert.Equal(t, []string{"t2"}, aborted)
+		assert.Empty(t, cancelled)
+		assert.NotContains(t, mgr.ran(), "t2")
+	})
 }

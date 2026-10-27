@@ -169,8 +169,11 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	mgr.SetBotNameSource(pluginMgr.BotNameList)
+	mgr.SetStatusObserver(func(id string, status model.WorkerStatus) {
+		localPub.WorkerStatus(id, string(status))
+	})
 
-	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg)
+	disp := buildDispatcher(s, mgr, dispatchCh, failureNotifier, engineCfg, localTaskObserver{pub: localPub})
 	beeBusy := command.NewBeeBusyChecker(s.msgStore, s.execStore)
 	workerBusy := command.NewWorkerBusyChecker(s.execStore, s.taskStore)
 	engineCmdHandler := command.NewEngineCommandHandler(s.workerStore, s.systemConfigStore, sendersByPlatform, mgr, beeBusy, workerBusy, engineCfg)
@@ -333,11 +336,21 @@ func buildDispatcher(
 	dispatchCh chan task.DispatchTask,
 	failureNotifier task.FailureNotifier,
 	engineCfg *enginecfg.Store,
+	observer task.TaskObserver,
 ) *task.TaskDispatcher {
 	return task.New(mgr, s.taskStore, s.sessionStore, s.execStore, dispatchCh, engineCfg,
 		task.WithFailureNotifier(failureNotifier),
 		task.WithWorkerLookup(s.workerStore),
+		task.WithTaskObserver(observer),
 	)
+}
+
+type localTaskObserver struct {
+	pub *local.EventPublisher
+}
+
+func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int) {
+	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead)
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
