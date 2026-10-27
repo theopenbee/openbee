@@ -518,14 +518,14 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			d.emit(task, StateCompleted, 0)
 			return
 		case model.ExecStatusFailed:
-			// Persist session context even on failure so the next dispatch can attempt
-			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
-			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
 			if d.stoppedInLocalChat(task) {
 				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
 				d.finishCancelled(task)
 				return
 			}
+			// Persist session context even on failure so the next dispatch can attempt
+			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
+			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
 			// Dispatcher sets terminal task status on abnormal worker exit.
 			if task.TaskID != "" {
 				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {

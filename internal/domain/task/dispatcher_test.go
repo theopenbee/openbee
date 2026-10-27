@@ -1901,3 +1901,53 @@ func TestTaskDispatcher_FailedLocalTaskStillReportsFailure(t *testing.T) {
 	fn.mu.Unlock()
 	assert.Equal(t, []string{"task-stop"}, ts.failed())
 }
+
+type clearOnPollQuerier struct {
+	once   sync.Once
+	onPoll func()
+	result model.WorkerExecution
+}
+
+func (q *clearOnPollQuerier) GetByID(_ string) (model.WorkerExecution, error) {
+	q.once.Do(q.onPoll)
+	return q.result, nil
+}
+
+func runForcedClear(t *testing.T, sessionKey, platformID, wantState string) *mockSessionStore {
+	t.Helper()
+	ss := newMockSessionStore()
+	require.NoError(t, ss.UpsertSessionContext(context.Background(), sessionKey, "w1", "sess-old", ""))
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1", SessionID: "sess-old"}}
+	eq := &clearOnPollQuerier{result: model.WorkerExecution{ID: "exec-1", SessionID: "sess-old", Status: model.ExecStatusFailed, Result: "signal: killed"}}
+	_, in, ts, obs := startObservedDispatcher(t, mgr, eq, ss)
+	eq.onPoll = func() {
+		_, _ = ss.DeleteSessionContextForEngine(context.Background(), sessionKey, "w1", "")
+		ts.mu.Lock()
+		ts.statuses = map[string]string{"t1": model.TaskStatusCancelled}
+		ts.mu.Unlock()
+	}
+
+	in <- task.DispatchTask{
+		TaskID:      "t1",
+		WorkerID:    "w1",
+		SessionKey:  sessionKey,
+		Instruction: "sleep 120",
+		ReplyTo:     platform.InboundMessage{Platform: platformID, SessionKey: sessionKey},
+		TaskType:    model.TaskTypeImmediate,
+		MessageID:   "msg-1",
+	}
+	obs.waitForEvent(t, taskEvent{TaskID: "t1", State: wantState})
+	return ss
+}
+
+func TestForcedLocalClearKeepsContextDeleted(t *testing.T) {
+	ss := runForcedClear(t, "local:u1:worker:w1", "local", task.StateCancelled)
+
+	assert.Empty(t, ss.sessionID("local:u1:worker:w1", "w1", ""))
+}
+
+func TestForcedIMClearStillRestoresContext(t *testing.T) {
+	ss := runForcedClear(t, "telegram:1:2:3", "telegram", task.StateFailed)
+
+	assert.Equal(t, "sess-old", ss.sessionID("telegram:1:2:3", "w1", ""))
+}
