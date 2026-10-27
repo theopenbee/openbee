@@ -22,18 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// fileMediaMarker is the protocol prefix embedded in message content to carry a media path.
-// It is shared between the write path (encodeMediaPaths) and the read path (decodeMediaPaths).
-// The leading \x00 (NUL byte) prevents collision with ordinary user text, which cannot contain NUL.
-const fileMediaMarker = "\x00[file]"
-
-// legacyFileMediaMarker is the old marker written before the NUL prefix was added.
-// decodeMediaPaths still recognises it so existing stored messages are decoded correctly.
-const legacyFileMediaMarker = "[file]"
-
-const fileMediaPrefix = fileMediaMarker + " "
-const legacyFileMediaPrefix = legacyFileMediaMarker + " "
-
 const localMessageIDPrefix = "local:"
 const chatRoleUser = "user"
 const chatRoleBee = "bee"
@@ -149,7 +137,7 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 		}
 	}
 
-	content := encodeMediaPaths(body.MediaPaths, body.Content)
+	content := local.EncodeMediaPaths(body.MediaPaths, body.Content)
 	ts := time.Now().UnixMilli()
 
 	h.receiver.Enqueue(platform.InboundMessage{
@@ -163,48 +151,6 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusAccepted, gin.H{"status": "queued", "id": id, "ts": ts})
-}
-
-// encodeMediaPaths prepends zero or more "[file] name\n" lines to text.
-func encodeMediaPaths(paths []string, text string) string {
-	if len(paths) == 0 {
-		return text
-	}
-	var sb strings.Builder
-	for _, p := range paths {
-		sb.WriteString(fileMediaMarker)
-		sb.WriteByte(' ')
-		sb.WriteString(p)
-		sb.WriteByte('\n')
-	}
-	sb.WriteString(text)
-	return sb.String()
-}
-
-// decodeMediaPaths extracts leading "<marker> name\n" lines from content.
-// It recognises the current marker (\x00[file]) and the legacy marker ([file])
-// so messages stored before the NUL prefix was introduced are still decoded correctly.
-// Returns the list of filenames and the remaining text.
-func decodeMediaPaths(content string) ([]string, string) {
-	var paths []string
-	for {
-		var rest string
-		switch {
-		case strings.HasPrefix(content, fileMediaPrefix):
-			rest = content[len(fileMediaPrefix):]
-		case strings.HasPrefix(content, legacyFileMediaPrefix):
-			rest = content[len(legacyFileMediaPrefix):]
-		default:
-			return paths, content
-		}
-		filename, after, ok := strings.Cut(rest, "\n")
-		if !ok {
-			break
-		}
-		paths = append(paths, filename)
-		content = after
-	}
-	return paths, content
 }
 
 type chatMessage struct {
@@ -258,7 +204,7 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	mediaDir, _ := local.MediaDir(h.mediaRoot, sessionKey)
 	combined := make([]chatMessage, 0, len(inbound)+len(replies))
 	for _, m := range inbound {
-		paths, text := decodeMediaPaths(m.Content)
+		paths, text := local.DecodeMediaPaths(m.Content)
 		msg := chatMessage{ID: inboundChatID(m, uid), Role: chatRoleUser, Content: text, Timestamp: m.ReceivedAt}
 		if len(paths) > 0 {
 			msg.MediaPaths = paths

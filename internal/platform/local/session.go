@@ -39,8 +39,8 @@ func MediaDir(root, sessionKey string) (string, error) {
 	if root == "" {
 		return "", errors.New("local media root is unavailable")
 	}
-	id, ok := strings.CutPrefix(sessionKey, sessionKeyPrefix)
-	if !ok || id == "" || id == "." || id == ".." || strings.ContainsAny(id, `/\`) {
+	id, _, ok := ParseSessionKey(sessionKey)
+	if !ok || id == "." || id == ".." || strings.ContainsAny(id, `/\`) {
 		return "", fmt.Errorf("invalid local session key %q", sessionKey)
 	}
 	return filepath.Join(root, id), nil
