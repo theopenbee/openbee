@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/theopenbee/openbee/internal/domain/delivery"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -432,6 +433,18 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 		NextRunAt:   nextRunAt,
 		CreatedAt:   nowMS,
 		UpdatedAt:   nowMS,
+	}
+
+	if s.handoff != nil && localchat.Applies(origin.Platform, origin.SessionKey) {
+		id, err := s.handoff.Create(ctx, task)
+		if err != nil {
+			return nil, fmt.Errorf("create task: %w", err)
+		}
+		return map[string]string{
+			"task_id":         id,
+			"status":          "pending",
+			"conversation_id": local.WorkerConversationID(params.WorkerID),
+		}, nil
 	}
 
 	id, err := s.taskStore.Create(ctx, task)

@@ -378,6 +378,55 @@ func TestMessageStore_ClaimBatch_DoesNotStaleMessageNewerThanProcessed(t *testin
 	assert.Equal(t, "msgB", msgs[0].ID)
 }
 
+func TestMessageStore_ClaimBatch_BeeSenderRowDoesNotStaleUserMessage(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+		 VALUES ('user-msg', 'local:u1:worker:w1', 'local', 'question', 'received', 100, ?, ?)`, now, now)
+	require.NoError(t, err)
+	require.NoError(t, s.InsertProcessed(ctx, ProcessedMsg{
+		ID: "handoff-msg", SessionKey: "local:u1:worker:w1", Platform: "local",
+		Content: "task", SenderType: SenderTypeBee, ReceivedAt: 150,
+	}))
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "user-msg", msgs[0].ID)
+
+	var status string
+	require.NoError(t, s.db.QueryRowContext(ctx,
+		`SELECT status FROM bee_platform_messages WHERE id = 'handoff-msg'`).Scan(&status))
+	assert.Equal(t, MsgStatusBeeProcessed, status)
+}
+
+func TestMessageStore_ClaimBatch_NewerUserRowStillStalesOlderMessage(t *testing.T) {
+	s := setupMessageStore(t)
+	ctx := context.Background()
+
+	now := time.Now().UnixMilli()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO bee_platform_messages (id, session_key, platform, content, status, received_at, created_at, updated_at)
+		 VALUES ('old', 'local:u1:worker:w1', 'local', 'old', 'received', 100, ?, ?)`, now, now)
+	require.NoError(t, err)
+	require.NoError(t, s.InsertProcessed(ctx, ProcessedMsg{
+		ID: "newer", SessionKey: "local:u1:worker:w1", Platform: "local",
+		Content: "newer", SenderType: SenderTypeUser, ReceivedAt: 150,
+	}))
+
+	msgs, err := s.ClaimBatch(ctx, 10)
+	require.NoError(t, err)
+	assert.Empty(t, msgs)
+
+	var status string
+	require.NoError(t, s.db.QueryRowContext(ctx,
+		`SELECT status FROM bee_platform_messages WHERE id = 'old'`).Scan(&status))
+	assert.Equal(t, MsgStatusStale, status)
+}
+
 func TestMessageStore_FailReceived(t *testing.T) {
 	s := setupMessageStore(t)
 	ctx := context.Background()

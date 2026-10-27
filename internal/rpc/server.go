@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/logger"
@@ -40,6 +41,7 @@ type Server struct {
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
 	departmentStore      *store.DepartmentStore
+	handoff              *localchat.Handoff
 }
 
 func NewBeeServer(
@@ -54,6 +56,7 @@ func NewBeeServer(
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
 	ds *store.DepartmentStore,
+	handoff *localchat.Handoff,
 ) *Server {
 	return &Server{
 		workerStore:          ws,
@@ -67,6 +70,7 @@ func NewBeeServer(
 		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,
 		departmentStore:      ds,
+		handoff:              handoff,
 	}
 }
 

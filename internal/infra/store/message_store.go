@@ -139,9 +139,10 @@ func (s *MessageStore) ClaimBatch(ctx context.Context, batchSize int) ([]Claimed
 		          FROM   bee_platform_messages b2
 		          WHERE  b2.session_key  = bee_platform_messages.session_key
 		            AND  b2.status       = ?
+		            AND  b2.sender_type  = ?
 		            AND  b2.received_at  > bee_platform_messages.received_at
 		        )`,
-		MsgStatusStale, now, MsgStatusReceived, MsgStatusBeeProcessed,
+		MsgStatusStale, now, MsgStatusReceived, MsgStatusBeeProcessed, SenderTypeUser,
 	); err != nil {
 		return nil, fmt.Errorf("mark stale: %w", err)
 	}

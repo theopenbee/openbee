@@ -14,6 +14,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -54,6 +55,10 @@ func WithLocalMediaRoot(root string) Option {
 	return func(f *Feeder) { f.localMediaRoot = root }
 }
 
+func WithHandoff(h *localchat.Handoff) Option {
+	return func(f *Feeder) { f.handoff = h }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -68,6 +73,7 @@ type Feeder struct {
 	sem             chan struct{} // bounds concurrent bee processes
 	workerLookup    *store.WorkerStore
 	localMediaRoot  string
+	handoff         *localchat.Handoff
 	runningMu       sync.Mutex
 	running         map[string]context.CancelFunc
 }
@@ -408,7 +414,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		return false
 	}
 
-	_, err = f.taskStore.Create(ctx, model.Task{
+	task := model.Task{
 		MessageID:   primary.ID,
 		SessionKey:  primary.SessionKey,
 		Platform:    primary.Platform,
@@ -416,7 +422,12 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		Instruction: instruction,
 		Type:        model.TaskTypeImmediate,
 		Status:      model.TaskStatusPending,
-	})
+	}
+	if f.handoff != nil && localchat.Applies(primary.Platform, primary.SessionKey) {
+		_, err = f.handoff.Create(ctx, task)
+	} else {
+		_, err = f.taskStore.Create(ctx, task)
+	}
 	if err != nil {
 		log.Error("direct: create task record", zap.Error(err))
 		return false

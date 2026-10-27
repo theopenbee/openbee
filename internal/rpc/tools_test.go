@@ -14,6 +14,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/rpc"
 	_ "modernc.org/sqlite"
 )
@@ -91,6 +93,11 @@ func (m *mockClearDispatcher) ClearWorker(sessionKey, workerID string) {
 // newTestServer builds a Bee RPC server on a fresh SQLite DB with the given platform senders.
 func newTestServer(t *testing.T, senders platform.SenderMap) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
 	t.Helper()
+	return newTestServerWithCards(t, senders, &mockSender{})
+}
+
+func newTestServerWithCards(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
@@ -120,7 +127,9 @@ func newTestServer(t *testing.T, senders platform.SenderMap) (*rpc.Server, *sql.
 		RunningExecs:  es,
 		EngineCfg:     engineCfg,
 	})
-	srv := rpc.NewBeeServer(ws, mgr, ts, store.NewMessageStore(db), store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db))
+	ms := store.NewMessageStore(db)
+	handoff := localchat.NewHandoff(ms, ts, cards, local.NewEventPublisher(local.NewSSEHub()))
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db), handoff)
 	return srv, db, stopper, disp
 }
 
@@ -521,6 +530,164 @@ func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
 	assert.Equal(t, "msg-origin", got.MessageID)
 	assert.Equal(t, "beta:chat_1:user_1", got.SessionKey)
 	assert.Equal(t, "beta", got.Platform)
+}
+
+func TestCreateTaskLocalBeeHandsOff(t *testing.T) {
+	future := time.Now().Add(time.Hour).UnixMilli()
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"immediate", map[string]any{"type": "immediate"}},
+		{"countdown", map[string]any{"type": "countdown", "scheduled_at": future}},
+		{"scheduled", map[string]any{"type": "scheduled", "cron_expr": "0 9 * * *"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cards := &mockSender{}
+			s, db, _, _ := newTestServerWithCards(t, nil, cards)
+			ctx := context.Background()
+			ms := store.NewMessageStore(db)
+			require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+				ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+			}))
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			args := map[string]any{"message_id": "msg-origin", "worker_id": w.ID, "instruction": "do the thing"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			result, err := s.CallTool(ctx, "create_task", mustMarshal(t, args))
+			require.NoError(t, err)
+			res := result.(map[string]string)
+			assert.Equal(t, "pending", res["status"])
+			assert.Equal(t, "worker:"+w.ID, res["conversation_id"])
+
+			workerKey := "local:u1:worker:" + w.ID
+			got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+			require.NoError(t, err)
+			assert.Equal(t, workerKey, got.SessionKey)
+			assert.Equal(t, "local", got.Platform)
+			assert.Equal(t, tc.args["type"], got.Type)
+			assert.NotEqual(t, "msg-origin", got.MessageID)
+
+			row, err := ms.GetByID(ctx, got.MessageID)
+			require.NoError(t, err)
+			assert.Equal(t, workerKey, row.SessionKey)
+
+			sent := cards.sent
+			require.Len(t, sent, 1)
+			assert.Equal(t, "local:u1", sent[0].SessionKey)
+			assert.Equal(t, store.OutboundKindHandoff, sent[0].Kind)
+			assert.Equal(t, "msg-origin", sent[0].InboundMsgID)
+			assert.Equal(t, "do the thing", sent[0].Content)
+		})
+	}
+}
+
+func TestWorkerReplyToHandoffMessageLandsInWorkerChat(t *testing.T) {
+	localSender := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, platform.SenderMap{"local": localSender}, &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+	}))
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "do the thing", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	task, err := store.NewTaskStore(db).GetByID(ctx, result.(map[string]string)["task_id"])
+	require.NoError(t, err)
+
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": task.MessageID, "content": "done",
+	}))
+	require.NoError(t, err)
+
+	require.Len(t, localSender.sent, 1)
+	assert.Equal(t, "local:u1:worker:"+w.ID, localSender.sent[0].ReplyTo.SessionKey)
+	assert.Equal(t, store.SourceTypeWorker, localSender.sent[0].SourceType)
+}
+
+func TestCreateTaskLocalBeeInvalidCronSkipsHandoff(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, nil, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+	}))
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go",
+		"type": "scheduled", "cron_expr": "not a cron",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.Equal(t, "cancelled", res["status"])
+	assert.NotContains(t, res, "conversation_id")
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, "local:u1", got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Empty(t, cards.sent)
+}
+
+func TestCreateTaskLocalWorkerChatOriginSkipsHandoff(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, nil, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	workerKey := "local:u1:worker:" + w.ID
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: workerKey, Platform: "local", Content: "please help",
+	}))
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.NotContains(t, res, "conversation_id")
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, workerKey, got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Empty(t, cards.sent)
+}
+
+func TestCreateTaskTelegramUnchanged(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, platform.SenderMap{"telegram": &mockSender{}}, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-origin", "telegram:c1:u1", "telegram", "hi", `{}`, "", 0) //nolint
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.Equal(t, map[string]string{"task_id": res["task_id"], "status": "pending"}, res)
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, "telegram:c1:u1", got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Equal(t, "telegram", got.Platform)
+
+	var rows int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages`).Scan(&rows))
+	assert.Equal(t, 1, rows)
+	assert.Empty(t, cards.sent)
 }
 
 func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {

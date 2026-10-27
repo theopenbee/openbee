@@ -27,6 +27,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/domain/pluginmgr"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -147,7 +148,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 	if err != nil {
 		logger.Warn("local chat media disabled: cannot resolve uploads dir", zap.Error(err))
 	}
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc, localMediaRoot)
 
 	// Local platform — always enabled, separate gateway with short debounce
 	localHub := local.NewSSEHub()
@@ -157,6 +157,9 @@ func BuildApp(cfg config.Config) (*App, error) {
 	rawLocalSender := local.NewLocalSender(localPub, localMediaRoot)
 	localSender := store.NewLoggingPlatformSenderAdapter(rawLocalSender, s.outboundMsgStore, local.PlatformID)
 	sendersByPlatform.Set(local.PlatformID, localSender)
+	handoff := localchat.NewHandoff(s.msgStore, s.taskStore, localSender, localPub)
+
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc, localMediaRoot, handoff)
 
 	if len(cfg.Bee.LegacyPlatforms) > 0 {
 		logger.Warn("bee.platforms is no longer used; manage plugins with openbee plugin or the web UI")
@@ -196,7 +199,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
 
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff)
 
 	if err := legacyChat.Restore(context.Background(), s.userStore.AdminID); err != nil {
 		logger.Error("restore legacy local chat", zap.Error(err))
@@ -312,13 +315,14 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string) (*bee.Feeder, *task.Scheduler) {
+	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string, handoff *localchat.Handoff) (*bee.Feeder, *task.Scheduler) {
 	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore),
-		bee.WithLocalMediaRoot(localMediaRoot))
+		bee.WithLocalMediaRoot(localMediaRoot),
+		bee.WithHandoff(handoff))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }

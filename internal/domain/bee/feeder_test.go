@@ -18,9 +18,11 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
@@ -847,4 +849,105 @@ func TestFeederBeeChatStillRunsBee(t *testing.T) {
 
 	assert.NotEmpty(t, env.runner.getCalls())
 	assert.Equal(t, 0, env.taskCount(t))
+}
+
+type cardRecorder struct {
+	mu   sync.Mutex
+	sent []platform.OutboundMessage
+}
+
+func (c *cardRecorder) Send(_ context.Context, msg platform.OutboundMessage) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sent = append(c.sent, msg)
+	return nil
+}
+
+func (c *cardRecorder) messages() []platform.OutboundMessage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]platform.OutboundMessage(nil), c.sent...)
+}
+
+func startHandoffFeeder(t *testing.T, db *sql.DB, ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner *mockBeeRunner) (*store.WorkerStore, *cardRecorder) {
+	t.Helper()
+	ws := store.NewWorkerStore(db)
+	cards := &cardRecorder{}
+	handoff := localchat.NewHandoff(ms, ts, cards, local.NewEventPublisher(local.NewSSEHub()))
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+		bee.WithWorkerDispatch(ws), bee.WithHandoff(handoff))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go f.Run(ctx)
+	return ws, cards
+}
+
+func TestDirectMentionInBeeChatHandsOff(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	runner := &mockBeeRunner{}
+	ws, cards := startHandoffFeeder(t, db, ms, ts, ss, es, runner)
+	w, err := ws.Create(model.Worker{Name: "writer", WorkDir: t.TempDir()})
+	require.NoError(t, err)
+	insertLocalMessage(t, db, "m1", local.SessionKey("u1"), "@writer draft the release notes")
+
+	require.Eventually(t, func() bool {
+		var status string
+		if err := db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id='m1'`).Scan(&status); err != nil {
+			return false
+		}
+		return status == store.MsgStatusBeeProcessed
+	}, 5*time.Second, 50*time.Millisecond)
+
+	assert.Empty(t, runner.getCalls(), "bee must not run for a direct mention")
+
+	workerKey := local.WorkerSessionKey("u1", w.ID)
+	var messageID, sessionKey, workerID, instruction string
+	require.NoError(t, db.QueryRow(
+		`SELECT message_id, session_key, worker_id, instruction FROM bee_tasks`,
+	).Scan(&messageID, &sessionKey, &workerID, &instruction))
+	assert.Equal(t, workerKey, sessionKey)
+	assert.Equal(t, w.ID, workerID)
+	assert.Equal(t, "draft the release notes", instruction)
+	assert.NotEqual(t, "m1", messageID)
+
+	var rowKey, senderType, content string
+	require.NoError(t, db.QueryRow(
+		`SELECT session_key, sender_type, content FROM bee_platform_messages WHERE id=?`, messageID,
+	).Scan(&rowKey, &senderType, &content))
+	assert.Equal(t, workerKey, rowKey)
+	assert.Equal(t, store.SenderTypeBee, senderType)
+	assert.Equal(t, "draft the release notes", content)
+
+	sent := cards.messages()
+	require.Len(t, sent, 1)
+	assert.Equal(t, local.SessionKey("u1"), sent[0].SessionKey)
+	assert.Equal(t, store.OutboundKindHandoff, sent[0].Kind)
+	assert.Equal(t, "m1", sent[0].InboundMsgID)
+}
+
+func TestDirectMentionOnIMChannelIgnoresHandoff(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	runner := &mockBeeRunner{}
+	ws, cards := startHandoffFeeder(t, db, ms, ts, ss, es, runner)
+	w, err := ws.Create(model.Worker{Name: "writer", WorkDir: t.TempDir()})
+	require.NoError(t, err)
+	insertMessage(t, db, "m1", "beta:c1:u1", "@writer draft the release notes")
+
+	require.Eventually(t, func() bool {
+		var n int
+		return db.QueryRow(`SELECT COUNT(*) FROM bee_tasks`).Scan(&n) == nil && n == 1
+	}, 5*time.Second, 50*time.Millisecond)
+
+	var messageID, sessionKey, workerID string
+	require.NoError(t, db.QueryRow(`SELECT message_id, session_key, worker_id FROM bee_tasks`).Scan(&messageID, &sessionKey, &workerID))
+	assert.Equal(t, "m1", messageID)
+	assert.Equal(t, "beta:c1:u1", sessionKey)
+	assert.Equal(t, w.ID, workerID)
+	assert.Empty(t, cards.messages())
+	var total int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages`).Scan(&total))
+	assert.Equal(t, 1, total)
 }
