@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
+import { CONVERSATIONS_KEY } from "@/lib/chat-events"
 import type { ConversationId, ConversationMessagesResponse } from "@/lib/types"
-
-export const CONVERSATIONS_KEY = ["conversations"] as const
 
 function useInvalidateConversations() {
   const queryClient = useQueryClient()

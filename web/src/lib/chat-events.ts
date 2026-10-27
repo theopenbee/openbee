@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query"
 import type {
   ChatMessage,
   ConversationActivity,
@@ -39,6 +40,8 @@ export interface ConversationView {
   active: ConversationId | null
   visible: boolean
 }
+
+export const CONVERSATIONS_KEY = ["conversations"] as const
 
 const PREVIEW_MAX_CODE_POINTS = 120
 const MEDIA_MARKERS = ["\u0000[file] ", "[file] "]
@@ -112,4 +115,61 @@ export function applyWorkerStatus(workers: Worker[], event: ChatEvent): Worker[]
   const index = workers.findIndex((worker) => worker.id === event.worker_id)
   if (index === -1 || workers[index].status === event.status) return workers
   return workers.map((worker, i) => (i === index ? { ...worker, status: event.status } : worker))
+}
+
+type WorkerCacheData = Worker | Worker[] | undefined
+
+export function workerCacheUpdater(event: ChatEvent) {
+  return (data: WorkerCacheData): WorkerCacheData => {
+    if (!data) return undefined
+    if (Array.isArray(data)) {
+      const next = applyWorkerStatus(data, event)
+      return next === data ? undefined : next
+    }
+    const [next] = applyWorkerStatus([data], event)
+    return next === data ? undefined : next
+  }
+}
+
+function updateConversationCache(
+  queryClient: QueryClient,
+  event: ChatMessageEvent | TaskEvent,
+  view: ConversationView,
+) {
+  const list = queryClient.getQueryData<ConversationSummary[]>(CONVERSATIONS_KEY)
+  if (!list) return
+  if (!list.some((item) => item.id === event.conversation_id)) {
+    queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
+    return
+  }
+  const next = applyEventToConversations(list, event, view)
+  if (next !== list) queryClient.setQueryData<ConversationSummary[]>(CONVERSATIONS_KEY, next)
+}
+
+export function applyEventToCaches(queryClient: QueryClient, event: ChatEvent, view: ConversationView) {
+  switch (event.type) {
+    case "message":
+    case "task":
+      updateConversationCache(queryClient, event, view)
+      return
+    case "worker_status":
+      queryClient.setQueriesData<Worker | Worker[]>(
+        { predicate: (query) => query.queryKey[0] === "workers" },
+        workerCacheUpdater(event),
+      )
+      return
+  }
+}
+
+export function ingestChatEvent(
+  queryClient: QueryClient,
+  event: ChatEvent,
+  lastSeq: number | null,
+  view: ConversationView,
+  onGap: () => void,
+): number {
+  const gap = detectGap(lastSeq, event.seq)
+  applyEventToCaches(queryClient, event, view)
+  if (gap) onGap()
+  return event.seq
 }

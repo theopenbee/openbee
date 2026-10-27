@@ -8,20 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { useQueryClient, type QueryClient } from "@tanstack/react-query"
-import { CONVERSATIONS_KEY } from "@/hooks/use-conversations"
+import { useQueryClient } from "@tanstack/react-query"
 import { tokenParam } from "@/lib/auth"
-import {
-  applyEventToConversations,
-  applyWorkerStatus,
-  detectGap,
-  type ChatEvent,
-  type ChatMessageEvent,
-  type ConversationView,
-  type TaskEvent,
-} from "@/lib/chat-events"
+import { CONVERSATIONS_KEY, ingestChatEvent, type ChatEvent, type TaskEvent } from "@/lib/chat-events"
 import { config } from "@/lib/config"
-import type { ChatMessage, ConversationId, ConversationSummary, Worker } from "@/lib/types"
+import type { ChatMessage, ConversationId } from "@/lib/types"
 
 const MAX_RECONNECT_ATTEMPTS = 5
 const RECONNECT_BASE_DELAY_MS = 2000
@@ -49,40 +40,6 @@ function parseEvent(data: string): ChatEvent | null {
     return event && typeof event.seq === "number" ? event : null
   } catch {
     return null
-  }
-}
-
-function updateWorkerCache(data: Worker | Worker[] | undefined, event: ChatEvent) {
-  if (!data) return data
-  return Array.isArray(data) ? applyWorkerStatus(data, event) : applyWorkerStatus([data], event)[0]
-}
-
-function updateConversationCache(
-  queryClient: QueryClient,
-  event: ChatMessageEvent | TaskEvent,
-  view: ConversationView,
-) {
-  const list = queryClient.getQueryData<ConversationSummary[]>(CONVERSATIONS_KEY)
-  if (!list) return
-  if (!list.some((item) => item.id === event.conversation_id)) {
-    queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY })
-    return
-  }
-  queryClient.setQueryData<ConversationSummary[]>(CONVERSATIONS_KEY, applyEventToConversations(list, event, view))
-}
-
-function applyToCaches(queryClient: QueryClient, event: ChatEvent, view: ConversationView) {
-  switch (event.type) {
-    case "message":
-    case "task":
-      updateConversationCache(queryClient, event, view)
-      return
-    case "worker_status":
-      queryClient.setQueriesData<Worker | Worker[]>(
-        { predicate: (query) => query.queryKey[0] === "workers" },
-        (data) => updateWorkerCache(data, event),
-      )
-      return
   }
 }
 
@@ -127,12 +84,13 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
     }
 
     const handle = (event: ChatEvent) => {
-      if (detectGap(lastSeq, event.seq)) resync()
-      lastSeq = event.seq
-      applyToCaches(queryClient, event, {
-        active: activeRef.current,
-        visible: document.visibilityState === "visible",
-      })
+      lastSeq = ingestChatEvent(
+        queryClient,
+        event,
+        lastSeq,
+        { active: activeRef.current, visible: document.visibilityState === "visible" },
+        resync,
+      )
       notify(handlersRef.current, event)
     }
 
