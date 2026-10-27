@@ -1,5 +1,7 @@
 export const FIELD_LABEL = "text-xs text-secondary"
 
+export const CHAT_COLUMN = "mx-auto w-full max-w-3xl px-4 sm:px-6"
+
 export const ALERT_DESTRUCTIVE =
   "rounded-control border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger"
 
