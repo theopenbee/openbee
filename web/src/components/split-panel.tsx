@@ -69,7 +69,7 @@ function InlinePanel({ open, onClose, title, children }: { open: boolean; onClos
                 <XIcon size={18} strokeWidth={1.75} aria-hidden="true" />
               </Button>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">{children}</div>
+            <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">{children}</div>
           </div>
         </motion.aside>
       )}

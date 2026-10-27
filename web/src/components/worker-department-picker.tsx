@@ -39,7 +39,7 @@ export function WorkerDepartmentPicker({ selected, onChange, disabled }: WorkerD
           onValueChange={setQuery}
         />
       )}
-      <div className="max-h-96 overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface px-2 py-1">
+      <div className="relative max-h-96 overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface px-2 py-1">
         {visible.length === 0 ? (
           <p className="px-3 py-4 text-sm text-secondary">{t("workers.form.noMatchingDepartments")}</p>
         ) : (

@@ -202,7 +202,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
+        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
       >
         <div ref={scrollContentRef} className={cn(CHAT_COLUMN, "flex min-h-full flex-col pt-6 pb-8 md:pt-10")}>
           {loading ? (

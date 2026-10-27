@@ -70,7 +70,7 @@ export function ConversationList({ active, className }: ConversationListProps) {
       <div className="shrink-0 px-3 pb-3 [&_label]:sr-only">
         <SearchField label={t("chat.search")} placeholder={t("chat.search")} value={query} onValueChange={setQuery} />
       </div>
-      <nav aria-label={t("chat.title")} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
+      <nav aria-label={t("chat.title")} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
         {loading ? (
           <ListSkeleton />
         ) : failed ? (
