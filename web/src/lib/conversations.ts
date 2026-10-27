@@ -16,11 +16,6 @@ export function conversationPath(id: ConversationId): string {
   return `/chat/${workerIdOf(id) ?? BEE_CONVERSATION}`
 }
 
-export function conversationFromParam(param: string | undefined): ConversationId | null {
-  if (!param) return null
-  return param === BEE_CONVERSATION ? BEE_CONVERSATION : workerConversationId(param)
-}
-
 function nameOf(item: ConversationSummary, names: Map<string, string>): string {
   return (item.worker_id && names.get(item.worker_id)) || ""
 }

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 import type { ConversationSummary, Worker } from "../types"
 import {
   BEE_CONVERSATION,
-  conversationFromParam,
   conversationPath,
   filterConversations,
   previewText,
@@ -79,18 +78,6 @@ describe("conversation ids", () => {
   it("builds the chat path", () => {
     expect(conversationPath("bee")).toBe("/chat/bee")
     expect(conversationPath("worker:w1")).toBe("/chat/w1")
-  })
-})
-
-describe("conversationFromParam", () => {
-  it("maps bee and worker ids", () => {
-    expect(conversationFromParam("bee")).toBe("bee")
-    expect(conversationFromParam("w1")).toBe("worker:w1")
-  })
-
-  it("maps a missing param to null", () => {
-    expect(conversationFromParam(undefined)).toBeNull()
-    expect(conversationFromParam("")).toBeNull()
   })
 })
 

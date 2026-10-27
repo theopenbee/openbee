@@ -10,13 +10,12 @@ import {
 } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { ensureFreshToken, tokenParam } from "@/lib/auth"
-import { ingestChatEvent, reconnectDelay, resyncCaches, type ChatEvent, type TaskEvent } from "@/lib/chat-events"
+import { ingestChatEvent, reconnectDelay, resyncCaches, type ChatEvent } from "@/lib/chat-events"
 import { config } from "@/lib/config"
 import type { ChatMessage, ConversationId } from "@/lib/types"
 
 export interface ChatEventHandler {
   onMessage?: (conversationId: ConversationId, message: ChatMessage) => void
-  onTask?: (event: TaskEvent) => void
   onResync?: () => void
 }
 
@@ -40,10 +39,8 @@ function parseEvent(data: string): ChatEvent | null {
 }
 
 function notify(handlers: Iterable<ChatEventHandler>, event: ChatEvent) {
-  for (const handler of handlers) {
-    if (event.type === "message") handler.onMessage?.(event.conversation_id, event.message)
-    else if (event.type === "task") handler.onTask?.(event)
-  }
+  if (event.type !== "message") return
+  for (const handler of handlers) handler.onMessage?.(event.conversation_id, event.message)
 }
 
 export function ChatEventsProvider({ children }: { children: ReactNode }) {
@@ -146,7 +143,6 @@ export function useChatEventSubscription(handler: ChatEventHandler) {
     () =>
       subscribe({
         onMessage: (conversationId, message) => handlerRef.current.onMessage?.(conversationId, message),
-        onTask: (event) => handlerRef.current.onTask?.(event),
         onResync: () => handlerRef.current.onResync?.(),
       }),
     [subscribe],
