@@ -20,6 +20,7 @@ const legacySessionKey = sessionKeyPrefix + "default"
 type SessionClaimStore interface {
 	SessionKeyClaim(ctx context.Context, from string) (string, bool, error)
 	ClaimSessionKey(ctx context.Context, from, to string) (string, error)
+	SplitLocalWorkerSessions(ctx context.Context, beeSessionKey string) error
 }
 
 type LegacySession struct {
@@ -79,6 +80,9 @@ func (l *LegacySession) claim(ctx context.Context, sessionKey string) error {
 	owner, err := l.store.ClaimSessionKey(ctx, legacySessionKey, sessionKey)
 	if err != nil {
 		return fmt.Errorf("claim legacy session: %w", err)
+	}
+	if err := l.store.SplitLocalWorkerSessions(ctx, owner); err != nil {
+		return fmt.Errorf("split local worker sessions: %w", err)
 	}
 	return l.moveMedia(owner)
 }

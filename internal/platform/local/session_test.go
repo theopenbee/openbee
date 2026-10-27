@@ -16,14 +16,21 @@ import (
 type claimCall struct{ from, to string }
 
 type fakeClaimStore struct {
-	owners map[string]string
-	claims []claimCall
-	err    error
+	owners   map[string]string
+	claims   []claimCall
+	splits   []string
+	err      error
+	splitErr error
 }
 
 func (f *fakeClaimStore) SessionKeyClaim(_ context.Context, from string) (string, bool, error) {
 	owner, ok := f.owners[from]
 	return owner, ok, f.err
+}
+
+func (f *fakeClaimStore) SplitLocalWorkerSessions(_ context.Context, beeSessionKey string) error {
+	f.splits = append(f.splits, beeSessionKey)
+	return f.splitErr
 }
 
 func (f *fakeClaimStore) ClaimSessionKey(_ context.Context, from, to string) (string, error) {
@@ -90,6 +97,25 @@ func TestLegacySession_ClaimMovesMedia(t *testing.T) {
 	assert.Equal(t, "old", string(data))
 	assert.NoDirExists(t, filepath.Join(root, "default"))
 	assert.Equal(t, []claimCall{{"local:default", "local:user-1"}}, claims.claims)
+}
+
+func TestClaimSplitsWorkerSessions(t *testing.T) {
+	claims := &fakeClaimStore{}
+	legacy := local.NewLegacySession(claims, t.TempDir())
+
+	require.NoError(t, legacy.Claim(context.Background(), "user-1"))
+
+	assert.Equal(t, []string{"local:user-1"}, claims.splits)
+}
+
+func TestClaimReturnsSplitError(t *testing.T) {
+	claims := &fakeClaimStore{splitErr: errors.New("split down")}
+	legacy := local.NewLegacySession(claims, t.TempDir())
+
+	err := legacy.Claim(context.Background(), "user-1")
+
+	require.ErrorContains(t, err, "split local worker sessions")
+	require.ErrorContains(t, err, "split down")
 }
 
 func TestLegacySession_ClaimKeepsRecordedOwner(t *testing.T) {
