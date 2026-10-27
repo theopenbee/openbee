@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ChatMessage, LocalMessagesResponse, Department, DepartmentTree, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -76,9 +76,6 @@ export const api = {
   config: {
     get: () => fetchAPI<AppConfig>("/config"),
   },
-  version: {
-    get: () => fetchAPI<AppVersion>("/version"),
-  },
   workers: {
     list: async (departmentId?: string) => {
       const qs = departmentId ? `?department_id=${departmentId}` : ""
@@ -105,33 +102,6 @@ export const api = {
         body: JSON.stringify({ department_ids: departmentIds }),
       }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
-  },
-  executions: {
-    logs: async (id: string, since: number = 0): Promise<{ content: string; size: number; truncated: boolean }> => {
-      const qs = since > 0 ? `?since=${since}` : ""
-      const res = await fetchWithAuth(`${API_BASE}/sessions/${id}/logs${qs}`, {
-        headers: { "Accept-Language": i18n.language || "en" },
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }))
-        throw new Error(err.error || res.statusText)
-      }
-      return res.json()
-    },
-  },
-  sessions: {
-    list: async (page: number = 1, pageSize: number = 20, workerID?: string) => {
-      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-      if (workerID) qs.set("worker_id", workerID)
-      return fetchAPI<PaginatedResponse<WorkerExecution>>(`/sessions?${qs}`)
-    },
-    get: async (sessionId: string) => {
-      const detail = await fetchAPI<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`)
-      return {
-        executions: Array.isArray(detail?.executions) ? detail.executions : [],
-        token_stats: detail?.token_stats ?? null,
-      }
-    },
   },
   localChat: {
     sendMessage: (id: string, content: string, mediaPaths?: string[]) =>
@@ -167,28 +137,6 @@ export const api = {
       fetchAPI<Department>(`/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) =>
       fetchAPI(`/departments/${id}`, { method: "DELETE" }),
-  },
-  tasks: {
-    list: (params: { workerID?: string; page?: number; pageSize?: number } = {}) => {
-      const { workerID, page = 1, pageSize = 20 } = params
-      const qs = new URLSearchParams({
-        type: "scheduled,countdown",
-        status: "pending,running",
-        page: String(page),
-        page_size: String(pageSize),
-      })
-      if (workerID) qs.set("worker_id", workerID)
-      return fetchAPI<PaginatedResponse<Task>>(`/tasks?${qs}`)
-    },
-    cancel: (id: string) =>
-      fetchAPI(`/tasks/${id}`, { method: "DELETE" }),
-    cancelAll: (workerID: string) =>
-      fetchAPI(`/workers/${workerID}/tasks/cancel-all`, { method: "POST" }),
-  },
-  stats: {
-    overview: () => fetchAPI<StatsOverview>("/stats/overview"),
-    tokenTrend: (days: 7 | 15 | 30) =>
-      fetchAPI<TokenTrend>(`/stats/token-trend?days=${days}`),
   },
   envs: {
     list: (scope: string, scopeId?: string) => {

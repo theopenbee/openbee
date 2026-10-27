@@ -102,15 +102,3 @@ func (s *TokenStatsStore) GetBySessionID(sessionID string) ([]model.TokenStats, 
 	}
 	return collectTokenStats(rows)
 }
-
-func (s *TokenStatsStore) GetBySessionIDs(sessionIDs []string) ([]model.TokenStats, error) {
-	if len(sessionIDs) == 0 {
-		return nil, nil
-	}
-	query := fmt.Sprintf(tokenStatsSelect+` WHERE model != ? AND session_id IN (%s)`, inPlaceholders(len(sessionIDs)))
-	rows, err := s.db.Query(query, append([]any{TombstoneModel}, stringsToArgs(sessionIDs)...)...)
-	if err != nil {
-		return nil, fmt.Errorf("get token stats by session ids: %w", err)
-	}
-	return collectTokenStats(rows)
-}

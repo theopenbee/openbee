@@ -116,31 +116,3 @@ func TestTokenStatsStore_Upsert_MultipleModelsPerSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, got, 2, "expected one record per model")
 }
-
-func TestTokenStatsStore_GetBySessionIDs_ReturnsMatchingRows(t *testing.T) {
-	s := newTokenStatsTestDB(t)
-
-	now := time.Now().UnixMilli()
-	for _, stat := range []model.TokenStats{
-		{SessionID: "session-1", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 100, OutputTokens: 200, TotalTokens: 300, SyncedAt: now},
-		{SessionID: "session-1", AgentType: "claude", Model: "claude-opus-4-7", InputTokens: 50, OutputTokens: 100, TotalTokens: 150, SyncedAt: now},
-		{SessionID: "session-2", AgentType: "claude", Model: "claude-sonnet-4-6", InputTokens: 10, OutputTokens: 20, TotalTokens: 30, SyncedAt: now},
-	} {
-		require.NoError(t, s.Upsert(stat))
-	}
-
-	rows, err := s.GetBySessionIDs([]string{"session-1", "session-99"})
-	require.NoError(t, err)
-	assert.Len(t, rows, 2)
-	for _, r := range rows {
-		assert.Equal(t, "session-1", r.SessionID)
-	}
-}
-
-func TestTokenStatsStore_GetBySessionIDs_NilSlice(t *testing.T) {
-	s := newTokenStatsTestDB(t)
-
-	rows, err := s.GetBySessionIDs(nil)
-	require.NoError(t, err)
-	assert.Nil(t, rows)
-}

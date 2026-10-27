@@ -11,13 +11,6 @@ var (
 	Date    = "unknown"
 )
 
-// Info is an immutable snapshot of the build metadata.
-type Info struct {
-	Version string `json:"version"`
-	Commit  string `json:"commit"`
-	Date    string `json:"date"`
-}
-
 // Set records the build metadata. Called once from main at startup.
 func Set(version, commit, date string) {
 	if version != "" {
@@ -29,9 +22,4 @@ func Set(version, commit, date string) {
 	if date != "" {
 		Date = date
 	}
-}
-
-// Get returns the current build metadata snapshot.
-func Get() Info {
-	return Info{Version: Version, Commit: Commit, Date: Date}
 }

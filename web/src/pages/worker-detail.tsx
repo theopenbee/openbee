@@ -5,18 +5,16 @@ import {
   ArrowLeft,
   Building2,
   CalendarIcon,
-  Clock,
   Copy,
+  History,
   LayoutDashboard,
-  ListTodo,
-  Logs,
   Pencil,
   ScrollText,
   Settings2,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react"
-import { useWorker, useWorkerExecutions, useUpdateWorker } from "@/hooks/use-workers"
+import { useWorker, useUpdateWorker } from "@/hooks/use-workers"
 import { Alert } from "@/components/arc/alert/alert"
 import { Badge } from "@/components/arc/badge/badge"
 import { Button } from "@/components/arc/button/button"
@@ -25,29 +23,21 @@ import { CopyButton } from "@/components/copy-button"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { FadeIn } from "@/components/fade-in"
-import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Panel } from "@/components/panel"
-import { PaginationControls } from "@/components/pagination-controls"
 import { StatusBadge } from "@/components/status-badge"
-import { TaskList } from "@/components/task-list"
-import { SessionGroupRow } from "@/components/session-group-row"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { WorkerEffectiveEnv } from "@/components/worker-effective-env"
 import { ScopeToggleCard } from "@/components/scope-toggle-card"
 import { EnvConfigPanel } from "@/components/env-config-panel"
 import { EditWorkerInfoSheet } from "@/components/edit-worker-info-sheet"
 import { cn, getErrorMessage } from "@/lib/utils"
-import { formatEngineLabel, formatRelative, formatTimestamp, groupExecutionsBySession } from "@/lib/format"
+import { formatEngineLabel, formatRelative, formatTimestamp } from "@/lib/format"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
 import type { Worker } from "@/lib/types"
 
-const PAGE_SIZE = 20
-
 const SECTIONS = [
   { key: "overview", labelKey: "workerDetail.overview", icon: LayoutDashboard },
-  { key: "sessions", labelKey: "workerDetail.sessions", icon: Logs },
-  { key: "tasks", labelKey: "tasks.title", icon: ListTodo },
   { key: "constraints", labelKey: "workerDetail.constraints", icon: ScrollText },
   { key: "permissions", labelKey: "workerDetail.permissions", icon: ShieldCheck },
   { key: "env", labelKey: "envConfig.title", icon: Settings2 },
@@ -131,7 +121,7 @@ function MonoValue({ value, copyLabel }: { value: string; copyLabel: string }) {
   )
 }
 
-function Overview({ worker, sessionTotal, lastActive }: { worker: Worker; sessionTotal: number | undefined; lastActive: number | null | undefined }) {
+function Overview({ worker }: { worker: Worker }) {
   const { t } = useTranslation()
   const departments = worker.departments ?? []
   return (
@@ -149,27 +139,20 @@ function Overview({ worker, sessionTotal, lastActive }: { worker: Worker; sessio
             </p>
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <DetailOverviewStat
-            icon={Logs}
-            label={t("workerDetail.sessions")}
-            value={sessionTotal ?? <span className="skeleton inline-block h-6 w-10 align-middle" />}
-            valueClassName="text-xl tabular"
-          />
-          <DetailOverviewStat
-            icon={Clock}
-            label={t("workerDetail.lastActive")}
-            value={lastActive ? formatRelative(lastActive, t) : t("workerDetail.neverActive")}
-            hint={lastActive ? formatTimestamp(lastActive) : undefined}
-            valueClassName="tabular"
-          />
+        <div className="mt-6 grid grid-cols-2 gap-3">
           <DetailOverviewStat
             icon={CalendarIcon}
             label={t("workerDetail.created")}
             value={formatRelative(worker.created_at, t)}
             hint={formatTimestamp(worker.created_at)}
             valueClassName="tabular"
-            className="col-span-2 sm:col-span-1"
+          />
+          <DetailOverviewStat
+            icon={History}
+            label={t("workerDetail.updated")}
+            value={formatRelative(worker.updated_at, t)}
+            hint={formatTimestamp(worker.updated_at)}
+            valueClassName="tabular"
           />
         </div>
       </DetailSection>
@@ -268,21 +251,6 @@ export function WorkerDetail() {
   }
   const activeLabelKey = SECTIONS.find((s) => s.key === activeSection)!.labelKey
 
-  const [page, setPage] = useState(1)
-  const {
-    data,
-    error: executionsError,
-    isLoading: executionsLoading,
-    refetch: refetchExecutions,
-  } = useWorkerExecutions(id!, page, PAGE_SIZE, {
-    enabled: activeSection === "overview" || activeSection === "sessions",
-  })
-
-  const executions = data?.items ?? []
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE))
-  const latestExecution = executions[0]
-  const sessionGroups = useMemo(() => groupExecutionsBySession(executions), [executions])
-
   const updateWorker = useUpdateWorker()
   const [localScopes, setLocalScopes] = useState<string[]>([])
   const [scopeError, setScopeError] = useState("")
@@ -371,61 +339,8 @@ export function WorkerDetail() {
           <PageHeader title={t(activeLabelKey)} actions={headerActions} />
 
           {activeSection === "overview" && (
-            <Overview worker={worker} sessionTotal={data?.total} lastActive={latestExecution?.started_at} />
+            <Overview worker={worker} />
           )}
-
-          {activeSection === "sessions" && (
-            <div className="grid gap-4">
-              {executionsError ? (
-                <Alert tone="danger" title={t("workerDetail.sessionsLoadError")}>
-                  <span className="grid justify-items-start gap-3">
-                    <span>{getErrorMessage(executionsError)}</span>
-                    <Button variant="secondary" size="sm" onClick={() => refetchExecutions()}>
-                      {t("common.retry")}
-                    </Button>
-                  </span>
-                </Alert>
-              ) : executionsLoading ? (
-                <div aria-busy="true" className="overflow-hidden rounded-surface border border-border bg-surface">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="grid gap-2 border-t border-border-subtle px-6 py-4 first:border-t-0">
-                      <div className="skeleton h-4 w-2/3" />
-                      <div className="skeleton h-3 w-1/3" />
-                    </div>
-                  ))}
-                </div>
-              ) : sessionGroups.length === 0 ? (
-                <DetailSection>
-                  <EmptyState
-                    title={t("emptyState.noExecutions")}
-                    description={t("emptyState.noExecutionsDesc")}
-                  />
-                </DetailSection>
-              ) : (
-                <>
-                  <DetailSection>
-                    <div className="divide-y divide-border-subtle">
-                      {sessionGroups.map((group) => (
-                        <SessionGroupRow
-                          key={group[0].session_id}
-                          group={group}
-                          tokenStats={data?.token_stats?.[group[0].session_id]}
-                        />
-                      ))}
-                    </div>
-                  </DetailSection>
-                  <PaginationControls
-                    page={page}
-                    totalPages={totalPages}
-                    onPageChange={setPage}
-                    leadingLabel={t("sessions.summary", { count: data?.total ?? 0 })}
-                  />
-                </>
-              )}
-            </div>
-          )}
-
-          {activeSection === "tasks" && <TaskList workerId={id!} />}
 
           {activeSection === "constraints" && <WorkerConstraintsPanel worker={worker} />}
 

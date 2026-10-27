@@ -57,26 +57,4 @@ func TestListFiltered_BreaksTimestampTiesNewestFirst(t *testing.T) {
 			return ids
 		})
 	})
-
-	t.Run("executions", func(t *testing.T) {
-		db := newTestDB(t, seedWorkerSQL("w1"))
-		es := NewExecutionStore(db, t.TempDir())
-		names := map[string]string{}
-		for _, name := range []string{"a", "b", "c"} {
-			exec, err := es.Create(ExecutionCreate{WorkerID: "w1", TriggerInput: name})
-			require.NoError(t, err)
-			names[exec.ID] = name
-		}
-		_, err := db.Exec(`UPDATE bee_executions SET started_at = 1`)
-		require.NoError(t, err)
-		pages(t, func(limit, offset int) []string {
-			execs, _, err := es.ListFiltered(ctx, ExecutionFilter{}, limit, offset)
-			require.NoError(t, err)
-			var got []string
-			for _, e := range execs {
-				got = append(got, names[e.ID])
-			}
-			return got
-		})
-	})
 }

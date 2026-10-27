@@ -21,7 +21,7 @@ export function NotFound() {
           action={
             <Button onClick={() => navigate(isAuthenticated ? "/" : "/login")}>
               {isAuthenticated
-                ? t("notFound.backToHome", "Go to overview")
+                ? t("notFound.backToHome", "Go to chat")
                 : t("notFound.goToLogin", "Go to sign in")}
             </Button>
           }

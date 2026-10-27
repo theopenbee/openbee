@@ -190,20 +190,6 @@ func TestExecutionStore_UpdateResult_CompletedAtMillisecondPrecision(t *testing.
 	assert.Positive(t, completedAt, "want positive Unix millisecond timestamp")
 }
 
-func TestExecutionStore_ListBySessionID(t *testing.T) {
-	db := newTestDB(t)
-	ws := NewWorkerStore(db)
-	es := NewExecutionStore(db, t.TempDir())
-
-	w, _ := ws.Create(model.Worker{Name: "Bot", WorkDir: "/tmp/bot"})
-	exec, _ := es.Create(ExecutionCreate{WorkerID: w.ID, TriggerInput: "test message", SessionID: uuid.New().String(), Engine: "claude"})
-
-	got, err := es.ListBySessionID(exec.SessionID)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, exec.ID, got[0].ID)
-}
-
 func TestExecutionStore_Create_EmptyWorkerID(t *testing.T) {
 	db := newTestDB(t)
 	es := NewExecutionStore(db, t.TempDir())
@@ -222,67 +208,6 @@ func TestExecutionStore_Create_EmptyWorkerID(t *testing.T) {
 	assert.Nil(t, got.WorkerID, "expected nil WorkerID from DB")
 	assert.Equal(t, sessionID, got.SessionID)
 	assert.Equal(t, "claude-sonnet-4-5", got.Engine)
-}
-
-func TestExecutionStore_ReadLogSince(t *testing.T) {
-	db := newTestDB(t)
-	logsDir := t.TempDir()
-	es := NewExecutionStore(db, logsDir)
-
-	exec, _ := es.Create(ExecutionCreate{TriggerInput: "test prompt", SessionID: "session1"})
-
-	// No log path yet → zero slice, no error.
-	slice, err := es.ReadLogSince(exec.ID, 0)
-	require.NoError(t, err)
-	assert.Empty(t, slice.Content)
-	assert.Zero(t, slice.Size)
-	assert.False(t, slice.Truncated)
-
-	logPath, err := es.PrepareLogPath(exec.ID, exec.StartedAt)
-	require.NoError(t, err)
-
-	// File not yet created → zero slice.
-	slice, err = es.ReadLogSince(exec.ID, 0)
-	require.NoError(t, err)
-	assert.Empty(t, slice.Content)
-	assert.Zero(t, slice.Size)
-	assert.False(t, slice.Truncated)
-
-	// Write initial content; since=0 must return everything.
-	initial := []byte("line1\nline2\n")
-	require.NoError(t, os.WriteFile(logPath, initial, 0o644))
-	slice, err = es.ReadLogSince(exec.ID, 0)
-	require.NoError(t, err)
-	assert.Equal(t, string(initial), slice.Content)
-	assert.EqualValues(t, len(initial), slice.Size)
-	assert.False(t, slice.Truncated)
-
-	// Append; since=len(initial) must return only the tail.
-	tail := []byte("line3\n")
-	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0o644)
-	require.NoError(t, err)
-	_, err = f.Write(tail)
-	require.NoError(t, err)
-	f.Close()
-
-	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)))
-	require.NoError(t, err)
-	assert.Equal(t, string(tail), slice.Content)
-	assert.EqualValues(t, len(initial)+len(tail), slice.Size)
-	assert.False(t, slice.Truncated, "should not be truncated")
-
-	// since == size → empty content.
-	slice, err = es.ReadLogSince(exec.ID, int64(len(initial)+len(tail)))
-	require.NoError(t, err)
-	assert.Empty(t, slice.Content)
-	assert.False(t, slice.Truncated)
-	assert.EqualValues(t, len(initial)+len(tail), slice.Size, "size should still match")
-
-	// since > size → truncated=true with full content.
-	slice, err = es.ReadLogSince(exec.ID, 99999)
-	require.NoError(t, err)
-	assert.True(t, slice.Truncated, "expected truncated=true when since > size")
-	assert.Equal(t, string(initial)+string(tail), slice.Content)
 }
 
 func TestExecutionStore_PrepareLogPath(t *testing.T) {

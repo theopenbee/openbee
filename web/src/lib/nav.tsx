@@ -1,11 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import {
-  ActivityIcon,
-  BotIcon,
-  ClockIcon,
-  LayoutDashboardIcon,
-  MessageCircleIcon,
-} from "lucide-react"
+import { BotIcon, MessageCircleIcon } from "lucide-react"
 
 export type NavSubDef = { titleKey: string; url: string; sectionKey?: string }
 export type NavLeafDef = { titleKey: string; url: string; icon: LucideIcon }
@@ -17,11 +11,10 @@ export function isNavGroup(entry: NavDef): entry is NavGroupDef {
 }
 
 export function isNavActive(pathname: string, url: string) {
-  return url === "/" ? pathname === "/" : pathname === url || pathname.startsWith(`${url}/`)
+  return pathname === url || pathname.startsWith(`${url}/`)
 }
 
 export const NAV: NavDef[] = [
-  { titleKey: "nav.dashboard", url: "/", icon: LayoutDashboardIcon },
   { titleKey: "localChat.title", url: "/chat", icon: MessageCircleIcon },
   {
     titleKey: "nav.digitalEmployees",
@@ -31,6 +24,4 @@ export const NAV: NavDef[] = [
       { titleKey: "nav.workers", url: "/workers" },
     ],
   },
-  { titleKey: "nav.sessions", url: "/sessions", icon: ActivityIcon },
-  { titleKey: "nav.tasks", url: "/tasks", icon: ClockIcon },
 ]

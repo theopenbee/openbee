@@ -1,5 +1,4 @@
 export type WorkerStatus = "idle" | "working" | "error"
-export type ExecutionStatus = "pending" | "running" | "completed" | "failed"
 
 export interface Worker {
   id: string
@@ -34,47 +33,6 @@ export interface DepartmentBrief {
   name: string
 }
 
-export interface WorkerExecution {
-  id: string
-  worker_id?: string
-  worker_name?: string
-  session_id: string
-  trigger_input: string
-  status: ExecutionStatus
-  result: string
-  logs: string | null
-  ai_process_pid: number
-  started_at: number | null
-  completed_at: number | null
-}
-
-export interface ModelTokenStats {
-  model: string
-  total_tokens: number
-  input_tokens: number
-  output_tokens: number
-  cache_creation_tokens: number
-  cache_read_tokens: number
-}
-
-export interface SessionTokenStats {
-  total_tokens: number
-  by_model: ModelTokenStats[]
-}
-
-export interface SessionDetail {
-  executions: WorkerExecution[]
-  token_stats: SessionTokenStats | null
-}
-
-export interface PaginatedResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  page_size: number
-  token_stats?: Record<string, SessionTokenStats | null>
-}
-
 export interface ChatMessage {
   id: string
   role: "user" | "bee"
@@ -87,41 +45,6 @@ export interface ChatMessage {
 export interface LocalMessagesResponse {
   messages: ChatMessage[]
   has_more: boolean
-}
-
-export type TaskType = "immediate" | "countdown" | "scheduled"
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
-
-export interface Task {
-  id: string
-  worker_id: string
-  worker_name: string
-  instruction: string
-  type: TaskType
-  status: TaskStatus
-  scheduled_at: number | null
-  cron_expr: string
-  next_run_at: number | null
-  created_at: number
-  updated_at: number
-}
-
-export interface StatsOverview {
-  departments: number
-  workers: number
-  scheduled_tasks: number
-  tokens_today_total: number
-  tokens_yesterday_total: number
-}
-
-export interface TokenTrendPoint {
-  date: string
-  total_tokens: number
-}
-
-export interface TokenTrend {
-  days: number
-  data: TokenTrendPoint[]
 }
 
 export type EnvScope = "global" | "bee" | "department" | "worker"
@@ -160,15 +83,6 @@ export interface EnvConfig {
 export interface AppConfig {
   language: string
   enabled_engines: Engine[]
-}
-
-export interface AppVersion {
-  version: string
-  commit: string
-  date: string
-  go_version: string
-  os: string
-  arch: string
 }
 
 export interface SetupStatus {

@@ -14,12 +14,8 @@ import (
 
 type ServerParams struct {
 	Workers           *api.WorkerHandler
-	Executions        *api.ExecutionHandler
-	Tasks             *api.TaskHandler
 	Departments       *api.DepartmentHandler
-	Stats             *api.StatsHandler
 	Config            *api.ConfigHandler
-	Version           *api.VersionHandler
 	LocalChat         *api.LocalChatHandler
 	Auth              *auth.AuthHandler
 	Envs              *api.EnvHandler

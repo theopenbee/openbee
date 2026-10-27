@@ -243,16 +243,6 @@ func (s *TaskStore) UpdateStatusIfRunning(ctx context.Context, taskID, next stri
 	return n > 0, nil
 }
 
-// CancelByWorkerID cancels all pending/running tasks for a given worker.
-func (s *TaskStore) CancelByWorkerID(ctx context.Context, workerID string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE bee_tasks SET status = ?, updated_at = ?
-         WHERE worker_id = ? AND status IN (?, ?)`,
-		model.TaskStatusCancelled, time.Now().UnixMilli(), workerID,
-		model.TaskStatusPending, model.TaskStatusRunning)
-	return err
-}
-
 // CancelFilter selects pending/running tasks for Cancel to mark cancelled.
 // At least one of SessionKey or WorkerID must be set. Empty Type matches all types.
 type CancelFilter struct {

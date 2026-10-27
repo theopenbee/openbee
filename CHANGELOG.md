@@ -11,6 +11,8 @@
 
 ### Removed
 - Remove user and role management; keep one admin account.
+- Remove overview, sessions and scheduled pages and their APIs.
+- Remove session and task tabs from worker details.
 - Remove the GitHub link and sidebar collapse from the console.
 - Remove unused web username and password from config.
 - Remove CLI translations; the CLI is English only.

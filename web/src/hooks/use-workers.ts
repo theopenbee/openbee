@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import type { Worker, Engine } from "@/lib/types"
 
@@ -54,20 +54,6 @@ export function useUpdateWorker() {
       queryClient.invalidateQueries({ queryKey: ["workers"] })
       queryClient.invalidateQueries({ queryKey: ["workers", id] })
     },
-  })
-}
-
-export function useWorkerExecutions(
-  workerId: string,
-  page: number = 1,
-  pageSize: number = 20,
-  options?: { enabled?: boolean },
-) {
-  return useQuery({
-    queryKey: ["workers", workerId, "executions", page, pageSize],
-    queryFn: () => api.sessions.list(page, pageSize, workerId),
-    placeholderData: keepPreviousData,
-    enabled: options?.enabled ?? true,
   })
 }
 

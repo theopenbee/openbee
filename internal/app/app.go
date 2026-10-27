@@ -237,7 +237,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		localMediaRoot,
 	)
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, disp, pluginMgr)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -259,7 +259,6 @@ type appStores struct {
 	outboundMsgStore  *store.OutboundMessageStore
 	constraintStore   *store.ConstraintStore
 	departmentStore   *store.DepartmentStore
-	statsStore        *store.StatsStore
 	tokenStatsStore   *store.TokenStatsStore
 	userStore         *store.UserStore
 	pluginSettings    *store.PluginSettingsStore
@@ -281,7 +280,6 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		outboundMsgStore:  store.NewOutboundMessageStore(db),
 		constraintStore:   store.NewConstraintStore(db),
 		departmentStore:   store.NewDepartmentStore(db),
-		statsStore:        store.NewStatsStore(db),
 		tokenStatsStore:   store.NewTokenStatsStore(db),
 		userStore:         store.NewUserStore(db),
 		pluginSettings:    store.NewPluginSettingsStore(db),
@@ -336,7 +334,7 @@ func buildDispatcher(
 	)
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, taskCanceller api.TaskCanceller, plugins *pluginmgr.Manager) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -346,12 +344,8 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, language),
-		Executions:        api.NewExecutionHandler(s.execStore, s.tokenStatsStore),
-		Tasks:             api.NewTaskHandler(s.taskStore, s.workerStore, taskCanceller),
 		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
-		Stats:             api.NewStatsHandler(s.statsStore),
 		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
-		Version:           api.NewVersionHandler(buildinfo.Get()),
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),

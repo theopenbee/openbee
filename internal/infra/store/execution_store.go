@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,19 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
-
-// LogSlice is the result of a byte-offset log read. Size reports the file's
-// current byte length; callers use it as the next "since" offset. Truncated
-// is true when the caller's since exceeded Size (file rotated/reset), in
-// which case Content holds the full file and callers should rebuild state.
-// Status is the execution's current status, returned alongside the slice so
-// callers (e.g. log viewers) can decide whether to keep polling.
-type LogSlice struct {
-	Content   string
-	Size      int64
-	Truncated bool
-	Status    model.ExecutionStatus
-}
 
 type ExecutionStore struct {
 	db      *sql.DB
@@ -104,60 +90,6 @@ func (s *ExecutionStore) List() ([]model.WorkerExecution, error) {
 	rows, err := s.db.Query(execSelect + ` ORDER BY e.started_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list executions: %w", err)
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}
-
-// CountSessions returns the count of distinct sessions; empty workerID spans all workers.
-func (s *ExecutionStore) CountSessions(workerID string) (int, error) {
-	q := `SELECT COUNT(DISTINCT session_id) FROM bee_executions`
-	var args []any
-	if workerID != "" {
-		q += ` WHERE worker_id = ?`
-		args = append(args, workerID)
-	}
-	var count int
-	if err := s.db.QueryRow(q, args...).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count sessions: %w", err)
-	}
-	return count, nil
-}
-
-// ListPaginatedSessions returns executions grouped by session with pagination
-// at the session level. workerID empty paginates across all workers.
-func (s *ExecutionStore) ListPaginatedSessions(workerID string, limit, offset int) ([]model.WorkerExecution, error) {
-	var query string
-	var args []any
-	if workerID == "" {
-		query = execSelect + ` WHERE e.session_id IN (
-			SELECT session_id FROM bee_executions
-			GROUP BY session_id
-			ORDER BY MAX(started_at) DESC
-			LIMIT ? OFFSET ?
-		) ORDER BY e.started_at DESC`
-		args = []any{limit, offset}
-	} else {
-		query = execSelect + ` WHERE e.worker_id = ? AND e.session_id IN (
-			SELECT session_id FROM bee_executions WHERE worker_id = ?
-			GROUP BY session_id
-			ORDER BY MAX(started_at) DESC
-			LIMIT ? OFFSET ?
-		) ORDER BY e.started_at DESC`
-		args = []any{workerID, workerID, limit, offset}
-	}
-	rows, err := s.db.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list paginated executions: %w", err)
-	}
-	defer rows.Close()
-	return scanExecutions(rows)
-}
-
-func (s *ExecutionStore) ListBySessionID(sessionID string) ([]model.WorkerExecution, error) {
-	rows, err := s.db.Query(execSelect+` WHERE e.session_id = ? ORDER BY e.started_at ASC`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("list executions by session: %w", err)
 	}
 	defer rows.Close()
 	return scanExecutions(rows)
@@ -374,64 +306,6 @@ func (s *ExecutionStore) ResetRunningExecutions(ctx context.Context) (int64, err
 	return res.RowsAffected()
 }
 
-// ReadLogSince returns the log bytes at or after the given offset, along with
-// the execution's current status (so callers can avoid a separate GetByID).
-//   - since <= 0: returns full file
-//   - since == Size: returns empty content (caller is caught up)
-//   - since > Size: returns full content with Truncated=true (file was rotated/reset)
-//
-// Returns a LogSlice with empty content (and the current status) when no log
-// path is set or the file does not yet exist.
-func (s *ExecutionStore) ReadLogSince(id string, since int64) (LogSlice, error) {
-	var logPath string
-	var status model.ExecutionStatus
-	if err := s.db.QueryRow(`SELECT log_path, status FROM bee_executions WHERE id = ?`, id).Scan(&logPath, &status); err != nil {
-		return LogSlice{}, fmt.Errorf("get log_path: %w", err)
-	}
-	if logPath == "" {
-		return LogSlice{Status: status}, nil
-	}
-	f, err := os.Open(logPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return LogSlice{Status: status}, nil
-		}
-		return LogSlice{}, fmt.Errorf("open log file: %w", err)
-	}
-	defer f.Close()
-
-	info, err := f.Stat()
-	if err != nil {
-		return LogSlice{}, fmt.Errorf("stat log file: %w", err)
-	}
-	size := info.Size()
-
-	// since out of range — file shrank/rotated; rebuild from scratch.
-	if since > size {
-		b, err := io.ReadAll(f)
-		if err != nil {
-			return LogSlice{}, fmt.Errorf("read log file: %w", err)
-		}
-		return LogSlice{Content: string(b), Size: size, Truncated: true, Status: status}, nil
-	}
-
-	// caller up to date.
-	if since == size {
-		return LogSlice{Size: size, Status: status}, nil
-	}
-
-	if since > 0 {
-		if _, err := f.Seek(since, io.SeekStart); err != nil {
-			return LogSlice{}, fmt.Errorf("seek log file: %w", err)
-		}
-	}
-	b, err := io.ReadAll(f)
-	if err != nil {
-		return LogSlice{}, fmt.Errorf("read log file: %w", err)
-	}
-	return LogSlice{Content: string(b), Size: size, Status: status}, nil
-}
-
 // PrepareLogPath creates the date-partitioned log directory, records the log path in
 // the DB, and returns the path. Must be called before launching the process so that
 // the invoker can redirect stdout/stderr to the file.
@@ -452,62 +326,6 @@ func (s *ExecutionStore) PrepareLogPath(id string, startedAt *int64) (string, er
 		return "", fmt.Errorf("set log_path: %w", err)
 	}
 	return logPath, nil
-}
-
-// ExecutionFilter holds optional filter criteria for ListFiltered.
-// Zero/empty values are ignored (no filtering on that field).
-type ExecutionFilter struct {
-	WorkerID      string
-	SessionID     string
-	Status        string
-	StartedFrom   int64 // inclusive lower bound (Unix ms); 0 = no lower bound
-	StartedTo     int64 // inclusive upper bound (Unix ms); 0 = no upper bound
-	CompletedFrom int64 // inclusive lower bound (Unix ms); 0 = no lower bound
-	CompletedTo   int64 // inclusive upper bound (Unix ms); 0 = no upper bound
-}
-
-// ListFiltered returns paginated executions matching the given filters and the total count.
-func (s *ExecutionStore) ListFiltered(ctx context.Context, f ExecutionFilter, limit, offset int) ([]model.WorkerExecution, int, error) {
-	where, args := executionFilterWhere(f)
-
-	var total int
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM bee_executions e"+where, args...).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count filtered executions: %w", err)
-	}
-
-	rows, err := s.db.QueryContext(ctx, execSelect+where+" ORDER BY e.started_at DESC, e.rowid DESC LIMIT ? OFFSET ?", appendPaginationArgs(args, limit, offset)...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("list filtered executions: %w", err)
-	}
-	defer rows.Close()
-	execs, err := scanExecutions(rows)
-	return execs, total, err
-}
-
-func executionFilterWhere(f ExecutionFilter) (string, []any) {
-	var b whereBuilder
-	if f.WorkerID != "" {
-		b.add("e.worker_id = ?", f.WorkerID)
-	}
-	if f.SessionID != "" {
-		b.add("e.session_id = ?", f.SessionID)
-	}
-	if f.Status != "" {
-		b.add("e.status = ?", f.Status)
-	}
-	if f.StartedFrom > 0 {
-		b.add("e.started_at >= ?", f.StartedFrom)
-	}
-	if f.StartedTo > 0 {
-		b.add("e.started_at <= ?", f.StartedTo)
-	}
-	if f.CompletedFrom > 0 {
-		b.add("e.completed_at >= ?", f.CompletedFrom)
-	}
-	if f.CompletedTo > 0 {
-		b.add("e.completed_at <= ?", f.CompletedTo)
-	}
-	return b.build()
 }
 
 func scanExecutions(rows *sql.Rows) ([]model.WorkerExecution, error) {
