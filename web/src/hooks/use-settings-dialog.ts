@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react"
 
-export type SettingsSection = "env" | "system" | "plugins"
+export type SettingsSection = "env" | "system" | "plugins" | "departments"
 export type PluginsTab = "market" | "installed"
 export type SettingsTarget = { section: SettingsSection; plugin?: string; tab?: PluginsTab }
 

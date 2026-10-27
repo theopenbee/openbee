@@ -1,18 +1,16 @@
 import { lazy, Suspense, useEffect } from "react"
-import { HashRouter, Navigate, Routes, Route, useParams } from "react-router-dom"
+import { HashRouter, Navigate, Routes, Route, useLocation, useParams } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
 import { Toaster } from "@/components/toaster"
 import { useSettingsDialog, type SettingsSection } from "@/hooks/use-settings-dialog"
+import { legacyRedirect } from "@/lib/routes"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
-const Workers = lazy(() => import("@/pages/workers").then(m => ({ default: m.Workers })))
-const CreateWorker = lazy(() => import("@/pages/create-worker").then(m => ({ default: m.CreateWorker })))
-const WorkerDetail = lazy(() => import("@/pages/worker-detail").then(m => ({ default: m.WorkerDetail })))
-const LocalChat = lazy(() => import("@/pages/local-chat").then(m => ({ default: m.LocalChat })))
-const Departments = lazy(() => import("@/pages/departments").then(m => ({ default: m.Departments })))
+const ChatIndex = lazy(() => import("@/pages/chat").then(m => ({ default: m.ChatIndex })))
+const Chat = lazy(() => import("@/pages/chat").then(m => ({ default: m.Chat })))
 const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
 
 const queryClient = new QueryClient({
@@ -31,6 +29,17 @@ function SettingsRedirect({ section }: { section: SettingsSection }) {
   return <Navigate to="/" replace />
 }
 
+function LegacyRedirect() {
+  const { pathname, search } = useLocation()
+  const show = useSettingsDialog()
+  const target = legacyRedirect(pathname, search)
+  const settings = target?.settings
+  useEffect(() => {
+    if (settings) show({ section: settings })
+  }, [show, settings])
+  return <Navigate to={target?.to ?? "/chat"} replace />
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -42,11 +51,12 @@ export function App() {
             <Route path="/setup" element={<Setup />} />
             <Route element={<AuthGuard><Layout /></AuthGuard>}>
               <Route path="/" element={<Navigate to="/chat" replace />} />
-              <Route path="/workers" element={<Workers />} />
-              <Route path="/workers/create" element={<CreateWorker />} />
-              <Route path="/workers/:id" element={<WorkerDetail />} />
-              <Route path="/departments" element={<Departments />} />
-              <Route path="/chat" element={<LocalChat />} />
+              <Route path="/chat" element={<ChatIndex />} />
+              <Route path="/chat/:conversation" element={<Chat />} />
+              <Route path="/workers" element={<LegacyRedirect />} />
+              <Route path="/workers/create" element={<LegacyRedirect />} />
+              <Route path="/workers/:id" element={<LegacyRedirect />} />
+              <Route path="/departments" element={<LegacyRedirect />} />
               <Route path="/env" element={<SettingsRedirect section="env" />} />
               <Route path="/settings" element={<SettingsRedirect section="system" />} />
               <Route path="/plugins" element={<SettingsRedirect section="plugins" />} />

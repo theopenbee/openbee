@@ -199,6 +199,15 @@
     "openOriginal": "打开原图",
     "closeImage": "关闭图片"
   },
+  "chat": {
+    "youPrefix": "你：",
+    "handedOffTo": "已交给 {{name}}",
+    "yesterday": "昨天",
+    "newWorker": "新建员工",
+    "search": "搜索",
+    "noWorkersHint": "还没有数字员工，点右上角 + 新建一个",
+    "back": "返回"
+  },
   "breadcrumb": {
     "detail": "详情"
   },

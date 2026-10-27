@@ -200,6 +200,15 @@
     "openOriginal": "Open original",
     "closeImage": "Close image"
   },
+  "chat": {
+    "youPrefix": "You: ",
+    "handedOffTo": "Handed off to {{name}}",
+    "yesterday": "Yesterday",
+    "newWorker": "New worker",
+    "search": "Search",
+    "noWorkersHint": "No digital workers yet. Click + at the top right to create one.",
+    "back": "Back"
+  },
   "breadcrumb": {
     "detail": "Detail"
   },
