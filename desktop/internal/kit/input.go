@@ -23,13 +23,17 @@ func TextInput(c *ui.Context, tk theme.Tokens, value *string, label, placeholder
 }
 
 func PasswordInput(c *ui.Context, tk theme.Tokens, value *string, shown *bool, label, placeholder string) ui.Element {
+	return PasswordInputNamed(c, tk, value, shown, label, placeholder, locales.ArcPasswordFieldShow(), locales.ArcPasswordFieldHide())
+}
+
+func PasswordInputNamed(c *ui.Context, tk theme.Tokens, value *string, shown *bool, label, placeholder, showName, hideName string) ui.Element {
 	var in ui.Element
 	inputShell(c, tk, ui.Row(c).MinHeight(theme.ControlMD).AlignItems(ui.Stretch)).Children(func() {
 		in = editable(c, ui.TextInputBase(c, value), label, placeholder).
 			PaddingStart(inputPadding).PaddingEnd(revealSpacing).Grow(1)
-		icon, name := "eye", locales.ArcPasswordFieldShow()
+		icon, name := "eye", showName
 		if *shown {
-			icon, name = "eye-off", locales.ArcPasswordFieldHide()
+			icon, name = "eye-off", hideName
 		} else {
 			in.Password()
 		}

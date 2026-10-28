@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/envpanel"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -22,6 +23,7 @@ const (
 	headingSize  = 16
 	mediumWeight = 500
 	buttonsGap   = 8
+	envCardPad   = 24
 )
 
 var (
@@ -98,8 +100,19 @@ func (p *Panel) tabs(c *ui.Context, tk theme.Tokens, w api.Worker, tab string) {
 				p.constraints(c, tk, w)
 			case route.PanelPermissions:
 				p.permissions(c, tk, w)
+			case route.PanelEnv:
+				p.env(c, tk, w)
 			}
 		})
+	})
+}
+
+func (p *Panel) env(c *ui.Context, tk theme.Tokens, w api.Worker) {
+	ui.Column(c).MinWidth(0).Gap(sectionGap).Children(func() {
+		card(c, tk).Padding(envCardPad).Children(func() {
+			envpanel.New(p.s, "worker", w.ID, locales.EnvConfigWorkerTitle(), "", true).View(c)
+		})
+		envpanel.Effective(c, p.s, w.ID)
 	})
 }
 

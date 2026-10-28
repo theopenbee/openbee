@@ -17,6 +17,8 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/envpanel"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
 	"github.com/theopenbee/openbee/desktop/locales"
@@ -36,6 +38,9 @@ const (
 	chartPicH        = 440
 	sunSize          = 96
 	drawerW          = 1000
+	envColumnW       = 880
+	envPad           = 24
+	envGap           = 40
 	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
 )
 
@@ -508,11 +513,81 @@ var panelScreens = []screen{
 	{name: "panel-drawer", seed: panelCrew, signedIn: true, prepare: drawerPanel, shots: wideOnly, want: locales.ArcDrawerClose},
 }
 
+func scopedEnv(id, scope, scopeID, key, masked string, ago time.Duration) api.EnvConfig {
+	env := api.EnvConfig{ID: id, Scope: scope, Key: key, Masked: masked, UpdatedAt: time.Now().Add(-ago).UnixMilli()}
+	if scopeID != "" {
+		env.ScopeID = &scopeID
+	}
+	return env
+}
+
+func envCrew(st *fakeapi.State) {
+	panelCrew(st)
+	st.Envs = []api.EnvConfig{
+		scopedEnv("g1", "global", "", "DATABASE_URL", "post****5432", 2*time.Hour),
+		scopedEnv("g2", "global", "", "OPENAI_API_KEY", "sk-p****xY7z", 3*24*time.Hour),
+		scopedEnv("g3", "global", "", "SLACK_WEBHOOK_URL", "http****a1b2", 12*time.Minute),
+		scopedEnv("g4", "global", "", "AWS_SECRET_ACCESS_KEY_FOR_THE_PRODUCTION_DATA_WAREHOUSE_EXPORT_JOB", "wJal****EKEY", 30*time.Second),
+		scopedEnv("w1", "worker", "ada", "REPORT_TOKEN", "rpt_****k9d2", 47*time.Minute),
+		scopedEnv("w2", "worker", "ada", "DATABASE_URL", "ada-****9999", 5*24*time.Hour),
+		scopedEnv("w3", "worker", "grace", "REVIEW_BOT_TOKEN", "ghp_****Qx4e", time.Hour),
+	}
+}
+
+func envScreen(h *testkit.Harness) {
+	global := envpanel.New(h.Store, "global", "", locales.EnvConfigGlobalTitle(), locales.EnvConfigGlobalDescription(), false)
+	bee := envpanel.New(h.Store, "bee", "default", locales.EnvConfigBeeTitle(), locales.EnvConfigBeeDescription(), false)
+	h.T = ui.NewTester(func(c *ui.Context) {
+		tk := theme.Apply(c)
+		ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
+			ui.Scroll(c).Grow(1).Children(func() {
+				ui.Column(c).MaxWidth(envColumnW).Padding(envPad).Gap(envGap).Children(func() {
+					global.View(c)
+					bee.View(c)
+				})
+			})
+		})
+	}, wideW, wideH)
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func envPanelOpen(_ *testing.T, h *testkit.Harness) {
+	envScreen(h)
+}
+
+func envAddDialog(t *testing.T, h *testkit.Harness) {
+	envScreen(h)
+	clickAndSettle(t, h, locales.EnvConfigAdd(), 0)
+	h.T.Type("aws_region")
+	if err := h.T.Click(locales.EnvConfigValue()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type("eu-west-1")
+	h.Settle()
+	clickAndSettle(t, h, locales.EnvConfigSaveAndAddAnother(), 0)
+	h.T.Type("stripe_key")
+	if err := h.T.Click(locales.EnvConfigValue()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type("sk_live_51Hx9d2KqLm0aZ7")
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+var envScreens = []screen{
+	{name: "env-panel", seed: envCrew, signedIn: true, prepare: envPanelOpen, want: func() string { return "OPENAI_API_KEY" }},
+	{name: "env-add-dialog", seed: envCrew, signedIn: true, prepare: envAddDialog, want: func() string { return locales.EnvConfigAdded("AWS_REGION") }},
+	{name: "panel-env", seed: envCrew, signedIn: true, prepare: openPanel("ada", route.PanelEnv), shots: wideOnly, want: locales.EnvConfigEffectiveTitle},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, envScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

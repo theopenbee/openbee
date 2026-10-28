@@ -75,6 +75,7 @@ type Store struct {
 	writes writer
 
 	details    map[string]*Resource[api.Worker]
+	envs       map[envScope]*Resource[[]api.EnvConfig]
 	active     string
 	foreground bool
 	lastSeq    *uint64

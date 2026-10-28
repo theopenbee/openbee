@@ -23,6 +23,7 @@ func (s *Store) initData() {
 		return c.SystemConfigs(ctx)
 	})
 	s.details = map[string]*Resource[api.Worker]{}
+	s.envs = map[envScope]*Resource[[]api.EnvConfig]{}
 }
 
 func (s *Store) WorkerMap() map[string]api.Worker {

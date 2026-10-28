@@ -55,6 +55,24 @@ func crew(st *fakeapi.State) {
 	st.Conversations = []api.ConversationSummary{chatted(api.BeeConversation, "bee"), chatted("w1", "worker"), chatted("w2", "worker")}
 }
 
+func crewEnvs(st *fakeapi.State) {
+	crew(st)
+	scoped := func(id, scope, scopeID, key, masked string) api.EnvConfig {
+		env := api.EnvConfig{ID: id, Scope: scope, Key: key, Masked: masked, UpdatedAt: time.Now().Add(-3 * time.Minute).UnixMilli()}
+		if scopeID != "" {
+			env.ScopeID = &scopeID
+		}
+		return env
+	}
+	st.Envs = []api.EnvConfig{
+		scoped("e1", "worker", "w1", "DB_URL", "post****able"),
+		scoped("e2", "global", "", "REGION", "eu-w****"),
+		scoped("e3", "global", "", "DB_URL", "glob****"),
+		scoped("e4", "worker", "w2", "BOB_ONLY", "bob-****"),
+		scoped("e5", "bee", "default", "BEE_ONLY", "bee-****"),
+	}
+}
+
 func chatted(id, kind string) api.ConversationSummary {
 	sum := api.ConversationSummary{ID: id, Kind: kind, Activity: api.ConversationActivity{State: "idle"},
 		LastMessage: &api.LastMessage{Sender: api.ChatSender{Type: kind}, Kind: "message", Preview: "Done", TS: time.Now().UnixMilli()}}
@@ -455,4 +473,54 @@ func TestDrawerShowsProfile(t *testing.T) {
 	f := newFixture(t, drawerW, route.ChatPanel("w1", route.PanelConstraints), crew)
 	f.wantShown(locales.ArcDrawerClose(), "Writes the release notes", locales.WorkerDetailEditInfo())
 	f.wantHidden(locales.ChatPanelClose())
+}
+
+func TestEnvTabShowsVariablesAndEffective(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), crewEnvs)
+	f.click(locales.ChatPanelTabsEnv())
+	f.wantPanel(route.PanelEnv)
+	f.wantShown(locales.EnvConfigWorkerTitle(), "DB_URL", "post****able", locales.EnvConfigAdd(),
+		locales.EnvConfigEditLabel("DB_URL"), locales.EnvConfigDeleteLabel("DB_URL"),
+		locales.EnvConfigEffectiveTitle(), locales.WorkerDetailEffectiveEnvDescription(),
+		"REGION", "eu-w****", locales.EnvConfigSourceGlobal(), locales.EnvConfigSourceWorker())
+	f.wantHidden("BOB_ONLY", "BEE_ONLY", "glob****", aliceRules, locales.EnvConfigEmpty(),
+		locales.EnvConfigUpdated(locales.TimeMinutesAgo(3)))
+	if got := f.Fake.Calls(http.MethodGet, "/api/envs"); len(got) != 2 {
+		t.Fatalf("env list calls = %d, want the global and worker lists once each", len(got))
+	}
+
+	f.router.Push(route.ChatPanel("w2", route.PanelEnv))
+	f.settle()
+	f.wantShown("BOB_ONLY", "glob****")
+	f.wantHidden("post****able")
+}
+
+func TestEnvTabEmptyWorker(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelEnv), func(st *fakeapi.State) {
+		crew(st)
+		st.Envs = nil
+	})
+	f.wantShown(locales.EnvConfigWorkerTitle(), locales.EnvConfigEmpty(), locales.EnvConfigEmptyWorker(),
+		locales.EnvConfigEffectiveTitle(), locales.EnvConfigNoEffective())
+}
+
+func TestEnvTabAddRefreshesEffective(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w2", route.PanelEnv), crewEnvs)
+	f.wantShown("BOB_ONLY")
+	f.wantHidden("post****able")
+	f.click(locales.EnvConfigAdd())
+	f.wantShown(locales.EnvConfigAddDescription())
+	f.T.Type("api_key")
+	f.click(locales.EnvConfigValue())
+	f.T.Type("sk-live-1234")
+	f.T.Key(0, ui.KeyEnter)
+	f.settle()
+	f.wantHidden(locales.EnvConfigAddDescription())
+	f.wantShown("API_KEY", "sk-l****1234")
+	var posted map[string]string
+	calls := f.Fake.Calls(http.MethodPost, "/api/envs")
+	if len(calls) != 1 || json.Unmarshal(calls[0].Body, &posted) != nil ||
+		posted["scope"] != "worker" || posted["scope_id"] != "w2" || posted["key"] != "API_KEY" || posted["value"] != "sk-live-1234" {
+		t.Fatalf("POST calls = %+v, want API_KEY for worker w2", calls)
+	}
 }

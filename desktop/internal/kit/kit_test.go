@@ -148,6 +148,28 @@ func TestPasswordToggle(t *testing.T) {
 	}
 }
 
+func TestPasswordInputNamedToggle(t *testing.T) {
+	value, shown := "hunter2", false
+	tt := newTester(400, 200, func(c *ui.Context, tk theme.Tokens) {
+		kit.PasswordInputNamed(c, tk, &value, &shown, "Value", "", "Show value", "Hide value")
+	})
+	if err := tt.Click("Show value"); err != nil {
+		t.Fatal(err)
+	}
+	if !shown {
+		t.Fatal("the custom show button did not reveal the value")
+	}
+	if _, ok := tt.Find(locales.ArcPasswordFieldHide()); ok {
+		t.Error("the default hide name is still shown")
+	}
+	if err := tt.Click("Hide value"); err != nil {
+		t.Fatal(err)
+	}
+	if shown {
+		t.Error("the custom hide button did not hide the value")
+	}
+}
+
 func TestFieldShowsError(t *testing.T) {
 	value := ""
 	errText := ""
@@ -205,6 +227,27 @@ func TestAlertAction(t *testing.T) {
 	}
 	if retried != 1 {
 		t.Errorf("OnAction calls = %d, want 1", retried)
+	}
+}
+
+func TestAlertActionLoadingSwallowsClicks(t *testing.T) {
+	retried := 0
+	loading := true
+	tt := newTester(500, 220, func(c *ui.Context, tk theme.Tokens) {
+		kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: "Could not load variables", ActionLabel: "Retry",
+			ActionLoading: loading, OnAction: func() { retried++ }})
+	})
+	_ = tt.Click("Retry")
+	if retried != 0 {
+		t.Fatalf("OnAction calls = %d while the action loads, want none", retried)
+	}
+	loading = false
+	tt.Frame()
+	if err := tt.Click("Retry"); err != nil {
+		t.Fatal(err)
+	}
+	if retried != 1 {
+		t.Errorf("OnAction calls = %d after loading, want 1", retried)
 	}
 }
 
