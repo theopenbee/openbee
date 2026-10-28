@@ -6,6 +6,7 @@
 - Add `openbee reset-password` to reset the admin password.
 - Chat directly with each worker in the web console.
 - Warn in the web chat when the server connection drops.
+- Switch the web console language from the account menu.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
