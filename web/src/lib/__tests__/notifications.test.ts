@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { ChatMessage, ConversationSummary, Worker } from "../types"
 import {
-  clearTabFocused,
   dismissHint,
   getNotificationChoice,
   isHintDismissed,
-  markTabFocused,
   notificationContent,
   notificationHint,
   notificationSupport,
   notificationsActive,
-  otherTabFocused,
   shouldNotify,
   storeNotificationChoice,
   titleWithUnread,
@@ -25,9 +22,6 @@ function memoryStorage(initial: Record<string, string> = {}) {
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => {
       values.set(key, value)
-    },
-    removeItem: (key: string) => {
-      values.delete(key)
     },
   }
 }
@@ -60,15 +54,25 @@ const away = { visible: false, focused: false }
 
 describe("notificationSupport", () => {
   it("reports an insecure page before anything else", () => {
-    expect(notificationSupport({ isSecureContext: false, Notification: { permission: "granted" } })).toBe("insecure")
+    expect(
+      notificationSupport({ isSecureContext: false, Notification: { permission: "granted" }, constructible: true }),
+    ).toBe("insecure")
   })
 
   it("reports a browser without the Notification API", () => {
-    expect(notificationSupport({ isSecureContext: true })).toBe("unsupported")
+    expect(notificationSupport({ isSecureContext: true, constructible: true })).toBe("unsupported")
+  })
+
+  it("reports a browser that cannot construct page notifications", () => {
+    expect(
+      notificationSupport({ isSecureContext: true, Notification: { permission: "default" }, constructible: false }),
+    ).toBe("unsupported")
   })
 
   it.each<NotificationPermission>(["default", "granted", "denied"])("passes through the %s permission", (permission) => {
-    expect(notificationSupport({ isSecureContext: true, Notification: { permission } })).toBe(permission)
+    expect(notificationSupport({ isSecureContext: true, Notification: { permission }, constructible: true })).toBe(
+      permission,
+    )
   })
 })
 
@@ -144,32 +148,28 @@ describe("unavailableReason", () => {
 
 describe("shouldNotify", () => {
   it("notifies an agent reply while the page is in the background", () => {
-    expect(shouldNotify("worker:w1", message(), away, false)).toBe(true)
+    expect(shouldNotify("worker:w1", message(), away)).toBe(true)
   })
 
   it("notifies while the page is visible but the window has lost focus", () => {
-    expect(shouldNotify("worker:w1", message(), { visible: true, focused: false }, false)).toBe(true)
+    expect(shouldNotify("worker:w1", message(), { visible: true, focused: false })).toBe(true)
   })
 
   it("stays quiet while the page is in front", () => {
-    expect(shouldNotify("worker:w1", message(), { visible: true, focused: true }, false)).toBe(false)
-  })
-
-  it("stays quiet while another tab is in front", () => {
-    expect(shouldNotify("worker:w1", message(), away, true)).toBe(false)
+    expect(shouldNotify("worker:w1", message(), { visible: true, focused: true })).toBe(false)
   })
 
   it("never notifies the user's own messages", () => {
-    expect(shouldNotify("bee", message({ sender: { type: "user" } }), away, false)).toBe(false)
+    expect(shouldNotify("bee", message({ sender: { type: "user" } }), away)).toBe(false)
   })
 
   it("notifies Bee and system messages", () => {
-    expect(shouldNotify("bee", message({ sender: { type: "bee" } }), away, false)).toBe(true)
-    expect(shouldNotify("worker:w1", message({ sender: { type: "system" } }), away, false)).toBe(true)
+    expect(shouldNotify("bee", message({ sender: { type: "bee" } }), away)).toBe(true)
+    expect(shouldNotify("worker:w1", message({ sender: { type: "system" } }), away)).toBe(true)
   })
 
   it("skips the Bee's handoff copy in a worker chat", () => {
-    expect(shouldNotify("worker:w1", message({ sender: { type: "bee" } }), away, false)).toBe(false)
+    expect(shouldNotify("worker:w1", message({ sender: { type: "bee" } }), away)).toBe(false)
   })
 })
 
@@ -215,32 +215,6 @@ describe("notificationContent", () => {
     expect(notificationContent("worker:w1", message({ content: "[file] /tmp/a.png\n" }), workers, t).body).toBe(
       "notifications.newMessage",
     )
-  })
-})
-
-describe("focused tab", () => {
-  it("sees no other tab before any tab is focused", () => {
-    expect(otherTabFocused("a", memoryStorage())).toBe(false)
-  })
-
-  it("sees another focused tab but not itself", () => {
-    const storage = memoryStorage()
-    markTabFocused("a", storage)
-
-    expect(otherTabFocused("b", storage)).toBe(true)
-    expect(otherTabFocused("a", storage)).toBe(false)
-  })
-
-  it("clears only its own mark", () => {
-    const storage = memoryStorage()
-    markTabFocused("b", storage)
-    clearTabFocused("a", storage)
-
-    expect(otherTabFocused("a", storage)).toBe(true)
-
-    clearTabFocused("b", storage)
-
-    expect(otherTabFocused("a", storage)).toBe(false)
   })
 })
 

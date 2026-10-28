@@ -58,8 +58,6 @@ export function ChatShell() {
   const param = useMatch("/chat/:conversation")?.params.conversation
   const conversation = useConversationRoute(param)
   const context = useMemo<ChatRouteContext>(() => ({ conversation }), [conversation])
-  useMessageNotifications()
-  useUnreadTitle()
 
   return (
     <div className="flex h-dvh bg-background">
@@ -73,8 +71,15 @@ export function ChatShell() {
         </Suspense>
       </main>
       <ChatPanel param={param} />
+      <ChatAttention />
     </div>
   )
+}
+
+function ChatAttention() {
+  useMessageNotifications()
+  useUnreadTitle()
+  return null
 }
 
 function ChatPanel({ param }: { param: string | undefined }) {

@@ -206,7 +206,7 @@
     "promptDescription": "Get notified when a reply arrives.",
     "enable": "Turn on",
     "blockedTitle": "Your browser is blocking notifications",
-    "blockedDescription": "Allow notifications in the site settings, next to the address bar.",
+    "blockedDescription": "Allow notifications for this site in your browser settings.",
     "newMessage": "Sent a new message",
     "unavailable": {
       "insecure": "Needs HTTPS",

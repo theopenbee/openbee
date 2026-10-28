@@ -205,7 +205,7 @@
     "promptDescription": "回复到达时提醒你。",
     "enable": "开启",
     "blockedTitle": "浏览器已拦截通知",
-    "blockedDescription": "请在地址栏左侧的网站设置里允许通知。",
+    "blockedDescription": "请在浏览器的网站设置里允许本站发送通知。",
     "newMessage": "发来一条新消息",
     "unavailable": {
       "insecure": "需要 HTTPS 访问",

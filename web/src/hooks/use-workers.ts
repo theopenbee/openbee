@@ -1,13 +1,21 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
 import { CONVERSATIONS_KEY } from "@/lib/chat-events"
 import type { Worker, Engine } from "@/lib/types"
 
-export function useWorkers(departmentId?: string) {
-  return useQuery({
+function workersQuery(departmentId?: string) {
+  return {
     queryKey: ["workers", { departmentId }],
     queryFn: () => api.workers.list(departmentId),
-  })
+  }
+}
+
+export function useWorkers(departmentId?: string) {
+  return useQuery(workersQuery(departmentId))
+}
+
+export function fetchWorkers(queryClient: QueryClient) {
+  return queryClient.fetchQuery(workersQuery())
 }
 
 export function useWorker(id: string, options?: { enabled?: boolean }) {

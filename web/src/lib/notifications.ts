@@ -10,6 +10,7 @@ export type NotificationUnavailable = "insecure" | "unsupported" | "denied"
 export interface NotificationEnvironment {
   isSecureContext: boolean
   Notification?: { permission: NotificationPermission }
+  constructible: boolean
 }
 
 export interface PageAttention {
@@ -23,18 +24,17 @@ export interface NotificationContent {
   tag: string
 }
 
-type PreferenceStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
+type PreferenceStorage = Pick<Storage, "getItem" | "setItem">
 type Translate = (key: string, options?: Record<string, string>) => string
 
 const CHOICE_KEY = "notifications"
 const HINT_KEY = "notifications.hint"
-const FOCUSED_TAB_KEY = "notifications.focused-tab"
 const HINT_DISMISSED = "dismissed"
 const MAX_TITLE_UNREAD = 99
 
 export function notificationSupport(env: NotificationEnvironment): NotificationSupport {
   if (!env.isSecureContext) return "insecure"
-  if (!env.Notification) return "unsupported"
+  if (!env.Notification || !env.constructible) return "unsupported"
   return env.Notification.permission
 }
 
@@ -75,16 +75,10 @@ export function unavailableReason(support: NotificationSupport): NotificationUna
   return support === "insecure" || support === "unsupported" || support === "denied" ? support : null
 }
 
-export function shouldNotify(
-  conversation: ConversationId,
-  message: ChatMessage,
-  attention: PageAttention,
-  anotherTabFocused: boolean,
-): boolean {
+export function shouldNotify(conversation: ConversationId, message: ChatMessage, attention: PageAttention): boolean {
   if (message.sender.type === "user") return false
   if (message.sender.type === "bee" && workerIdOf(conversation)) return false
-  if (attention.visible && attention.focused) return false
-  return !anotherTabFocused
+  return !(attention.visible && attention.focused)
 }
 
 export function notificationContent(
@@ -107,19 +101,6 @@ export function notificationContent(
     t,
   )
   return { title, body: body || t("notifications.newMessage"), tag: message.id }
-}
-
-export function markTabFocused(tabId: string, storage: PreferenceStorage = localStorage) {
-  storage.setItem(FOCUSED_TAB_KEY, tabId)
-}
-
-export function clearTabFocused(tabId: string, storage: PreferenceStorage = localStorage) {
-  if (storage.getItem(FOCUSED_TAB_KEY) === tabId) storage.removeItem(FOCUSED_TAB_KEY)
-}
-
-export function otherTabFocused(tabId: string, storage: PreferenceStorage = localStorage): boolean {
-  const focused = storage.getItem(FOCUSED_TAB_KEY)
-  return focused !== null && focused !== tabId
 }
 
 export function totalUnread(list: ConversationSummary[] | undefined): number {

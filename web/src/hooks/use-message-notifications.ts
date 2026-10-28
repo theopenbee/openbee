@@ -1,25 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { useQueryClient } from "@tanstack/react-query"
 import { useActiveConversation, useChatEventSubscription } from "@/hooks/use-chat-events"
 import { useConversations } from "@/hooks/use-conversations"
-import { useNotificationSettings } from "@/hooks/use-notifications"
-import { useWorkers } from "@/hooks/use-workers"
-import { createMessageId } from "@/lib/chat-messages"
+import { markNotificationsUnsupported, useNotificationSettings } from "@/hooks/use-notifications"
+import { fetchWorkers, useWorkers } from "@/hooks/use-workers"
+import { hasUnknownWorker } from "@/lib/chat-events"
 import { conversationPath } from "@/lib/conversations"
-import {
-  clearTabFocused,
-  markTabFocused,
-  notificationContent,
-  otherTabFocused,
-  shouldNotify,
-  titleWithUnread,
-  totalUnread,
-  type PageAttention,
-} from "@/lib/notifications"
-import type { ConversationId, Worker } from "@/lib/types"
+import { notificationContent, shouldNotify, titleWithUnread, totalUnread, type PageAttention } from "@/lib/notifications"
+import type { ChatMessage, ConversationId, Worker } from "@/lib/types"
 
-const ICON_URL = "/logo-mark.svg"
+const ICON_URL = "/notification-icon.png"
+const FRONT_TAB_LOCK = "openbee-front-tab"
 
 function pageAttention(): PageAttention {
   return { visible: document.visibilityState === "visible", focused: document.hasFocus() }
@@ -30,38 +23,66 @@ function inFront(): boolean {
   return visible && focused
 }
 
-function useFocusedTab(): string {
-  const [tabId] = useState(createMessageId)
+function workerMap(list: Worker[]): Map<string, Worker> {
+  return new Map(list.map((item) => [item.id, item]))
+}
 
+function anotherTabInFront(): Promise<boolean> {
+  if (!navigator.locks) return Promise.resolve(false)
+  return navigator.locks.query().then(
+    ({ held = [] }) => held.some((lock) => lock.name === FRONT_TAB_LOCK),
+    () => false,
+  )
+}
+
+function useFrontTabLock() {
   useEffect(() => {
-    const sync = () => (inFront() ? markTabFocused(tabId) : clearTabFocused(tabId))
-    const leave = () => clearTabFocused(tabId)
+    const locks = navigator.locks
+    if (!locks) return
+    let stop: (() => void) | undefined
+    const leave = () => {
+      stop?.()
+      stop = undefined
+    }
+    const sync = () => {
+      if (!inFront()) {
+        leave()
+        return
+      }
+      if (stop) return
+      const controller = new AbortController()
+      let release: (() => void) | undefined
+      locks
+        .request(FRONT_TAB_LOCK, { mode: "shared", signal: controller.signal }, () => new Promise<void>((resolve) => (release = resolve)))
+        .catch(() => undefined)
+      stop = () => {
+        controller.abort()
+        release?.()
+      }
+    }
     sync()
     window.addEventListener("focus", sync)
     window.addEventListener("blur", leave)
-    window.addEventListener("pagehide", leave)
     document.addEventListener("visibilitychange", sync)
     return () => {
       window.removeEventListener("focus", sync)
       window.removeEventListener("blur", leave)
-      window.removeEventListener("pagehide", leave)
       document.removeEventListener("visibilitychange", sync)
       leave()
     }
-  }, [tabId])
-
-  return tabId
+  }, [])
 }
 
 export function useMessageNotifications() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: workerList } = useWorkers()
-  const workers = useMemo(() => new Map<string, Worker>((workerList ?? []).map((item) => [item.id, item])), [workerList])
+  const workers = useMemo(() => workerMap(workerList ?? []), [workerList])
   const { active: enabled } = useNotificationSettings()
   const { active: activeConversation } = useActiveConversation()
-  const tabId = useFocusedTab()
   const shown = useRef(new Map<ConversationId, Set<Notification>>())
+  useFrontTabLock()
 
   useEffect(() => {
     const closeActive = () => {
@@ -78,25 +99,38 @@ export function useMessageNotifications() {
     }
   }, [activeConversation])
 
+  const resolveWorkers = async (conversation: ConversationId, message: ChatMessage) => {
+    const event = { type: "message", seq: 0, conversation_id: conversation, message } as const
+    if (!hasUnknownWorker(event, new Set(workers.keys()))) return workers
+    return fetchWorkers(queryClient).then(workerMap, () => workers)
+  }
+
+  const show = (conversation: ConversationId, message: ChatMessage, known: Map<string, Worker>) => {
+    const content = notificationContent(conversation, message, known, t)
+    let notification: Notification
+    try {
+      notification = new Notification(content.title, { body: content.body, tag: content.tag, icon: ICON_URL })
+    } catch (error) {
+      if (error instanceof TypeError) markNotificationsUnsupported()
+      return
+    }
+    const open = shown.current.get(conversation) ?? new Set<Notification>()
+    open.add(notification)
+    shown.current.set(conversation, open)
+    notification.onclose = () => open.delete(notification)
+    notification.onclick = () => {
+      window.focus()
+      navigate(conversationPath(conversation))
+      notification.close()
+    }
+  }
+
   useChatEventSubscription({
     onMessage: (conversation, message) => {
-      if (!enabled || !shouldNotify(conversation, message, pageAttention(), otherTabFocused(tabId))) return
-      const content = notificationContent(conversation, message, workers, t)
-      let notification: Notification
-      try {
-        notification = new Notification(content.title, { body: content.body, tag: content.tag, icon: ICON_URL })
-      } catch {
-        return
-      }
-      const open = shown.current.get(conversation) ?? new Set<Notification>()
-      open.add(notification)
-      shown.current.set(conversation, open)
-      notification.onclose = () => open.delete(notification)
-      notification.onclick = () => {
-        window.focus()
-        navigate(conversationPath(conversation))
-        notification.close()
-      }
+      if (!enabled || !shouldNotify(conversation, message, pageAttention())) return
+      void Promise.all([anotherTabInFront(), resolveWorkers(conversation, message)]).then(([elsewhere, known]) => {
+        if (!elsewhere) show(conversation, message, known)
+      })
     },
   })
 }

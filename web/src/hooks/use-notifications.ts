@@ -11,8 +11,11 @@ import {
   type NotificationSupport,
 } from "@/lib/notifications"
 
+const PAGE_NOTIFICATIONS_MISSING = /Android/i
+
 const listeners = new Set<() => void>()
 let watchingPermission = false
+let constructorFailed = false
 
 function emit() {
   for (const listener of listeners) listener()
@@ -48,7 +51,13 @@ export function currentNotificationSupport(): NotificationSupport {
   return notificationSupport({
     isSecureContext: window.isSecureContext,
     Notification: typeof Notification === "undefined" ? undefined : Notification,
+    constructible: !constructorFailed && !PAGE_NOTIFICATIONS_MISSING.test(navigator.userAgent),
   })
+}
+
+export function markNotificationsUnsupported() {
+  constructorFailed = true
+  emit()
 }
 
 function requestPermission(): Promise<unknown> {
@@ -63,8 +72,10 @@ export function useNotificationSettings() {
   const dismissed = useSyncExternalStore(subscribe, () => isHintDismissed())
 
   const enable = useCallback(async () => {
-    if (currentNotificationSupport() === "default") await requestPermission()
-    if (currentNotificationSupport() === "granted") storeNotificationChoice("on")
+    storeNotificationChoice("on")
+    emit()
+    if (currentNotificationSupport() !== "default") return
+    await requestPermission()
     emit()
   }, [])
 
