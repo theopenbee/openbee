@@ -48,7 +48,7 @@ export function ConversationRow({ conversation, workers, active, now }: Conversa
           )}
         </span>
         <span className="flex h-5 min-w-0 items-center gap-2">
-          <span className={cn("truncate text-sm", last ? "text-secondary" : "text-muted")}>{preview}</span>
+          <span className={cn("truncate text-xs", last ? "text-secondary" : "text-muted")}>{preview}</span>
           {conversation.unread > 0 && (
             <Badge tone="info" size="sm" className="ml-auto shrink-0 tabular">
               {unread}
