@@ -595,3 +595,22 @@ func TestMigrationDropsDepartments(t *testing.T) {
 		assert.Equal(t, want, got, id)
 	}
 }
+
+func TestMigrationDropsLegacyLocalChatTables(t *testing.T) {
+	db := openPreMigrationDB(t, 60)
+	for _, q := range []string{
+		`INSERT INTO bee_local_sessions (id, name, created_at, updated_at) VALUES ('s1','old',1,1)`,
+		`INSERT INTO bee_local_replies (id, session_key, content, created_at) VALUES ('r1','local:default','hi',1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, migrate(db))
+
+	for _, name := range []string{"bee_local_sessions", "bee_local_replies", "idx_local_replies_session_key"} {
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = ?`, name).Scan(&n))
+		assert.Zero(t, n, name)
+	}
+}

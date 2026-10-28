@@ -592,6 +592,12 @@ UPDATE bee_workers
    SET permission_scopes = trim(replace(',' || replace(permission_scopes, ' ', '') || ',', ',read:departments,', ','), ',')
  WHERE ',' || replace(permission_scopes, ' ', '') || ',' LIKE '%,read:departments,%';`,
 	},
+	{
+		version: 60,
+		name:    "drop_legacy_local_chat_tables",
+		sql: `DROP TABLE IF EXISTS bee_local_replies;
+DROP TABLE IF EXISTS bee_local_sessions;`,
+	},
 }
 
 type whereBuilder struct {
