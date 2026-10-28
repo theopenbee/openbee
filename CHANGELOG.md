@@ -7,6 +7,7 @@
 - Chat directly with each worker in the web console.
 - Warn in the web chat when the server connection drops.
 - Switch the web console language from the account menu.
+- Show desktop notifications and tab unread counts for web chats.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
