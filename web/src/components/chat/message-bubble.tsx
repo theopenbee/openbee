@@ -9,7 +9,7 @@ import { formatMessageTimestamp } from "@/lib/chat-format"
 import type { ChatMessage } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-const COLLAPSE_HEIGHT = 320
+const COLLAPSE_HEIGHT = 640
 
 const COPY_REVEAL =
   "transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100"
@@ -90,20 +90,18 @@ export const MessageBubble = memo(function MessageBubble({
   }
 
   return (
-    <div className={cn("group flex min-w-0 gap-3 first:mt-0", isGroupStart ? "mt-6" : "mt-2")}>
-      <div className="w-7 shrink-0">{isGroupStart && sender.avatar}</div>
+    <div className="group mt-6 flex min-w-0 gap-3 first:mt-0">
+      <div className="w-7 shrink-0">{sender.avatar}</div>
       <div className="flex min-w-0 flex-1 flex-col items-start">
-        {isGroupStart && (
-          <div className="mb-1.5 flex min-h-7 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            <span className="truncate font-medium text-foreground">{sender.name}</span>
-            {sender.via && (
-              <Badge tone="neutral" size="sm">
-                {sender.via}
-              </Badge>
-            )}
-            {timestamp && <time className="text-muted tabular">{timestamp}</time>}
-          </div>
-        )}
+        <div className="mb-1.5 flex min-h-7 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          <span className="truncate font-medium text-foreground">{sender.name}</span>
+          {sender.via && (
+            <Badge tone="neutral" size="sm">
+              {sender.via}
+            </Badge>
+          )}
+          {timestamp && <time className="text-muted tabular">{timestamp}</time>}
+        </div>
 
         {body ?? (
           <>
