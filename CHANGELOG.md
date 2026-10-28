@@ -5,10 +5,14 @@
 ### Added
 - Add `openbee reset-password` to reset the admin password.
 - Chat directly with each worker in the web console.
+- Warn in the web chat when the server connection drops.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
 - Manage variables, settings and plugins in a settings dialog.
+- Show sender and time on every worker and Bee message.
+- Double the collapsed height of long chat messages.
+- Open worker details from the chat header name.
 
 ### Removed
 - Remove user and role management; keep one admin account.
@@ -20,6 +24,8 @@
 
 ### Fixed
 - Keep slash commands in the web chat history.
+- Fix pi failing when the Bee receives web chat images.
+- Stop the server promptly while web chats are open.
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.
 - Refuse to restore over a database that is in use.
