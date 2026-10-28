@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/locales"
 )
 
 func TestErrorTextCode(t *testing.T) {
@@ -157,6 +158,19 @@ func TestLocaleOf(t *testing.T) {
 	} {
 		if got := localeOf(lang); got != want {
 			t.Errorf("localeOf(%q) = %q, want %q", lang, got, want)
+		}
+	}
+}
+
+func TestEngineLabel(t *testing.T) {
+	for engine, want := range map[string]string{
+		"claude": locales.WorkersEnginesClaude(),
+		"codex":  locales.WorkersEnginesCodex(),
+		"pi":     locales.WorkersEnginesPi(),
+		"other":  "other",
+	} {
+		if got := EngineLabel(engine); got != want {
+			t.Errorf("EngineLabel(%q) = %q, want %q", engine, got, want)
 		}
 	}
 }

@@ -118,6 +118,41 @@ func TestDialogEscapeCloses(t *testing.T) {
 	}
 }
 
+func TestDialogFlushFillsTheFixedHeight(t *testing.T) {
+	for _, tc := range []struct{ window, want int }{{700, 500}, {400, 368}} {
+		open := true
+		tt := newTester(900, tc.window, func(c *ui.Context, tk theme.Tokens) {
+			kit.Dialog(c, tk, &open, kit.DialogOpts{Title: "Settings", Width: 600, Height: 500, Flush: true}, func() {
+				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
+					ui.Column(c).Width(120).Children(func() { ui.Text(c, "Nav") })
+					ui.Column(c).Grow(1).Children(func() { ui.Text(c, "Body") })
+				})
+			})
+		})
+		settle(tt)
+		panel := mustFind(t, tt, "Settings")
+		if got := panel.H; got < float32(tc.want)-1 || got > float32(tc.want)+1 {
+			t.Errorf("window %d: panel height = %v, want %d", tc.window, got, tc.want)
+		}
+		nav, body := mustFind(t, tt, "Nav"), mustFind(t, tt, "Body")
+		if nav.Y != body.Y || body.X < nav.X+nav.W-1 {
+			t.Errorf("window %d: flush body is not laid out as a row: nav %+v, body %+v", tc.window, nav, body)
+		}
+		if nav.X-panel.X > 4 {
+			t.Errorf("window %d: flush body is padded: nav starts %v from the panel edge", tc.window, nav.X-panel.X)
+		}
+	}
+}
+
+func mustFind(t *testing.T, tt *ui.Tester, text string) ui.Rect {
+	t.Helper()
+	r, ok := tt.Find(text)
+	if !ok {
+		t.Fatalf("no %q; texts %q", text, tt.Texts())
+	}
+	return r
+}
+
 func TestDialogLockedIgnoresEscape(t *testing.T) {
 	open := true
 	tt := newTester(800, 600, func(c *ui.Context, tk theme.Tokens) {

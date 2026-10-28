@@ -8,7 +8,20 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/locales"
 )
+
+func EngineLabel(engine string) string {
+	switch engine {
+	case "claude":
+		return locales.WorkersEnginesClaude()
+	case "codex":
+		return locales.WorkersEnginesCodex()
+	case "pi":
+		return locales.WorkersEnginesPi()
+	}
+	return engine
+}
 
 func ErrorText(err error) string {
 	if err == nil {

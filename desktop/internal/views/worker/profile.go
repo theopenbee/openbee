@@ -5,6 +5,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
+	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -36,18 +37,6 @@ const (
 	largeBlockH    = 160
 )
 
-func engineLabel(engine string) string {
-	switch engine {
-	case "claude":
-		return locales.WorkersEnginesClaude()
-	case "codex":
-		return locales.WorkersEnginesCodex()
-	case "pi":
-		return locales.WorkersEnginesPi()
-	}
-	return engine
-}
-
 func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Worker) {
 	ui.Column(c).MinWidth(0).Gap(headerGap).Children(func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(headerGap).Children(func() {
@@ -78,7 +67,7 @@ func engineLine(c *ui.Context, tk theme.Tokens, engine string) {
 		if mark := icons.Engine(engine); mark != nil {
 			ui.Icon(c, mark).Size(engineGlyph, engineGlyph).Shrink(0)
 		}
-		ui.Text(c, engineLabel(engine)).SingleLine().MinWidth(0)
+		ui.Text(c, l10n.EngineLabel(engine)).SingleLine().MinWidth(0)
 	})
 }
 

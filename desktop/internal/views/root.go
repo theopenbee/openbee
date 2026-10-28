@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
 	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/shell"
 	"github.com/theopenbee/openbee/desktop/internal/views/worker"
 	"github.com/theopenbee/openbee/desktop/locales"
@@ -29,19 +30,12 @@ const (
 	triggerArrow  = 16
 )
 
-type settingsDialog interface {
-	Open(section, pluginID string)
-	View(c *ui.Context)
-}
-
 type accountDialogs interface {
 	Dialogs(c *ui.Context)
 }
 
 type noDialogs struct{}
 
-func (noDialogs) Open(string, string) {}
-func (noDialogs) View(*ui.Context)    {}
 func (noDialogs) Dialogs(*ui.Context) {}
 
 type accountPlaceholder struct{ s *store.Store }
@@ -62,12 +56,12 @@ type Root struct {
 	router   *ui.Router
 	auth     *auth.Screens
 	shell    *shell.Shell
-	settings settingsDialog
+	settings *settings.Dialog
 	account  accountDialogs
 }
 
 func NewRoot(s *store.Store) *Root {
-	r := &Root{s: s, router: ui.NewRouter("/"), settings: noDialogs{}, account: noDialogs{}}
+	r := &Root{s: s, router: ui.NewRouter("/"), settings: settings.New(s), account: noDialogs{}}
 	r.router.Transition = ui.TransitionNone
 	r.auth = auth.New(s, r.router)
 	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), accountPlaceholder{s: s}, r.OpenSettings)
@@ -99,6 +93,8 @@ func (r *Root) View(c *ui.Context) {
 	if r.s.Phase == store.PhaseReady {
 		r.settings.View(c)
 		r.account.Dialogs(c)
+	} else {
+		r.settings.Close()
 	}
 	kit.ShowToasts(c, tk, &r.s.Toasts)
 }

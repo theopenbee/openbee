@@ -27,6 +27,10 @@ import (
 const (
 	wideW, wideH     = 1440, 900
 	narrowW, narrowH = 700, 900
+	settingsNarrowW  = 800
+	settingsScrollX  = 900
+	settingsScrollY  = 500
+	settingsScrollDy = 3000
 	titleNudge       = 10
 	chartW, chartH   = 360, 88
 	chartBar         = 14
@@ -652,11 +656,71 @@ var envScreens = []screen{
 	{name: "panel-env", seed: envCrew, signedIn: true, prepare: openPanel("ada", route.PanelEnv), shots: wideOnly, want: locales.EnvConfigEffectiveTitle},
 }
 
+func settingsSeed(st *fakeapi.State) {
+	envCrew(st)
+	st.Envs = append(st.Envs,
+		scopedEnv("b1", "bee", api.DefaultBeeID, "BEE_WEBHOOK_URL", "http****c3d4", 25*time.Minute),
+		scopedEnv("b2", "bee", api.DefaultBeeID, "ROUTING_HINT", "****", 4*24*time.Hour),
+	)
+	st.SystemConfigs = map[string]string{
+		"default_engine":     "claude",
+		"engine_args_global": `{"claude":"--model opus","codex":"--sandbox workspace-write"}`,
+		"engine_args_bee":    `{"claude":"--effort high"}`,
+	}
+}
+
+func openSettings(section string) func(t *testing.T, h *testkit.Harness) {
+	return func(_ *testing.T, h *testkit.Harness) {
+		h.Root.OpenSettings(section)
+		h.Settle()
+	}
+}
+
+func settingsWindow(_ *testing.T, h *testkit.Harness) {
+	h.T.SetSize(settingsNarrowW, narrowH)
+	h.Settle()
+}
+
+func scrollSettings(h *testkit.Harness, dy float32) {
+	h.T.Scroll(settingsScrollX, settingsScrollY, 0, dy)
+	h.Settle()
+}
+
+func systemSaveFailed(t *testing.T, h *testkit.Harness) {
+	h.Fake.FailNext(http.MethodPut, "/api/system-configs/engine_args_bee", http.StatusBadRequest,
+		map[string]any{"error": "engine_args_bee: --bogus is not a known flag"})
+	openSettings("system")(t, h)
+	scrollSettings(h, settingsScrollDy)
+	typeInto(t, h, locales.SystemSettingsBeeArgsSectionTitle()+": "+locales.WorkersEnginesCodex(), "--bogus")
+	if err := h.T.Click(locales.SystemSettingsSave()); err != nil {
+		t.Fatal(err)
+	}
+	h.Settle()
+	scrollSettings(h, settingsScrollDy)
+}
+
+func systemLoading(t *testing.T, h *testkit.Harness) {
+	h.Store.SystemConfigs.Reset()
+	h.Store.SystemConfigs.Loading = true
+	openSettings("system")(t, h)
+}
+
+var settingsScreens = []screen{
+	{name: "settings-env", seed: settingsSeed, signedIn: true, prepare: openSettings("env"), want: locales.EnvConfigPageDescription},
+	{name: "settings-system", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), want: locales.SystemSettingsSubtitle},
+	{name: "settings-narrow", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), narrow: settingsWindow, shots: narrowOnly,
+		want: locales.SystemSettingsSubtitle},
+	{name: "settings-system-error", seed: settingsSeed, signedIn: true, prepare: systemSaveFailed, shots: wideOnly,
+		want: locales.SystemSettingsSaveError},
+	{name: "settings-system-loading", seed: settingsSeed, signedIn: true, prepare: systemLoading, shots: wideOnly,
+		want: locales.SystemSettingsSubtitle},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

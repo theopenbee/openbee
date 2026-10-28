@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
+	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
@@ -78,14 +79,14 @@ func formFooter(c *ui.Context, tk theme.Tokens, busy bool, cancel func(), label 
 func engineOptions(engines []string) []kit.SelectOption {
 	options := make([]kit.SelectOption, len(engines))
 	for i, engine := range engines {
-		options[i] = kit.SelectOption{Value: engine, Text: engineLabel(engine)}
+		options[i] = kit.SelectOption{Value: engine, Text: l10n.EngineLabel(engine)}
 	}
 	return options
 }
 
 func engineArgsField(c *ui.Context, tk theme.Tokens, engine string, all map[string]string, submit func()) {
 	args := all[engine]
-	kit.Field(c, tk, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(engineLabel(engine)), "", func() {
+	kit.Field(c, tk, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(l10n.EngineLabel(engine)), "", func() {
 		ui.Column(c).Key(engine).MinWidth(0).Children(func() {
 			kit.TextInput(c, tk, &args, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsPlaceholder()).
 				OnChange(func() { all[engine] = args }).OnSubmit(submit)
