@@ -70,6 +70,7 @@
 .segment .dot { --dot-size: 9px; --presence-surface: var(--surface-raised); }
 @media (hover: hover) and (pointer: fine) { .segment:hover { color: var(--text-secondary); } }
 .segment[aria-checked="true"] { color: var(--foreground); }
+.segmentText { font-size: var(--text-xs); font-weight: 500; line-height: 1; }
 
 .spinner { animation: user-menu-spin .8s linear infinite; }
 @keyframes user-menu-spin { to { transform: rotate(360deg); } }
@@ -81,6 +82,8 @@
 .sheet .item, .sheet .rowLabel { font-size: var(--text-base); }
 .sheet .row { height: 52px; }
 .sheet .segments { --segment: 40px; height: 34px; }
+.segments[data-wide] { --segment: 42px; }
+.sheet .segments[data-wide] { --segment: 60px; }
 .sheet .keys { display: none; }
 
 @media (prefers-reduced-motion: reduce) {

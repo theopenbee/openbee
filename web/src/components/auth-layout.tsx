@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react"
 import { LogoFull } from "@/components/brand/logo"
+import { LanguageMenu } from "@/components/language-menu"
 import styles from "./auth-layout.module.css"
 
 const RINGS = Array.from({ length: 12 }, (_, index) => ({ r: 232 + index * 64, major: index % 3 === 2 }))
@@ -40,6 +41,9 @@ export function AuthLayout({
   return (
     <div className={styles.screen}>
       <AuthBackdrop />
+      <div className={styles.toolbar}>
+        <LanguageMenu />
+      </div>
       <main className={styles.column}>
         <LogoFull className="h-8" />
         <section className={styles.card} aria-labelledby={headingId}>

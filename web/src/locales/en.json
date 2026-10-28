@@ -731,6 +731,7 @@
     "userMenu": {
       "status": "Status",
       "theme": "Theme",
+      "language": "Language",
       "signOut": "Sign out",
       "signingOut": "Signing out",
       "triggerWithStatus": "Account menu, {{name}}, {{status}}",

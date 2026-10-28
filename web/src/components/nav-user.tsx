@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next"
 import { KeyRoundIcon } from "lucide-react"
 import { UserMenu } from "@/components/arc/user-menu/user-menu"
 import { ChangePasswordDialog } from "@/components/change-password-dialog"
+import { useLanguage } from "@/hooks/use-language"
 import { useLogout } from "@/hooks/use-logout"
 import { useThemePreference } from "@/hooks/use-theme-toggle"
 import { getStoredUsername } from "@/lib/auth"
+import { LANGUAGES } from "@/lib/language"
 
 export function NavUser({
   showName = false,
@@ -19,6 +21,7 @@ export function NavUser({
   const { t } = useTranslation()
   const logout = useLogout()
   const { preference, setPreference } = useThemePreference()
+  const { language, setLanguage } = useLanguage()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const username = getStoredUsername() ?? "admin"
 
@@ -31,6 +34,9 @@ export function NavUser({
         align={align}
         theme={preference}
         onThemeChange={setPreference}
+        language={language}
+        languages={LANGUAGES}
+        onLanguageChange={setLanguage}
         items={[
           {
             label: t("account.changePassword", "Change password"),

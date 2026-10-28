@@ -38,6 +38,12 @@
   stroke: var(--border);
 }
 
+.toolbar {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+}
+
 .column {
   display: grid;
   width: min(100%, 420px);

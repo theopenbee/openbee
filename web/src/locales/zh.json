@@ -724,6 +724,7 @@
     "userMenu": {
       "status": "状态",
       "theme": "主题",
+      "language": "语言",
       "signOut": "退出登录",
       "signingOut": "正在退出",
       "triggerWithStatus": "账户菜单，{{name}}，{{status}}",

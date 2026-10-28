@@ -8,23 +8,23 @@ import "./i18n"
 import { getStoredPreference, applyPreference } from "./lib/theme"
 applyPreference(getStoredPreference())
 import i18n from "./i18n"
+import { getStoredLanguage, resolveLanguage } from "./lib/language"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { App } from "./app"
 import "./globals.css"
 
-async function bootstrap() {
+async function fetchServerLanguage(): Promise<unknown> {
   try {
     const res = await fetch("/api/config")
-    if (res.ok) {
-      const data = await res.json()
-      if (data.language) {
-        await i18n.changeLanguage(data.language)
-      }
-    }
+    return res.ok ? (await res.json()).language : undefined
   } catch {
-    // network failure — stay on fallback "en"
+    return undefined
   }
+}
+
+async function bootstrap() {
+  await i18n.changeLanguage(getStoredLanguage() ?? resolveLanguage(await fetchServerLanguage()))
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <App />
