@@ -258,6 +258,7 @@
   },
   "envConfig": {
     "title": "Environment variables",
+    "navTitle": "Env",
     "workerTitle": "Worker Variables",
     "globalTitle": "Global variables",
     "add": "Add variable",
@@ -310,7 +311,7 @@
     "valueLengthSpace_other": "{{count}} characters. Starts or ends with a space."
   },
   "systemSettings": {
-    "title": "System settings",
+    "title": "Settings",
     "engineSection": {
       "title": "Default engine",
       "rowTitle": "Bee and new workers",

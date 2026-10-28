@@ -18,8 +18,8 @@ const PluginDetailSettings = lazy(() =>
   import("@/components/settings/plugin-detail-settings").then((m) => ({ default: m.PluginDetailSettings })),
 )
 
-const SECTIONS: { id: SettingsSection; titleKey: string; descriptionKey: string; icon: LucideIcon }[] = [
-  { id: "env", titleKey: "envConfig.title", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
+const SECTIONS: { id: SettingsSection; titleKey: string; navKey?: string; descriptionKey: string; icon: LucideIcon }[] = [
+  { id: "env", titleKey: "envConfig.title", navKey: "envConfig.navTitle", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
   { id: "system", titleKey: "systemSettings.title", descriptionKey: "systemSettings.subtitle", icon: SlidersHorizontalIcon },
   { id: "plugins", titleKey: "plugins.title", descriptionKey: "plugins.subtitle", icon: PuzzleIcon },
 ]
@@ -80,7 +80,7 @@ function SettingsDialog({
             aria-label={t("nav.settings")}
             className="flex shrink-0 scroll-px-4 gap-1 overflow-x-auto border-b border-border-subtle px-4 py-3 md:w-56 md:flex-col md:gap-0.5 md:overflow-visible md:border-r md:border-b-0 md:p-4"
           >
-            {SECTIONS.map(({ id, titleKey, icon: Icon }) => {
+            {SECTIONS.map(({ id, titleKey, navKey, icon: Icon }) => {
               const active = id === current.id
               return (
                 <button
@@ -92,7 +92,7 @@ function SettingsDialog({
                   className={cn(navItemClass, "w-auto shrink-0 md:w-full", active && navActiveClass)}
                 >
                   <Icon size={16} strokeWidth={1.75} aria-hidden="true" className={cn("shrink-0", active && "text-accent-strong")} />
-                  <span className="truncate">{t(titleKey)}</span>
+                  <span className="truncate">{t(navKey ?? titleKey)}</span>
                 </button>
               )
             })}
