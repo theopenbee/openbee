@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
+	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
 	"github.com/theopenbee/openbee/desktop/locales"
@@ -50,6 +52,7 @@ type screen struct {
 	prepare  func(t *testing.T, h *testkit.Harness)
 	narrow   func(t *testing.T, h *testkit.Harness)
 	shots    shots
+	hint     bool
 	want     func() string
 }
 
@@ -208,6 +211,38 @@ func openChat(param string) func(t *testing.T, h *testkit.Harness) {
 	}
 }
 
+func offline(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	h.Fake.FailNext(http.MethodGet, "/api/local/stream", http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	h.Fake.DropStreams()
+	h.Fix.Await(t, func() bool { return !h.Store.Online })
+	h.Fix.Clock.AwaitSleepers(t, 2)
+	h.Fix.Clock.Advance(3 * time.Second)
+	h.Fix.Await(t, func() bool {
+		return len(h.Fake.Calls(http.MethodGet, "/api/local/stream")) == 2 && h.Fix.Clock.Sleepers() == 2
+	})
+	h.Fix.Clock.Advance(time.Second)
+	h.Fix.Await(t, func() bool { return h.Store.Offline })
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func blockedHint(t *testing.T, h *testkit.Harness) {
+	h.Fix.Notifier.ShowErr = store.ErrNotificationsDenied
+	openChat("ada")(t, h)
+	clickAndSettle(t, h, locales.NotificationsEnable(), 0)
+}
+
+func beeBusy(t *testing.T, h *testkit.Harness) {
+	openChat("bee")(t, h)
+	typeInComposer(t, h, "Please summarise the nightly results.")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
 func clickAndSettle(t *testing.T, h *testkit.Harness, name string, dx float32) {
 	t.Helper()
 	r, ok := h.T.Find(name)
@@ -300,6 +335,12 @@ var chatScreens = []screen{
 	{name: "chat-worker-intro", seed: staffed, signedIn: true, prepare: openChat("grace"), shots: wideOnly,
 		want: func() string { return locales.ChatEmptyWorker("Grace Hopper") }},
 	{name: "chat-reset-dialog", seed: chatHistory, signedIn: true, prepare: resetConflict, shots: wideOnly, want: locales.ChatStopAndRestart},
+	{name: "chat-offline", seed: chatHistory, signedIn: true, prepare: offline, want: locales.ChatConnectionLost},
+	{name: "chat-hint-prompt", seed: chatHistory, signedIn: true, prepare: openChat("ada"), hint: true, want: locales.NotificationsPromptTitle},
+	{name: "chat-hint-blocked", seed: chatHistory, signedIn: true, prepare: blockedHint, hint: true, shots: wideOnly,
+		want: locales.NotificationsBlockedTitle},
+	{name: "chat-busy", seed: chatHistory, signedIn: true, prepare: beeBusy, shots: wideOnly,
+		want: func() string { return "Please summarise the nightly results." }},
 }
 
 func markdownScreens(t *testing.T) []screen {
@@ -434,6 +475,10 @@ func TestScreens(t *testing.T) {
 				open = testkit.SignedIn
 			}
 			h := open(t, wideW, wideH, s.seed)
+			if s.signedIn && !s.hint {
+				h.Fix.Notifier.Unsupported = true
+				h.Settle()
+			}
 			if s.prepare != nil {
 				s.prepare(t, h)
 			}

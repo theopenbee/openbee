@@ -60,7 +60,7 @@ func (v *View) backButton(c *ui.Context, tk theme.Tokens) {
 
 func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 	kind, ahead := model.ChatStatus(v.activity(p.cid), p.worker)
-	busy := kind == model.StatusRunning || kind == model.StatusQueued
+	busy := isBusy(kind)
 	v.headerBar(c, tk, func() {
 		if p.worker == nil {
 			kit.BeeAvatar(c, tk, kit.AvatarMD)

@@ -119,3 +119,13 @@ func (v *View) Draft(cid string) string {
 func (v *View) Attachments(cid string) []string {
 	return slices.Clone(v.state(cid).composer.files)
 }
+
+type Hint = hint
+
+const (
+	HintNone    = hintNone
+	HintPrompt  = hintPrompt
+	HintBlocked = hintBlocked
+)
+
+var HintState = hintState

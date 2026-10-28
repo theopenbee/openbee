@@ -6,10 +6,11 @@ import (
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/model"
+	"github.com/theopenbee/openbee/desktop/internal/prefs"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
-const notificationsOn = "on"
+const confirmationID = "notifications-enabled"
 
 var ErrNotificationsDenied = errors.New("notifications are not allowed")
 
@@ -63,11 +64,15 @@ func (s *Store) attend(ev api.ChatEvent, unknownWorker bool) {
 
 func (s *Store) wantsNotification(ev api.ChatEvent) bool {
 	n := s.o.Notifier
-	return s.Prefs.Notifications == notificationsOn && n.Supported() && model.ShouldNotify(ev, n.Foreground())
+	return s.Prefs.Notifications == prefs.NotificationsOn && n.Supported() && model.ShouldNotify(ev, n.Foreground())
 }
 
 func (s *Store) notify(ev api.ChatEvent) {
-	err := s.o.Notifier.Show(s.notification(ev))
+	s.show(s.notification(ev))
+}
+
+func (s *Store) show(n Notification) {
+	err := s.o.Notifier.Show(n)
 	switch {
 	case errors.Is(err, ErrNotificationsDenied):
 		s.setNotificationsDenied(true)
@@ -76,6 +81,27 @@ func (s *Store) notify(ev api.ChatEvent) {
 	default:
 		s.setNotificationsDenied(false)
 	}
+}
+
+func (s *Store) NotificationsSupported() bool {
+	return s.o.Notifier.Supported()
+}
+
+func (s *Store) SetNotifications(on bool) {
+	choice := prefs.NotificationsOff
+	if on {
+		choice = prefs.NotificationsOn
+	}
+	s.Prefs.Notifications = choice
+	s.savePrefs()
+	if on && s.NotificationsSupported() {
+		s.show(Notification{ID: confirmationID, Title: locales.In(s.language()).NotificationsEnabledTitle()})
+	}
+}
+
+func (s *Store) DismissNotificationsHint() {
+	s.Prefs.NotificationsHintDismissed = true
+	s.savePrefs()
 }
 
 func (s *Store) setNotificationsDenied(denied bool) {

@@ -145,7 +145,10 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 	root.Opacity(shown).Translate(0, mountRise*(1-shown)).Children(func() {
 		p := pane{cid: cid, worker: w, ch: ch, cs: cs}
 		v.header(c, tk, p, panel.Mode == route.ModeWorker)
+		v.notificationHint(c, tk)
 		v.log(c, tk, p)
+		v.connectionBanner(c, tk)
+		v.activityBar(c, tk, p)
 		v.composer(c, tk, p)
 		v.resetDialog(c, tk, p)
 		v.tableDialog(c, tk)

@@ -7,6 +7,11 @@ import (
 	"sync"
 )
 
+const (
+	NotificationsOn  = "on"
+	NotificationsOff = "off"
+)
+
 type Prefs struct {
 	ServerURL                  string `json:"server_url"`
 	Username                   string `json:"username"`
