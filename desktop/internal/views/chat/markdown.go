@@ -66,11 +66,11 @@ type bodySource struct {
 	content, markdown string
 }
 
-func newMarkdown(v *View) *markdown.Options {
+func newMarkdown(v *View, loads *imageLoads) *markdown.Options {
 	return &markdown.Options{
 		Extensions: parser.GFM | parser.ExtFootnotes,
 		OnLink:     v.showLink,
-		LoadImage:  v.images.Load,
+		LoadImage:  loads.track(v.images),
 		CodeBlock:  v.codeBlock,
 		Block:      v.block,
 	}

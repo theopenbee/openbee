@@ -32,6 +32,22 @@ func (v *View) SetSaver(save func(name string, data []byte) (string, error)) {
 
 type ImageCache = imageCache
 
+var ErrImageTooLarge = errImageTooLarge
+
+func (v *View) OnMediaLoad(fn func(name string)) {
+	load := v.images.media
+	v.images.media = func(name string) ([]byte, error) {
+		fn(name)
+		return load(name)
+	}
+}
+
+func (v *View) ImageLoadFailed() bool {
+	v.loads.mu.Lock()
+	defer v.loads.mu.Unlock()
+	return v.loads.failed
+}
+
 func NewImageCache(media func(name string) ([]byte, error)) *ImageCache {
 	return newImageCache(media, nil)
 }

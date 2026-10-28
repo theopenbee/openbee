@@ -5,7 +5,9 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"image"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +22,7 @@ import (
 const (
 	maxCachedImages      = 64
 	maxCachedImageBytes  = 128 << 20
+	markdownImageBudget  = 2 * maxCachedImageBytes
 	maxExternalImage     = 10 << 20
 	externalImageTimeout = 30 * time.Second
 	bytesPerPixel        = 4
@@ -30,9 +33,11 @@ const (
 )
 
 var (
-	errImageAddress = errors.New("unsupported image address")
-	errStaleSession = errors.New("the session that asked for the image has ended")
-	imageClient     = &http.Client{Timeout: externalImageTimeout}
+	errImageAddress  = errors.New("unsupported image address")
+	errImageDecode   = errors.New("decode image")
+	errImageTooLarge = errors.New("image is too large to decode")
+	errStaleSession  = errors.New("the session that asked for the image has ended")
+	imageClient      = &http.Client{Timeout: externalImageTimeout}
 )
 
 type imageRef struct {
@@ -61,46 +66,98 @@ type mediaResult struct {
 	err  error
 }
 
+type imageLoads struct {
+	mu     sync.Mutex
+	known  map[string]bool
+	seen   map[string]bool
+	bytes  int64
+	fresh  bool
+	failed bool
+}
+
+func newImageLoads(prev *imageLoads) *imageLoads {
+	l := &imageLoads{seen: map[string]bool{}}
+	if prev != nil {
+		prev.mu.Lock()
+		l.known = maps.Clone(prev.seen)
+		prev.mu.Unlock()
+	}
+	return l
+}
+
+func (l *imageLoads) track(ic *imageCache) func(address string) (ui.ImageSource, error) {
+	return func(address string) (ui.ImageSource, error) {
+		src, size, err := ic.load(address)
+		l.note(address, size, err)
+		return src, err
+	}
+}
+
+func (l *imageLoads) note(address string, size int64, err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	switch {
+	case err != nil:
+		l.failed = l.failed || !errors.Is(err, errImageAddress) && !errors.Is(err, errImageDecode)
+	case !l.seen[address]:
+		l.seen[address] = true
+		l.bytes += size
+		l.fresh = l.fresh || !l.known[address]
+	}
+}
+
+func (l *imageLoads) due(retryFailed bool) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.fresh && l.bytes > markdownImageBudget || retryFailed && l.failed
+}
+
 func newImageCache(media, web func(string) ([]byte, error)) *imageCache {
 	return &imageCache{media: media, web: web, items: map[string]*list.Element{}}
 }
 
 func (ic *imageCache) Load(address string) (ui.ImageSource, error) {
+	src, _, err := ic.load(address)
+	return src, err
+}
+
+func (ic *imageCache) load(address string) (ui.ImageSource, int64, error) {
 	ref, ok := imageRefOf(address)
 	if !ok {
-		return nil, fmt.Errorf("%w: %q", errImageAddress, address)
+		return nil, 0, fmt.Errorf("%w: %q", errImageAddress, address)
 	}
-	if src, ok := ic.get(ref.key); ok {
-		return src, nil
+	if src, size, ok := ic.get(ref.key); ok {
+		return src, size, nil
 	}
 	fetch, from := ic.web, ref.web
 	if ref.media != "" {
 		fetch, from = ic.media, ref.media
 	}
 	if fetch == nil {
-		return nil, fmt.Errorf("%w: %q", errImageAddress, address)
+		return nil, 0, fmt.Errorf("%w: %q", errImageAddress, address)
 	}
 	data, err := fetch(from)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	src, size, err := decodeImage(data, ref.svg)
 	if err != nil {
-		return nil, fmt.Errorf("decode image %q: %w", address, err)
+		return nil, 0, fmt.Errorf("%w %q: %w", errImageDecode, address, err)
 	}
 	ic.put(ref.key, src, size)
-	return src, nil
+	return src, size, nil
 }
 
-func (ic *imageCache) get(key string) (ui.ImageSource, bool) {
+func (ic *imageCache) get(key string) (ui.ImageSource, int64, bool) {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 	e, ok := ic.items[key]
 	if !ok {
-		return nil, false
+		return nil, 0, false
 	}
 	ic.order.MoveToFront(e)
-	return e.Value.(*cachedImage).src, true
+	img := e.Value.(*cachedImage)
+	return img.src, img.size, true
 }
 
 func (ic *imageCache) put(key string, src ui.ImageSource, size int64) {
@@ -151,6 +208,13 @@ func decodeImage(data []byte, svg bool) (ui.ImageSource, int64, error) {
 			return nil, 0, err
 		}
 		return s, max(1, int64(len(data))), nil
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, 0, err
+	}
+	if int64(cfg.Width)*int64(cfg.Height)*bytesPerPixel > maxCachedImageBytes {
+		return nil, 0, fmt.Errorf("%w: %dx%d pixels", errImageTooLarge, cfg.Width, cfg.Height)
 	}
 	b, err := ui.DecodeBitmap(data)
 	if err != nil {

@@ -35,6 +35,7 @@ type View struct {
 	nav         route.Nav
 	togglePanel func(cid string)
 	md          *markdown.Options
+	loads       *imageLoads
 	themes      [2]*markdown.Theme
 	images      *imageCache
 	mediaGen    uint64
@@ -64,6 +65,7 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 		v.link, v.table = linkState{}, tableModal{}
 		v.resetMedia()
 	})
+	s.OnResync(func() { v.recycleMarkdown(true) })
 	return v
 }
 
@@ -74,7 +76,17 @@ func (v *View) Markdown() *markdown.Options {
 func (v *View) resetMedia() {
 	v.mediaGen++
 	v.images = newImageCache(v.mediaImages(v.mediaGen), fetchExternalImage)
-	v.md = newMarkdown(v)
+	v.useMarkdown(newImageLoads(nil))
+}
+
+func (v *View) recycleMarkdown(retryFailed bool) {
+	if v.loads.due(retryFailed) {
+		v.useMarkdown(newImageLoads(v.loads))
+	}
+}
+
+func (v *View) useMarkdown(loads *imageLoads) {
+	v.loads, v.md = loads, newMarkdown(v, loads)
 }
 
 func (v *View) state(cid string) *convState {
@@ -90,6 +102,7 @@ func (v *View) state(cid string) *convState {
 }
 
 func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
+	v.recycleMarkdown(false)
 	tk := theme.Apply(c)
 	v.tk = tk
 	v.md.Theme = v.markdownTheme(tk)
@@ -116,8 +129,8 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		v.header(c, tk, p, panel.Mode == route.ModeWorker)
 		v.log(c, tk, p)
 		v.resetDialog(c, tk, p)
-		v.linkDialog(c, tk)
 		v.tableDialog(c, tk)
+		v.linkDialog(c, tk)
 	})
 }
 

@@ -2,11 +2,15 @@ package chat_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
 	"net/http"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +34,11 @@ const (
 	bigImages    = 12
 	cacheBytes   = 128 << 20
 	imageShown   = 200
+	chartW       = 120
+	chartH       = 80
+	focusTabs    = 8
+	hugeSide     = 50000
+	smallGrowth  = 1 << 20
 )
 
 type savedFile struct {
@@ -81,6 +90,65 @@ func pngImage(t testing.TB, w, h int) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func grayPNG(t testing.TB, w, h int) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewGray(image.Rect(0, 0, w, h))); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func declaredPNG(t testing.TB, w, h uint32) []byte {
+	t.Helper()
+	data := pngImage(t, 1, 1)
+	binary.BigEndian.PutUint32(data[16:], w)
+	binary.BigEndian.PutUint32(data[20:], h)
+	binary.BigEndian.PutUint32(data[29:], crc32.ChecksumIEEE(data[12:29]))
+	return data
+}
+
+func bigURLs(from, to int) []string {
+	var urls []string
+	for i := from; i < to; i++ {
+		urls = append(urls, fmt.Sprintf("/api/local/media/big.png?n=%d", i))
+	}
+	return urls
+}
+
+func (f *fixture) loadImages(load func(string) (ui.ImageSource, error), urls ...string) {
+	f.t.Helper()
+	done := make(chan error, 1)
+	go func() {
+		for _, u := range urls {
+			if _, err := load(u); err != nil {
+				done <- fmt.Errorf("load %s: %w", u, err)
+				return
+			}
+		}
+		done <- nil
+	}()
+	deadline := time.Now().Add(imageTimeout)
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				f.t.Fatal(err)
+			}
+			return
+		case <-time.After(time.Millisecond):
+		}
+		f.Fix.Settle(f.t)
+		if time.Now().After(deadline) {
+			f.t.Fatalf("%d images did not load within %v", len(urls), imageTimeout)
+		}
+	}
+}
+
+func (f *fixture) mediaGets(name string) int {
+	return len(f.Fake.Calls(http.MethodGet, "/api/local/media/"+name))
 }
 
 func (f *fixture) awaitImage(alt string, w, h float32) {
@@ -273,6 +341,35 @@ func TestLinkOpensDialogNotBrowser(t *testing.T) {
 	f.wantHidden(locales.LinkDialogTitle())
 }
 
+func TestFullscreenTableLinkOpens(t *testing.T) {
+	url := "https://example.com/docs"
+	f := newFixture(t, wideW, wideH, "w1", workerSays("| name | link |\n| --- | --- |\n| guide | [docs]("+url+") |"))
+	f.click(locales.TableFullscreen())
+	for i := 0; !f.T.Focused(locales.ArcDialogClose()); i++ {
+		if i == focusTabs {
+			t.Fatalf("Tab never reached %q in the full-screen table", locales.ArcDialogClose())
+		}
+		f.T.Key(0, ui.KeyTab)
+		f.T.Frame()
+	}
+	f.T.Key(0, ui.KeyTab)
+	f.T.Frame()
+	if !f.T.Focused("docs") {
+		t.Fatal("Tab after the close button did not focus the link in the full-screen table")
+	}
+	f.T.Key(0, ui.KeyEnter)
+	f.settleMotion()
+	f.wantShown(locales.LinkDialogTitle(), url)
+	f.click(locales.LinkOpen())
+	if opened := f.T.OpenedURLs(); !slices.Equal(opened, []string{url}) {
+		t.Fatalf("opened %q, want %q: the full-screen table covers the link dialog", opened, url)
+	}
+	f.wantHidden(locales.LinkDialogTitle())
+	if n := f.count("name"); n != 2 {
+		t.Fatalf("%d header cells after opening the link, want the full screen still open", n)
+	}
+}
+
 func TestLinkDialogCopiesLink(t *testing.T) {
 	url := "https://example.com/a?b=c"
 	f := newFixture(t, wideW, wideH, "w1", workerSays("See <"+url+">."))
@@ -368,5 +465,89 @@ func TestImageCacheEvicts(t *testing.T) {
 	}
 	if n, want := ic.Len(), bigImages-1; n != want {
 		t.Fatalf("%d images kept after %d large ones, want the %d newest", n, bigImages, want)
+	}
+}
+
+func TestMarkdownImagesRotateOptions(t *testing.T) {
+	f := newFixture(t, wideW, wideH, "w1", both(workerSays("![chart](/api/local/media/chart.png)"),
+		withMedia("chart.png", pngImage(t, chartW, chartH)), withMedia("big.png", grayPNG(t, bigImageW, bigImageH))))
+	f.awaitImage("chart", chartW, chartH)
+	var mu sync.Mutex
+	var fetched []string
+	f.view.OnMediaLoad(func(name string) {
+		mu.Lock()
+		defer mu.Unlock()
+		fetched = append(fetched, name)
+	})
+	budget, big := 2*cacheBytes-chartW*chartH*4, bigImageW*bigImageH*4
+	under := budget / big
+	first := f.view.Markdown()
+	f.loadImages(first.LoadImage, bigURLs(0, under)...)
+	f.T.Frame()
+	if f.view.Markdown() != first {
+		t.Fatalf("the options were replaced after %d bytes of images, under the budget", under*big)
+	}
+	f.loadImages(first.LoadImage, bigURLs(under, under+1)...)
+	f.T.Frame()
+	second := f.view.Markdown()
+	if second == first {
+		t.Fatalf("the options were kept after %d bytes of images, over the budget", (under+1)*big)
+	}
+	f.awaitImage("chart", chartW, chartH)
+	mu.Lock()
+	got := slices.Clone(fetched)
+	mu.Unlock()
+	if want := []string{"big.png"}; !slices.Equal(got, want) {
+		t.Fatalf("media fetched %q, want %q: the visible chart should come back from the cache", got, want)
+	}
+	f.loadImages(second.LoadImage, bigURLs(0, under+1)...)
+	f.T.Frame()
+	if f.view.Markdown() != second {
+		t.Fatal("the options were replaced again by reloading the images they replaced")
+	}
+	f.loadImages(second.LoadImage, bigURLs(under+1, under+2)...)
+	f.T.Frame()
+	if f.view.Markdown() == second {
+		t.Fatal("a new image over the budget did not replace the options")
+	}
+}
+
+func TestFailedImageRetriesAfterResync(t *testing.T) {
+	f := newFixture(t, wideW, wideH, "w1", workerSays("![late](/api/local/media/late.png)"))
+	f.Fix.Await(t, f.view.ImageLoadFailed)
+	f.Fake.Update(func(st *fakeapi.State) { st.Media["late.png"] = pngImage(t, 64, 48) })
+	f.Fake.Reply(workerCID, api.ChatMessage{Content: "no gap"})
+	f.Settle()
+	f.settleMotion()
+	f.wantShown("no gap")
+	if r, ok := f.T.Find("late"); !ok || r.W == 64 && r.H == 48 {
+		t.Fatalf("image box %v (shown %v) before a resync, want the placeholder", r, ok)
+	}
+	if n := f.mediaGets("late.png"); n != 1 {
+		t.Fatalf("%d requests for late.png before a resync, want 1", n)
+	}
+	f.Fake.SkipSeq(2)
+	f.Fake.Reply(workerCID, api.ChatMessage{Content: "after a gap"})
+	f.awaitImage("late", 64, 48)
+	if n := f.mediaGets("late.png"); n != 2 {
+		t.Fatalf("%d requests for late.png after a resync, want 2", n)
+	}
+}
+
+func TestImageCacheRefusesHugeDimensions(t *testing.T) {
+	huge := declaredPNG(t, hugeSide, hugeSide)
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return huge, nil })
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err := ic.Load("/api/local/media/huge.png")
+	runtime.ReadMemStats(&after)
+	if !errors.Is(err, chat.ErrImageTooLarge) {
+		t.Fatalf("load of a %d×%d PNG: err = %v, want ErrImageTooLarge", hugeSide, hugeSide, err)
+	}
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > smallGrowth {
+		t.Fatalf("refusing the image allocated %d bytes, want at most %d", grew, smallGrowth)
+	}
+	if n := ic.Len(); n != 0 {
+		t.Fatalf("%d images cached, want none", n)
 	}
 }
