@@ -11,6 +11,8 @@ const (
 	fontStack                 = FontBody + ", system-ui"
 )
 
+const BodyLineHeight float32 = 1.4
+
 func Apply(c *ui.Context) Tokens {
 	t := *c.Theme()
 	tk := Light()
@@ -39,5 +41,6 @@ func Apply(c *ui.Context) Tokens {
 	t.Font = fontStack
 	t.FontSize = baseFontSize
 	c.SetTheme(&t)
+	c.Root().LineHeight(BodyLineHeight)
 	return tk
 }

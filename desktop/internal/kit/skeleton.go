@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	skeletonPulse = 1600 * time.Millisecond
+	skeletonPulse = 1800 * time.Millisecond
 	skeletonDim   = 0.52
 	skeletonMix   = 0.38
 )
 
 func SkeletonBar(c *ui.Context, tk theme.Tokens, w, h float32) ui.Element {
-	e := ui.Box(c).Height(h).Shrink(0).Radius(min(theme.RadiusControl, h/2)).Background(skeletonFill(tk))
+	e := ui.Box(c).Height(h).Shrink(0).Radius(theme.RadiusControl).Background(skeletonFill(tk))
 	if w > 0 {
 		e.Width(w)
 	}

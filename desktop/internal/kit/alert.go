@@ -63,7 +63,7 @@ func (t Tone) icon() string {
 
 func Alert(c *ui.Context, tk theme.Tokens, o AlertOpts) ui.Element {
 	a := ui.Row(c).AlignItems(ui.Start).Gap(alertGap).Padding(alertPadding).Role(ui.RoleStatus).
-		Radius(theme.RadiusPanel).Background(tk.Surface).Border(1, tk.Border)
+		Radius(theme.RadiusControl).Background(tk.Surface).Border(1, tk.Border)
 	theme.WithShadow(a, tk.ShadowResting)
 	return a.Children(func() {
 		ui.Icon(c, icons.Get(o.Tone.icon())).Size(alertGlyph, alertGlyph).TextColor(o.Tone.color(tk)).Margin(1, 0, 0, 0)

@@ -77,6 +77,7 @@ func TestButtonClick(t *testing.T) {
 	if clicks != 2 {
 		t.Errorf("loading button fired: clicks = %d, want 2", clicks)
 	}
+	settle(tt)
 	tt.Advance(100 * time.Millisecond)
 	if !tt.FramePending() {
 		t.Error("loading button shows no turning spinner")

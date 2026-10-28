@@ -98,6 +98,31 @@ func TestApplySetsTheme(t *testing.T) {
 	}
 }
 
+func TestApplySetsBodyLineHeight(t *testing.T) {
+	view := func(c *ui.Context) {
+		Apply(c)
+		ui.Column(c).Padding(8).Children(func() {
+			ui.Text(c, "probe")
+			ui.Text(c, "tight").LineHeight(1)
+		})
+	}
+	tt := ui.NewTester(view, 200, 100)
+	body, ok := tt.Find("probe")
+	if !ok {
+		t.Fatal("probe text not found")
+	}
+	tight, ok := tt.Find("tight")
+	if !ok {
+		t.Fatal("tight text not found")
+	}
+	if want := baseFontSize * BodyLineHeight; body.H < want-0.5 || body.H > want+0.5 {
+		t.Errorf("body text height = %v, want %v", body.H, want)
+	}
+	if tight.H >= body.H {
+		t.Errorf("text with its own line height is %v high, want less than %v", tight.H, body.H)
+	}
+}
+
 func TestRegisterFonts(t *testing.T) {
 	if err := RegisterFonts(); err != nil {
 		t.Fatal(err)

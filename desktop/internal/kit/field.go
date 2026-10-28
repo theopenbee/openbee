@@ -5,10 +5,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 )
 
-const (
-	fieldGap      = 8
-	fieldNoteLift = 2
-)
+const fieldGap = 8
 
 type fieldScope struct{ err string }
 
@@ -39,5 +36,5 @@ func Field(c *ui.Context, tk theme.Tokens, label, help, errText string, control 
 }
 
 func fieldNote(c *ui.Context, text string, color ui.Color) ui.Element {
-	return ui.Text(c, text).FontSize(smallFontSize).TextColor(color).Margin(fieldNoteLift, 0, 0, 0)
+	return ui.Text(c, text).FontSize(smallFontSize).TextColor(color)
 }
