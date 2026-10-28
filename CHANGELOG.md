@@ -16,6 +16,7 @@
 - Show sender and time on every worker and Bee message.
 - Double the collapsed height of long chat messages.
 - Open worker details from the chat header name.
+- Simplify worker profile labels and drop duplicate status.
 
 ### Removed
 - Remove user and role management; keep one admin account.
