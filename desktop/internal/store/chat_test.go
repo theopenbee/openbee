@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
+	"github.com/theopenbee/openbee/desktop/internal/prefs"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/store/storetest"
 )
@@ -158,6 +162,121 @@ func TestChatLoadOlderPrepends(t *testing.T) {
 	fix.Settle(t)
 	if ids := chatIDs(ch); len(ids) != 60 || ids[0] != "h00" || ch.List.HasMore {
 		t.Fatalf("after a refresh messages=%d HasMore=%v, want the older history kept", len(ids), ch.List.HasMore)
+	}
+}
+
+type olderGate struct {
+	held    chan struct{}
+	release chan struct{}
+}
+
+func gatedOlder(t *testing.T, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Server, *storetest.Fixture, *olderGate) {
+	t.Helper()
+	st, fake, fix := storetest.New(t, seed)
+	target, err := url.Parse(fake.URL)
+	if err != nil {
+		t.Fatalf("parse fake url: %v", err)
+	}
+	gate := &olderGate{held: make(chan struct{}, 1), release: make(chan struct{})}
+	forward := httputil.NewSingleHostReverseProxy(target)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("before") {
+			gate.held <- struct{}{}
+			select {
+			case <-gate.release:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		forward.ServeHTTP(w, r)
+	}))
+	t.Cleanup(func() {
+		proxy.CloseClientConnections()
+		proxy.Close()
+	})
+	if err := fix.Prefs.Save(prefs.Prefs{Language: "en", ServerURL: proxy.URL}); err != nil {
+		t.Fatalf("save prefs: %v", err)
+	}
+	st.Start()
+	fix.Settle(t)
+	if err := call(t, fix, func(done func(error)) { st.Login("admin", "secret", done) }); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	st.Workers.Ensure()
+	st.Conversations.Ensure()
+	fix.Settle(t)
+	if !st.Workers.Loaded || !st.Conversations.Loaded || !st.Online {
+		t.Fatalf("Workers.Loaded=%v Conversations.Loaded=%v Online=%v, want a loaded online store", st.Workers.Loaded, st.Conversations.Loaded, st.Online)
+	}
+	return st, fake, fix, gate
+}
+
+func awaitBusy(t *testing.T, st *store.Store, want int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for st.Busy() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("Busy = %d, want %d", st.Busy(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestStaleOlderPageDroppedAfterRefresh(t *testing.T) {
+	st, fake, fix, gate := gatedOlder(t, withHistory("worker:w1", 60))
+	ch := ensured(t, st, fix, "worker:w1")
+	path := conversationPath("worker:w1", "messages")
+
+	ch.LoadOlder()
+	select {
+	case <-gate.held:
+	case <-time.After(3 * time.Second):
+		t.Fatal("older page request never reached the server")
+	}
+	fake.Update(func(st *fakeapi.State) {
+		for i := range 60 {
+			st.Messages["worker:w1"] = append(st.Messages["worker:w1"], api.ChatMessage{
+				ID:      fmt.Sprintf("n%02d", i),
+				Sender:  api.ChatSender{Type: "worker", ID: "w1"},
+				Kind:    "message",
+				Content: fmt.Sprintf("new %d", i),
+				TS:      int64(5000 + i),
+			})
+		}
+	})
+	ch.Refresh()
+	awaitBusy(t, st, 1)
+	close(gate.release)
+	awaitBusy(t, st, 0)
+	fix.Settle(t)
+
+	ids := chatIDs(ch)
+	if len(ids) != 50 || ids[0] != "n10" || ids[49] != "n59" {
+		t.Fatalf("messages = %d (%v … %v), want only the refreshed n10..n59 with no gap", len(ids), ids[0], ids[len(ids)-1])
+	}
+	if !ch.List.HasMore || ch.LoadingOlder || ch.OlderErr != nil {
+		t.Fatalf("HasMore=%v LoadingOlder=%v OlderErr=%v, want more history and no load in flight", ch.List.HasMore, ch.LoadingOlder, ch.OlderErr)
+	}
+	calls := fake.Calls("GET", path)
+	if len(calls) != 3 || calls[2].Query != "before=1010&limit=50" {
+		t.Fatalf("message calls = %+v, want the held older request before=1010&limit=50 as the third", calls)
+	}
+
+	ch.LoadOlder()
+	fix.Settle(t)
+	ids = chatIDs(ch)
+	var want []string
+	for i := 20; i < 60; i++ {
+		want = append(want, fmt.Sprintf("h%02d", i))
+	}
+	for i := range 60 {
+		want = append(want, fmt.Sprintf("n%02d", i))
+	}
+	if !slices.Equal(ids, want) || !ch.List.HasMore {
+		t.Fatalf("after loading older again messages = %v HasMore=%v, want h20..h59 then n00..n59 with more", ids, ch.List.HasMore)
+	}
+	if calls := fake.Calls("GET", path); len(calls) != 4 || calls[3].Query != "before=5010&limit=50" {
+		t.Fatalf("message calls = %+v, want a fourth with before=5010&limit=50", calls)
 	}
 }
 

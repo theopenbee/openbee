@@ -78,8 +78,10 @@ func (ch *Chat) LoadOlder() {
 		return
 	}
 	before := ch.s.o.Now().UnixMilli()
+	anchor := ""
 	if len(ch.List.Msgs) > 0 {
 		before = ch.List.Msgs[0].TS
+		anchor = ch.List.Msgs[0].ID
 	}
 	ch.LoadingOlder = true
 	ch.OlderErr = nil
@@ -88,6 +90,9 @@ func (ch *Chat) LoadOlder() {
 		page, err := c.Messages(ctx, cid, before, messagesPageSize)
 		return func() {
 			ch.LoadingOlder = false
+			if anchor != "" && (len(ch.List.Msgs) == 0 || ch.List.Msgs[0].ID != anchor) {
+				return
+			}
 			if err != nil {
 				ch.OlderErr = err
 				return
