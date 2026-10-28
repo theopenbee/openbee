@@ -28,6 +28,7 @@
 ### Fixed
 - Keep slash commands in the web chat history.
 - Fix pi failing when the Bee receives web chat images.
+- Keep the web chat list scroll when chats reorder.
 - Stop the server promptly while web chats are open.
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.
