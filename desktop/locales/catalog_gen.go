@@ -3114,6 +3114,18 @@ func (msgs Messages) NotificationsBlockedDesktopDescription() string {
 	return Catalog.Format(msgs.locale, "notificationsBlockedDesktopDescription", nil)
 }
 
+// NotificationsBlockedDesktopTitle says "Notifications are turned off for OpenBee"
+// in the language the app shows.
+func NotificationsBlockedDesktopTitle() string {
+	return In(i18n.Locale()).NotificationsBlockedDesktopTitle()
+}
+
+// NotificationsBlockedDesktopTitle says "Notifications are turned off for OpenBee"
+// in the language of msgs.
+func (msgs Messages) NotificationsBlockedDesktopTitle() string {
+	return Catalog.Format(msgs.locale, "notificationsBlockedDesktopTitle", nil)
+}
+
 // NotificationsBlockedTitle says "Your browser is blocking notifications"
 // in the language the app shows.
 func NotificationsBlockedTitle() string { return In(i18n.Locale()).NotificationsBlockedTitle() }

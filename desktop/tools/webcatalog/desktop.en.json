@@ -14,6 +14,7 @@
   "menuNewWorker": "New Worker",
   "menuFile": "File",
   "notificationsUnavailableDesktop": "Available in the installed app",
+  "notificationsBlockedDesktopTitle": "Notifications are turned off for OpenBee",
   "notificationsBlockedDesktopDescription": "Turn on notifications for OpenBee in System Settings.",
   "notificationsEnabledTitle": "Notifications are on",
   "fileOpenFailed": "Couldn't open the file",

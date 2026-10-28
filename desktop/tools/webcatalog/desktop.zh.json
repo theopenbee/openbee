@@ -14,6 +14,7 @@
   "menuNewWorker": "新建数字员工",
   "menuFile": "文件",
   "notificationsUnavailableDesktop": "安装版应用中可用",
+  "notificationsBlockedDesktopTitle": "OpenBee 的通知已关闭",
   "notificationsBlockedDesktopDescription": "请在系统设置中允许 OpenBee 发送通知。",
   "notificationsEnabledTitle": "通知已开启",
   "fileOpenFailed": "无法打开文件",

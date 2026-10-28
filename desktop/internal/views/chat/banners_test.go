@@ -182,7 +182,7 @@ func TestBeeBusyActivity(t *testing.T) {
 func TestHintPromptShowsAndDismisses(t *testing.T) {
 	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID))
 	f.wantShown(locales.NotificationsPromptTitle(), locales.NotificationsPromptDescription(), locales.NotificationsEnable())
-	f.wantHidden(locales.NotificationsBlockedTitle())
+	f.wantHidden(locales.NotificationsBlockedDesktopTitle())
 
 	f.click(locales.ArcAlertDismiss(locales.NotificationsPromptTitle()))
 	f.Fix.Settle(t)
@@ -203,7 +203,7 @@ func TestHintEnableTurnsOn(t *testing.T) {
 	if shown := f.Fix.Notifier.Shown; len(shown) != 1 || shown[0].Title != locales.NotificationsEnabledTitle() {
 		t.Fatalf("shown = %+v, want one %q confirmation", shown, locales.NotificationsEnabledTitle())
 	}
-	f.wantHidden(locales.NotificationsPromptTitle(), locales.NotificationsBlockedTitle())
+	f.wantHidden(locales.NotificationsPromptTitle(), locales.NotificationsBlockedDesktopTitle())
 }
 
 func TestHintBlockedAfterDenial(t *testing.T) {
@@ -213,12 +213,12 @@ func TestHintBlockedAfterDenial(t *testing.T) {
 	f.click(locales.NotificationsEnable())
 	f.Fix.Settle(t)
 	f.settleMotion()
-	f.wantShown(locales.NotificationsBlockedTitle(), locales.NotificationsBlockedDesktopDescription())
-	f.wantHidden(locales.NotificationsPromptTitle(), locales.NotificationsEnable())
+	f.wantShown(locales.NotificationsBlockedDesktopTitle(), locales.NotificationsBlockedDesktopDescription())
+	f.wantHidden(locales.NotificationsPromptTitle(), locales.NotificationsEnable(), locales.NotificationsBlockedTitle())
 
-	f.click(locales.ArcAlertDismiss(locales.NotificationsBlockedTitle()))
+	f.click(locales.ArcAlertDismiss(locales.NotificationsBlockedDesktopTitle()))
 	f.Fix.Settle(t)
-	f.wantHidden(locales.NotificationsBlockedTitle())
+	f.wantHidden(locales.NotificationsBlockedDesktopTitle())
 }
 
 func TestHintHiddenWithoutSupport(t *testing.T) {
@@ -231,5 +231,5 @@ func TestHintHiddenWithoutSupport(t *testing.T) {
 
 	f.Store.Prefs.NotificationsDenied = true
 	f.settleMotion()
-	f.wantHidden(locales.NotificationsBlockedTitle())
+	f.wantHidden(locales.NotificationsBlockedDesktopTitle())
 }

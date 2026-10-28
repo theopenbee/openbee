@@ -368,6 +368,7 @@
   "notFoundTitle": "页面不存在",
   "notificationsBlockedDescription": "请在浏览器的网站设置里允许本站发送通知。",
   "notificationsBlockedDesktopDescription": "请在系统设置中允许 OpenBee 发送通知。",
+  "notificationsBlockedDesktopTitle": "OpenBee 的通知已关闭",
   "notificationsBlockedTitle": "浏览器已拦截通知",
   "notificationsEnable": "开启",
   "notificationsEnabledTitle": "通知已开启",

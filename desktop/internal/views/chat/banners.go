@@ -65,7 +65,7 @@ func (v *View) notificationHint(c *ui.Context, tk theme.Tokens) {
 	alert := kit.AlertOpts{OnDismiss: v.s.DismissNotificationsHint}
 	if state == hintBlocked {
 		alert.Tone = kit.ToneWarning
-		alert.Title = locales.NotificationsBlockedTitle()
+		alert.Title = locales.NotificationsBlockedDesktopTitle()
 		alert.Body = locales.NotificationsBlockedDesktopDescription()
 	} else {
 		alert.Tone = kit.ToneInfo

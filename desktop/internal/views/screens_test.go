@@ -338,7 +338,7 @@ var chatScreens = []screen{
 	{name: "chat-offline", seed: chatHistory, signedIn: true, prepare: offline, want: locales.ChatConnectionLost},
 	{name: "chat-hint-prompt", seed: chatHistory, signedIn: true, prepare: openChat("ada"), hint: true, want: locales.NotificationsPromptTitle},
 	{name: "chat-hint-blocked", seed: chatHistory, signedIn: true, prepare: blockedHint, hint: true, shots: wideOnly,
-		want: locales.NotificationsBlockedTitle},
+		want: locales.NotificationsBlockedDesktopTitle},
 	{name: "chat-busy", seed: chatHistory, signedIn: true, prepare: beeBusy, shots: wideOnly,
 		want: func() string { return "Please summarise the nightly results." }},
 }

@@ -368,6 +368,7 @@
   "notFoundTitle": "Page not found",
   "notificationsBlockedDescription": "Allow notifications for this site in your browser settings.",
   "notificationsBlockedDesktopDescription": "Turn on notifications for OpenBee in System Settings.",
+  "notificationsBlockedDesktopTitle": "Notifications are turned off for OpenBee",
   "notificationsBlockedTitle": "Your browser is blocking notifications",
   "notificationsEnable": "Turn on",
   "notificationsEnabledTitle": "Notifications are on",
