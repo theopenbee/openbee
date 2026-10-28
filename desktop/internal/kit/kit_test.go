@@ -288,18 +288,37 @@ func TestKitGallery(t *testing.T) {
 			t.Errorf("gallery is missing %q", text)
 		}
 	}
+	shoot(t, tt, "kit-gallery", nil)
+	for _, s := range overlayShots() {
+		tt := ui.NewTester(s.view, s.w, s.h)
+		tt.SetScale(2)
+		for _, text := range s.texts {
+			if !tt.HasText(text) {
+				t.Errorf("%s is missing %q", s.name, text)
+			}
+		}
+		shoot(t, tt, s.name, s.prepare)
+	}
+}
+
+func shoot(t *testing.T, tt *ui.Tester, name string, prepare func(t *testing.T, tt *ui.Tester)) {
+	t.Helper()
 	dir := os.Getenv("OPENBEE_SCREENS_DIR")
+	if dir == "" {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for _, mode := range []string{"light", "dark"} {
 		tt.SetDark(mode == "dark")
 		tt.Frame()
+		if prepare != nil {
+			prepare(t, tt)
+		}
 		tt.Advance(400 * time.Millisecond)
-		if dir == "" {
-			continue
-		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		writePNG(t, tt, filepath.Join(dir, "kit-gallery-"+mode+".png"))
+		tt.Frame()
+		writePNG(t, tt, filepath.Join(dir, name+"-"+mode+".png"))
 	}
 }
 

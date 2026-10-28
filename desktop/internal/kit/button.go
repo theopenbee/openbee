@@ -133,7 +133,7 @@ func IconButton(c *ui.Context, tk theme.Tokens, icon, label string, o ButtonOpts
 	b := button(c, tk, o, label, iconPressScale, func() {
 		ui.Icon(c, icons.Get(icon)).Size(iconButtonGlyph, iconButtonGlyph)
 	})
-	return b.Size(h, h).Tooltip(label)
+	return Tooltip(c, tk, b.Size(h, h), label)
 }
 
 func button(c *ui.Context, tk theme.Tokens, o ButtonOpts, label string, squeeze float32, content func()) ui.Element {
@@ -179,7 +179,11 @@ func swallowActivation(ev ui.InputEvent) bool {
 }
 
 func quietButton(c *ui.Context, tk theme.Tokens, icon, label string, box, glyph, radius float32, on bool) ui.Element {
-	b := ui.ButtonBase(c).Label(label).Size(box, box).Radius(radius)
+	return quiet(c, tk, ui.ButtonBase(c), icon, label, box, glyph, radius, on)
+}
+
+func quiet(c *ui.Context, tk theme.Tokens, b ui.Element, icon, label string, box, glyph, radius float32, on bool) ui.Element {
+	b.Label(label).Size(box, box).Radius(radius)
 	hovered, pressed := b.Hovered(), b.Pressed()
 	bg, fg := tk.SurfaceMuted.Alpha(0), tk.TextMuted
 	if hovered || pressed {
