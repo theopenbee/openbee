@@ -35,6 +35,8 @@ const (
 	chartPicW        = 720
 	chartPicH        = 440
 	sunSize          = 96
+	drawerW          = 1000
+	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
 )
 
 type shots int
@@ -464,11 +466,53 @@ var composerScreens = []screen{
 		want: func() string { return locales.ChatUploadError(1) }},
 }
 
+func panelCrew(st *fakeapi.State) {
+	chatHistory(st)
+	for i := range st.Workers {
+		if st.Workers[i].ID == "ada" {
+			st.Workers[i].Constraints = adaRules
+			st.Workers[i].PermissionScopes = "read:workers,read:tasks"
+			st.Workers[i].EngineArgs = map[string]string{"claude": "--model opus"}
+		}
+	}
+}
+
+func openPanel(param, tab string) func(t *testing.T, h *testkit.Harness) {
+	return func(_ *testing.T, h *testkit.Harness) {
+		h.Root.Nav().Push(route.ChatPanel(param, tab))
+		h.Settle()
+		h.T.Advance(time.Second)
+		h.Settle()
+	}
+}
+
+func editPanel(t *testing.T, h *testkit.Harness) {
+	openPanel("ada", route.PanelConstraints)(t, h)
+	clickAndSettle(t, h, locales.WorkerDetailEditInfo(), 0)
+}
+
+func drawerPanel(t *testing.T, h *testkit.Harness) {
+	h.T.SetSize(drawerW, wideH)
+	h.Settle()
+	openPanel("ada", route.PanelConstraints)(t, h)
+}
+
+var panelScreens = []screen{
+	{name: "panel-profile", seed: panelCrew, signedIn: true, prepare: openPanel("ada", route.PanelConstraints), shots: wideOnly,
+		want: func() string { return locales.WorkerDetailConstraintsPanelCharCount(len(adaRules)) }},
+	{name: "panel-edit", seed: panelCrew, signedIn: true, prepare: editPanel, shots: wideOnly, want: locales.WorkerDetailEditInfoTitle},
+	{name: "panel-constraints-empty", seed: panelCrew, signedIn: true, prepare: openPanel("grace", route.PanelConstraints), shots: wideOnly,
+		want: locales.WorkerDetailConstraintsPanelTemplatesLabel},
+	{name: "panel-permissions", seed: panelCrew, signedIn: true, prepare: openPanel("ada", route.PanelPermissions), shots: wideOnly,
+		want: locales.ScopesReadMessagesDescription},
+	{name: "panel-drawer", seed: panelCrew, signedIn: true, prepare: drawerPanel, shots: wideOnly, want: locales.ArcDrawerClose},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

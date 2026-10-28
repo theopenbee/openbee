@@ -213,6 +213,25 @@ func TestTabsChange(t *testing.T) {
 	}
 }
 
+func TestCompactTabsFitTheirLabels(t *testing.T) {
+	wide, compact := 0, 0
+	items := []string{"Constraints", "Permissions", "Env"}
+	tt := newTester(800, 300, func(c *ui.Context, tk theme.Tokens) {
+		kit.Tabs(c, tk, &wide, "Wide tabs", items)
+		kit.CompactTabs(c, tk, &compact, "Compact tabs", items)
+	})
+	settle(tt)
+	wideBox, _ := tt.Find("Wide tabs")
+	compactBox, ok := tt.Find("Compact tabs")
+	if !ok || compactBox.W >= wideBox.W {
+		t.Fatalf("compact tabs width = %v, want narrower than the regular %v", compactBox.W, wideBox.W)
+	}
+	tt.ClickAt(compactBox.X+compactBox.W-12, compactBox.Y+compactBox.H/2)
+	if compact != 2 || wide != 0 {
+		t.Errorf("selected = compact %d wide %d, want compact 2 wide 0", compact, wide)
+	}
+}
+
 func TestSwitchAndCheckboxRows(t *testing.T) {
 	sound, locked, wipe := false, true, false
 	tt := newTester(500, 300, func(c *ui.Context, tk theme.Tokens) {

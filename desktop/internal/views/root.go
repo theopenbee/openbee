@@ -13,6 +13,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/shell"
+	"github.com/theopenbee/openbee/desktop/internal/views/worker"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
@@ -43,10 +44,6 @@ func (noDialogs) Open(string, string) {}
 func (noDialogs) View(*ui.Context)    {}
 func (noDialogs) Dialogs(*ui.Context) {}
 
-type noPanel struct{}
-
-func (noPanel) View(*ui.Context, string, route.Panel) {}
-
 type accountPlaceholder struct{ s *store.Store }
 
 func (a accountPlaceholder) View(c *ui.Context) {
@@ -73,7 +70,7 @@ func NewRoot(s *store.Store) *Root {
 	r := &Root{s: s, router: ui.NewRouter("/"), settings: noDialogs{}, account: noDialogs{}}
 	r.router.Transition = ui.TransitionNone
 	r.auth = auth.New(s, r.router)
-	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), noPanel{}, accountPlaceholder{s: s}, r.OpenSettings)
+	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), accountPlaceholder{s: s}, r.OpenSettings)
 	return r
 }
 
