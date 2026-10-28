@@ -96,6 +96,7 @@ func (s *Store) switchSession(server string, tokens prefs.Tokens) {
 	for _, reset := range s.resets {
 		reset()
 	}
+	s.onReset.each(func(fn func()) { fn() })
 }
 
 func (s *Store) expire(sess *session) {

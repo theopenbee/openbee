@@ -59,6 +59,10 @@ func (s *Store) OnResync(fn func()) (off func()) {
 	return s.onResync.add(fn)
 }
 
+func (s *Store) OnSessionReset(fn func()) (off func()) {
+	return s.onReset.add(fn)
+}
+
 func (s *Store) SetForeground(visible bool) {
 	s.foreground = visible
 	if !visible || s.Phase != PhaseReady {

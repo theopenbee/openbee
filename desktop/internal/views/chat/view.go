@@ -50,7 +50,9 @@ type convState struct {
 }
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
-	return &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true}
+	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true}
+	s.OnSessionReset(func() { v.convs = map[string]*convState{} })
+	return v
 }
 
 func (v *View) Markdown() *markdown.Options {

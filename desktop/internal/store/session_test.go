@@ -316,6 +316,39 @@ func TestLogoutKeepsUsername(t *testing.T) {
 	}
 }
 
+func TestSessionResetHooks(t *testing.T) {
+	st, _, fix := signedIn(t, nil)
+	r := workersResource(st)
+	r.Ensure()
+	fix.Settle(t)
+	if !r.Loaded {
+		t.Fatal("workers not loaded before the reset")
+	}
+	resets, loadedInHook := 0, true
+	off := st.OnSessionReset(func() {
+		resets++
+		loadedInHook = r.Loaded
+	})
+
+	st.Logout()
+	fix.Settle(t)
+	if resets != 1 || loadedInHook {
+		t.Fatalf("after logout: hook ran %d times, resources still loaded in hook %v; want 1 and false", resets, loadedInHook)
+	}
+	if err := call(t, fix, func(done func(error)) { st.Login("admin", "secret", done) }); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if resets != 2 {
+		t.Fatalf("after login: hook ran %d times, want 2", resets)
+	}
+	off()
+	st.ChangeServer()
+	fix.Settle(t)
+	if resets != 2 {
+		t.Fatalf("hook ran %d times after being removed, want 2", resets)
+	}
+}
+
 func TestChangeServerClearsTokens(t *testing.T) {
 	st, fake, fix := signedIn(t, nil)
 	st.ChangeServer()

@@ -93,16 +93,17 @@ func (v *View) panelToggle(c *ui.Context, tk theme.Tokens, p pane, open bool) {
 		tip = locales.ChatClosePanel()
 	}
 	name := p.worker.Name
-	b := ui.ButtonBase(c).Label(name).Expanded(open).MinWidth(0).MaxWidthPercent(100).PaddingX(titlePadX).MarginX(-titlePadX).
-		Radius(theme.RadiusControl).Role(ui.RoleHeading).Level(1)
-	bg := tk.SurfaceMuted.Alpha(0)
-	if b.Hovered() || b.Pressed() {
-		bg = tk.SurfaceMuted
-	}
-	b.Background(b.AnimateColor("bg", bg, colorFade)).OnClick(func() { v.togglePanel(p.cid) }).Children(func() {
-		ui.Text(c, name).FontSize(titleSize).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().MinWidth(0)
+	ui.Row(c).MinWidth(0).MaxWidthPercent(100).MarginX(-titlePadX).Role(ui.RoleHeading).Level(1).Children(func() {
+		b := ui.ButtonBase(c).Label(name).Expanded(open).MinWidth(0).MaxWidthPercent(100).PaddingX(titlePadX).Radius(theme.RadiusControl)
+		bg := tk.SurfaceMuted.Alpha(0)
+		if b.Hovered() || b.Pressed() {
+			bg = tk.SurfaceMuted
+		}
+		b.Background(b.AnimateColor("bg", bg, colorFade)).OnClick(func() { v.togglePanel(p.cid) }).Children(func() {
+			ui.Text(c, name).FontSize(titleSize).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().MinWidth(0)
+		})
+		kit.Tooltip(c, tk, b, tip)
 	})
-	kit.Tooltip(c, tk, b, tip)
 }
 
 func (v *View) stop(p pane) {

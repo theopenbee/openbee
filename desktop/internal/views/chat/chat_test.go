@@ -487,6 +487,25 @@ func TestResetDialogActiveTasks(t *testing.T) {
 	f.wantHidden(locales.ChatNewConversationActive(), locales.ChatStopAndRestart())
 }
 
+func TestResetDialogClosedAfterRelogin(t *testing.T) {
+	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID,
+		message("u1", "user", "", "Please ship it", time.Now().Add(-time.Hour))))
+	f.click(locales.ChatNewConversation())
+	f.wantShown(locales.ChatNewConversationConfirm())
+	f.Store.Logout()
+	f.Settle()
+	snap := f.Fake.Snapshot()
+	var loginErr error
+	f.Store.Login(snap.Username, snap.Password, func(err error) { loginErr = err })
+	f.settleMotion()
+	if loginErr != nil {
+		t.Fatalf("sign in again: %v", loginErr)
+	}
+	f.history(workerCID).await(1)
+	f.wantShown("Please ship it")
+	f.wantHidden(locales.ChatNewConversationConfirm())
+}
+
 func TestResetDialogShowsFailure(t *testing.T) {
 	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation,
 		message("u1", "user", "", "hello", time.Now().Add(-time.Hour))))
@@ -562,6 +581,23 @@ func TestTitleTogglesPanel(t *testing.T) {
 	}
 }
 
+func TestLongWorkerNameStaysBesideActions(t *testing.T) {
+	long := strings.Repeat("Extraordinarily long worker name ", 6)
+	f := newFixture(t, narrowW, wideH, "w1", seedChat([]api.Worker{worker("w1", long, "")}, workerCID,
+		message("u1", "user", "", "hi", time.Now().Add(-time.Hour))))
+	title, ok := f.T.Find(long)
+	if !ok {
+		t.Fatalf("no title; texts %q", f.T.Texts())
+	}
+	action, ok := f.T.Find(locales.ChatNewConversation())
+	if !ok {
+		t.Fatalf("no %q button; texts %q", locales.ChatNewConversation(), f.T.Texts())
+	}
+	if title.X+title.W > action.X {
+		t.Fatalf("title ends at %v, past the new conversation button at %v", title.X+title.W, action.X)
+	}
+}
+
 func TestNarrowBackButton(t *testing.T) {
 	f := newFixture(t, narrowW, wideH, "w1", seedChat(team(), workerCID))
 	f.click(locales.ChatBack())
@@ -598,10 +634,10 @@ func TestLongHistoryStaysFast(t *testing.T) {
 		times[i] = time.Since(began)
 	}
 	slices.Sort(times)
-	median := times[len(times)/2]
-	t.Logf("scroll frames: median %v, fastest %v, slowest %v", median, times[0], times[len(times)-1])
-	if median >= frameBudget {
-		t.Fatalf("median scroll frame %v, want under %v", median, frameBudget)
+	slowest := times[len(times)-1]
+	t.Logf("scroll frames: median %v, fastest %v, slowest %v", times[len(times)/2], times[0], slowest)
+	if slowest >= frameBudget {
+		t.Fatalf("slowest scroll frame %v, want under %v", slowest, frameBudget)
 	}
 	if list := f.view.List(workerCID); list.AtEnd() {
 		t.Fatal("scrolling did not move the log")

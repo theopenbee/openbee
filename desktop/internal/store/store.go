@@ -83,6 +83,7 @@ type Store struct {
 	unread     int
 	onMessage  hooks[func(cid string, m api.ChatMessage)]
 	onResync   hooks[func()]
+	onReset    hooks[func()]
 
 	chats map[string]*Chat
 	media map[string]*mediaFetch
