@@ -851,6 +851,50 @@ func TestFeederBeeChatStillRunsBee(t *testing.T) {
 	assert.Equal(t, 0, env.taskCount(t))
 }
 
+func TestFeederBeeChatRendersAttachments(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	insertLocalMessage(t, env.db, "m1", local.SessionKey("u1"), local.EncodeMediaPaths([]string{"a_x.png"}, "what is this?"))
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	calls := env.runner.getCalls()
+	require.Len(t, calls, 1)
+	assert.Contains(t, calls[0].prompt, "[attachment] "+filepath.Join(env.root, "u1", "a_x.png")+"\nwhat is this?")
+	assert.NotContains(t, calls[0].prompt, "\x00")
+}
+
+func TestFeederBeeChatRendersAttachmentsInMergedMessages(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	key := local.SessionKey("u1")
+	base := time.Now().Add(-time.Minute).UnixMilli()
+	_, err := env.ms.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "m1", SessionKey: key, Platform: local.PlatformID, Content: local.EncodeMediaPaths([]string{"a_x.png"}, "first"), MessageTime: base, Status: store.MsgStatusMerged, MergedInto: "m2"},
+		{ID: "m2", SessionKey: key, Platform: local.PlatformID, Content: local.EncodeMediaPaths([]string{"b_y.pdf"}, "second"), MessageTime: base + 1, Status: store.MsgStatusReceived},
+	})
+	require.NoError(t, err)
+
+	env.awaitStatus(t, "m2", store.MsgStatusBeeProcessed)
+
+	calls := env.runner.getCalls()
+	require.Len(t, calls, 1)
+	dir := filepath.Join(env.root, "u1")
+	want := "[attachment] " + filepath.Join(dir, "a_x.png") + "\nfirst\n\n---\n\n[attachment] " + filepath.Join(dir, "b_y.pdf") + "\nsecond"
+	assert.Contains(t, calls[0].prompt, want)
+	assert.NotContains(t, calls[0].prompt, "\x00")
+}
+
+func TestFeederIMMessageKeepsFileMarkerText(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	insertMessage(t, env.db, "m1", "beta:chat-1", "[file] notes.txt\nplain text")
+
+	env.awaitStatus(t, "m1", store.MsgStatusBeeProcessed)
+
+	calls := env.runner.getCalls()
+	require.Len(t, calls, 1)
+	assert.Contains(t, calls[0].prompt, "[file] notes.txt\nplain text")
+	assert.NotContains(t, calls[0].prompt, "[attachment]")
+}
+
 type cardRecorder struct {
 	mu   sync.Mutex
 	sent []platform.OutboundMessage

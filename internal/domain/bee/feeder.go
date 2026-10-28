@@ -207,14 +207,16 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	}
 
 	for i, m := range msgs {
-		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
-		if err != nil {
+		parts := []string{m.Content}
+		if merged, err := f.msgStore.FetchMergedContent(ctx, m.ID); err != nil {
 			log.Error("fetch merged content", zap.String("msgID", m.ID), zap.Error(err))
-			continue
+		} else {
+			parts = append(merged, m.Content)
 		}
-		if len(merged) > 0 {
-			msgs[i].Content = strings.Join(merged, "\n\n---\n\n") + "\n\n---\n\n" + m.Content
+		if m.Platform == local.PlatformID {
+			f.renderLocalAttachments(sessionKey, parts)
 		}
+		msgs[i].Content = strings.Join(parts, "\n\n---\n\n")
 	}
 
 	prefix := ""
@@ -311,6 +313,18 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	if err := f.msgStore.MarkBeeProcessed(ctx, messageIDs(msgs)); err != nil {
 		log.Error("mark bee_processed", zap.String("sessionKey", sessionKey), zap.Error(err))
+	}
+}
+
+func (f *Feeder) renderLocalAttachments(sessionKey string, parts []string) {
+	mediaDir, err := local.MediaDir(f.localMediaRoot, sessionKey)
+	if err != nil {
+		log.Warn("local media dir unavailable, keeping attachment markers",
+			zap.String("sessionKey", sessionKey), zap.Error(err))
+		return
+	}
+	for i, part := range parts {
+		parts[i] = local.RenderAttachments(part, mediaDir)
 	}
 }
 
@@ -471,14 +485,7 @@ func (f *Feeder) dispatchWorkerChat(ctx context.Context, workerID string, msgs [
 		parts = append(parts, merged...)
 		parts = append(parts, m.Content)
 	}
-	if mediaDir, err := local.MediaDir(f.localMediaRoot, primary.SessionKey); err != nil {
-		log.Warn("worker chat: media dir unavailable, keeping attachment markers",
-			zap.String("sessionKey", primary.SessionKey), zap.Error(err))
-	} else {
-		for i, part := range parts {
-			parts[i] = local.RenderAttachments(part, mediaDir)
-		}
-	}
+	f.renderLocalAttachments(primary.SessionKey, parts)
 
 	_, err = f.taskStore.Create(ctx, model.Task{
 		MessageID:   primary.ID,
