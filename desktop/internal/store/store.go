@@ -83,6 +83,9 @@ type Store struct {
 	unread     int
 	onMessage  hooks[func(cid string, m api.ChatMessage)]
 	onResync   hooks[func()]
+
+	chats map[string]*Chat
+	media map[string]*mediaFetch
 }
 
 type writer struct {
@@ -122,6 +125,8 @@ func New(o Options) *Store {
 	s.Config.settled = s.configSettled
 	s.initData()
 	s.resets = append(s.resets, s.resetLive)
+	s.chats = map[string]*Chat{}
+	s.initMedia()
 	s.sess = s.open("", prefs.Tokens{}, 1)
 	return s
 }
