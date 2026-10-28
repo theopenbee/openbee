@@ -5,51 +5,17 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
-	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/account"
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
 	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/shell"
 	"github.com/theopenbee/openbee/desktop/internal/views/worker"
-	"github.com/theopenbee/openbee/desktop/locales"
 )
-
-const (
-	triggerHeight = 40
-	triggerPad    = 4
-	triggerPadEnd = 10
-	triggerGap    = 8
-	triggerFace   = 32
-	triggerName   = 176
-	triggerSize   = 14
-	triggerWeight = 500
-	triggerArrow  = 16
-)
-
-type accountDialogs interface {
-	Dialogs(c *ui.Context)
-}
-
-type noDialogs struct{}
-
-func (noDialogs) Dialogs(*ui.Context) {}
-
-type accountPlaceholder struct{ s *store.Store }
-
-func (a accountPlaceholder) View(c *ui.Context) {
-	tk := theme.Apply(c)
-	name := a.s.Prefs.Username
-	ui.Row(c).Height(triggerHeight).MinWidth(0).Gap(triggerGap).Padding(triggerPad, triggerPadEnd, triggerPad, triggerPad).
-		Label(locales.ArcUserMenuTrigger(name)).Children(func() {
-		kit.InitialsAvatar(c, tk, name, kit.AvatarSM).Size(triggerFace, triggerFace).TextColor(tk.TextSecondary)
-		ui.Text(c, name).FontSize(triggerSize).FontWeight(triggerWeight).SingleLine().MinWidth(0).MaxWidth(triggerName)
-		ui.Icon(c, icons.Get("chevron-down")).Size(triggerArrow, triggerArrow).Shrink(0).TextColor(tk.TextMuted)
-	})
-}
 
 type Root struct {
 	s        *store.Store
@@ -57,14 +23,14 @@ type Root struct {
 	auth     *auth.Screens
 	shell    *shell.Shell
 	settings *settings.Dialog
-	account  accountDialogs
+	account  *account.Account
 }
 
 func NewRoot(s *store.Store) *Root {
-	r := &Root{s: s, router: ui.NewRouter("/"), settings: settings.New(s), account: noDialogs{}}
+	r := &Root{s: s, router: ui.NewRouter("/"), settings: settings.New(s), account: account.New(s)}
 	r.router.Transition = ui.TransitionNone
 	r.auth = auth.New(s, r.router)
-	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), accountPlaceholder{s: s}, r.OpenSettings)
+	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), r.account, r.OpenSettings)
 	return r
 }
 
@@ -95,6 +61,7 @@ func (r *Root) View(c *ui.Context) {
 		r.account.Dialogs(c)
 	} else {
 		r.settings.Close()
+		r.account.Close()
 	}
 	kit.ShowToasts(c, tk, &r.s.Toasts)
 }

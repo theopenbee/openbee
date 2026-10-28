@@ -870,11 +870,66 @@ var pluginScreens = []screen{
 	{name: "plugin-setup-qr", seed: pluginDetailSeed, signedIn: true, prepare: pluginSetupQR, shots: wideOnly, want: locales.PluginsSetupScanHint},
 }
 
+func openAccountMenu(t *testing.T, h *testkit.Harness) {
+	clickAndSettle(t, h, locales.ArcUserMenuTrigger("admin"), 0)
+}
+
+func narrowAccountMenu(t *testing.T, h *testkit.Harness) {
+	listOnly(t, h)
+	if !h.T.HasText(locales.AccountRole()) {
+		openAccountMenu(t, h)
+	}
+}
+
+func accountMenuOn(t *testing.T, h *testkit.Harness) {
+	h.Store.DismissNotificationsHint()
+	h.Store.SetNotifications(true)
+	h.Store.SetTheme("light")
+	h.Settle()
+	openAccountMenu(t, h)
+}
+
+func openPasswordDialog(t *testing.T, h *testkit.Harness) {
+	openAccountMenu(t, h)
+	clickAndSettle(t, h, locales.AccountChangePassword(), 0)
+}
+
+func fillPassword(t *testing.T, h *testkit.Harness, current, next, confirm string) {
+	for _, field := range []struct{ label, text string }{
+		{locales.AccountCurrentPassword(), current},
+		{locales.AccountNewPassword(), next},
+		{locales.AccountConfirmPassword(), confirm},
+	} {
+		typeInto(t, h, field.label, field.text)
+	}
+}
+
+func passwordInvalid(t *testing.T, h *testkit.Harness) {
+	openPasswordDialog(t, h)
+	fillPassword(t, h, "secret", "12345", "12345")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+}
+
+func passwordChanged(t *testing.T, h *testkit.Harness) {
+	openPasswordDialog(t, h)
+	fillPassword(t, h, "secret", "secret2", "secret2")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+}
+
+var accountScreens = []screen{
+	{name: "account-menu", seed: staffed, signedIn: true, prepare: openAccountMenu, narrow: narrowAccountMenu, want: locales.AccountRole},
+	{name: "account-menu-on", seed: staffed, signedIn: true, hint: true, prepare: accountMenuOn, narrow: narrowAccountMenu, want: locales.AccountRole},
+	{name: "password-dialog", seed: staffed, signedIn: true, prepare: passwordInvalid, want: locales.AccountErrorTooShort},
+	{name: "password-changed", seed: staffed, signedIn: true, prepare: passwordChanged, shots: wideOnly, want: locales.AccountPasswordChangedRelogin},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {
