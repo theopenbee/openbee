@@ -5,6 +5,7 @@ import { UserMenu } from "@/components/arc/user-menu/user-menu"
 import { ChangePasswordDialog } from "@/components/change-password-dialog"
 import { useLanguage } from "@/hooks/use-language"
 import { useLogout } from "@/hooks/use-logout"
+import { useNotificationSettings } from "@/hooks/use-notifications"
 import { useThemePreference } from "@/hooks/use-theme-toggle"
 import { getStoredUsername } from "@/lib/auth"
 import { LANGUAGES } from "@/lib/language"
@@ -22,6 +23,7 @@ export function NavUser({
   const logout = useLogout()
   const { preference, setPreference } = useThemePreference()
   const { language, setLanguage } = useLanguage()
+  const notifications = useNotificationSettings()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const username = getStoredUsername() ?? "admin"
 
@@ -37,6 +39,12 @@ export function NavUser({
         language={language}
         languages={LANGUAGES}
         onLanguageChange={setLanguage}
+        notifications={{
+          enabled: notifications.active,
+          disabled: notifications.unavailable !== null,
+          note: notifications.unavailable ? t(`notifications.unavailable.${notifications.unavailable}`) : undefined,
+          onChange: (enabled) => (enabled ? void notifications.enable() : notifications.disable()),
+        }}
         items={[
           {
             label: t("account.changePassword", "Change password"),

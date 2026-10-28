@@ -5,6 +5,7 @@ import { ConversationList } from "@/components/chat/conversation-list"
 import { SplitPanel } from "@/components/split-panel"
 import { WorkerCreateForm } from "@/components/worker-panel/worker-create-form"
 import { WorkerPanel } from "@/components/worker-panel/worker-panel"
+import { useMessageNotifications, useUnreadTitle } from "@/hooks/use-message-notifications"
 import { useWorkers } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
 import {
@@ -57,6 +58,8 @@ export function ChatShell() {
   const param = useMatch("/chat/:conversation")?.params.conversation
   const conversation = useConversationRoute(param)
   const context = useMemo<ChatRouteContext>(() => ({ conversation }), [conversation])
+  useMessageNotifications()
+  useUnreadTitle()
 
   return (
     <div className="flex h-dvh bg-background">

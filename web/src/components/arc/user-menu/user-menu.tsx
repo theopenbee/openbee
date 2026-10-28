@@ -5,7 +5,7 @@ import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { PanInfo, Transition, Variants } from "motion/react";
-import { ChevronDown, Languages, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from "lucide-react";
+import { Bell, ChevronDown, Languages, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
 import { useTranslation } from "react-i18next";
 import styles from "./user-menu.module.css";
@@ -28,6 +28,7 @@ const themes: { value: ThemePreference; label: string; icon: ReactNode }[] = [
 export interface UserMenuUser { name: string; email: string; plan?: string; avatarSrc?: string; avatarSrcSet?: string }
 export interface UserMenuItem { label: string; icon?: ReactNode; keys?: string[]; onSelect?: () => void }
 export interface UserMenuLanguage { value: string; label: string; short: string }
+export interface UserMenuNotifications { enabled: boolean; disabled?: boolean; note?: string; onChange: (enabled: boolean) => void }
 
 export interface UserMenuProps {
   user: UserMenuUser;
@@ -41,6 +42,7 @@ export interface UserMenuProps {
   language?: string;
   languages?: readonly UserMenuLanguage[];
   onLanguageChange?: (language: string) => void;
+  notifications?: UserMenuNotifications;
   items?: UserMenuItem[];
   onSignOut?: () => void | Promise<unknown>;
   signOutKeys?: string[];
@@ -107,15 +109,15 @@ function Keys({ keys }: { keys: string[] }) {
   return <kbd className={styles.keys} aria-hidden="true">{keys.map((key, index) => <kbd key={`${key}-${index}`} className={styles.key}>{key}</kbd>)}</kbd>;
 }
 
-function Segmented<T extends string>({ label, icon, value, options, onChange, variants, wide }: { label: string; icon: ReactNode; value: T; options: { value: T; label: string; icon: ReactNode }[]; onChange: (value: T) => void; variants?: Variants; wide?: boolean }) {
+function Segmented<T extends string>({ label, icon, value, options, onChange, variants, wide, disabled, note }: { label: string; icon: ReactNode; value: T; options: { value: T; label: string; icon: ReactNode }[]; onChange: (value: T) => void; variants?: Variants; wide?: boolean; disabled?: boolean; note?: string }) {
   const index = Math.max(0, options.findIndex(option => option.value === value));
   return <motion.div className={styles.row} data-stop="group" data-label={label} variants={variants}>
     <span className={styles.icon} aria-hidden="true">{icon}</span>
-    <span className={styles.rowLabel} aria-hidden="true">{label}</span>
-    <div className={styles.segments} data-wide={wide || undefined} role="group" aria-label={label} style={{ "--index": index, "--count": options.length } as CSSProperties}>
+    <span className={styles.rowLabel} aria-hidden="true">{label}{note && <span className={styles.rowNote}>{note}</span>}</span>
+    <div className={styles.segments} data-wide={wide || undefined} data-disabled={disabled || undefined} role="group" aria-label={note ? `${label}, ${note}` : label} style={{ "--index": index, "--count": options.length } as CSSProperties}>
       <span className={styles.thumb} aria-hidden="true" />
-      {options.map(option => <button key={option.value} type="button" role="menuitemradio" tabIndex={-1} aria-checked={option.value === value} aria-label={option.label} title={option.label}
-        className={styles.segment} onClick={() => onChange(option.value)}>{option.icon}</button>)}
+      {options.map(option => <button key={option.value} type="button" role="menuitemradio" tabIndex={-1} aria-checked={option.value === value} aria-disabled={disabled || undefined} aria-label={option.label} title={option.label}
+        className={styles.segment} onClick={() => { if (!disabled) onChange(option.value); }}>{option.icon}</button>)}
     </div>
   </motion.div>;
 }
@@ -127,7 +129,7 @@ function focusStop(stop: HTMLElement | undefined) {
   target?.focus({ preventScroll: true });
 }
 
-export function UserMenu({ user, status: statusProp, defaultStatus = "available", onStatusChange, theme: themeProp, defaultTheme = "system", onThemeChange, showTheme = true, language = "", languages = [], onLanguageChange, items = [], onSignOut, signOutKeys, align = "end", showName = false, open: openProp, defaultOpen = false, onOpenChange, portal = true, ref, className }: UserMenuProps) {
+export function UserMenu({ user, status: statusProp, defaultStatus = "available", onStatusChange, theme: themeProp, defaultTheme = "system", onThemeChange, showTheme = true, language = "", languages = [], onLanguageChange, notifications, items = [], onSignOut, signOutKeys, align = "end", showName = false, open: openProp, defaultOpen = false, onOpenChange, portal = true, ref, className }: UserMenuProps) {
   const id = useId();
   const menuId = `${id}-menu`;
   const triggerId = `${id}-trigger`;
@@ -137,6 +139,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
   const themeOptions = themes.map(option => ({ ...option, label: t(`arc.userMenu.themes.${option.value}`, option.label) }));
   const languageOptions = languages.map(option => ({ value: option.value, label: option.label, icon: <span className={styles.segmentText} lang={option.value}>{option.short}</span> }));
   const showLanguage = onLanguageChange !== undefined && languages.length > 1;
+  const toggleOptions = (["off", "on"] as const).map(value => { const label = t(`arc.userMenu.toggles.${value}`, value === "on" ? "On" : "Off"); return { value, label, icon: <span className={styles.segmentText}>{label}</span> }; });
   const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
   const compact = useSyncExternalStore(subscribeCompact, () => window.matchMedia(compactQuery).matches, () => false);
   const [innerOpen, setInnerOpen] = useState(defaultOpen);
@@ -356,12 +359,13 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
           {item.keys && <Keys keys={item.keys} />}
         </motion.button>)}
       </>}
-      {(showTheme || showStatus || showLanguage) && <>
+      {(showTheme || showStatus || showLanguage || notifications) && <>
         <div className={styles.separator} role="separator" />
         {showStatus && <Segmented label={t("arc.userMenu.status", "Status")} icon={<PresenceDot status={status} />} value={status} onChange={changeStatus}
           options={statusOptions} variants={row} />}
         {showTheme && <Segmented label={t("arc.userMenu.theme", "Theme")} icon={<SunMoon size={16} strokeWidth={1.75} />} value={theme} onChange={changeTheme} options={themeOptions} variants={row} />}
         {showLanguage && <Segmented label={t("arc.userMenu.language", "Language")} icon={<Languages size={16} strokeWidth={1.75} />} value={language} onChange={value => onLanguageChange?.(value)} options={languageOptions} variants={row} wide />}
+        {notifications && <Segmented label={t("arc.userMenu.notifications", "Notifications")} icon={<Bell size={16} strokeWidth={1.75} />} value={notifications.enabled ? "on" : "off"} onChange={value => notifications.onChange(value === "on")} options={toggleOptions} variants={row} wide disabled={notifications.disabled} note={notifications.note} />}
       </>}
       <div className={styles.separator} role="separator" />
       <motion.button type="button" role="menuitem" tabIndex={-1} className={styles.item} data-stop="item" data-tone="danger" data-label={t("arc.userMenu.signOut", "Sign out")} variants={row}

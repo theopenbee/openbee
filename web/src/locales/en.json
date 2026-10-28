@@ -201,6 +201,19 @@
       "env": "Env"
     }
   },
+  "notifications": {
+    "promptTitle": "Turn on desktop notifications",
+    "promptDescription": "Get notified when a reply arrives.",
+    "enable": "Turn on",
+    "blockedTitle": "Your browser is blocking notifications",
+    "blockedDescription": "Allow notifications in the site settings, next to the address bar.",
+    "newMessage": "Sent a new message",
+    "unavailable": {
+      "insecure": "Needs HTTPS",
+      "unsupported": "Unsupported",
+      "denied": "Blocked by browser"
+    }
+  },
   "account": {
     "role": "Administrator",
     "changePassword": "Change password",
@@ -732,6 +745,7 @@
       "status": "Status",
       "theme": "Theme",
       "language": "Language",
+      "notifications": "Notifications",
       "signOut": "Sign out",
       "signingOut": "Signing out",
       "triggerWithStatus": "Account menu, {{name}}, {{status}}",
@@ -745,6 +759,10 @@
         "light": "Light",
         "dark": "Dark",
         "system": "System"
+      },
+      "toggles": {
+        "off": "Off",
+        "on": "On"
       }
     }
   }

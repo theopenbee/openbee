@@ -200,6 +200,19 @@
       "env": "环境变量"
     }
   },
+  "notifications": {
+    "promptTitle": "开启桌面通知",
+    "promptDescription": "回复到达时提醒你。",
+    "enable": "开启",
+    "blockedTitle": "浏览器已拦截通知",
+    "blockedDescription": "请在地址栏左侧的网站设置里允许通知。",
+    "newMessage": "发来一条新消息",
+    "unavailable": {
+      "insecure": "需要 HTTPS 访问",
+      "unsupported": "此浏览器不支持",
+      "denied": "已被浏览器拦截"
+    }
+  },
   "account": {
     "role": "管理员",
     "changePassword": "修改密码",
@@ -725,6 +738,7 @@
       "status": "状态",
       "theme": "主题",
       "language": "语言",
+      "notifications": "桌面通知",
       "signOut": "退出登录",
       "signingOut": "正在退出",
       "triggerWithStatus": "账户菜单，{{name}}，{{status}}",
@@ -738,6 +752,10 @@
         "light": "浅色",
         "dark": "深色",
         "system": "跟随系统"
+      },
+      "toggles": {
+        "off": "关",
+        "on": "开"
       }
     }
   }

@@ -13,6 +13,7 @@ import { Composer } from "@/components/chat/composer"
 import { ConnectionBanner } from "@/components/chat/connection-banner"
 import { HandoffCard } from "@/components/chat/handoff-card"
 import { MessageBubble, type MessageSender } from "@/components/chat/message-bubble"
+import { NotificationHint } from "@/components/chat/notification-hint"
 import { useScrollAnchor } from "@/components/chat/use-scroll-anchor"
 import { EmptyState } from "@/components/empty-state"
 import { WorkerAvatar } from "@/components/worker-avatar"
@@ -199,6 +200,8 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
       <ChatHeader conversation={conversation} worker={worker} name={name} status={status} busy={busy} />
+
+      <NotificationHint />
 
       <div
         ref={scrollContainerRef}
