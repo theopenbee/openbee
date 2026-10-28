@@ -7,6 +7,7 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -379,11 +380,54 @@ func attachmentScreens(t *testing.T) []screen {
 	}
 }
 
+func typeInComposer(t *testing.T, h *testkit.Harness, text string) {
+	t.Helper()
+	if err := h.T.Click(locales.ChatMessageLabel()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type(text)
+	h.Settle()
+}
+
+func mentionPopup(t *testing.T, h *testkit.Harness) {
+	openChat("bee")(t, h)
+	typeInComposer(t, h, "Please ask @a")
+	h.T.Key(0, ui.KeyDown)
+	h.Settle()
+}
+
+func pendingAttachments(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	dir := t.TempDir()
+	var paths []string
+	for _, name := range []string{"march-report-final-version-with-appendix.pdf", "revenue-by-region.csv", "board-chart.png"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+	paths = append(paths, filepath.Join(dir, "missing.zip"))
+	typeInComposer(t, h, "Here are the files for the March report.")
+	r, _ := h.T.Find(locales.ChatMessageLabel())
+	if !h.T.DropFiles(r.X+r.W/2, r.Y+r.H/2, paths...) {
+		t.Fatal("the composer did not take the files")
+	}
+	h.Settle()
+}
+
+var composerScreens = []screen{
+	{name: "composer-mention", seed: chatHistory, signedIn: true, prepare: mentionPopup, shots: wideOnly,
+		want: func() string { return "Grace Hopper" }},
+	{name: "composer-attachments", seed: chatHistory, signedIn: true, prepare: pendingAttachments,
+		want: func() string { return locales.ChatUploadError(1) }},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t)) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

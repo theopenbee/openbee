@@ -2,6 +2,7 @@ package chat
 
 import (
 	"image"
+	"slices"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -99,4 +100,22 @@ func ScaledPhoto(data []byte) (*image.RGBA, error) {
 
 func (ic *imageCache) SetPhotoDecoder(decode func(data []byte, svg bool) (ui.ImageSource, int64, error)) {
 	ic.decode = decode
+}
+
+var (
+	MentionQuery      = mentionQuery
+	MentionCandidates = mentionCandidates
+	ApplyMention      = applyMention
+)
+
+func (v *View) SetFilePicker(pick func() ([]string, error)) {
+	v.pick = pick
+}
+
+func (v *View) Draft(cid string) string {
+	return v.state(cid).composer.draft
+}
+
+func (v *View) Attachments(cid string) []string {
+	return slices.Clone(v.state(cid).composer.files)
 }

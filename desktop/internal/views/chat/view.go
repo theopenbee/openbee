@@ -51,6 +51,7 @@ type View struct {
 	convs       map[string]*convState
 	foreground  bool
 	save        func(name string, data []byte) (string, error)
+	pick        func() ([]string, error)
 }
 
 type convState struct {
@@ -61,11 +62,12 @@ type convState struct {
 	reset     resetState
 	refetched bool
 	moreSpace bool
+	composer  composerState
 }
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog,
-		openPath: mygo.Shell.OpenPath, reveal: revealInFolder}
+		openPath: mygo.Shell.OpenPath, reveal: revealInFolder, pick: pickWithDialog}
 	v.resetMedia()
 	s.OnSessionReset(func() {
 		v.convs = map[string]*convState{}
@@ -144,6 +146,7 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		p := pane{cid: cid, worker: w, ch: ch, cs: cs}
 		v.header(c, tk, p, panel.Mode == route.ModeWorker)
 		v.log(c, tk, p)
+		v.composer(c, tk, p)
 		v.resetDialog(c, tk, p)
 		v.tableDialog(c, tk)
 		v.linkDialog(c, tk)
