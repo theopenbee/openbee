@@ -99,6 +99,7 @@ func (v *View) userMessage(c *ui.Context, rc rowContext, m model.Message, stamp 
 				ui.Text(c, stamp).FontSize(metaSize).TextColor(tk.TextMuted).FontFeatures("tnum").SingleLine()
 			})
 		}
+		v.attachments(c, rc.tk, m, true)
 		if hasText(m.Content) {
 			ui.Column(c).MaxWidthPercent(userBubbleShare).MinWidth(0).Children(func() {
 				ui.Column(c).MaxWidth(userBubbleMax).MinWidth(0).Children(func() {
@@ -129,10 +130,13 @@ func (v *View) senderMessage(c *ui.Context, rc rowContext, m model.Message, who 
 			switch {
 			case m.Kind == kindHandoff && m.Handoff != nil:
 				v.handoffCard(c, tk, m, rc.workers)
-			case hasText(m.Content):
-				ui.Column(c).MaxWidthPercent(100).MinWidth(0).Children(func() {
-					v.bubble(c, rc, m, reveal, senderCopyGap)
-				})
+			default:
+				v.attachments(c, tk, m, false)
+				if hasText(m.Content) {
+					ui.Column(c).MaxWidthPercent(100).MinWidth(0).Children(func() {
+						v.bubble(c, rc, m, reveal, senderCopyGap)
+					})
+				}
 			}
 		})
 	})

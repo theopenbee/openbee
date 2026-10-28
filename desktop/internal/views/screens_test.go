@@ -28,6 +28,10 @@ const (
 	chartGap         = 8
 	imageWait        = 3 * time.Second
 	chartAlt         = "Coverage by package"
+	boardChart       = "board-chart.png"
+	chartPicW        = 720
+	chartPicH        = 440
+	sunSize          = 96
 )
 
 type shots int
@@ -304,11 +308,82 @@ func markdownScreens(t *testing.T) []screen {
 	}
 }
 
+func boardPicture(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, chartPicW, chartPicH))
+	for y := range chartPicH {
+		mix := float64(y) / chartPicH
+		row := color.RGBA{R: uint8(252 - 70*mix), G: uint8(214 - 40*mix), B: uint8(170 + 60*mix), A: 255}
+		draw.Draw(img, image.Rect(0, y, chartPicW, y+1), &image.Uniform{row}, image.Point{}, draw.Src)
+	}
+	for i, h := range []int{120, 190, 150, 260, 210} {
+		x := 60 + i*120
+		bar := image.Rect(x, chartPicH-40-h, x+72, chartPicH-40)
+		draw.Draw(img, bar, &image.Uniform{color.RGBA{R: 38, G: 54, B: uint8(92 + i*24), A: 255}}, image.Point{}, draw.Src)
+	}
+	sun := image.Rect(chartPicW-sunSize-40, 36, chartPicW-40, 36+sunSize)
+	draw.Draw(img, sun, &image.Uniform{color.RGBA{R: 255, G: 244, B: 214, A: 255}}, image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func attachmentChat(picture []byte) func(st *fakeapi.State) {
+	files := []string{"march-report.pdf", "source-data.zip", "export.py", "walkthrough.mp4", "memo.bin"}
+	return func(st *fakeapi.State) {
+		staffed(st)
+		now := time.Now()
+		st.Media = map[string][]byte{boardChart: picture}
+		for _, name := range files {
+			st.Media[name] = []byte(name)
+		}
+		upload := said("u1", "user", "", "Here is the board chart, can you check the numbers against it?", now.Add(-30*time.Minute))
+		upload.MediaPaths = []string{boardChart}
+		reply := said("u2", "worker", "ada", "Checked. The report, the raw data and my script are attached.", now.Add(-25*time.Minute))
+		reply.MediaPaths = files
+		st.Messages = map[string][]api.ChatMessage{api.WorkerConversation("ada"): {upload, reply}}
+	}
+}
+
+func openAttachments(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	label := locales.ChatViewImage(boardChart)
+	deadline := time.Now().Add(imageWait)
+	for {
+		h.Settle()
+		h.T.Frame()
+		if _, ok := h.T.Find(label); ok {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the thumbnail did not load; texts %q", h.T.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func openLightbox(t *testing.T, h *testkit.Harness) {
+	openAttachments(t, h)
+	clickAndSettle(t, h, locales.ChatViewImage(boardChart), 0)
+}
+
+func attachmentScreens(t *testing.T) []screen {
+	seed := attachmentChat(boardPicture(t))
+	return []screen{
+		{name: "chat-attachments", seed: seed, signedIn: true, prepare: openAttachments, shots: wideOnly,
+			want: func() string { return "march-report.pdf" }},
+		{name: "lightbox", seed: seed, signedIn: true, prepare: openLightbox, shots: wideAndNarrow,
+			want: func() string { return boardChart }},
+	}
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t)) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t)) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

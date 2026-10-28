@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"image"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 )
@@ -67,4 +69,25 @@ func (ic *imageCache) Bytes() int64 {
 func TableExports(src string) (markdown, csv, tsv string) {
 	t := parseTable(src)
 	return t.markdown(), t.csv(), t.tsv()
+}
+
+var (
+	FileCategory = fileCategory
+	IsImage      = isImage
+)
+
+func (v *View) SetOpener(open func(path string) error) {
+	v.openPath = open
+}
+
+func (v *View) CachedImageBytes() int64 {
+	return v.images.Bytes()
+}
+
+func (ic *imageCache) LoadPhoto(name string) (ui.ImageSource, error) {
+	return ic.loadPhoto(name)
+}
+
+func ScaledPhoto(data []byte) (*image.RGBA, error) {
+	return scalePhoto(data)
 }

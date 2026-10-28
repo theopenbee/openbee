@@ -3,6 +3,7 @@ package chat
 import (
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -42,6 +43,10 @@ type View struct {
 	tk          theme.Tokens
 	link        linkState
 	table       tableModal
+	light       lightboxState
+	photos      *photoLoads
+	opening     map[string]bool
+	openPath    func(path string) error
 	convs       map[string]*convState
 	foreground  bool
 	save        func(name string, data []byte) (string, error)
@@ -58,14 +63,18 @@ type convState struct {
 }
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
-	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog}
+	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog,
+		openPath: mygo.Shell.OpenPath}
 	v.resetMedia()
 	s.OnSessionReset(func() {
 		v.convs = map[string]*convState{}
-		v.link, v.table = linkState{}, tableModal{}
+		v.link, v.table, v.light = linkState{}, tableModal{}, lightboxState{}
 		v.resetMedia()
 	})
-	s.OnResync(func() { v.recycleMarkdown(true) })
+	s.OnResync(func() {
+		v.recycleMarkdown(true)
+		v.photos.retryFailed()
+	})
 	return v
 }
 
@@ -76,6 +85,7 @@ func (v *View) Markdown() *markdown.Options {
 func (v *View) resetMedia() {
 	v.mediaGen++
 	v.images = newImageCache(v.mediaImages(v.mediaGen), fetchExternalImage)
+	v.photos, v.opening = newPhotoLoads(), map[string]bool{}
 	v.useMarkdown(newImageLoads(nil))
 }
 
@@ -131,6 +141,7 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		v.resetDialog(c, tk, p)
 		v.tableDialog(c, tk)
 		v.linkDialog(c, tk)
+		v.lightbox(c, tk)
 	})
 }
 
