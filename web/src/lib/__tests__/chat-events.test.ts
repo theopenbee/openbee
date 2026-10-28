@@ -209,6 +209,18 @@ describe("applyEventToConversations", () => {
     expect(next).toBe(list)
   })
 
+  it("leaves the preview and unread alone for a new conversation divider", () => {
+    const list = [summary("bee"), summary("worker:w1", { unread: 1 })]
+
+    const next = applyEventToConversations(
+      list,
+      messageEvent("worker:w1", message("", { sender: { type: "system" }, kind: "reset" })),
+      idle,
+    )
+
+    expect(next).toBe(list)
+  })
+
   it("returns the list unchanged for an unknown conversation", () => {
     const list = [summary("bee")]
 

@@ -24,6 +24,7 @@ interface ChatHeaderProps {
   name: string
   status: string
   busy: boolean
+  onCleared: () => void
 }
 
 const HEADER = "flex h-16 shrink-0 items-center gap-3 border-b border-border px-3 md:px-5"
@@ -49,7 +50,7 @@ export function ChatHeaderPlaceholder() {
   )
 }
 
-export function ChatHeader({ conversation, worker, name, status, busy }: ChatHeaderProps) {
+export function ChatHeader({ conversation, worker, name, status, busy, onCleared }: ChatHeaderProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const isBee = conversation === BEE_CONVERSATION
@@ -92,7 +93,7 @@ export function ChatHeader({ conversation, worker, name, status, busy }: ChatHea
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {!isBee && busy && <StopButton conversation={conversation} />}
-        <NewConversationButton conversation={conversation} isBee={isBee} />
+        <NewConversationButton conversation={conversation} isBee={isBee} onCleared={onCleared} />
       </div>
     </header>
   )
@@ -115,7 +116,13 @@ function StopButton({ conversation }: { conversation: ConversationId }) {
   )
 }
 
-function NewConversationButton({ conversation, isBee }: { conversation: ConversationId; isBee: boolean }) {
+interface NewConversationButtonProps {
+  conversation: ConversationId
+  isBee: boolean
+  onCleared: () => void
+}
+
+function NewConversationButton({ conversation, isBee, onCleared }: NewConversationButtonProps) {
   const { t } = useTranslation()
   const clear = useClearConversation(conversation)
   const [open, setOpen] = useState(false)
@@ -133,6 +140,7 @@ function NewConversationButton({ conversation, isBee }: { conversation: Conversa
     try {
       await clear.mutateAsync(force)
       setOpen(false)
+      onCleared()
     } catch (error) {
       const tasks = activeTasksOf(error)
       if (tasks) setActiveTasks(tasks)

@@ -106,6 +106,7 @@ export function applyEventToConversations(
   switch (event.type) {
     case "message": {
       const { message } = event
+      if (message.kind === "reset") return list
       const seen = message.sender.type === "user" || (view.active === event.conversation_id && view.visible)
       return updateConversation(list, event.conversation_id, (item) => ({
         ...item,

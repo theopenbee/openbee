@@ -11,6 +11,7 @@ import { ChatHeader } from "@/components/chat/chat-header"
 import { ChatSkeleton } from "@/components/chat/chat-skeleton"
 import { Composer } from "@/components/chat/composer"
 import { ConnectionBanner } from "@/components/chat/connection-banner"
+import { ConversationDivider } from "@/components/chat/conversation-divider"
 import { HandoffCard } from "@/components/chat/handoff-card"
 import { MessageBubble, type MessageSender } from "@/components/chat/message-bubble"
 import { NotificationHint } from "@/components/chat/notification-hint"
@@ -95,7 +96,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const scrollContentRef = useRef<HTMLDivElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
-  const { handleScroll, captureAnchor, stickToBottom } = useScrollAnchor(
+  const { handleScroll, captureAnchor, stickToBottom, scrollToBottom } = useScrollAnchor(
     { containerRef: scrollContainerRef, contentRef: scrollContentRef, logRef },
     messages,
   )
@@ -122,7 +123,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
     onMessage: (id, message) => {
       if (id !== conversation) return
       dispatch({ type: "add", message: { ...message, pending: true } })
-      if (message.sender.type === "user") return
+      if (message.sender.type === "user" || message.kind === "reset") return
       if (isBee) setBeeBusy(false)
       if (isShowing(conversation)) markRead(message.ts)
     },
@@ -200,7 +201,14 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col animate-fade-in">
-      <ChatHeader conversation={conversation} worker={worker} name={name} status={status} busy={busy} />
+      <ChatHeader
+        conversation={conversation}
+        worker={worker}
+        name={name}
+        status={status}
+        busy={busy}
+        onCleared={scrollToBottom}
+      />
 
       <NotificationHint />
 
@@ -242,25 +250,29 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
                 </div>
               )}
               <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
-                {messages.map((message, index) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    sender={senderOf(message)}
-                    isGroupStart={starts[index]}
-                    onExpandToggle={handleExpandToggle}
-                    body={
-                      message.kind === "handoff" && message.handoff ? (
-                        <HandoffCard
-                          info={message.handoff}
-                          instruction={message.content}
-                          workers={workers}
-                          onOpen={openConversation}
-                        />
-                      ) : undefined
-                    }
-                  />
-                ))}
+                {messages.map((message, index) =>
+                  message.kind === "reset" ? (
+                    <ConversationDivider key={message.id} ts={message.ts} />
+                  ) : (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      sender={senderOf(message)}
+                      isGroupStart={starts[index]}
+                      onExpandToggle={handleExpandToggle}
+                      body={
+                        message.kind === "handoff" && message.handoff ? (
+                          <HandoffCard
+                            info={message.handoff}
+                            instruction={message.content}
+                            workers={workers}
+                            onOpen={openConversation}
+                          />
+                        ) : undefined
+                      }
+                    />
+                  ),
+                )}
               </div>
             </>
           )}

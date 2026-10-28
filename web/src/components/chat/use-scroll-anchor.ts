@@ -93,5 +93,10 @@ export function useScrollAnchor({ containerRef, contentRef, logRef }: ScrollAnch
     captureAnchor()
   }, [containerRef, captureAnchor, syncScroll])
 
-  return { handleScroll, captureAnchor, stickToBottom }
+  const scrollToBottom = useCallback(() => {
+    stickToBottom.current = true
+    syncScroll()
+  }, [syncScroll])
+
+  return { handleScroll, captureAnchor, stickToBottom, scrollToBottom }
 }

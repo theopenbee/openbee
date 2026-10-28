@@ -49,10 +49,12 @@ export interface HandoffInfo {
   conversation_id: ConversationId
 }
 
+export type ChatMessageKind = "message" | "handoff" | "reset"
+
 export interface ChatMessage {
   id: string
   sender: ChatSender
-  kind: "message" | "handoff"
+  kind: ChatMessageKind
   handoff?: HandoffInfo
   content: string
   media_paths?: string[]
@@ -71,7 +73,7 @@ export interface ConversationSummary {
   worker_id?: string
   last_message?: {
     sender: ChatSender
-    kind: "message" | "handoff"
+    kind: ChatMessageKind
     preview: string
     handoff_worker_id?: string
     ts: number

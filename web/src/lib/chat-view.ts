@@ -45,7 +45,13 @@ function sameSender(a: ChatMessage, b: ChatMessage): boolean {
 export function groupStarts(messages: ChatMessage[]): boolean[] {
   return messages.map((message, index) => {
     const prev = messages[index - 1]
-    return !prev || !sameSender(prev, message) || message.ts - prev.ts >= GROUP_GAP_MS
+    return (
+      !prev ||
+      prev.kind === "reset" ||
+      message.kind === "reset" ||
+      !sameSender(prev, message) ||
+      message.ts - prev.ts >= GROUP_GAP_MS
+    )
   })
 }
 

@@ -171,6 +171,10 @@ describe("shouldNotify", () => {
   it("skips the Bee's handoff copy in a worker chat", () => {
     expect(shouldNotify("worker:w1", message({ sender: { type: "bee" } }), away)).toBe(false)
   })
+
+  it("skips the new conversation divider", () => {
+    expect(shouldNotify("worker:w1", message({ sender: { type: "system" }, kind: "reset", content: "" }), away)).toBe(false)
+  })
 })
 
 describe("notificationContent", () => {

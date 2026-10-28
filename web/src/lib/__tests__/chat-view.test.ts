@@ -101,6 +101,17 @@ describe("groupStarts", () => {
   it("returns an empty list for no messages", () => {
     expect(groupStarts([])).toEqual([])
   })
+
+  it("starts a new group on both sides of a new conversation divider", () => {
+    const messages = [
+      message({ type: "system" }, 0),
+      message({ type: "system" }, 1 * MIN, { kind: "reset", content: "" }),
+      message({ type: "system" }, 2 * MIN),
+      message({ type: "system" }, 3 * MIN),
+    ]
+
+    expect(groupStarts(messages)).toEqual([true, true, true, false])
+  })
 })
 
 describe("composerDisabled", () => {

@@ -76,7 +76,7 @@ export function unavailableReason(support: NotificationSupport): NotificationUna
 }
 
 export function shouldNotify(conversation: ConversationId, message: ChatMessage, attention: PageAttention): boolean {
-  if (message.sender.type === "user") return false
+  if (message.sender.type === "user" || message.kind === "reset") return false
   if (message.sender.type === "bee" && workerIdOf(conversation)) return false
   return !(attention.visible && attention.focused)
 }
