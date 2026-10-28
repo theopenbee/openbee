@@ -538,7 +538,7 @@ func (h *LocalChatHandler) Clear(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "active tasks", "active_tasks": active})
 		return
 	}
-	h.appendReset(c.Request.Context(), conv)
+	h.appendReset(context.WithoutCancel(c.Request.Context()), conv)
 	c.Status(http.StatusNoContent)
 }
 

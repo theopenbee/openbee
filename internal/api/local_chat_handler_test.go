@@ -1207,6 +1207,19 @@ func TestClearSkipsResetAfterReset(t *testing.T) {
 	assert.Len(t, resetRows(t, s, testSessionKey), 1)
 }
 
+func TestClearKeepsResetWhenClientGoesAway(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutbound(t, s.outboundStore, "r1", 100)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodPost, "/local/conversations/bee/clear", nil).WithContext(ctx)
+
+	rec := serveAs(s.router, req, testUserID)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	assert.Len(t, resetRows(t, s, testSessionKey), 1)
+}
+
 func TestClearWithoutClearingAddsNoReset(t *testing.T) {
 	s := newLocalChatServer(t)
 	seedOutbound(t, s.outboundStore, "r1", 100)

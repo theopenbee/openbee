@@ -32,6 +32,7 @@ func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, total)
 	assert.Len(t, msgs, 2)
+	assert.Equal(t, OutboundKindMessage, msgs[0].Kind)
 
 	// Add a third message and verify pagination: limit/offset and DESC ordering.
 	require.NoError(t, s.Create(context.Background(), OutboundMessage{ID: "o3", SessionKey: "sk1", Platform: "beta", Status: OutboundStatusSent, SentAt: 3000}))
@@ -49,6 +50,18 @@ func TestOutboundMessageStore_ListFiltered_NoFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page2, 1)
 	assert.Equal(t, "o1", page2[0].ID)
+}
+
+func TestOutboundMessageStore_ListFiltered_ReportsKind(t *testing.T) {
+	s := setupOutboundStore(t)
+	seedOutbound(t, s, []OutboundMessage{
+		{ID: "o1", SessionKey: "sk1", Platform: "local", Status: OutboundStatusSent, SourceType: SourceTypeSystem, Kind: OutboundKindReset, SentAt: 1000},
+	})
+
+	msgs, _, err := s.ListFiltered(context.Background(), OutboundMessageFilter{}, 50, 0)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, OutboundKindReset, msgs[0].Kind)
 }
 
 func TestOutboundMessageStore_ListFiltered_BySessionKey(t *testing.T) {

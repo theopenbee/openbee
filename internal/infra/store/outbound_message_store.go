@@ -128,6 +128,7 @@ type ListedOutboundMessage struct {
 	InboundMsgID string `json:"inbound_msg_id"`
 	Error        string `json:"error"`
 	SentAt       int64  `json:"sent_at"`
+	Kind         string `json:"kind"`
 }
 
 func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessageFilter, limit, offset int) ([]ListedOutboundMessage, int, error) {
@@ -139,7 +140,7 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, session_key, platform, content, status, source_type, source_id, inbound_msg_id, error, sent_at
+		`SELECT id, session_key, platform, content, status, source_type, source_id, inbound_msg_id, error, sent_at, kind
 		 FROM bee_outbound_messages`+where+` ORDER BY sent_at DESC, rowid DESC LIMIT ? OFFSET ?`,
 		appendPaginationArgs(args, limit, offset)...,
 	)
@@ -152,7 +153,7 @@ func (s *OutboundMessageStore) ListFiltered(ctx context.Context, f OutboundMessa
 	for rows.Next() {
 		var m ListedOutboundMessage
 		if err := rows.Scan(&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.Status,
-			&m.SourceType, &m.SourceID, &m.InboundMsgID, &m.Error, &m.SentAt); err != nil {
+			&m.SourceType, &m.SourceID, &m.InboundMsgID, &m.Error, &m.SentAt, &m.Kind); err != nil {
 			return nil, 0, err
 		}
 		msgs = append(msgs, m)

@@ -87,14 +87,13 @@ func (s *LocalChatStore) LastKind(ctx context.Context, sessionKey string) (strin
 		`SELECT kind FROM (
 			SELECT ? AS kind, received_at AS ts, 0 AS ord
 			  FROM bee_platform_messages
-			 WHERE session_key = ? AND status != ?
+			 WHERE session_key = ?
 			UNION ALL
 			SELECT kind, sent_at, 1
 			  FROM bee_outbound_messages
-			 WHERE session_key = ? AND status = ?
+			 WHERE session_key = ?
 		 ) ORDER BY ts DESC, ord DESC LIMIT 1`,
-		OutboundKindMessage, sessionKey, MsgStatusMerged,
-		sessionKey, OutboundStatusSent,
+		OutboundKindMessage, sessionKey, sessionKey,
 	).Scan(&kind)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
