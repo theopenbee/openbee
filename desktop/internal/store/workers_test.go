@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -119,4 +120,177 @@ func TestRandomNameThenExhausted(t *testing.T) {
 	if err != nil || got.Name != "" || !got.Exhausted {
 		t.Fatalf("RandomName = %+v, %v, want exhausted", got, err)
 	}
+}
+
+func createWorker(t *testing.T, st *store.Store, fix *storetest.Fixture, req api.CreateWorkerRequest) (api.Worker, error) {
+	t.Helper()
+	var got api.Worker
+	err := call(t, fix, func(done func(error)) {
+		st.CreateWorker(req, func(w api.Worker, err error) {
+			got = w
+			done(err)
+		})
+	})
+	return got, err
+}
+
+func deleteWorker(t *testing.T, st *store.Store, fix *storetest.Fixture, id string, deleteWorkDir bool) error {
+	t.Helper()
+	return call(t, fix, func(done func(error)) { st.DeleteWorker(id, deleteWorkDir, done) })
+}
+
+func TestCreateWorkerRefetchesListAndConversations(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	workerCalls := countCalls(fake, http.MethodGet, "/api/workers")
+	conversationCalls := countCalls(fake, http.MethodGet, "/api/local/conversations")
+
+	w, err := createWorker(t, st, fix, api.CreateWorkerRequest{Name: "Nova", Engine: "pi", Description: "Reviews code"})
+	if err != nil {
+		t.Fatalf("CreateWorker: %v", err)
+	}
+	if w.ID == "" || w.Name != "Nova" || w.Engine != "pi" {
+		t.Fatalf("CreateWorker returned %+v, want the new Nova worker", w)
+	}
+	var body map[string]any
+	lastBody(t, fake, http.MethodPost, "/api/workers", &body)
+	if body["name"] != "Nova" || body["engine"] != "pi" || body["description"] != "Reviews code" {
+		t.Fatalf("POST body = %v", body)
+	}
+	if got, ok := st.Worker(w.ID); !ok || got.Name != "Nova" {
+		t.Fatalf("workers list lacks the new worker: %+v", st.Workers.Data)
+	}
+	summaryOf(t, st, api.WorkerConversation(w.ID))
+	if n := countCalls(fake, http.MethodGet, "/api/workers"); n != workerCalls+1 {
+		t.Fatalf("worker list calls = %d, want %d (one refetch)", n, workerCalls+1)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/local/conversations"); n != conversationCalls+1 {
+		t.Fatalf("conversation list calls = %d, want %d (one refetch)", n, conversationCalls+1)
+	}
+}
+
+func TestCreateWorkerErrorKeepsData(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	workerCalls := countCalls(fake, http.MethodGet, "/api/workers")
+	conversationCalls := countCalls(fake, http.MethodGet, "/api/local/conversations")
+	_, err := createWorker(t, st, fix, api.CreateWorkerRequest{Name: "Alice"})
+	var apiErr *api.Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("CreateWorker error = %v, want the duplicate-name API error", err)
+	}
+	if len(st.Workers.Data) != 2 {
+		t.Fatalf("workers = %d after a failed create, want 2", len(st.Workers.Data))
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers"); n != workerCalls {
+		t.Fatalf("worker list calls = %d after a failed create, want %d", n, workerCalls)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/local/conversations"); n != conversationCalls {
+		t.Fatalf("conversation list calls = %d after a failed create, want %d", n, conversationCalls)
+	}
+}
+
+func TestCreateWorkerCanceledBySignOut(t *testing.T) {
+	st, _, fix := loaded(t, team)
+	var got error
+	calls := 0
+	st.CreateWorker(api.CreateWorkerRequest{Name: "Late"}, func(_ api.Worker, err error) {
+		got = err
+		calls++
+	})
+	st.Logout()
+	fix.Settle(t)
+	if calls != 1 || !errors.Is(got, context.Canceled) {
+		t.Fatalf("done calls = %d err = %v, want one context.Canceled", calls, got)
+	}
+}
+
+func TestDeleteWorkerDropsDetailAndRefetches(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	for _, id := range []string{"w1", "w2"} {
+		st.WorkerDetail(id).Ensure()
+	}
+	fix.Settle(t)
+	workerCalls := countCalls(fake, http.MethodGet, "/api/workers")
+	conversationCalls := countCalls(fake, http.MethodGet, "/api/local/conversations")
+	deletedDetailCalls := countCalls(fake, http.MethodGet, "/api/workers/w1")
+	keptDetailCalls := countCalls(fake, http.MethodGet, "/api/workers/w2")
+
+	if err := deleteWorker(t, st, fix, "w1", true); err != nil {
+		t.Fatalf("DeleteWorker: %v", err)
+	}
+	calls := fake.Calls(http.MethodDelete, "/api/workers/w1")
+	if len(calls) != 1 || calls[0].Query != "delete_work_dir=true" {
+		t.Fatalf("DELETE calls = %+v, want one with delete_work_dir=true", calls)
+	}
+	if _, ok := st.Worker("w1"); ok {
+		t.Fatalf("workers list still has w1: %+v", st.Workers.Data)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers"); n != workerCalls+1 {
+		t.Fatalf("worker list calls = %d, want %d (one refetch)", n, workerCalls+1)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/local/conversations"); n != conversationCalls+1 {
+		t.Fatalf("conversation list calls = %d, want %d (one refetch)", n, conversationCalls+1)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers/w1"); n != deletedDetailCalls {
+		t.Fatalf("deleted worker detail calls = %d, want %d (dropped, not refetched)", n, deletedDetailCalls)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers/w2"); n != keptDetailCalls+1 {
+		t.Fatalf("other worker detail calls = %d, want %d (refetched)", n, keptDetailCalls+1)
+	}
+	if detail := st.WorkerDetail("w1"); detail.Loaded {
+		t.Fatal("the deleted worker detail is still loaded")
+	}
+}
+
+func TestDeleteWorkerKeepsWorkDirByDefault(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	if err := deleteWorker(t, st, fix, "w2", false); err != nil {
+		t.Fatalf("DeleteWorker: %v", err)
+	}
+	calls := fake.Calls(http.MethodDelete, "/api/workers/w2")
+	if len(calls) != 1 || calls[0].Query != "" {
+		t.Fatalf("DELETE calls = %+v, want one without a query", calls)
+	}
+}
+
+func TestDeleteWorkerErrorKeepsData(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	workerCalls := countCalls(fake, http.MethodGet, "/api/workers")
+	fake.FailNext(http.MethodDelete, "/api/workers/w1", http.StatusInternalServerError, map[string]string{"error": "busy"})
+	err := deleteWorker(t, st, fix, "w1", false)
+	var apiErr *api.Error
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusInternalServerError {
+		t.Fatalf("DeleteWorker error = %v, want the 500", err)
+	}
+	if _, ok := st.Worker("w1"); !ok {
+		t.Fatal("w1 left the list after a failed delete")
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers"); n != workerCalls {
+		t.Fatalf("worker list calls = %d after a failed delete, want %d", n, workerCalls)
+	}
+	if ids := workerIDs(st); !slices.Equal(ids, []string{"w1", "w2"}) {
+		t.Fatalf("worker ids = %v, want w1 and w2", ids)
+	}
+}
+
+func TestDeleteWorkerCanceledBySignOut(t *testing.T) {
+	st, _, fix := loaded(t, team)
+	var got error
+	calls := 0
+	st.DeleteWorker("w1", false, func(err error) {
+		got = err
+		calls++
+	})
+	st.Logout()
+	fix.Settle(t)
+	if calls != 1 || !errors.Is(got, context.Canceled) {
+		t.Fatalf("done calls = %d err = %v, want one context.Canceled", calls, got)
+	}
+}
+
+func workerIDs(st *store.Store) []string {
+	ids := make([]string, len(st.Workers.Data))
+	for i, w := range st.Workers.Data {
+		ids[i] = w.ID
+	}
+	return ids
 }

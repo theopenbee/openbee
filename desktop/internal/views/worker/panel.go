@@ -32,14 +32,14 @@ var (
 )
 
 type Panel struct {
-	s        *store.Store
-	nav      route.Nav
-	onDelete func(w api.Worker)
+	s   *store.Store
+	nav route.Nav
 }
 
 type panelState struct {
 	editing  bool
 	menuOpen bool
+	del      deleteState
 }
 
 type panelKey struct{}
@@ -47,7 +47,7 @@ type panelKey struct{}
 type tabsKey struct{}
 
 func New(s *store.Store, nav route.Nav) *Panel {
-	return &Panel{s: s, nav: nav, onDelete: func(api.Worker) {}}
+	return &Panel{s: s, nav: nav}
 }
 
 func (p *Panel) View(c *ui.Context, conversationID string, panel route.Panel) {
@@ -60,8 +60,6 @@ func (p *Panel) View(c *ui.Context, conversationID string, panel route.Panel) {
 		}
 	}
 }
-
-func (p *Panel) createView(*ui.Context) {}
 
 func (p *Panel) workerView(c *ui.Context, tk theme.Tokens, id, tab string) {
 	detail := p.s.WorkerDetail(id)
@@ -83,6 +81,7 @@ func (p *Panel) workerView(c *ui.Context, tk theme.Tokens, id, tab string) {
 			} else {
 				p.tabs(c, tk, w, tab)
 			}
+			p.deleteDialog(c, tk, &st.del)
 		}
 	})
 }

@@ -105,7 +105,7 @@ func (p *Panel) moreMenu(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 		}
 		item.Background(item.AnimateColor("bg", bg, fast)).OnClick(func() {
 			st.menuOpen = false
-			p.onDelete(w)
+			st.del.show(w)
 		}).Children(func() {
 			ui.Icon(c, icons.Get("trash-2")).Size(menuGlyph, menuGlyph).Shrink(0)
 			ui.Text(c, locales.WorkersDeleteWorker()).SingleLine()

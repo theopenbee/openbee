@@ -40,6 +40,10 @@ const (
 	drawerW          = 1000
 	envColumnW       = 880
 	envPad           = 24
+	tallH            = 2400
+	panelScrollX     = 1200
+	panelScrollY     = 450
+	panelScrollDy    = 700
 	envGap           = 40
 	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
 )
@@ -513,6 +517,71 @@ var panelScreens = []screen{
 	{name: "panel-drawer", seed: panelCrew, signedIn: true, prepare: drawerPanel, shots: wideOnly, want: locales.ArcDrawerClose},
 }
 
+func typeInto(t *testing.T, h *testkit.Harness, field, text string) {
+	t.Helper()
+	if err := h.T.Click(field); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type(text)
+	h.Settle()
+}
+
+func newWorkerSeed(st *fakeapi.State) {
+	panelCrew(st)
+	st.SystemConfigs = map[string]string{"default_engine": "codex"}
+}
+
+func fillNewWorker(t *testing.T, h *testkit.Harness) {
+	h.T.SetSize(wideW, tallH)
+	openPanel(api.BeeConversation, route.PanelNew)(t, h)
+	typeInto(t, h, locales.WorkersFormName(), "Nova")
+	typeInto(t, h, locales.WorkersFormDescriptionOptional(), "Reviews pull requests and keeps the changelog tidy.")
+	clickAndSettle(t, h, locales.WorkersFormSectionAdvanced(), 0)
+	typeInto(t, h, locales.WorkersFormConstraints(), "Review every change before it ships.")
+	typeInto(t, h, locales.WorkersFormEngineArgs(), "--effort high")
+	typeInto(t, h, locales.WorkersFormWorkDir(), "/srv/nova")
+	clickAndSettle(t, h, locales.ScopesReadWorkersTitle(), 0)
+	clickAndSettle(t, h, locales.ScopesReadMessagesTitle(), 0)
+}
+
+func restoreWindow(h *testkit.Harness) {
+	h.T.SetSize(wideW, wideH)
+	h.Settle()
+}
+
+func newWorkerAdvanced(t *testing.T, h *testkit.Harness) {
+	fillNewWorker(t, h)
+	restoreWindow(h)
+	h.T.Scroll(panelScrollX, panelScrollY, 0, panelScrollDy)
+	h.Settle()
+}
+
+func newWorkerBadge(t *testing.T, h *testkit.Harness) {
+	fillNewWorker(t, h)
+	clickAndSettle(t, h, locales.WorkersFormSectionAdvanced(), 0)
+	restoreWindow(h)
+}
+
+func deleteDialog(t *testing.T, h *testkit.Harness) {
+	openPanel("ada", route.PanelConstraints)(t, h)
+	clickAndSettle(t, h, locales.WorkersRowActions("Ada Lovelace"), 0)
+	clickAndSettle(t, h, locales.WorkersDeleteWorker(), 0)
+	h.T.Type("Ada Lovelace")
+	h.Settle()
+	clickAndSettle(t, h, locales.WorkersDeleteDialogDeleteWorkDir(), 0)
+}
+
+var createScreens = []screen{
+	{name: "panel-new", seed: newWorkerSeed, signedIn: true, prepare: openPanel(api.BeeConversation, route.PanelNew), shots: wideOnly,
+		want: locales.WorkersFormSectionBasic},
+	{name: "panel-new-advanced", seed: newWorkerSeed, signedIn: true, prepare: newWorkerAdvanced, shots: wideOnly,
+		want: locales.WorkersFormSectionPermissions},
+	{name: "panel-new-badge", seed: newWorkerSeed, signedIn: true, prepare: newWorkerBadge, shots: wideOnly,
+		want: func() string { return locales.WorkersFormAdvancedSet(4) }},
+	{name: "delete-dialog", seed: panelCrew, signedIn: true, prepare: deleteDialog, shots: wideOnly,
+		want: func() string { return locales.WorkersDeleteDialogTitle("Ada Lovelace") }},
+}
+
 func scopedEnv(id, scope, scopeID, key, masked string, ago time.Duration) api.EnvConfig {
 	env := api.EnvConfig{ID: id, Scope: scope, Key: key, Masked: masked, UpdatedAt: time.Now().Add(-ago).UnixMilli()}
 	if scopeID != "" {
@@ -587,7 +656,7 @@ func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, envScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

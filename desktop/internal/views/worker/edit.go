@@ -21,11 +21,10 @@ const (
 )
 
 type editState struct {
-	form      model.EditForm
-	saving    bool
-	err       error
-	naming    bool
-	exhausted bool
+	form   model.EditForm
+	saving bool
+	err    error
+	name   nameState
 }
 
 type editKey struct{}
@@ -49,7 +48,7 @@ func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 	box.Children(func() {
 		ui.Column(c).MinWidth(0).Gap(fieldsGap).Disabled(es.saving).Children(func() {
 			heading(c, locales.WorkerDetailEditInfoTitle(), 4)
-			p.nameField(c, tk, es, submit)
+			p.nameField(c, tk, &es.form.Name, &es.name, func(err error) { es.err = err }, submit)
 			kit.Field(c, tk, locales.WorkersFormDescription(), locales.WorkersFormDescriptionHelper(), "", func() {
 				kit.TextArea(c, tk, &es.form.Description, locales.WorkersFormDescription(), locales.WorkersFormDescriptionPlaceholder(),
 					descriptionRows, descriptionRows).MinHeight(descriptionMinHeight)
@@ -60,15 +59,19 @@ func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 			kit.Field(c, tk, locales.WorkersFormEngine(), locales.WorkersFormEngineHelper(), "", func() {
 				kit.Select(c, tk, &es.form.Engine, locales.WorkersFormEngine(), engineOptions(p.s.EnabledEngines()), locales.WorkersFormEngineDefault())
 			})
-			engineArgsField(c, tk, es, submit)
+			engineArgsField(c, tk, es.form.Engine, es.form.EngineArgs, submit)
 		})
 		errorAlert(c, tk, locales.WorkersFormSaveError(), es.err)
-		ui.Row(c).Justify(ui.End).Gap(buttonsGap).Padding(footerPadTop, 0, 0, 0).BorderWidth(1, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
-			kit.Button(c, tk, locales.CommonCancel(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Disabled: es.saving}).
-				OnClick(func() { st.editing = false })
-			kit.Button(c, tk, locales.WorkerDetailSaveInfo(), kit.ButtonOpts{Size: kit.SizeMD, Loading: es.saving, Disabled: !es.complete()}).
-				OnClick(submit)
-		})
+		formFooter(c, tk, es.saving, func() { st.editing = false },
+			locales.WorkerDetailSaveInfo(), kit.ButtonOpts{Loading: es.saving, Disabled: !es.complete()}, submit)
+	})
+}
+
+func formFooter(c *ui.Context, tk theme.Tokens, busy bool, cancel func(), label string, o kit.ButtonOpts, submit func()) {
+	ui.Row(c).Justify(ui.End).Gap(buttonsGap).Padding(footerPadTop, 0, 0, 0).BorderWidth(1, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
+		kit.Button(c, tk, locales.CommonCancel(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Disabled: busy}).OnClick(cancel)
+		o.Size = kit.SizeMD
+		kit.Button(c, tk, label, o).OnClick(submit)
 	})
 }
 
@@ -80,13 +83,12 @@ func engineOptions(engines []string) []kit.SelectOption {
 	return options
 }
 
-func engineArgsField(c *ui.Context, tk theme.Tokens, es *editState, submit func()) {
-	engine := es.form.Engine
-	args := es.form.EngineArgs[engine]
+func engineArgsField(c *ui.Context, tk theme.Tokens, engine string, all map[string]string, submit func()) {
+	args := all[engine]
 	kit.Field(c, tk, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(engineLabel(engine)), "", func() {
 		ui.Column(c).Key(engine).MinWidth(0).Children(func() {
 			kit.TextInput(c, tk, &args, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsPlaceholder()).
-				OnChange(func() { es.form.EngineArgs[engine] = args }).OnSubmit(submit)
+				OnChange(func() { all[engine] = args }).OnSubmit(submit)
 		})
 	})
 }

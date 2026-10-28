@@ -10,40 +10,45 @@ import (
 
 const nameRowGap = 8
 
-func (p *Panel) nameField(c *ui.Context, tk theme.Tokens, es *editState, submit func()) {
+type nameState struct {
+	naming    bool
+	exhausted bool
+}
+
+func (p *Panel) nameField(c *ui.Context, tk theme.Tokens, name *string, ns *nameState, fail func(error), submit func()) {
 	help := locales.WorkersFormNameHelper()
-	if es.exhausted {
+	if ns.exhausted {
 		help = locales.WorkersFormRandomNameExhausted()
 	}
 	kit.Field(c, tk, locales.WorkersFormName(), help, "", func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.End).Gap(nameRowGap).Children(func() {
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				kit.TextInput(c, tk, &es.form.Name, locales.WorkersFormName(), locales.WorkersFormNamePlaceholder()).
+				kit.TextInput(c, tk, name, locales.WorkersFormName(), locales.WorkersFormNamePlaceholder()).
 					AutoFocus().OnSubmit(submit)
 			})
 			kit.IconButton(c, tk, "shuffle", locales.WorkersFormRandomName(),
-				kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Loading: es.naming, Disabled: es.exhausted}).
-				Shrink(0).OnClick(func() { p.randomName(es) })
+				kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Loading: ns.naming, Disabled: ns.exhausted}).
+				Shrink(0).OnClick(func() { p.randomName(name, ns, fail) })
 		})
 	})
 }
 
-func (p *Panel) randomName(es *editState) {
-	if es.naming || es.exhausted {
+func (p *Panel) randomName(name *string, ns *nameState, fail func(error)) {
+	if ns.naming || ns.exhausted {
 		return
 	}
-	es.naming = true
+	ns.naming = true
 	p.s.RandomName(func(r api.RandomName, err error) {
-		es.naming = false
+		ns.naming = false
 		if err != nil {
 			if err = failure(err); err != nil {
-				es.err = err
+				fail(err)
 			}
 			return
 		}
-		es.exhausted = r.Exhausted
+		ns.exhausted = r.Exhausted
 		if !r.Exhausted && r.Name != "" {
-			es.form.Name = r.Name
+			*name = r.Name
 		}
 	})
 }

@@ -40,10 +40,9 @@ func (noAccount) View(*ui.Context) {}
 
 type fixture struct {
 	*testkit.Harness
-	t       *testing.T
-	router  *ui.Router
-	panel   *worker.Panel
-	deleted []api.Worker
+	t      *testing.T
+	router *ui.Router
+	panel  *worker.Panel
 }
 
 func crew(st *fakeapi.State) {
@@ -88,7 +87,6 @@ func newFixture(t *testing.T, w int, path string, seed func(st *fakeapi.State)) 
 	f := &fixture{Harness: hs, t: t, router: ui.NewRouter(path)}
 	f.router.Transition = ui.TransitionNone
 	f.panel = worker.New(hs.Store, f.router)
-	f.panel.SetOnDelete(func(w api.Worker) { f.deleted = append(f.deleted, w) })
 	sh := shell.New(hs.Store, f.router, noPane{}, f.panel, noAccount{}, func(string) {})
 	hs.T = ui.NewTester(func(c *ui.Context) {
 		tk := theme.Apply(c)
@@ -456,17 +454,6 @@ func TestPanelCloseButton(t *testing.T) {
 	f.wantPanel(route.PanelConstraints)
 	f.wantShown(locales.WorkerDetailEditInfo(), aliceRules)
 	f.wantHidden(locales.WorkerDetailEditInfoTitle())
-}
-
-func TestMoreMenuDeleteCallsHook(t *testing.T) {
-	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), crew)
-	f.wantHidden(locales.WorkersDeleteWorker())
-	f.click(locales.WorkersRowActions("Alice"))
-	f.click(locales.WorkersDeleteWorker())
-	if len(f.deleted) != 1 || f.deleted[0].ID != "w1" || f.deleted[0].WorkDir != "/srv/alice" {
-		t.Fatalf("delete hook calls = %+v, want Alice once", f.deleted)
-	}
-	f.wantHidden(locales.WorkersDeleteWorker())
 }
 
 func TestDrawerShowsProfile(t *testing.T) {
