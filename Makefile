@@ -13,7 +13,7 @@ PLATFORMS := \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish
+.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-test desktop-all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -75,3 +75,12 @@ npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set ver
 
 npm-publish: npm-prepare  ## Publish all npm packages to registry
 	bash npm/scripts/publish.sh
+
+desktop: ## Build the desktop app for the current platform
+	cd desktop && go tool mygo build
+
+desktop-test: ## Vet, test and cross-compile the desktop app
+	cd desktop && go vet ./... && go tool mygo vet . && CGO_ENABLED=0 go test ./... && GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./...
+
+desktop-all: ## Build the desktop app for all platforms
+	cd desktop && go tool mygo build -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64

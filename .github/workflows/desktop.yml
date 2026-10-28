@@ -1,0 +1,64 @@
+name: Desktop
+
+on:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: desktop
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+
+      - name: Vet
+        run: |
+          go vet ./...
+          go tool mygo vet .
+
+      - name: Test
+        env:
+          CGO_ENABLED: "0"
+        run: go test ./...
+
+      - name: Cross-compile
+        run: |
+          GOOS=windows GOARCH=amd64 go build ./...
+          GOOS=linux GOARCH=amd64 go build ./...
+
+  cross:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+
+      - name: Install NSIS
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      - name: Build
+        run: go tool mygo build -platform windows/amd64,linux/amd64 -skip-dmg
