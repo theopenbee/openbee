@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { ChevronDown } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
+import { Badge } from "@/components/arc/badge/badge"
 import { Button } from "@/components/arc/button/button"
 import { Checkbox } from "@/components/arc/checkbox/checkbox"
 import { Input } from "@/components/arc/input/input"
@@ -15,35 +17,71 @@ import { useCreateWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
 import { DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
-import { getErrorMessage } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
+import { countAdvancedSettings } from "@/lib/worker-create"
 
 function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
   const stripped = stripEmptyEngineArgs(engineArgs)
   return Object.keys(stripped).length > 0 ? stripped : undefined
 }
 
-function FormSection({
-  id,
-  title,
-  description,
-  badge,
-  children,
-}: {
-  id: string
-  title: string
-  description?: string
-  badge?: number
-  children: ReactNode
-}) {
+function FormSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section className="grid min-w-0 gap-5" aria-labelledby={id}>
-      <div className="grid gap-1">
-        <div id={id}>
-          <SectionHeading text={title} badge={badge} />
-        </div>
-        {description && <p className="text-sm text-secondary">{description}</p>}
+      <div id={id}>
+        <SectionHeading text={title} />
       </div>
       {children}
+    </section>
+  )
+}
+
+function AdvancedSection({
+  open,
+  onOpenChange,
+  count,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  count: number
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
+  const contentId = useId()
+
+  return (
+    <section className="grid min-w-0 gap-5">
+      <div className="grid gap-1">
+        <h2>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={open ? contentId : undefined}
+            onClick={() => onOpenChange(!open)}
+            className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-control px-2 py-1 text-left text-base font-medium text-foreground transition-colors hover:bg-surface-muted"
+          >
+            {t("workers.form.sectionAdvanced")}
+            {!open && count > 0 && (
+              <Badge tone="info" size="sm" className="tabular">
+                {t("workers.form.advancedSet", { count })}
+              </Badge>
+            )}
+            <ChevronDown
+              size={16}
+              strokeWidth={1.75}
+              aria-hidden="true"
+              className={cn("ml-auto shrink-0 text-muted transition-transform motion-reduce:transition-none", open && "rotate-180")}
+            />
+          </button>
+        </h2>
+        <p className="text-sm text-secondary">{t("workers.form.advancedHelper")}</p>
+      </div>
+      {open && (
+        <div id={contentId} className="grid min-w-0 gap-5">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
@@ -51,17 +89,16 @@ function FormSection({
 function CreateWorkerSkeleton() {
   return (
     <div className="grid gap-8" aria-busy="true">
-      {[3, 2, 2].map((fields, section) => (
-        <div key={section} className="grid gap-5">
-          <div className="skeleton h-5 w-28" />
-          {Array.from({ length: fields }).map((_, i) => (
-            <div key={i} className="grid gap-2">
-              <div className="skeleton h-4 w-20" />
-              <div className="skeleton h-11 w-full rounded-control" />
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="grid gap-5">
+        <div className="skeleton h-5 w-28" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="grid gap-2">
+            <div className="skeleton h-4 w-20" />
+            <div className="skeleton h-11 w-full rounded-control" />
+          </div>
+        ))}
+      </div>
+      <div className="skeleton h-5 w-28" />
     </div>
   )
 }
@@ -87,8 +124,15 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitError, setSubmitError] = useState("")
   const selectedEngine = availableEngine(engine, enabledEngines)
+  const advancedCount = countAdvancedSettings({
+    constraints,
+    workDir,
+    engineArgs: engineArgs[selectedEngine] ?? "",
+    scopes: selectedScopes,
+  })
 
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -120,6 +164,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
       onCreated(worker)
     } catch (err) {
       setSubmitError(getErrorMessage(err))
+      if (advancedCount > 0) setAdvancedOpen(true)
     }
   }
 
@@ -149,19 +194,19 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           onValueChange={(v) => v && setEngine(v as Engine)}
           disabled={isPending}
         />
-      </FormSection>
-
-      <FormSection id="cw-section-enhancement" title={t("workers.form.sectionEnhancement")}>
         <Textarea
           id="cw-desc"
-          label={t("workers.form.description")}
-          description={t("workers.form.descriptionHelper")}
+          label={t("workers.form.descriptionOptional")}
+          description={t("workers.form.descriptionCreateHelper")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t("workers.form.descriptionPlaceholder")}
           rows={3}
           disabled={isPending}
         />
+      </FormSection>
+
+      <AdvancedSection open={advancedOpen} onOpenChange={setAdvancedOpen} count={advancedCount}>
         <Textarea
           id="cw-constraints"
           label={t("workers.form.constraints")}
@@ -172,9 +217,6 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           rows={5}
           disabled={isPending}
         />
-      </FormSection>
-
-      <FormSection id="cw-section-other" title={t("workers.form.sectionOther")}>
         <EngineArgsSection
           engines={[selectedEngine]}
           value={engineArgs}
@@ -193,28 +235,28 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           spellCheck={false}
           disabled={isPending}
         />
-      </FormSection>
-
-      <FormSection
-        id="cw-section-permissions"
-        title={t("workers.form.sectionPermissions")}
-        description={t("workers.form.permissionsHelper")}
-        badge={selectedScopes.length}
-      >
-        <div className="-ml-3 grid gap-y-1">
-          {KNOWN_SCOPES.map((scope) => (
-            <Checkbox
-              key={scope.id}
-              id={`cw-scope-${scope.id}`}
-              label={t(scope.titleKey)}
-              description={t(scope.descriptionKey)}
-              checked={selectedScopes.includes(scope.id)}
-              onCheckedChange={(state) => setSelectedScopes((prev) => toggleScope(prev, scope.id, state === true))}
-              disabled={isPending}
-            />
-          ))}
+        <div role="group" aria-labelledby="cw-permissions-label" aria-describedby="cw-permissions-helper" className="grid min-w-0">
+          <p id="cw-permissions-label" className="text-sm font-medium text-foreground">
+            {t("workers.form.sectionPermissions")}
+          </p>
+          <p id="cw-permissions-helper" className="pt-2 text-xs text-muted">
+            {t("workers.form.permissionsHelper")}
+          </p>
+          <div className="-ml-3 grid gap-y-1 pt-2">
+            {KNOWN_SCOPES.map((scope) => (
+              <Checkbox
+                key={scope.id}
+                id={`cw-scope-${scope.id}`}
+                label={t(scope.titleKey)}
+                description={t(scope.descriptionKey)}
+                checked={selectedScopes.includes(scope.id)}
+                onCheckedChange={(state) => setSelectedScopes((prev) => toggleScope(prev, scope.id, state === true))}
+                disabled={isPending}
+              />
+            ))}
+          </div>
         </div>
-      </FormSection>
+      </AdvancedSection>
 
       {submitError && (
         <div ref={errorRef}>
