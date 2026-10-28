@@ -24,6 +24,7 @@
 - Remove the GitHub link and sidebar collapse from the console.
 - Remove unused web username and password from config.
 - Remove CLI translations; the CLI is English only.
+- Remove departments and department-level environment variables.
 
 ### Fixed
 - Keep slash commands in the web chat history.
