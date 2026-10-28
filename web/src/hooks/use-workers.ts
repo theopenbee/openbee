@@ -18,11 +18,10 @@ export function fetchWorkers(queryClient: QueryClient) {
   return queryClient.fetchQuery(workersQuery())
 }
 
-export function useWorker(id: string, options?: { enabled?: boolean }) {
+export function useWorker(id: string) {
   return useQuery({
     queryKey: ["workers", id],
     queryFn: () => api.workers.get(id),
-    enabled: options?.enabled,
   })
 }
 

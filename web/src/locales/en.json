@@ -29,9 +29,7 @@
   },
   "workers": {
     "createWorker": "Create worker",
-    "copyWorker": "Copy worker",
     "form": {
-      "copySuffix": "Copy",
       "sectionBasic": "Basic info",
       "engine": "AI engine",
       "engineHelper": "The AI agent engine this worker will use to execute tasks.",
@@ -58,10 +56,7 @@
       "permissionsHelper": "With no permissions selected, the worker token cannot use any built-in system tool.",
       "constraintsHelper": "Injected at the start of every session.",
       "engineArgsHelper": "Extra command-line flags passed to {{engine}} on start.",
-      "copySubtitle": "Starts from the settings of {{name}}.",
-      "copyLoadError": "Couldn't load the worker to copy",
       "createError": "Couldn't create the worker",
-      "copyError": "Couldn't copy the worker",
       "saveError": "Couldn't save changes"
     },
     "deleteDialog": {

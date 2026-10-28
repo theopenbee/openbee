@@ -24,7 +24,7 @@ describe("legacyRedirect", () => {
 
   it("legacyRedirect maps create and the old departments page", () => {
     expect(legacyRedirect("/workers/create", "")).toBe("/chat/bee?panel=new")
-    expect(legacyRedirect("/workers/create", "?copy=w1")).toBe("/chat/bee?panel=new&copy=w1")
+    expect(legacyRedirect("/workers/create", "?copy=w1")).toBe("/chat/bee?panel=new")
     expect(legacyRedirect("/departments", "")).toBe("/chat/bee")
   })
 
@@ -64,36 +64,33 @@ describe("panel search", () => {
       { mode: "worker", section: "permissions" },
       { mode: "worker", section: "env" },
       { mode: "new" },
-      { mode: "new", copyFrom: "w1" },
     ]
 
     for (const state of states) {
-      const current = new URLSearchParams("q=x&panel=new&copy=old")
+      const current = new URLSearchParams("q=x&panel=new")
 
       const next = panelToSearch(state, current)
 
       expect(panelFromSearch(next)).toEqual(state)
       expect(next.get("q")).toBe("x")
-      expect(next.has("copy")).toBe(state?.mode === "new" && state.copyFrom !== undefined)
-      expect(current.toString()).toBe("q=x&panel=new&copy=old")
+      expect(current.toString()).toBe("q=x&panel=new")
     }
   })
 
   it("reads an unknown or missing panel as closed", () => {
     expect(panelFromSearch(new URLSearchParams(""))).toBeNull()
     expect(panelFromSearch(new URLSearchParams("panel=tasks"))).toBeNull()
-    expect(panelFromSearch(new URLSearchParams("copy=w1"))).toBeNull()
   })
 
-  it("ignores an empty copy source", () => {
-    expect(panelFromSearch(new URLSearchParams("panel=new&copy="))).toEqual({ mode: "new" })
+  it("ignores a legacy copy source", () => {
+    expect(panelFromSearch(new URLSearchParams("panel=new&copy=w1"))).toEqual({ mode: "new" })
   })
 })
 
 describe("panelView", () => {
   it("shows the new worker form on any chat", () => {
     expect(panelView("bee", { mode: "new" })).toEqual({ mode: "new" })
-    expect(panelView("w1", { mode: "new", copyFrom: "w1" })).toEqual({ mode: "new", copyFrom: "w1" })
+    expect(panelView("w1", { mode: "new" })).toEqual({ mode: "new" })
     expect(panelView(undefined, { mode: "new" })).toEqual({ mode: "new" })
   })
 
@@ -134,7 +131,7 @@ describe("panelReplacesHistory", () => {
     expect(panelReplacesHistory(constraints, env)).toBe(true)
     expect(panelReplacesHistory(null, constraints)).toBe(false)
     expect(panelReplacesHistory(constraints, null)).toBe(false)
-    expect(panelReplacesHistory(constraints, { mode: "new", copyFrom: "w1" })).toBe(false)
+    expect(panelReplacesHistory(constraints, { mode: "new" })).toBe(false)
     expect(panelReplacesHistory({ mode: "new" }, constraints)).toBe(false)
   })
 })

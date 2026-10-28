@@ -92,8 +92,7 @@ function ChatPanel({ param }: { param: string | undefined }) {
   const changePanel = (next: PanelState) =>
     setSearchParams((current) => panelToSearch(next, current), { replace: panelReplacesHistory(panel, next) })
 
-  const title =
-    view?.mode === "new" ? t(view.copyFrom ? "workers.copyWorker" : "chat.newWorker") : t("chat.panelTitle")
+  const title = view?.mode === "new" ? t("chat.newWorker") : t("chat.panelTitle")
 
   return (
     <SplitPanel
@@ -108,8 +107,6 @@ function ChatPanel({ param }: { param: string | undefined }) {
       )}
       {view?.mode === "new" && (
         <WorkerCreateForm
-          key={view.copyFrom ?? ""}
-          copyFrom={view.copyFrom}
           onCreated={(worker) => navigate(workerPanelPath(worker.id), { replace: true })}
           onCancel={() => changePanel(null)}
         />

@@ -11,33 +11,11 @@ import { useEngineOptions } from "@/components/engine-select-items"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
-import { useCreateWorker, useWorker } from "@/hooks/use-workers"
+import { useCreateWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
-import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
-import { DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
+import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
+import { DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
-
-interface WorkerInitialValues {
-  name: string
-  description: string
-  constraints: string
-  work_dir: string
-  permission_scopes: string
-  engine: Engine
-  engine_args: Record<string, string>
-}
-
-function workerToInitialValues(worker: Worker): WorkerInitialValues {
-  return {
-    name: worker.name,
-    description: worker.description,
-    constraints: worker.constraints,
-    work_dir: worker.work_dir,
-    permission_scopes: worker.permission_scopes ?? "",
-    engine: worker.engine ?? DEFAULT_ENGINE,
-    engine_args: worker.engine_args ?? {},
-  }
-}
 
 function buildCreateEngineArgsPayload(engineArgs: Record<string, string>) {
   const stripped = stripEmptyEngineArgs(engineArgs)
@@ -89,19 +67,16 @@ function CreateWorkerSkeleton() {
 }
 
 interface WorkerCreateFormProps {
-  copyFrom?: string
   onCreated: (worker: Worker) => void
   onCancel: () => void
 }
 
-export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreateFormProps) {
+export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps) {
   const { t } = useTranslation()
-  const isCopy = !!copyFrom
 
   const createWorker = useCreateWorker()
   const enabledEngines = useEnabledEngines()
   const engineOptions = useEngineOptions(enabledEngines)
-  const { data: copyWorker, error: copyError, refetch: refetchCopy } = useWorker(copyFrom ?? "", { enabled: isCopy })
   const { data: sysConfigs, isPending: sysConfigsPending } = useSystemConfigs()
   const systemDefaultEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE]
 
@@ -124,19 +99,10 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
 
   const seededRef = useRef(false)
   useEffect(() => {
-    if (seededRef.current) return
-    if (isCopy && !copyWorker) return
-    if (!isCopy && sysConfigsPending) return
+    if (seededRef.current || sysConfigsPending) return
     seededRef.current = true
-    const iv = copyWorker ? workerToInitialValues(copyWorker) : undefined
-    setName(iv ? `${iv.name} ${t("workers.form.copySuffix")}` : "")
-    setDescription(iv?.description ?? "")
-    setConstraints(iv?.constraints ?? "")
-    setWorkDir(iv?.work_dir ?? "")
-    setEngine(iv ? pickDefaultEngine(iv.engine, enabledEngines) : newWorkerEngine(systemDefaultEngine, enabledEngines))
-    setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
-    setEngineArgs(iv?.engine_args ?? {})
-  }, [isCopy, copyWorker, sysConfigsPending, systemDefaultEngine, enabledEngines, t])
+    setEngine(newWorkerEngine(systemDefaultEngine, enabledEngines))
+  }, [sysConfigsPending, systemDefaultEngine, enabledEngines])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -158,31 +124,11 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   }
 
   const isPending = createWorker.isPending
-  const isCopyLoading = isCopy && !copyWorker && !copyError
-  const isSeedLoading = isCopyLoading || (!isCopy && sysConfigsPending)
-  const submitLabel = isCopy ? t("workers.copyWorker") : t("workers.createWorker")
 
-  if (copyError && !copyWorker) {
-    return (
-      <Alert tone="danger" title={t("workers.form.copyLoadError")}>
-        <span className="grid justify-items-start gap-3">
-          <span>{copyError.message}</span>
-          <Button variant="secondary" size="sm" onClick={() => refetchCopy()}>
-            {t("common.retry")}
-          </Button>
-        </span>
-      </Alert>
-    )
-  }
-
-  if (isSeedLoading) return <CreateWorkerSkeleton />
+  if (sysConfigsPending) return <CreateWorkerSkeleton />
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-8">
-      {isCopy && copyWorker && (
-        <p className="text-sm text-secondary">{t("workers.form.copySubtitle", { name: copyWorker.name })}</p>
-      )}
-
       <FormSection id="cw-section-basic" title={t("workers.form.sectionBasic")}>
         <WorkerNameField
           id="cw-name"
@@ -272,7 +218,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
 
       {submitError && (
         <div ref={errorRef}>
-          <Alert tone="danger" title={isCopy ? t("workers.form.copyError") : t("workers.form.createError")}>
+          <Alert tone="danger" title={t("workers.form.createError")}>
             {submitError}
           </Alert>
         </div>
@@ -283,7 +229,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
           {t("common.cancel")}
         </Button>
         <Button type="submit" loading={isPending} disabled={!name.trim()}>
-          {submitLabel}
+          {t("workers.createWorker")}
         </Button>
       </div>
     </form>

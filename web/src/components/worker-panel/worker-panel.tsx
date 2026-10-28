@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { CopyIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
 import { DropdownMenu } from "@/components/arc/dropdown-menu/dropdown-menu"
@@ -69,7 +69,6 @@ export function WorkerPanel({ workerId, panel, onPanelChange }: WorkerPanelProps
         worker={worker}
         editing={editing}
         onEdit={() => setEditing(true)}
-        onCopy={() => onPanelChange({ mode: "new", copyFrom: worker.id })}
         onDelete={() => setDeleteTarget({ id: worker.id, name: worker.name, work_dir: worker.work_dir })}
       />
 
@@ -110,11 +109,10 @@ interface WorkerHeaderProps {
   worker: Worker
   editing: boolean
   onEdit: () => void
-  onCopy: () => void
   onDelete: () => void
 }
 
-function WorkerHeader({ worker, editing, onEdit, onCopy, onDelete }: WorkerHeaderProps) {
+function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) {
   const { t } = useTranslation()
 
   return (
@@ -141,10 +139,6 @@ function WorkerHeader({ worker, editing, onEdit, onCopy, onDelete }: WorkerHeade
         <Button variant="secondary" size="sm" onClick={onEdit} disabled={editing}>
           <PencilIcon {...ICON} />
           {t("workerDetail.editInfo")}
-        </Button>
-        <Button variant="secondary" size="sm" onClick={onCopy}>
-          <CopyIcon {...ICON} />
-          {t("workers.copyWorker")}
         </Button>
         <DropdownMenu
           iconOnly

@@ -6,18 +6,17 @@ export type PanelSection = "constraints" | "permissions" | "env"
 
 export type PanelState =
   | { mode: "worker"; section: PanelSection }
-  | { mode: "new"; copyFrom?: string }
+  | { mode: "new" }
   | null
 
 export type PanelView =
   | { mode: "worker"; workerId: string; section: PanelSection }
-  | { mode: "new"; copyFrom?: string }
+  | { mode: "new" }
   | null
 
 const PANEL_SECTIONS: readonly string[] = ["constraints", "permissions", "env"] satisfies PanelSection[]
 export const DEFAULT_PANEL_SECTION: PanelSection = "constraints"
 const PANEL_PARAM = "panel"
-const COPY_PARAM = "copy"
 const NEW_PANEL = "new"
 
 export function isPanelSection(value: string | null): value is PanelSection {
@@ -26,22 +25,15 @@ export function isPanelSection(value: string | null): value is PanelSection {
 
 export function panelFromSearch(search: URLSearchParams): PanelState {
   const panel = search.get(PANEL_PARAM)
-  if (panel === NEW_PANEL) {
-    const copyFrom = search.get(COPY_PARAM)
-    return copyFrom ? { mode: "new", copyFrom } : { mode: "new" }
-  }
+  if (panel === NEW_PANEL) return { mode: "new" }
   return isPanelSection(panel) ? { mode: "worker", section: panel } : null
 }
 
 export function panelToSearch(panel: PanelState, current: URLSearchParams): URLSearchParams {
   const next = new URLSearchParams(current)
   next.delete(PANEL_PARAM)
-  next.delete(COPY_PARAM)
   if (panel?.mode === "worker") next.set(PANEL_PARAM, panel.section)
-  if (panel?.mode === "new") {
-    next.set(PANEL_PARAM, NEW_PANEL)
-    if (panel.copyFrom) next.set(COPY_PARAM, panel.copyFrom)
-  }
+  if (panel?.mode === "new") next.set(PANEL_PARAM, NEW_PANEL)
   return next
 }
 
@@ -72,10 +64,7 @@ export function legacyRedirect(pathname: string, search: string): string | null 
   if (segments.length === 1 && segments[0] === "departments") return beePath
   if (segments[0] !== "workers" || segments.length > 2) return null
   if (segments.length === 1) return beePath
-  if (segments[1] === "create") {
-    const copyFrom = params.get(COPY_PARAM)
-    return withPanel(beePath, copyFrom ? { mode: "new", copyFrom } : { mode: "new" })
-  }
+  if (segments[1] === "create") return withPanel(beePath, { mode: "new" })
   const tab = params.get("tab")
   const section = isPanelSection(tab) ? tab : DEFAULT_PANEL_SECTION
   return withPanel(conversationPath(workerConversationId(segments[1])), { mode: "worker", section })
