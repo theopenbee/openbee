@@ -178,14 +178,18 @@ def http(meta, method, path, body=None, token=None, timeout=30):
         req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            return resp.status, (json.loads(raw) if raw else None)
+            return resp.status, decode_body(resp.read())
     except urllib.error.HTTPError as e:
-        raw = e.read()
-        try:
-            return e.code, json.loads(raw)
-        except ValueError:
-            return e.code, raw.decode(errors="replace")
+        return e.code, decode_body(e.read())
+
+
+def decode_body(raw):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return raw.decode(errors="replace")
 
 
 def login(meta):
