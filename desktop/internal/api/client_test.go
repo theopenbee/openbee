@@ -706,6 +706,63 @@ func TestProbe(t *testing.T) {
 		}
 	})
 
+	t.Run("404 html", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, "<html><body>Cannot GET /api/config</body></html>")
+		}))
+		defer srv.Close()
+		if _, err := Probe(context.Background(), srv.Client(), srv.URL); !errors.Is(err, ErrNotOpenBee) {
+			t.Fatalf("err = %v, want ErrNotOpenBee", err)
+		}
+	})
+
+	t.Run("404 json", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, 404, `{"message":"not found"}`)
+		}))
+		defer srv.Close()
+		if _, err := Probe(context.Background(), srv.Client(), srv.URL); !errors.Is(err, ErrNotOpenBee) {
+			t.Fatalf("err = %v, want ErrNotOpenBee", err)
+		}
+	})
+
+	t.Run("404 plain text", func(t *testing.T) {
+		srv := httptest.NewServer(http.NotFoundHandler())
+		defer srv.Close()
+		if _, err := Probe(context.Background(), srv.Client(), srv.URL); !errors.Is(err, ErrNotOpenBee) {
+			t.Fatalf("err = %v, want ErrNotOpenBee", err)
+		}
+	})
+
+	t.Run("503 keeps server error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, 503, `{"error":"unavailable"}`)
+		}))
+		defer srv.Close()
+		_, err := Probe(context.Background(), srv.Client(), srv.URL)
+		if errors.Is(err, ErrNotOpenBee) {
+			t.Fatalf("err = %v, must not be ErrNotOpenBee", err)
+		}
+		if !IsStatus(err, 503) {
+			t.Fatalf("err = %v, want status 503", err)
+		}
+	})
+
+	t.Run("503 html keeps server error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, "<html>maintenance</html>")
+		}))
+		defer srv.Close()
+		_, err := Probe(context.Background(), srv.Client(), srv.URL)
+		if errors.Is(err, ErrNotOpenBee) || !IsStatus(err, 503) {
+			t.Fatalf("err = %v, want plain status 503", err)
+		}
+	})
+
 	t.Run("connection refused", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 		url := srv.URL

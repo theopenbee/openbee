@@ -251,6 +251,10 @@ func Probe(ctx context.Context, hc *http.Client, baseURL string) (Config, error)
 	c := New(Options{BaseURL: baseURL, HTTP: hc})
 	var cfg Config
 	if err := c.Do(ctx, http.MethodGet, "/config", nil, &cfg); err != nil {
+		var apiErr *Error
+		if errors.As(err, &apiErr) && apiErr.Status >= 400 && apiErr.Status < 500 {
+			return Config{}, ErrNotOpenBee
+		}
 		return Config{}, err
 	}
 	return cfg, nil
