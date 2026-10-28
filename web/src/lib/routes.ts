@@ -90,3 +90,8 @@ export function resolveConversationRoute(param: string | undefined, workerIds: S
   if (!param || !workerIds.has(param)) return null
   return workerConversationId(param)
 }
+
+export function hashShowsConversation(hash: string, conversation: ConversationId): boolean {
+  const [path] = hash.replace(/^#/, "").split("?")
+  return path === conversationPath(conversation)
+}

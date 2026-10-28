@@ -29,6 +29,7 @@ import { useWorkers } from "@/hooks/use-workers"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
 import { composerDisabled, groupStarts, senderDisplay, statusText, type SenderDisplay } from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
+import { hashShowsConversation } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type {
   ChatMessage,
@@ -43,8 +44,8 @@ const IDLE: ConversationActivity = { state: "idle" }
 const BEE_BUSY: ConversationActivity = { state: "running" }
 const EMPTY_WORKERS: Worker[] = []
 
-function isVisible() {
-  return document.visibilityState === "visible"
+function isShowing(conversation: ConversationId) {
+  return document.visibilityState === "visible" && hashShowsConversation(window.location.hash, conversation)
 }
 
 function senderAvatar(display: SenderDisplay, workers: Map<string, Worker>): ReactNode {
@@ -109,13 +110,13 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   }, [data])
 
   useEffect(() => {
-    if (isVisible()) markRead(undefined)
+    if (isShowing(conversation)) markRead(undefined)
     const handleVisibility = () => {
-      if (isVisible()) markRead(undefined)
+      if (isShowing(conversation)) markRead(undefined)
     }
     document.addEventListener("visibilitychange", handleVisibility)
     return () => document.removeEventListener("visibilitychange", handleVisibility)
-  }, [markRead])
+  }, [conversation, markRead])
 
   useChatEventSubscription({
     onMessage: (id, message) => {
@@ -123,7 +124,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       dispatch({ type: "add", message: { ...message, pending: true } })
       if (message.sender.type === "user") return
       if (isBee) setBeeBusy(false)
-      if (isVisible()) markRead(message.ts)
+      if (isShowing(conversation)) markRead(message.ts)
     },
     onResync: () => {
       void refetch()

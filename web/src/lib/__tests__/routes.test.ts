@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  hashShowsConversation,
   isPanelSection,
   legacyRedirect,
   panelFromSearch,
@@ -135,5 +136,27 @@ describe("panelReplacesHistory", () => {
     expect(panelReplacesHistory(overview, null)).toBe(false)
     expect(panelReplacesHistory(overview, { mode: "new", copyFrom: "w1" })).toBe(false)
     expect(panelReplacesHistory({ mode: "new" }, overview)).toBe(false)
+  })
+})
+
+describe("hashShowsConversation", () => {
+  it("matches the conversation the hash routes to", () => {
+    expect(hashShowsConversation("#/chat/w1", "worker:w1")).toBe(true)
+    expect(hashShowsConversation("#/chat/bee", "bee")).toBe(true)
+  })
+
+  it("ignores the panel query", () => {
+    expect(hashShowsConversation("#/chat/w1?panel=overview", "worker:w1")).toBe(true)
+  })
+
+  it("rejects another conversation the hash has already moved to", () => {
+    expect(hashShowsConversation("#/chat/w2", "worker:w1")).toBe(false)
+    expect(hashShowsConversation("#/chat/w1", "bee")).toBe(false)
+  })
+
+  it("rejects routes that show no conversation", () => {
+    expect(hashShowsConversation("#/chat", "bee")).toBe(false)
+    expect(hashShowsConversation("", "bee")).toBe(false)
+    expect(hashShowsConversation("#/chat/w1/extra", "worker:w1")).toBe(false)
   })
 })
