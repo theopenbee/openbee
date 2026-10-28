@@ -149,6 +149,13 @@ describe("hashShowsConversation", () => {
     expect(hashShowsConversation("#/chat/w1?panel=overview", "worker:w1")).toBe(true)
   })
 
+  it("matches the same loose paths the router accepts", () => {
+    expect(hashShowsConversation("#/chat/w1/", "worker:w1")).toBe(true)
+    expect(hashShowsConversation("#/CHAT/w1", "worker:w1")).toBe(true)
+    expect(hashShowsConversation("#chat/w1", "worker:w1")).toBe(true)
+    expect(hashShowsConversation("#/chat/w1#x", "worker:w1")).toBe(true)
+  })
+
   it("rejects another conversation the hash has already moved to", () => {
     expect(hashShowsConversation("#/chat/w2", "worker:w1")).toBe(false)
     expect(hashShowsConversation("#/chat/w1", "bee")).toBe(false)

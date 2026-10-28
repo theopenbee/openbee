@@ -8,6 +8,7 @@ import { markNotificationsUnsupported, useNotificationSettings } from "@/hooks/u
 import { fetchWorkers, useWorkers } from "@/hooks/use-workers"
 import { hasUnknownWorker } from "@/lib/chat-events"
 import { conversationPath } from "@/lib/conversations"
+import { isRoutedConversation } from "@/lib/routes"
 import { notificationContent, shouldNotify, titleWithUnread, totalUnread, type PageAttention } from "@/lib/notifications"
 import type { ChatMessage, ConversationId, Worker } from "@/lib/types"
 
@@ -86,7 +87,7 @@ export function useMessageNotifications() {
 
   useEffect(() => {
     const closeActive = () => {
-      if (!activeConversation || !inFront()) return
+      if (!activeConversation || !inFront() || !isRoutedConversation(activeConversation)) return
       shown.current.get(activeConversation)?.forEach((notification) => notification.close())
       shown.current.delete(activeConversation)
     }

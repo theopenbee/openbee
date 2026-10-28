@@ -1,5 +1,6 @@
+import { matchPath, parsePath } from "react-router-dom"
 import type { SettingsSection } from "@/hooks/use-settings-dialog"
-import { BEE_CONVERSATION, conversationPath, workerConversationId } from "@/lib/conversations"
+import { BEE_CONVERSATION, conversationPath, workerConversationId, workerIdOf } from "@/lib/conversations"
 import type { ConversationId } from "@/lib/types"
 
 export type PanelSection = "overview" | "constraints" | "permissions" | "env"
@@ -92,6 +93,11 @@ export function resolveConversationRoute(param: string | undefined, workerIds: S
 }
 
 export function hashShowsConversation(hash: string, conversation: ConversationId): boolean {
-  const [path] = hash.replace(/^#/, "").split("?")
-  return path === conversationPath(conversation)
+  const { pathname = "" } = parsePath(hash.replace(/^#/, ""))
+  const match = matchPath("/chat/:conversation", pathname.startsWith("/") ? pathname : `/${pathname}`)
+  return match?.params.conversation === (workerIdOf(conversation) ?? BEE_CONVERSATION)
+}
+
+export function isRoutedConversation(conversation: ConversationId): boolean {
+  return hashShowsConversation(window.location.hash, conversation)
 }

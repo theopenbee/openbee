@@ -29,7 +29,7 @@ import { useWorkers } from "@/hooks/use-workers"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
 import { composerDisabled, groupStarts, senderDisplay, statusText, type SenderDisplay } from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
-import { hashShowsConversation } from "@/lib/routes"
+import { isRoutedConversation } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type {
   ChatMessage,
@@ -45,7 +45,7 @@ const BEE_BUSY: ConversationActivity = { state: "running" }
 const EMPTY_WORKERS: Worker[] = []
 
 function isShowing(conversation: ConversationId) {
-  return document.visibilityState === "visible" && hashShowsConversation(window.location.hash, conversation)
+  return document.visibilityState === "visible" && isRoutedConversation(conversation)
 }
 
 function senderAvatar(display: SenderDisplay, workers: Map<string, Worker>): ReactNode {
