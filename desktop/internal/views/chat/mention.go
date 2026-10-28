@@ -33,6 +33,7 @@ type mentionState struct {
 	reveal  bool
 	quiet   bool
 	quietAt string
+	seen    string
 }
 
 func mentionQuery(text string, caret int) (int, string, bool) {
@@ -86,12 +87,15 @@ func (v *View) mentionWorkers() []api.Worker {
 
 func (v *View) trackMention(cm *composerState, focused bool) {
 	ms := &cm.mention
+	typed := cm.draft != ms.seen
+	ms.seen = cm.draft
 	if ms.quiet && cm.draft != ms.quietAt {
 		ms.quiet = false
 	}
 	start, query, ok := mentionQuery(cm.draft, cm.caret)
+	open := len(ms.matches) > 0
 	var matches []api.Worker
-	if ok && focused && !cm.selecting && !ms.quiet {
+	if ok && focused && !cm.selecting && !ms.quiet && (typed || open && start == ms.start && query == ms.query) {
 		matches = mentionCandidates(v.mentionWorkers(), query)
 	}
 	if start != ms.start || query != ms.query {
@@ -103,7 +107,13 @@ func (v *View) trackMention(cm *composerState, focused bool) {
 
 func (v *View) mentionKey(cm *composerState, k ui.TextKey) bool {
 	ms := &cm.mention
-	if len(ms.matches) == 0 || k.Mods != 0 {
+	if len(ms.matches) == 0 {
+		return false
+	}
+	if k.Key == ui.KeyEnter && k.Mods&^ui.Shift == 0 {
+		return v.pickByKey(cm, k)
+	}
+	if k.Mods != 0 {
 		return false
 	}
 	switch k.Key {
@@ -113,7 +123,7 @@ func (v *View) mentionKey(cm *composerState, k ui.TextKey) bool {
 		ms.active, ms.reveal = min(ms.active+1, len(ms.matches)-1), true
 	case ui.KeyEscape:
 		ms.quiet, ms.quietAt, ms.matches = true, k.Text(), nil
-	case ui.KeyEnter, ui.KeyTab:
+	case ui.KeyTab:
 		return v.pickByKey(cm, k)
 	default:
 		return false

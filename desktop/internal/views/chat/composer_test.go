@@ -3,10 +3,12 @@ package chat_test
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -214,6 +216,38 @@ func TestPasteImageUploads(t *testing.T) {
 	}
 	f.wantAttachments(workerCID, ".png")
 	f.wantDraft(workerCID, "look")
+}
+
+type logSink struct {
+	mu   sync.Mutex
+	text strings.Builder
+}
+
+func (l *logSink) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.text.Write(p)
+}
+
+func (l *logSink) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.text.String()
+}
+
+func TestPasteCancelledBySessionResetIsSilent(t *testing.T) {
+	sink := &logSink{}
+	log.SetOutput(sink)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID))
+	f.T.SetClipboardData(transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, pngImage(t, 4, 4)))))
+	f.startTyping("look")
+	f.T.Command("paste")
+	f.Store.Logout()
+	f.Settle()
+	if got := sink.String(); strings.Contains(got, "upload pasted image") {
+		t.Fatalf("a cancelled paste upload was logged: %q", got)
+	}
 }
 
 func TestPasteTextStillInserts(t *testing.T) {

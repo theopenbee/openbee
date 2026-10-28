@@ -249,6 +249,9 @@ func (v *View) paste(cs *convState, svc ui.Services, text string) bool {
 	cm := &cs.composer
 	cm.failed = 0
 	v.s.UploadBytes(fmt.Sprintf(pastedName, time.Now().Unix()), data, func(path string, err error) {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		if err != nil {
 			log.Printf("chat: upload pasted image: %v", err)
 			cm.failed = 1

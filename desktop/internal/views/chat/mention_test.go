@@ -161,3 +161,68 @@ func TestMentionOnlyInBee(t *testing.T) {
 		t.Fatalf("sent %q, want the typed text", got)
 	}
 }
+
+func (f *fixture) moveCaretLeft(n int) {
+	f.t.Helper()
+	for range n {
+		f.stroke(0, ui.KeyLeft)
+	}
+}
+
+func TestMentionCaretMoveDoesNotOpen(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(mentionTeam(), api.BeeConversation))
+	f.startTyping("@Maya Lin hi")
+	f.wantHidden("Maya Lin")
+	f.moveCaretLeft(7)
+	f.wantHidden("Maya Lin", "Mark Rivera")
+	f.stroke(0, ui.KeyEnter)
+	f.wantDraft(api.BeeConversation, "")
+	if got := f.sentContents(api.BeeConversation); len(got) != 1 || got[0] != "@Maya Lin hi" {
+		t.Fatalf("sent %q, want the draft unchanged", got)
+	}
+}
+
+func TestMentionTypingInsideReopens(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(mentionTeam(), api.BeeConversation))
+	f.startTyping("@Maya Lin hi")
+	f.moveCaretLeft(7)
+	f.wantHidden("Maya Lin")
+	f.typeIn("x")
+	f.wantHidden("Maya Lin", "Mark Rivera")
+	f.stroke(0, ui.KeyBackspace)
+	f.wantShown("Maya Lin")
+	f.wantHidden("Mark Rivera")
+}
+
+func TestMentionClosesWhenCaretLeaves(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(mentionTeam(), api.BeeConversation))
+	f.startTyping("@ma")
+	f.wantShown("Mark Rivera", "Maya Lin")
+	f.stroke(0, ui.KeyLeft)
+	f.wantHidden("Mark Rivera", "Maya Lin")
+	f.stroke(0, ui.KeyEnter)
+	if got := f.sentContents(api.BeeConversation); len(got) != 1 || got[0] != "@ma" {
+		t.Fatalf("sent %q, want the draft unchanged", got)
+	}
+}
+
+func TestMentionStaysOpenWithoutTyping(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(mentionTeam(), api.BeeConversation))
+	f.startTyping("@ma")
+	f.settleMotion()
+	f.settleMotion()
+	f.wantShown("Mark Rivera", "Maya Lin")
+	f.stroke(0, ui.KeyDown)
+	f.stroke(0, ui.KeyUp)
+	f.wantShown("Mark Rivera", "Maya Lin")
+}
+
+func TestMentionShiftEnterPicks(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(mentionTeam(), api.BeeConversation))
+	f.startTyping("@ma")
+	f.wantShown("Mark Rivera", "Maya Lin")
+	f.stroke(ui.Shift, ui.KeyEnter)
+	f.wantDraft(api.BeeConversation, "@Mark Rivera ")
+	f.wantHidden("Mark Rivera", "Maya Lin")
+	f.wantNothingSent(api.BeeConversation)
+}
