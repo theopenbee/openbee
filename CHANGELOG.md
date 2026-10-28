@@ -34,6 +34,7 @@
 - Remove the overview tab from the worker profile.
 - Remove the copy worker action from the web console.
 - Drop unused legacy local chat tables from the database.
+- Drop unused accordion and popover web dependencies.
 
 ### Fixed
 - Preselect the default engine when creating a worker.
