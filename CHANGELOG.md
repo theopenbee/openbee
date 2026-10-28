@@ -25,6 +25,7 @@
 - Remove unused web username and password from config.
 - Remove CLI translations; the CLI is English only.
 - Remove departments and department-level environment variables.
+- Remove the info section from the worker profile.
 
 ### Fixed
 - Preselect the default engine when creating a worker.
