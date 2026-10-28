@@ -6,9 +6,12 @@ import (
 )
 
 const (
-	badgeHeight   = 26
-	badgePaddingX = 10
-	badgeTracking = -0.01 * smallFontSize
+	badgeHeight        = 26
+	badgePaddingX      = 10
+	smallBadgeHeight   = 22
+	smallBadgePaddingX = 8
+	smallBadgeFontSize = 11
+	badgeTracking      = -0.01
 )
 
 func badgeColors(tk theme.Tokens, tone Tone) (fg, bg, border ui.Color) {
@@ -26,10 +29,18 @@ func badgeColors(tk theme.Tokens, tone Tone) (fg, bg, border ui.Color) {
 }
 
 func Badge(c *ui.Context, tk theme.Tokens, text string, tone Tone) ui.Element {
+	return badge(c, tk, text, tone, badgeHeight, badgePaddingX, smallFontSize)
+}
+
+func SmallBadge(c *ui.Context, tk theme.Tokens, text string, tone Tone) ui.Element {
+	return badge(c, tk, text, tone, smallBadgeHeight, smallBadgePaddingX, smallBadgeFontSize)
+}
+
+func badge(c *ui.Context, tk theme.Tokens, text string, tone Tone, height, padX, size float32) ui.Element {
 	fg, bg, border := badgeColors(tk, tone)
-	return ui.Row(c).MinHeight(badgeHeight).PaddingX(badgePaddingX).Shrink(0).
+	return ui.Row(c).MinHeight(height).PaddingX(padX).Shrink(0).
 		Radius(theme.RadiusPill).Background(bg).Border(1, border).Children(func() {
-		ui.Text(c, text).FontSize(smallFontSize).FontWeight(mediumWeight).TextColor(fg).
-			LetterSpacing(badgeTracking).FontFeatures("tnum").LineHeight(1).SingleLine()
+		ui.Text(c, text).FontSize(size).FontWeight(mediumWeight).TextColor(fg).
+			LetterSpacing(badgeTracking * size).FontFeatures("tnum").LineHeight(1).SingleLine()
 	})
 }

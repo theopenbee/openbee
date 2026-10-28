@@ -5,12 +5,27 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/shell"
 	"github.com/theopenbee/openbee/desktop/locales"
+)
+
+const (
+	headerPadX    = 12
+	triggerHeight = 40
+	triggerPad    = 4
+	triggerPadEnd = 10
+	triggerGap    = 8
+	triggerFace   = 32
+	triggerName   = 176
+	triggerSize   = 14
+	triggerWeight = 500
+	triggerArrow  = 16
 )
 
 type settingsDialog interface {
@@ -28,10 +43,41 @@ func (noDialogs) Open(string, string) {}
 func (noDialogs) View(*ui.Context)    {}
 func (noDialogs) Dialogs(*ui.Context) {}
 
+type noPanel struct{}
+
+func (noPanel) View(*ui.Context, string, route.Panel) {}
+
+type chatPlaceholder struct{ nav route.Nav }
+
+func (p chatPlaceholder) View(c *ui.Context, _ string, _ route.Panel) {
+	tk := theme.Apply(c)
+	w, _ := c.Size()
+	ui.Row(c).Height(theme.HeaderHeight).Shrink(0).PaddingX(headerPadX).BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).
+		Children(func() {
+			if w < theme.BreakTwoPane {
+				shell.BackButton(c, tk, p.nav)
+			}
+		})
+}
+
+type accountPlaceholder struct{ s *store.Store }
+
+func (a accountPlaceholder) View(c *ui.Context) {
+	tk := theme.Apply(c)
+	name := a.s.Prefs.Username
+	ui.Row(c).Height(triggerHeight).MinWidth(0).Gap(triggerGap).Padding(triggerPad, triggerPadEnd, triggerPad, triggerPad).
+		Label(locales.ArcUserMenuTrigger(name)).Children(func() {
+		kit.InitialsAvatar(c, tk, name, kit.AvatarSM).Size(triggerFace, triggerFace).TextColor(tk.TextSecondary)
+		ui.Text(c, name).FontSize(triggerSize).FontWeight(triggerWeight).SingleLine().MinWidth(0).MaxWidth(triggerName)
+		ui.Icon(c, icons.Get("chevron-down")).Size(triggerArrow, triggerArrow).Shrink(0).TextColor(tk.TextMuted)
+	})
+}
+
 type Root struct {
 	s        *store.Store
 	router   *ui.Router
 	auth     *auth.Screens
+	shell    *shell.Shell
 	settings settingsDialog
 	account  accountDialogs
 }
@@ -40,6 +86,7 @@ func NewRoot(s *store.Store) *Root {
 	r := &Root{s: s, router: ui.NewRouter("/"), settings: noDialogs{}, account: noDialogs{}}
 	r.router.Transition = ui.TransitionNone
 	r.auth = auth.New(s, r.router)
+	r.shell = shell.New(s, r.router, chatPlaceholder{nav: r.router}, noPanel{}, accountPlaceholder{s: s}, r.OpenSettings)
 	return r
 }
 
@@ -71,15 +118,11 @@ func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {
 		r.auth.Setup(c, tk, rt.Page())
 	case rt.Match(route.LoginPath):
 		r.auth.Login(c, tk, rt.Page())
-	case rt.Match(route.ChatPath), rt.Match(route.ChatPath + "/{conversation}"):
-		r.chat(c, tk)
+	case rt.Match(route.ChatPath):
+		r.shell.View(c, "")
+	case rt.Match(route.ChatPath + "/{conversation}"):
+		r.shell.View(c, rt.Param("conversation"))
 	}
-}
-
-func (r *Root) chat(c *ui.Context, tk theme.Tokens) {
-	ui.Column(c).Fill().Center().Children(func() {
-		ui.Text(c, locales.ChatBeeLabel()).TextColor(tk.TextSecondary)
-	})
 }
 
 func (r *Root) follow(c *ui.Context) {

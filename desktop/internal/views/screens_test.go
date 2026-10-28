@@ -3,8 +3,10 @@ package views_test
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
@@ -17,10 +19,12 @@ const (
 )
 
 type screen struct {
-	name    string
-	seed    func(st *fakeapi.State)
-	prepare func(t *testing.T, h *testkit.Harness)
-	want    func() string
+	name     string
+	seed     func(st *fakeapi.State)
+	signedIn bool
+	prepare  func(t *testing.T, h *testkit.Harness)
+	narrow   func(t *testing.T, h *testkit.Harness)
+	want     func() string
 }
 
 func uninitialized(st *fakeapi.State) { st.Initialized = false }
@@ -49,13 +53,69 @@ var authScreens = []screen{
 	{name: "setup", seed: uninitialized, prepare: connect, want: locales.SetupTitle},
 }
 
+func staffWorker(id, name, description, status string) api.Worker {
+	return api.Worker{ID: id, Name: name, Description: description, Status: status, Engine: "claude", WorkDir: "/srv/" + id}
+}
+
+func lastMessage(sender, preview string, at time.Time) *api.LastMessage {
+	return &api.LastMessage{Sender: api.ChatSender{Type: sender}, Kind: "message", Preview: preview, TS: at.UnixMilli()}
+}
+
+func workerChat(id string, last *api.LastMessage, unread int) api.ConversationSummary {
+	return api.ConversationSummary{ID: api.WorkerConversation(id), Kind: "worker", WorkerID: id, LastMessage: last, Unread: unread,
+		Activity: api.ConversationActivity{State: "idle"}}
+}
+
+func staffed(st *fakeapi.State) {
+	now := time.Now()
+	st.Workers = []api.Worker{
+		staffWorker("zhang", "张伟", "后端开发与接口维护", "working"),
+		staffWorker("ada", "Ada Lovelace", "Data analysis and monthly reports", "idle"),
+		staffWorker("li", "李娜", "文档与翻译", "idle"),
+		staffWorker("release", "release-bot", "Ships builds for every platform", "error"),
+		staffWorker("grace", "Grace Hopper", "Code review and refactoring", "idle"),
+	}
+	st.Conversations = []api.ConversationSummary{
+		{ID: api.BeeConversation, Kind: "bee", Unread: 2, Activity: api.ConversationActivity{State: "idle"},
+			LastMessage: lastMessage("bee", "Morning! Two workers finished their overnight tasks.", now.Add(-9*time.Minute))},
+		workerChat("zhang", lastMessage("worker", "接口已经改好了，正在跑集成测试", now.Add(-3*time.Minute)), 3),
+		workerChat("ada", lastMessage("user", "Can you rerun the March report with the new filters?", now.Add(-47*time.Minute)), 0),
+		workerChat("li", &api.LastMessage{Sender: api.ChatSender{Type: "bee"}, Kind: "handoff", HandoffWorkerID: "ada",
+			TS: now.AddDate(0, 0, -1).UnixMilli()}, 0),
+		workerChat("release", lastMessage("worker", "Build 1.4.2 failed on Windows arm64", now.AddDate(0, 0, -6)), 150),
+	}
+}
+
+func listOnly(_ *testing.T, h *testkit.Harness) {
+	h.Root.Nav().Push(route.ChatPath)
+	h.Settle()
+}
+
+func stillLoading(_ *testing.T, h *testkit.Harness) {
+	for _, r := range []interface{ Reset() }{h.Store.Workers, h.Store.Conversations} {
+		r.Reset()
+	}
+	h.Store.Workers.Loading = true
+	h.Store.Conversations.Loading = true
+	h.Settle()
+}
+
+var shellScreens = []screen{
+	{name: "shell-list", seed: staffed, signedIn: true, narrow: listOnly, want: func() string { return "Ada Lovelace" }},
+	{name: "shell-loading", seed: staffed, signedIn: true, prepare: stillLoading, narrow: listOnly, want: locales.NavSettings},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range authScreens {
+	for _, s := range append(authScreens, shellScreens...) {
 		t.Run(s.name, func(t *testing.T) {
-			h := testkit.New(t, wideW, wideH, s.seed)
+			open := testkit.New
+			if s.signedIn {
+				open = testkit.SignedIn
+			}
+			h := open(t, wideW, wideH, s.seed)
 			if s.prepare != nil {
 				s.prepare(t, h)
 			}
@@ -65,6 +125,9 @@ func TestScreens(t *testing.T) {
 			h.Shot(s.name)
 			h.T.SetSize(narrowW, narrowH)
 			h.Settle()
+			if s.narrow != nil {
+				s.narrow(t, h)
+			}
 			h.Shot(s.name + "-narrow")
 		})
 	}
