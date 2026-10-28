@@ -7,14 +7,16 @@ export function formatMessageTimestamp(timestamp: number | null | undefined, lan
   if (!timestamp) return ""
   return new Intl.DateTimeFormat(language, isSameDay(timestamp, Date.now())
     ? {
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       }
     : {
         month: "short",
         day: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       }).format(new Date(timestamp))
 }
 

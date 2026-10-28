@@ -79,7 +79,7 @@
     "rowActions": "Actions for {{name}}"
   },
   "workerDetail": {
-    "editConstraints": "Edit work constraints",
+    "editConstraints": "Edit constraints",
     "constraintsPanel": {
       "charCount": "{{count}} chars",
       "shortcuts": "⌘↵ to save, Esc to cancel",
