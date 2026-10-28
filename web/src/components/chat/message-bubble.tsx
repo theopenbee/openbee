@@ -45,6 +45,16 @@ function Attachments({ paths, hasContent, isUser }: { paths: string[]; hasConten
   )
 }
 
+function BubbleBody({ content, onExpandToggle }: { content: string; onExpandToggle: () => void }) {
+  return (
+    <div className="rounded-panel bg-surface-muted px-4 py-2.5">
+      <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle} fadeClassName="h-16 from-surface-muted">
+        <ChatMarkdown breaks>{content}</ChatMarkdown>
+      </ExpandableContent>
+    </div>
+  )
+}
+
 export const MessageBubble = memo(function MessageBubble({
   message,
   sender,
@@ -71,15 +81,7 @@ export const MessageBubble = memo(function MessageBubble({
 
         {hasContent && (
           <div className="relative min-w-0 max-w-[min(85%,36rem)]">
-            <div className="rounded-panel bg-surface-muted px-4 py-2.5">
-              <ExpandableContent
-                maxHeight={COLLAPSE_HEIGHT}
-                onToggle={onExpandToggle}
-                fadeClassName="h-16 from-surface-muted"
-              >
-                <ChatMarkdown breaks>{message.content}</ChatMarkdown>
-              </ExpandableContent>
-            </div>
+            <BubbleBody content={message.content} onExpandToggle={onExpandToggle} />
             <span className={cn("absolute top-1 right-full mr-1 inline-flex", COPY_REVEAL)}>
               <CopyButton value={message.content} label={t("chat.copyMessage")} />
             </span>
@@ -108,11 +110,9 @@ export const MessageBubble = memo(function MessageBubble({
             <Attachments paths={mediaPaths} hasContent={hasContent} isUser={false} />
 
             {hasContent && (
-              <div className="relative w-full min-w-0">
-                <ExpandableContent maxHeight={COLLAPSE_HEIGHT} onToggle={onExpandToggle}>
-                  <ChatMarkdown breaks>{message.content}</ChatMarkdown>
-                </ExpandableContent>
-                <span className={cn("absolute -top-1.5 right-full mr-0.5 inline-flex", COPY_REVEAL)}>
+              <div className="relative min-w-0 max-w-full">
+                <BubbleBody content={message.content} onExpandToggle={onExpandToggle} />
+                <span className={cn("absolute top-1 right-full mr-0.5 inline-flex", COPY_REVEAL)}>
                   <CopyButton value={message.content} label={t("chat.copyMessage")} />
                 </span>
               </div>

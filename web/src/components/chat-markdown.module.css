@@ -86,10 +86,10 @@
 }
 
 .root :global([data-streamdown="inline-code"]) {
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border);
   border-radius: max(4px, calc(var(--md-radius) - var(--space-1)));
   padding: 0 var(--space-1);
-  background: var(--surface-muted);
+  background: var(--surface);
   color: var(--foreground);
   font-family: var(--font-mono);
   font-size: 0.875em;
