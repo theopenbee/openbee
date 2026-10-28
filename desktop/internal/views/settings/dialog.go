@@ -45,6 +45,7 @@ type Dialog struct {
 	section    string
 	pluginID   string
 	pluginsTab int
+	setup      setupState
 	revealed   string
 	winW       float32
 }
@@ -74,6 +75,7 @@ func (d *Dialog) syncPolling() {
 		p.Watch("")
 	}
 	p.SetActive(shown)
+	d.syncSetup()
 }
 
 func current(id string) section {

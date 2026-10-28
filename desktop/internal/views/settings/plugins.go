@@ -3,14 +3,12 @@ package settings
 import (
 	"context"
 	"errors"
-	"slices"
 	"strconv"
 	"time"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
-	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
@@ -24,25 +22,21 @@ const (
 )
 
 const (
-	containerXL    = 576
-	container3XL   = 768
-	container4XL   = 896
-	pluginsGap     = 24
-	pluginsBarGap  = 12
-	textSize       = 14
-	metaSize       = 12
-	progressGap    = 8
-	progressGlyph  = 16
-	backGap        = 6
-	backGlyph      = 16
-	detailGap      = 16
-	detailNameSize = 22
-	noValue        = "–"
-	versionPrefix  = "v"
-	stateRunning   = "running"
-	stateNoConfig  = "not_configured"
-	opSucceeded    = "succeeded"
-	opFailed       = "failed"
+	containerXL   = 576
+	container3XL  = 768
+	container4XL  = 896
+	pluginsGap    = 24
+	pluginsBarGap = 12
+	textSize      = 14
+	metaSize      = 12
+	progressGap   = 8
+	progressGlyph = 16
+	noValue       = "–"
+	versionPrefix = "v"
+	stateRunning  = "running"
+	stateNoConfig = "not_configured"
+	opSucceeded   = "succeeded"
+	opFailed      = "failed"
 )
 
 type pluginsState struct {
@@ -93,34 +87,6 @@ func (d *Dialog) pluginsBar(c *ui.Context, tk theme.Tokens, st *pluginsState) {
 func (d *Dialog) showPlugins(tab int) {
 	d.choose(SectionPlugins)
 	d.pluginsTab = tab
-}
-
-func (d *Dialog) pluginDetail(c *ui.Context, tk theme.Tokens, id string) {
-	d.s.Plugins().Watch(id)
-	ui.Column(c).Key(id).MinWidth(0).Gap(detailGap).Children(func() {
-		back := ui.ButtonBase(c).Label(locales.PluginsDetailBack()).Role(ui.RoleLink).AlignSelf(ui.Start).
-			MinHeight(theme.ControlSM).Gap(backGap).AlignItems(ui.Center).FontSize(textSize)
-		fg := tk.TextSecondary
-		if back.Hovered() || back.Pressed() {
-			fg = tk.Foreground
-		}
-		back.TextColor(fg).OnClick(func() { d.showPlugins(tabInstalled) }).Children(func() {
-			ui.Icon(c, icons.Get("arrow-left")).Size(backGlyph, backGlyph)
-			ui.Text(c, locales.PluginsDetailBack()).SingleLine()
-		})
-		ui.Text(c, d.pluginTitle(id)).FontSize(detailNameSize).FontWeight(mediumWeight).Role(ui.RoleHeading).Level(2)
-	})
-}
-
-func (d *Dialog) pluginTitle(id string) string {
-	p := d.s.Plugins()
-	if i := slices.IndexFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == id }); i >= 0 {
-		return displayName(p.List.Data[i].Name, id)
-	}
-	if i := slices.IndexFunc(p.Catalog.Data.Plugins, func(s api.CatalogPlugin) bool { return s.ID == id }); i >= 0 {
-		return displayName(p.Catalog.Data.Plugins[i].Name, id)
-	}
-	return id
 }
 
 func displayName(names api.LocalizedText, id string) string {

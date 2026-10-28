@@ -795,10 +795,79 @@ func pluginsInstallDialog(t *testing.T, h *testkit.Harness) {
 	clickAndSettle(t, h, locales.PluginsInstallDialogSubmit(), 0)
 }
 
+func pluginDetailSeed(st *fakeapi.State) {
+	pluginSeed(st)
+	st.Catalog.Plugins[0].Repository = "https://github.com/theopenbee/openbee-plugin-telegram"
+	st.Catalog.Plugins[5].Repository = "https://github.com/theopenbee/openbee-plugin-discord"
+	text := func(en, zh string) api.LocalizedText { return bilingual(en, zh) }
+	telegram := &st.Plugins[0]
+	telegram.Config = map[string]any{"bot_token": "****Q7wE", "allowed_chats": []any{"-1001934451200", "@openbee_ops"}, "poll_seconds": float64(30),
+		"reply_in_threads": true}
+	telegram.Fields = []api.PluginConfigField{
+		{Key: "bot_token", Type: "secret", Required: true, Label: text("Bot token", "机器人令牌"),
+			Help: text("From @BotFather; stored encrypted on the server.", "从 @BotFather 获取，加密保存在服务器上。")},
+		{Key: "allowed_chats", Type: "list", Label: text("Allowed chats", "允许的会话"),
+			Help: text("Chat IDs or @usernames, one per line. Empty allows every chat.", "会话 ID 或 @用户名，每行一个；留空表示允许所有会话。")},
+		{Key: "poll_seconds", Type: "int", Default: float64(30), Label: text("Poll interval (seconds)", "轮询间隔（秒）")},
+		{Key: "api_base", Type: "string", Default: "https://api.telegram.org", Label: text("API base URL", "API 地址")},
+		{Key: "reply_in_threads", Type: "bool", Label: text("Reply in threads", "在话题中回复"),
+			Help: text("Keep worker replies under the message that mentioned them.", "员工的回复保持在 @ 它的消息下面。")},
+	}
+	discord := &st.Plugins[1]
+	discord.Config = map[string]any{"bot_token": "****x9Lk", "guild_id": "1142087711206613032"}
+	discord.Fields = []api.PluginConfigField{
+		{Key: "bot_token", Type: "secret", Required: true, Label: text("Bot token", "机器人令牌")},
+		{Key: "guild_id", Type: "string", Required: true, Label: text("Server ID", "服务器 ID"),
+			Help: text("Right-click the server icon and copy its ID.", "右键服务器图标并复制 ID。")},
+	}
+	feishu := &st.Plugins[2]
+	feishu.HasSetup = true
+	feishu.SetupLabel = text("Sign in with Feishu", "飞书扫码登录")
+	feishu.Fields = []api.PluginConfigField{
+		{Key: "app_id", Type: "string", Required: true, Label: text("App ID", "应用 ID")},
+		{Key: "app_secret", Type: "secret", Required: true, Label: text("App secret", "应用密钥")},
+	}
+}
+
+func pluginDetail(name string) func(t *testing.T, h *testkit.Harness) {
+	return func(t *testing.T, h *testkit.Harness) {
+		pluginsInstalled(t, h)
+		clickAndSettle(t, h, name, 0)
+	}
+}
+
+func pluginSetupQR(t *testing.T, h *testkit.Harness) {
+	pluginDetail("Feishu")(t, h)
+	clickAndSettle(t, h, locales.PluginsSetupStart(), 0)
+	var sid string
+	h.Fix.Await(t, func() bool {
+		sid = h.Fake.SetupSession("feishu")
+		return sid != "" && h.Fake.SetupStreams(sid) == 1
+	})
+	for _, line := range []string{
+		"Starting the Feishu sign-in helper",
+		"Requesting a sign-in code",
+		"https://passport.feishu.cn/suite/passport/qrlogin?token=7f3c9a1e2b4d4e6f8a0b1c2d3e4f5a6b",
+		"Scan the code with the Feishu app",
+		"Waiting for the phone to confirm",
+	} {
+		h.Fake.SetupEmit(sid, api.SetupEvent{Type: "line", Text: line})
+	}
+	h.Fix.Await(t, func() bool {
+		h.T.Frame()
+		return h.T.HasText("Waiting for the phone to confirm")
+	})
+	h.Settle()
+}
+
 var pluginScreens = []screen{
 	{name: "plugins-market", seed: pluginSeed, signedIn: true, prepare: openSettings("plugins"), want: locales.PluginsActionInstallingShort},
 	{name: "plugins-installed", seed: pluginSeed, signedIn: true, prepare: pluginsInstalled, want: locales.PluginsInstalledTitle},
 	{name: "plugins-install-dialog", seed: pluginSeed, signedIn: true, prepare: pluginsInstallDialog, want: locales.PluginsInstallDialogInstalling},
+	{name: "plugin-detail", seed: pluginDetailSeed, signedIn: true, prepare: pluginDetail("Telegram"), want: locales.PluginsDetailInfo},
+	{name: "plugin-detail-failed", seed: pluginDetailSeed, signedIn: true, prepare: pluginDetail("Discord"), shots: wideOnly,
+		want: locales.PluginsDetailFailedTitle},
+	{name: "plugin-setup-qr", seed: pluginDetailSeed, signedIn: true, prepare: pluginSetupQR, shots: wideOnly, want: locales.PluginsSetupScanHint},
 }
 
 func TestScreens(t *testing.T) {

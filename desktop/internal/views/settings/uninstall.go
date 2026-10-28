@@ -14,10 +14,15 @@ type uninstallState struct {
 	id, name string
 	err      error
 	pending  bool
+	leave    bool
 }
 
 func (u *uninstallState) show(id, name string) {
 	*u = uninstallState{open: true, id: id, name: name}
+}
+
+func (u *uninstallState) showLeaving(id, name string) {
+	*u = uninstallState{open: true, id: id, name: name, leave: true}
 }
 
 func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState) {
@@ -33,8 +38,12 @@ func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallSta
 				u.err = failure(err)
 				return
 			}
-			if u.id == id {
-				u.open = false
+			if u.id != id {
+				return
+			}
+			u.open = false
+			if u.leave {
+				d.showPlugins(tabInstalled)
 			}
 		})
 	}

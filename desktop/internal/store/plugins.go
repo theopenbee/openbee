@@ -13,6 +13,12 @@ import (
 )
 
 const (
+	ActionEnable  = "enable"
+	ActionDisable = "disable"
+	ActionRestart = "restart"
+)
+
+const (
 	opsPollEvery     = time.Second
 	pluginsPollEvery = 2 * time.Second
 	catalogRefresh   = 90 * time.Second
@@ -33,10 +39,12 @@ type PluginsState struct {
 	watched   string
 	actions   int
 	toggling  map[string]bool
+	running   map[string]string
 	requested map[string]bool
 	seen      map[string]bool
 	stopOps   func()
 	stopList  func()
+	setup     *SetupSession
 }
 
 func (s *Store) initPlugins() {
@@ -68,8 +76,10 @@ func (p *PluginsState) reset() {
 	p.actions = 0
 	p.Pending = map[string]bool{}
 	p.toggling = map[string]bool{}
+	p.running = map[string]string{}
 	p.requested = map[string]bool{}
 	p.seen = nil
+	p.CancelSetup(p.setup)
 }
 
 func (p *PluginsState) Detail(id string) *Resource[api.PluginDetail] {
@@ -117,6 +127,10 @@ func (p *PluginsState) Enabled(plugin api.PluginStatus) bool {
 
 func (p *PluginsState) Acting() bool {
 	return p.actions > 0
+}
+
+func (p *PluginsState) Action(id string) string {
+	return p.running[id]
 }
 
 func (p *PluginsState) Requested(pkg string) bool {
@@ -198,7 +212,11 @@ func (p *PluginsState) Toggle(id string, enable bool, done func(error)) {
 	if enable {
 		toast = locales.Messages.PluginsToastEnabled
 	}
-	p.act(id, toast, done, func(ctx context.Context, c *api.Client) error {
+	kind := ActionDisable
+	if enable {
+		kind = ActionEnable
+	}
+	p.act(id, kind, toast, done, func(ctx context.Context, c *api.Client) error {
 		if enable {
 			return c.EnablePlugin(ctx, id)
 		}
@@ -207,7 +225,7 @@ func (p *PluginsState) Toggle(id string, enable bool, done func(error)) {
 }
 
 func (p *PluginsState) Restart(id string, done func(error)) {
-	p.act(id, locales.Messages.PluginsToastRestarted, done, func(ctx context.Context, c *api.Client) error {
+	p.act(id, ActionRestart, locales.Messages.PluginsToastRestarted, done, func(ctx context.Context, c *api.Client) error {
 		return c.RestartPlugin(ctx, id)
 	})
 }
@@ -225,9 +243,10 @@ func (p *PluginsState) SaveSettings(id string, u api.PluginSettingsUpdate, done 
 	}, canceledBy(done))
 }
 
-func (p *PluginsState) act(id string, success func(locales.Messages, string) string, done func(error), call func(ctx context.Context, c *api.Client) error) {
+func (p *PluginsState) act(id, kind string, success func(locales.Messages, string) string, done func(error), call func(ctx context.Context, c *api.Client) error) {
 	done = orNop(done)
 	p.Pending[id] = true
+	p.running[id] = kind
 	p.actions++
 	p.s.async(func(ctx context.Context, c *api.Client) func() {
 		err := call(ctx, c)
@@ -235,6 +254,7 @@ func (p *PluginsState) act(id string, success func(locales.Messages, string) str
 			p.refetchPlugins(func() {
 				delete(p.Pending, id)
 				delete(p.toggling, id)
+				delete(p.running, id)
 				p.actions--
 			})
 			if err != nil {

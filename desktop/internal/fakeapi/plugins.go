@@ -507,6 +507,35 @@ func (s *Server) SetupEmit(sid string, ev api.SetupEvent) {
 	s.publishSetup(sid, ev)
 }
 
+func (s *Server) SetupSession(pluginID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.setups.byPlugin[pluginID]
+}
+
+func (s *Server) SetupStreams(sid string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ses := s.setups.sessions[sid]; ses != nil {
+		return len(ses.subs)
+	}
+	return 0
+}
+
+func (s *Server) DropSetupStreams(sid string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ses := s.setups.sessions[sid]
+	if ses == nil {
+		s.t.Errorf("fakeapi: unknown plugin setup session %q", sid)
+		return
+	}
+	for st := range ses.subs {
+		st.close()
+		delete(ses.subs, st)
+	}
+}
+
 func (s *Server) setupInput(q *request) reply {
 	sid := q.param("sid")
 	ses := s.setups.sessions[sid]

@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	chatStreamURLPath = "/api" + api.ChatStreamPath
-	eventStreamType   = "text/event-stream"
-	offlineGrace      = 4 * time.Second
-	reconnectBase     = 2 * time.Second
-	reconnectMax      = 30 * time.Second
+	apiPrefix       = "/api"
+	eventStreamType = "text/event-stream"
+	offlineGrace    = 4 * time.Second
+	reconnectBase   = 2 * time.Second
+	reconnectMax    = 30 * time.Second
 )
 
-var errStreamResponse = errors.New("unexpected chat stream response")
+var errStreamResponse = errors.New("unexpected event stream response")
 
 type hook[F any] struct {
 	id int
@@ -113,7 +113,7 @@ func (s *Store) runStream(sess *session, wake chan struct{}) {
 	}
 	_ = sse.Run(sess.ctx, sse.Options{
 		Open: func(ctx context.Context) (io.ReadCloser, error) {
-			return openStream(ctx, sess.client)
+			return openStream(ctx, sess.client, api.ChatStreamPath)
 		},
 		OnOpen: func() {
 			post(s.streamOpened)
@@ -141,11 +141,11 @@ func (s *Store) runStream(sess *session, wake chan struct{}) {
 	})
 }
 
-func openStream(ctx context.Context, c *api.Client) (io.ReadCloser, error) {
+func openStream(ctx context.Context, c *api.Client, path string) (io.ReadCloser, error) {
 	if err := c.EnsureFresh(ctx); errors.Is(err, api.ErrUnauthorized) {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+chatStreamURLPath, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+apiPrefix+path, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -18,13 +18,14 @@ const (
 )
 
 type AlertOpts struct {
-	Tone          Tone
-	Title, Body   string
-	Mono          bool
-	ActionLabel   string
-	ActionLoading bool
-	OnAction      func()
-	OnDismiss     func()
+	Tone           Tone
+	Title, Body    string
+	Mono           bool
+	ActionLabel    string
+	ActionLoading  bool
+	ActionDisabled bool
+	OnAction       func()
+	OnDismiss      func()
 }
 
 const (
@@ -78,7 +79,7 @@ func Alert(c *ui.Context, tk theme.Tokens, o AlertOpts) ui.Element {
 				}
 			}
 			if o.ActionLabel != "" && o.OnAction != nil {
-				Button(c, tk, o.ActionLabel, ButtonOpts{Variant: Secondary, Size: SizeSM, Loading: o.ActionLoading}).
+				Button(c, tk, o.ActionLabel, ButtonOpts{Variant: Secondary, Size: SizeSM, Loading: o.ActionLoading, Disabled: o.ActionDisabled}).
 					AlignSelf(ui.Start).Margin(alertActionGap, 0, 0, 0).OnClick(o.OnAction)
 			}
 		})
