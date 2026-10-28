@@ -76,6 +76,7 @@ type Store struct {
 
 	details    map[string]*Resource[api.Worker]
 	envs       map[envScope]*Resource[[]api.EnvConfig]
+	plugins    *PluginsState
 	active     string
 	foreground bool
 	lastSeq    *uint64

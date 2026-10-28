@@ -40,12 +40,13 @@ var sections = []section{
 }
 
 type Dialog struct {
-	s        *store.Store
-	open     bool
-	section  string
-	pluginID string
-	revealed string
-	winW     float32
+	s          *store.Store
+	open       bool
+	section    string
+	pluginID   string
+	pluginsTab int
+	revealed   string
+	winW       float32
 }
 
 func New(s *store.Store) *Dialog {
@@ -56,11 +57,18 @@ func (d *Dialog) Open(id, pluginID string) {
 	d.open = true
 	d.section = current(id).id
 	d.pluginID = pluginID
+	d.pluginsTab = tabMarket
 	d.revealed = ""
+	d.syncPolling()
 }
 
 func (d *Dialog) Close() {
 	d.open = false
+	d.syncPolling()
+}
+
+func (d *Dialog) syncPolling() {
+	d.s.Plugins().SetActive(d.open && d.section == SectionPlugins)
 }
 
 func current(id string) section {
@@ -75,6 +83,8 @@ func current(id string) section {
 func (d *Dialog) choose(id string) {
 	d.section = id
 	d.pluginID = ""
+	d.pluginsTab = tabMarket
+	d.syncPolling()
 }
 
 func (d *Dialog) wide() bool {
@@ -100,12 +110,13 @@ func (d *Dialog) View(c *ui.Context) {
 		Height:      theme.SettingsMaxH,
 		Flush:       true,
 	}, func() { d.frame(c, tk, cur) })
+	d.syncPolling()
 }
 
 func (d *Dialog) frame(c *ui.Context, tk theme.Tokens, cur section) {
 	box := ui.Column(c)
 	if d.wide() {
-		box = ui.Row(c).AlignItems(ui.Stretch)
+		box.Row().AlignItems(ui.Stretch)
 	}
 	box.Grow(1).Shrink(1).MinWidth(0).MinHeight(0).Children(func() {
 		d.nav(c, tk, cur)

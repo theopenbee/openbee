@@ -716,11 +716,96 @@ var settingsScreens = []screen{
 		want: locales.SystemSettingsSubtitle},
 }
 
+func bilingual(en, zh string) api.LocalizedText {
+	return api.LocalizedText{"en": en, "zh": zh}
+}
+
+func catalogEntry(id, version string, official bool, name, description api.LocalizedText, tags ...string) api.CatalogPlugin {
+	return api.CatalogPlugin{Category: "channel", ID: id, Package: "@openbee/plugin-" + id, Version: version, Official: official,
+		Name: name, Description: description, Tags: tags, ProtocolVersion: 1, License: "MIT", Installable: true}
+}
+
+func installedPlugin(id, version, state, botName string, enabled bool, name api.LocalizedText) api.PluginDetail {
+	return api.PluginDetail{PluginStatus: api.PluginStatus{ID: id, Package: "@openbee/plugin-" + id, Source: "npm", Version: version,
+		Path: "/var/lib/openbee/plugins/" + id, Name: name, Enabled: enabled, BotName: botName, State: state}}
+}
+
+func pluginSeed(st *fakeapi.State) {
+	settingsSeed(st)
+	telegram := catalogEntry("telegram", "1.3.0", true, bilingual("Telegram", "Telegram"),
+		bilingual("Chat with your workers from Telegram groups and direct messages.", "在 Telegram 群组和私聊里与员工对话。"), "messaging", "global")
+	telegram.Installed, telegram.InstalledVersion, telegram.UpdateAvailable = true, "1.2.0", true
+	dingtalk := catalogEntry("dingtalk", "0.8.1", true, bilingual("DingTalk", "钉钉"),
+		bilingual("Answer DingTalk group mentions with the right worker.", "在钉钉群里由合适的员工回复 @ 消息。"), "work", "china")
+	dingtalk.Installed, dingtalk.InstalledVersion = true, "0.8.1"
+	dingtalk.Deprecated = bilingual("Superseded by the DingTalk Stream plugin.", "已由钉钉 Stream 插件取代。")
+	wechat := catalogEntry("wechat", "0.3.0", false, bilingual("WeChat", "微信"),
+		bilingual("Talk to workers from a personal WeChat account.", "用个人微信与员工对话。"), "messaging", "china")
+	wechat.Installable, wechat.MinOpenbeeVersion = false, "0.9.0"
+	discord := catalogEntry("discord", "1.1.0", true, bilingual("Discord", "Discord"),
+		bilingual("Bring workers into Discord servers, threads and DMs.", "把员工带进 Discord 服务器、话题和私信。"), "messaging", "global")
+	discord.Installed, discord.InstalledVersion = true, "1.1.0"
+	feishu := catalogEntry("feishu", "0.9.2", true, bilingual("Feishu", "飞书"),
+		bilingual("Connect workers to Feishu chats and document notifications.", "把员工接入飞书群聊与文档通知。"), "messaging", "work", "china")
+	feishu.Installed, feishu.InstalledVersion = true, "0.9.2"
+	st.Catalog = api.PluginCatalog{
+		SchemaVersion: 1,
+		Categories:    []api.CatalogTag{{ID: "channel", Name: bilingual("Channels", "渠道")}},
+		Tags: []api.CatalogTag{
+			{ID: "messaging", Name: bilingual("Messaging", "即时通讯")},
+			{ID: "work", Name: bilingual("Work", "办公协作")},
+			{ID: "china", Name: bilingual("China", "国内")},
+			{ID: "global", Name: bilingual("Global", "海外")},
+			{ID: "email", Name: bilingual("Email", "邮件")},
+		},
+		Plugins: []api.CatalogPlugin{
+			telegram,
+			dingtalk,
+			catalogEntry("wecom", "0.6.0", false, bilingual("WeCom", "企业微信"),
+				bilingual("Route WeCom messages to the right worker.", "把企业微信消息分派给合适的员工。"), "work", "china"),
+			wechat,
+			catalogEntry("linear", "0.4.0", true, bilingual("Linear", "Linear"),
+				bilingual("Turn Linear issues and comments into worker tasks.", "把 Linear 工单和评论变成员工任务。"), "work", "global"),
+			discord,
+			feishu,
+		},
+	}
+	failed := installedPlugin("discord", "1.1.0", "failed", "OpenBee#4821", true, bilingual("Discord", "Discord"))
+	failed.Error = "gateway: 4004 authentication failed, check the bot token"
+	st.Plugins = []api.PluginDetail{
+		installedPlugin("telegram", "1.2.0", "running", "openbee_bot", true, bilingual("Telegram", "Telegram")),
+		failed,
+		installedPlugin("feishu", "0.9.2", "not_configured", "", false, bilingual("Feishu", "飞书")),
+		installedPlugin("dingtalk", "0.8.1", "disabled", "OpenBee 助手", false, bilingual("DingTalk", "钉钉")),
+	}
+	st.Operations = []api.PluginOperation{{ID: "op-wecom", Kind: "install", Spec: "@openbee/plugin-wecom@0.6.0", Status: "running",
+		CreatedAt: time.Now().Add(-12 * time.Second)}}
+}
+
+func pluginsInstalled(t *testing.T, h *testkit.Harness) {
+	openSettings("plugins")(t, h)
+	clickAndSettle(t, h, locales.PluginsTabsInstalled(), 0)
+}
+
+func pluginsInstallDialog(t *testing.T, h *testkit.Harness) {
+	openSettings("plugins")(t, h)
+	clickAndSettle(t, h, locales.PluginsInstallDialogOpen(), 0)
+	h.T.Type("@acme/openbee-plugin-slack@2.0.1")
+	h.Settle()
+	clickAndSettle(t, h, locales.PluginsInstallDialogSubmit(), 0)
+}
+
+var pluginScreens = []screen{
+	{name: "plugins-market", seed: pluginSeed, signedIn: true, prepare: openSettings("plugins"), want: locales.PluginsActionInstallingShort},
+	{name: "plugins-installed", seed: pluginSeed, signedIn: true, prepare: pluginsInstalled, want: locales.PluginsInstalledTitle},
+	{name: "plugins-install-dialog", seed: pluginSeed, signedIn: true, prepare: pluginsInstallDialog, want: locales.PluginsInstallDialogInstalling},
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

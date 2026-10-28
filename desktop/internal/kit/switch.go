@@ -25,6 +25,7 @@ const (
 	checkFillFrom     = 0.6
 	checkCopyStart    = 1
 	checkCopyTop      = (theme.ControlMD - bodyFontSize*theme.BodyLineHeight) / 2
+	switchDisabled    = 0.5
 )
 
 var (
@@ -53,6 +54,14 @@ func SwitchRow(c *ui.Context, tk theme.Tokens, on *bool, title, description stri
 		})
 		switchTrack(c, tk, s, *on, disabled)
 	})
+}
+
+func Switch(c *ui.Context, tk theme.Tokens, on *bool, label string, disabled bool) ui.Element {
+	s := ui.SwitchBase(c, on).Disabled(disabled).Label(label).Shrink(0)
+	if disabled {
+		s.Opacity(switchDisabled)
+	}
+	return s.Children(func() { switchTrack(c, tk, s, *on, disabled) })
 }
 
 func switchTrack(c *ui.Context, tk theme.Tokens, s ui.Element, on, disabled bool) {

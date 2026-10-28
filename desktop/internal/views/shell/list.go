@@ -24,11 +24,6 @@ const (
 	listPadX       = 12
 	listPadBottom  = 12
 	rowGap         = 2
-	searchPadX     = 12
-	searchGap      = 8
-	searchIcon     = 18
-	clearBox       = 24
-	clearIcon      = 16
 	noteGap        = 12
 	notePadX       = 12
 	notePadY       = 16
@@ -42,15 +37,12 @@ const (
 	skeletonGap    = 8
 )
 
-var fast = ui.Animation{Duration: 160 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
-
 type hintKey struct{}
 
 type list struct {
 	query    string
 	rows     []api.ConversationSummary
 	state    ui.ListState
-	search   ui.Handle
 	revealed string
 }
 
@@ -69,7 +61,9 @@ func (sh *Shell) listView(c *ui.Context, tk theme.Tokens, param, active string) 
 	sh.s.Workers.Ensure()
 	ui.Column(c).Grow(1).MinHeight(0).Background(tk.Background).Children(func() {
 		sh.listHeader(c, tk, param)
-		ui.Box(c).Shrink(0).Padding(0, listPadX, listPadX, listPadX).Children(func() { sh.searchField(c, tk) })
+		ui.Box(c).Shrink(0).Padding(0, listPadX, listPadX, listPadX).Children(func() {
+			kit.SearchField(c, tk, &sh.list.query, locales.ChatSearch(), locales.ChatSearch())
+		})
 		sh.listBody(c, tk, param, active)
 		ui.Row(c).Shrink(0).Justify(ui.SpaceBetween).Gap(footerGap).Padding(footerPad).
 			BorderWidth(1, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
@@ -87,52 +81,6 @@ func (sh *Shell) listHeader(c *ui.Context, tk theme.Tokens, param string) {
 		ui.Image(c, icons.LogoFull(tk)).Size(logoHeight*logoAspect, logoHeight)
 		kit.IconButton(c, tk, "plus", locales.ChatNewWorker(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM}).
 			OnClick(func() { sh.openNewWorker(param) })
-	})
-}
-
-func (sh *Shell) searchField(c *ui.Context, tk theme.Tokens) {
-	l := &sh.list
-	field := ui.Row(c).MinHeight(theme.ControlMD).Gap(searchGap).PaddingX(searchPadX).
-		Radius(theme.RadiusControl).Background(tk.Surface)
-	focused := field.FocusWithin()
-	border, glyph := tk.BorderStrong, tk.TextMuted
-	if focused || field.Hovered() {
-		border = tk.Foreground
-	}
-	if focused || l.query != "" {
-		glyph = tk.Foreground
-	}
-	field.Border(1, field.AnimateColor("border", border, fast)).Children(func() {
-		ui.Icon(c, icons.Get("search")).Size(searchIcon, searchIcon).Shrink(0).TextColor(field.AnimateColor("glyph", glyph, fast))
-		ui.TextInputBase(c, &l.query).Bind(&l.search).Label(locales.ChatSearch()).Placeholder(locales.ChatSearch()).
-			FontSize(bodySize).Grow(1).MinWidth(0).FocusRing(false).OnTextKey(clearOnEscape)
-		ui.Box(c).Size(clearBox, clearBox).Shrink(0).Children(func() {
-			if l.query != "" {
-				clearButton(c, tk).OnClick(func() {
-					l.query = ""
-					l.search.Focus()
-				})
-			}
-		})
-	})
-}
-
-func clearOnEscape(k ui.TextKey) bool {
-	if k.Key != ui.KeyEscape || k.Mods != 0 || k.Text() == "" {
-		return false
-	}
-	k.SetText("")
-	return true
-}
-
-func clearButton(c *ui.Context, tk theme.Tokens) ui.Element {
-	b := ui.ButtonBase(c).Label(locales.ArcSearchFieldClear()).Size(clearBox, clearBox).Radius(theme.RadiusControl).KeepFocus()
-	bg, fg := tk.SurfaceMuted.Alpha(0), tk.TextMuted
-	if b.Hovered() || b.Pressed() {
-		bg, fg = tk.SurfaceMuted, tk.Foreground
-	}
-	return b.Background(b.AnimateColor("bg", bg, fast)).TextColor(b.AnimateColor("fg", fg, fast)).Children(func() {
-		ui.Icon(c, icons.Get("x")).Size(clearIcon, clearIcon)
 	})
 }
 

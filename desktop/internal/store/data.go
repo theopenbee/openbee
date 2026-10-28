@@ -24,6 +24,7 @@ func (s *Store) initData() {
 	})
 	s.details = map[string]*Resource[api.Worker]{}
 	s.envs = map[envScope]*Resource[[]api.EnvConfig]{}
+	s.initPlugins()
 }
 
 func (s *Store) WorkerMap() map[string]api.Worker {

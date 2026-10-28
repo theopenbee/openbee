@@ -20,6 +20,7 @@ const (
 type AlertOpts struct {
 	Tone          Tone
 	Title, Body   string
+	Mono          bool
 	ActionLabel   string
 	ActionLoading bool
 	OnAction      func()
@@ -71,7 +72,10 @@ func Alert(c *ui.Context, tk theme.Tokens, o AlertOpts) ui.Element {
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			ui.Text(c, o.Title).FontSize(bodyFontSize).FontWeight(mediumWeight)
 			if o.Body != "" {
-				ui.Text(c, o.Body).FontSize(smallFontSize).TextColor(tk.TextSecondary).Margin(alertBodyGap, 0, 0, 0)
+				body := ui.Text(c, o.Body).FontSize(smallFontSize).TextColor(tk.TextSecondary).Margin(alertBodyGap, 0, 0, 0)
+				if o.Mono {
+					body.Font(theme.FontMono).Selectable()
+				}
 			}
 			if o.ActionLabel != "" && o.OnAction != nil {
 				Button(c, tk, o.ActionLabel, ButtonOpts{Variant: Secondary, Size: SizeSM, Loading: o.ActionLoading}).
