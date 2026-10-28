@@ -17,6 +17,7 @@ type Resource[T any] struct {
 	s       *Store
 	fetch   func(ctx context.Context, c *api.Client) (T, error)
 	settled func()
+	waiters []func()
 	again   bool
 	seq     uint64
 }
@@ -51,6 +52,7 @@ func (r *Resource[T]) Set(v T) {
 	r.Err = nil
 	r.FetchedAt = r.s.o.Now()
 	r.again = false
+	r.flushWaiters()
 }
 
 func (r *Resource[T]) Reset() {
@@ -62,10 +64,31 @@ func (r *Resource[T]) Reset() {
 	r.Err = nil
 	r.FetchedAt = time.Time{}
 	r.again = false
+	r.waiters = nil
 }
 
 func (r *Resource[T]) Stale(d time.Duration) bool {
 	return r.FetchedAt.IsZero() || r.s.o.Now().Sub(r.FetchedAt) >= d
+}
+
+func (r *Resource[T]) patch(v T) {
+	r.Data = v
+	r.FetchedAt = r.s.o.Now()
+}
+
+func (r *Resource[T]) refetch(then func()) {
+	r.waiters = append(r.waiters, then)
+	if !r.Loading {
+		r.load()
+	}
+}
+
+func (r *Resource[T]) flushWaiters() {
+	waiters := r.waiters
+	r.waiters = nil
+	for _, fn := range waiters {
+		fn()
+	}
 }
 
 func (r *Resource[T]) load() {
@@ -92,6 +115,7 @@ func (r *Resource[T]) load() {
 			if r.settled != nil {
 				r.settled()
 			}
+			r.flushWaiters()
 			if r.again {
 				r.load()
 			}

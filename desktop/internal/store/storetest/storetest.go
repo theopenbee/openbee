@@ -1,6 +1,7 @@
 package storetest
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +38,82 @@ func (n *FakeNotifier) SetUnread(total int) { n.Unread = total }
 
 func (n *FakeNotifier) Foreground() bool { return n.Visible }
 
+type Clock struct {
+	mu       sync.Mutex
+	now      time.Time
+	sleepers map[*sleeper]struct{}
+}
+
+type sleeper struct {
+	until time.Time
+	done  chan struct{}
+}
+
+func NewClock(start time.Time) *Clock {
+	return &Clock{now: start, sleepers: map[*sleeper]struct{}{}}
+}
+
+func (c *Clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *Clock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+	for sl := range c.sleepers {
+		if !sl.until.After(c.now) {
+			close(sl.done)
+			delete(c.sleepers, sl)
+		}
+	}
+}
+
+func (c *Clock) Sleep(ctx context.Context, d time.Duration, wake <-chan struct{}) error {
+	c.mu.Lock()
+	if d <= 0 {
+		c.mu.Unlock()
+		return ctx.Err()
+	}
+	sl := &sleeper{until: c.now.Add(d), done: make(chan struct{})}
+	c.sleepers[sl] = struct{}{}
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		delete(c.sleepers, sl)
+		c.mu.Unlock()
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-wake:
+		return nil
+	case <-sl.done:
+		return nil
+	}
+}
+
+func (c *Clock) Sleepers() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.sleepers)
+}
+
+func (c *Clock) AwaitSleepers(t testing.TB, n int) {
+	t.Helper()
+	deadline := time.Now().Add(settleTimeout)
+	for c.Sleepers() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d sleepers after %v, want %d", c.Sleepers(), settleTimeout, n)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 type Fixture struct {
+	Clock    *Clock
 	Notifier *FakeNotifier
 	Prefs    prefs.Store
 	Tokens   prefs.TokenStore
@@ -79,6 +155,7 @@ func New(t testing.TB, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Ser
 		fake.Update(seed)
 	}
 	fix := &Fixture{
+		Clock:    NewClock(time.Now()),
 		Notifier: &FakeNotifier{},
 		Prefs:    prefs.NewMemoryStore(prefs.Prefs{}),
 		Tokens:   prefs.NewMemoryTokenStore(),
@@ -89,6 +166,8 @@ func New(t testing.TB, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Ser
 		Prefs:          fix.Prefs,
 		Tokens:         fix.Tokens,
 		Notifier:       fix.Notifier,
+		Now:            fix.Clock.Now,
+		Sleep:          fix.Clock.Sleep,
 		CacheDir:       t.TempDir(),
 		SetLocale:      func(lang string) { fix.Locales = append(fix.Locales, lang) },
 		SetThemeSource: func(pref string) { fix.Themes = append(fix.Themes, pref) },
@@ -113,6 +192,24 @@ func (f *Fixture) Settle(t testing.TB) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("store did not settle within %v: %d tasks still running", settleTimeout, f.store.Busy())
+		}
+		select {
+		case <-f.queue.wake:
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+func (f *Fixture) Await(t testing.TB, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(settleTimeout)
+	for {
+		f.Settle(t)
+		if cond() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("condition not met within %v", settleTimeout)
 		}
 		select {
 		case <-f.queue.wake:

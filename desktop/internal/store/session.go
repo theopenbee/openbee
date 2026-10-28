@@ -133,6 +133,7 @@ func (s *Store) Start() {
 			}
 			ts.set(tokens)
 			s.Phase = PhaseReady
+			s.startStream()
 		}
 	}, nil)
 }
@@ -216,6 +217,7 @@ func (s *Store) signIn(username string, pair api.TokenPair) {
 	s.Prefs.Username = username
 	s.savePrefs()
 	s.Phase = PhaseReady
+	s.startStream()
 	s.resolveLanguage()
 }
 

@@ -31,6 +31,7 @@ type Options struct {
 	Tokens         prefs.TokenStore
 	Notifier       Notifier
 	Now            func() time.Time
+	Sleep          func(ctx context.Context, d time.Duration, wake <-chan struct{}) error
 	CacheDir       string
 	SetLocale      func(lang string)
 	SetThemeSource func(pref string)
@@ -55,11 +56,16 @@ const (
 )
 
 type Store struct {
-	Phase  Phase
-	Prefs  prefs.Prefs
-	Server string
-	Config *Resource[api.Config]
-	Toasts []kit.Toast
+	Phase         Phase
+	Prefs         prefs.Prefs
+	Server        string
+	Config        *Resource[api.Config]
+	Workers       *Resource[[]api.Worker]
+	Conversations *Resource[[]api.ConversationSummary]
+	SystemConfigs *Resource[map[string]string]
+	Online        bool
+	Offline       bool
+	Toasts        []kit.Toast
 
 	o      Options
 	sess   *session
@@ -67,6 +73,16 @@ type Store struct {
 	busy   atomic.Int64
 	lang   atomic.Value
 	writes writer
+
+	details    map[string]*Resource[api.Worker]
+	active     string
+	foreground bool
+	lastSeq    *uint64
+	wake       chan struct{}
+	stopGrace  context.CancelFunc
+	unread     int
+	onMessage  hooks[func(cid string, m api.ChatMessage)]
+	onResync   hooks[func()]
 }
 
 type writer struct {
@@ -87,6 +103,9 @@ func New(o Options) *Store {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.Sleep == nil {
+		o.Sleep = sleep
+	}
 	if o.Notifier == nil {
 		o.Notifier = noNotifier{}
 	}
@@ -96,11 +115,13 @@ func New(o Options) *Store {
 	if o.SetThemeSource == nil {
 		o.SetThemeSource = func(string) {}
 	}
-	s := &Store{o: o}
+	s := &Store{o: o, foreground: true}
 	s.Config = NewResource(s, func(ctx context.Context, c *api.Client) (api.Config, error) {
 		return c.Config(ctx)
 	})
 	s.Config.settled = s.configSettled
+	s.initData()
+	s.resets = append(s.resets, s.resetLive)
 	s.sess = s.open("", prefs.Tokens{}, 1)
 	return s
 }

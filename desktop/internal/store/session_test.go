@@ -100,7 +100,9 @@ func TestConnectUninitializedGoesToSetup(t *testing.T) {
 
 func TestConnectClearsPreviousServerTokens(t *testing.T) {
 	st, fake, fix := storetest.New(t, nil)
-	old := "http://old.example.com"
+	gone := httptest.NewServer(http.NotFoundHandler())
+	old := gone.URL
+	gone.Close()
 	if err := fix.Prefs.Save(prefs.Prefs{ServerURL: old, Language: "en"}); err != nil {
 		t.Fatalf("save prefs: %v", err)
 	}
@@ -199,8 +201,10 @@ func TestStartWithTokensIsReady(t *testing.T) {
 	if calls := fake.Calls("GET", "/api/setup/status"); len(calls) != 0 {
 		t.Fatalf("setup status calls = %d, want 0", len(calls))
 	}
-	if calls := fake.Calls("GET", ""); len(calls) != 0 {
-		t.Fatalf("GET calls = %v, want none", calls)
+	for _, c := range fake.Calls("GET", "") {
+		if c.Path != "/api/local/stream" {
+			t.Fatalf("GET %s made at start, want only the chat stream", c.Path)
+		}
 	}
 	if _, err := st.Client().Workers(context.Background()); err != nil {
 		t.Fatalf("request with loaded tokens: %v", err)
