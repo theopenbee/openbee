@@ -10,6 +10,7 @@ import { BeeAvatar } from "@/components/chat/bee-avatar"
 import { ChatHeader } from "@/components/chat/chat-header"
 import { ChatSkeleton } from "@/components/chat/chat-skeleton"
 import { Composer } from "@/components/chat/composer"
+import { ConnectionBanner } from "@/components/chat/connection-banner"
 import { HandoffCard } from "@/components/chat/handoff-card"
 import { MessageBubble, type MessageSender } from "@/components/chat/message-bubble"
 import { useScrollAnchor } from "@/components/chat/use-scroll-anchor"
@@ -261,6 +262,8 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
           )}
         </div>
       </div>
+
+      <ConnectionBanner />
 
       <ActivityIndicator label={busy ? status : null} avatar={avatar} />
 

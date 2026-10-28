@@ -24,10 +24,18 @@ interface ActiveConversation {
   setActive: (id: ConversationId | null) => void
 }
 
+interface Connection {
+  online: boolean
+  reconnect: () => void
+}
+
 type Subscribe = (handler: ChatEventHandler) => () => void
 
 const SubscribeContext = createContext<Subscribe | null>(null)
 const ActiveConversationContext = createContext<ActiveConversation | null>(null)
+const ConnectionContext = createContext<Connection | null>(null)
+
+const OFFLINE_GRACE_MS = 4000
 
 function parseEvent(data: string): ChatEvent | null {
   try {
@@ -48,6 +56,8 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
   const handlersRef = useRef(new Set<ChatEventHandler>())
   const activeRef = useRef<ConversationId | null>(null)
   const [active, setActiveState] = useState<ConversationId | null>(null)
+  const [online, setOnline] = useState(true)
+  const reconnectRef = useRef<() => void>(() => {})
 
   const subscribe = useCallback<Subscribe>((handler) => {
     handlersRef.current.add(handler)
@@ -63,9 +73,14 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
 
   const activeValue = useMemo(() => ({ active, setActive }), [active, setActive])
 
+  const reconnect = useCallback(() => reconnectRef.current(), [])
+  const connectionValue = useMemo(() => ({ online, reconnect }), [online, reconnect])
+
   useEffect(() => {
     let source: EventSource | undefined
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+    let offlineTimer: ReturnType<typeof setTimeout> | undefined
+    let opening = false
     let stopped = false
     let attempts = 0
     let lastSeq: number | null = null
@@ -87,8 +102,25 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
       notify(handlersRef.current, event)
     }
 
+    const markOnline = () => {
+      clearTimeout(offlineTimer)
+      offlineTimer = undefined
+      setOnline(true)
+    }
+
+    const markLost = () => {
+      if (offlineTimer !== undefined) return
+      offlineTimer = setTimeout(() => setOnline(false), OFFLINE_GRACE_MS)
+    }
+
     const open = () => {
-      ensureFreshToken().then(connect, connect)
+      if (opening) return
+      opening = true
+      const start = () => {
+        opening = false
+        connect()
+      }
+      ensureFreshToken().then(start, start)
     }
 
     const connect = () => {
@@ -98,6 +130,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
 
       es.onopen = () => {
         attempts = 0
+        markOnline()
         resync()
       }
 
@@ -110,22 +143,38 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
         es.close()
         clearTimeout(reconnectTimer)
         attempts += 1
+        markLost()
         reconnectTimer = setTimeout(open, reconnectDelay(attempts))
       }
     }
 
+    const retryNow = () => {
+      if (stopped || opening || source?.readyState !== EventSource.CLOSED) return
+      clearTimeout(reconnectTimer)
+      open()
+    }
+
+    reconnectRef.current = retryNow
+    window.addEventListener("online", retryNow)
+    window.addEventListener("focus", retryNow)
     open()
 
     return () => {
       stopped = true
+      reconnectRef.current = () => {}
+      window.removeEventListener("online", retryNow)
+      window.removeEventListener("focus", retryNow)
       clearTimeout(reconnectTimer)
+      clearTimeout(offlineTimer)
       source?.close()
     }
   }, [queryClient])
 
   return (
     <SubscribeContext.Provider value={subscribe}>
-      <ActiveConversationContext.Provider value={activeValue}>{children}</ActiveConversationContext.Provider>
+      <ActiveConversationContext.Provider value={activeValue}>
+        <ConnectionContext.Provider value={connectionValue}>{children}</ConnectionContext.Provider>
+      </ActiveConversationContext.Provider>
     </SubscribeContext.Provider>
   )
 }
@@ -152,5 +201,11 @@ export function useChatEventSubscription(handler: ChatEventHandler) {
 export function useActiveConversation(): ActiveConversation {
   const value = useContext(ActiveConversationContext)
   if (!value) throw new Error("useActiveConversation must be used within ChatEventsProvider")
+  return value
+}
+
+export function useConnection(): Connection {
+  const value = useContext(ConnectionContext)
+  if (!value) throw new Error("useConnection must be used within ChatEventsProvider")
   return value
 }
