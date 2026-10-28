@@ -67,10 +67,10 @@ func (s *LocalChatStore) LastMessage(ctx context.Context, sessionKey string) (La
 			SELECT CASE source_type WHEN '' THEN ? ELSE source_type END, source_id, kind, content,
 			       payload, sent_at, 1
 			  FROM bee_outbound_messages
-			 WHERE session_key = ? AND status = ?
+			 WHERE session_key = ? AND status = ? AND kind != ?
 		 ) ORDER BY ts DESC, ord DESC LIMIT 1`,
 		OutboundKindMessage, sessionKey, MsgStatusMerged,
-		SenderTypeBee, sessionKey, OutboundStatusSent,
+		SenderTypeBee, sessionKey, OutboundStatusSent, OutboundKindReset,
 	).Scan(&m.SenderType, &m.SenderID, &m.Kind, &m.Content, &m.Payload, &m.TS)
 	if errors.Is(err, sql.ErrNoRows) {
 		return LastMessage{}, false, nil
@@ -81,15 +81,39 @@ func (s *LocalChatStore) LastMessage(ctx context.Context, sessionKey string) (La
 	return m, true, nil
 }
 
+func (s *LocalChatStore) LastKind(ctx context.Context, sessionKey string) (string, bool, error) {
+	var kind string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT kind FROM (
+			SELECT ? AS kind, received_at AS ts, 0 AS ord
+			  FROM bee_platform_messages
+			 WHERE session_key = ? AND status != ?
+			UNION ALL
+			SELECT kind, sent_at, 1
+			  FROM bee_outbound_messages
+			 WHERE session_key = ? AND status = ?
+		 ) ORDER BY ts DESC, ord DESC LIMIT 1`,
+		OutboundKindMessage, sessionKey, MsgStatusMerged,
+		sessionKey, OutboundStatusSent,
+	).Scan(&kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("last kind for session %s: %w", sessionKey, err)
+	}
+	return kind, true, nil
+}
+
 func (s *LocalChatStore) UnreadCount(ctx context.Context, sessionKey string, after int64) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx,
 		`SELECT
 			(SELECT COUNT(*) FROM bee_outbound_messages
-			  WHERE session_key = ? AND status = ? AND sent_at > ?)
+			  WHERE session_key = ? AND status = ? AND kind != ? AND sent_at > ?)
 		  + (SELECT COUNT(*) FROM bee_platform_messages
 			  WHERE session_key = ? AND sender_type = ? AND received_at > ?)`,
-		sessionKey, OutboundStatusSent, after,
+		sessionKey, OutboundStatusSent, OutboundKindReset, after,
 		sessionKey, SenderTypeBee, after,
 	).Scan(&count)
 	if err != nil {

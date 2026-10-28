@@ -87,6 +87,63 @@ func TestLastMessageSameTimestampPrefersReply(t *testing.T) {
 	assert.Equal(t, "out-o1", last.Content)
 }
 
+func TestLastMessageSkipsReset(t *testing.T) {
+	db := newTestDB(t)
+	s := NewLocalChatStore(db)
+	key := "local:u1:worker:w1"
+	seedInbound(t, db, "i1", key, SenderTypeUser, MsgStatusReceived, 100)
+	seedOutboundRow(t, db, "o1", key, SourceTypeSystem, "", OutboundKindReset, OutboundStatusSent, 200)
+
+	last, ok, err := s.LastMessage(context.Background(), key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "in-i1", last.Content)
+}
+
+func TestUnreadCountSkipsReset(t *testing.T) {
+	db := newTestDB(t)
+	s := NewLocalChatStore(db)
+	key := "local:u1:worker:w1"
+	seedOutboundRow(t, db, "o1", key, SourceTypeWorker, "w1", "", OutboundStatusSent, 100)
+	seedOutboundRow(t, db, "o2", key, SourceTypeSystem, "", OutboundKindReset, OutboundStatusSent, 200)
+
+	n, err := s.UnreadCount(context.Background(), key, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+}
+
+func TestLastKind(t *testing.T) {
+	db := newTestDB(t)
+	s := NewLocalChatStore(db)
+	ctx := context.Background()
+	key := "local:u1:worker:w1"
+
+	_, ok, err := s.LastKind(ctx, key)
+	require.NoError(t, err)
+	assert.False(t, ok)
+
+	seedInbound(t, db, "i1", key, SenderTypeUser, MsgStatusReceived, 100)
+	kind, ok, err := s.LastKind(ctx, key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, OutboundKindMessage, kind)
+
+	seedOutboundRow(t, db, "o1", key, SourceTypeSystem, "", OutboundKindReset, OutboundStatusSent, 200)
+	seedOutboundRow(t, db, "o2", key, SourceTypeWorker, "w1", "", OutboundStatusFailed, 300)
+	seedInbound(t, db, "i2", key, SenderTypeUser, MsgStatusMerged, 400)
+	seedInbound(t, db, "i3", "local:u1:worker:w2", SenderTypeUser, MsgStatusReceived, 500)
+	kind, ok, err = s.LastKind(ctx, key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, OutboundKindReset, kind)
+
+	seedInbound(t, db, "i4", key, SenderTypeUser, MsgStatusCommand, 600)
+	kind, ok, err = s.LastKind(ctx, key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, OutboundKindMessage, kind)
+}
+
 func TestUnreadCountCountsBeeInboundAndOutbound(t *testing.T) {
 	db := newTestDB(t)
 	s := NewLocalChatStore(db)

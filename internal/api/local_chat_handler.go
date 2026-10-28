@@ -24,10 +24,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
 	"github.com/theopenbee/openbee/internal/platform/local"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -536,7 +538,33 @@ func (h *LocalChatHandler) Clear(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "active tasks", "active_tasks": active})
 		return
 	}
+	h.appendReset(c.Request.Context(), conv)
 	c.Status(http.StatusNoContent)
+}
+
+func (h *LocalChatHandler) appendReset(ctx context.Context, conv conversation) {
+	kind, found, err := h.chats.LastKind(ctx, conv.sessionKey)
+	if err != nil {
+		logger.Error("read last local chat kind", zap.String("session_key", conv.sessionKey), zap.Error(err))
+		return
+	}
+	if !found || kind == store.OutboundKindReset {
+		return
+	}
+	divider := store.OutboundMessage{
+		ID:         uuid.New().String(),
+		SessionKey: conv.sessionKey,
+		Platform:   local.PlatformID,
+		Status:     store.OutboundStatusSent,
+		SourceType: store.SourceTypeSystem,
+		Kind:       store.OutboundKindReset,
+		SentAt:     time.Now().UnixMilli(),
+	}
+	if err := h.outboundStore.Create(ctx, divider); err != nil {
+		logger.Error("store local chat reset", zap.String("session_key", conv.sessionKey), zap.Error(err))
+		return
+	}
+	h.publisher.Message(conv.sessionKey, outboundChatMessage(divider, ""))
 }
 
 func (h *LocalChatHandler) clearConversation(ctx context.Context, conv conversation, force bool) ([]model.Task, error) {

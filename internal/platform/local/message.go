@@ -11,6 +11,7 @@ const SenderBee = "bee"
 const (
 	KindMessage = "message"
 	KindHandoff = "handoff"
+	KindReset   = "reset"
 )
 
 const (

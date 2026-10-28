@@ -16,6 +16,7 @@ const (
 const (
 	OutboundKindMessage = "message"
 	OutboundKindHandoff = "handoff"
+	OutboundKindReset   = "reset"
 )
 
 // Outbound message source type constants.

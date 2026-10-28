@@ -1111,6 +1111,118 @@ func TestClearFailureIs500(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
+func nextHubEvent(t *testing.T, ch <-chan string) local.Event {
+	t.Helper()
+	select {
+	case data := <-ch:
+		var ev local.Event
+		require.NoError(t, json.Unmarshal([]byte(data), &ev))
+		return ev
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+		return local.Event{}
+	}
+}
+
+func resetRows(t *testing.T, s localChatTestServer, sessionKey string) []store.OutboundMessage {
+	t.Helper()
+	rows, err := s.outboundStore.ListBySessionKey(context.Background(), sessionKey, 0, 100)
+	require.NoError(t, err)
+	var resets []store.OutboundMessage
+	for _, r := range rows {
+		if r.Kind == store.OutboundKindReset {
+			resets = append(resets, r)
+		}
+	}
+	return resets
+}
+
+func TestClearAppendsResetDivider(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	cid := local.WorkerConversationID(alice.ID)
+	key := local.WorkerSessionKey(testUserID, alice.ID)
+	seedOutboundIn(t, s.outboundStore, key, store.OutboundMessage{ID: "r1", Content: "done", SourceType: store.SourceTypeWorker, SourceID: alice.ID, SentAt: 100})
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/"+cid+"/clear", nil)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	res := getConversationMessages(t, s.router, testUserID, cid, "")
+	require.Len(t, res.Messages, 2)
+	divider := res.Messages[1]
+	assert.Equal(t, local.KindReset, divider.Kind)
+	assert.Equal(t, local.Sender{Type: store.SourceTypeSystem}, divider.Sender)
+	assert.Empty(t, divider.Content)
+	assert.Greater(t, divider.TS, int64(100))
+
+	ev := nextHubEvent(t, events)
+	assert.Equal(t, local.EventMessage, ev.Type)
+	assert.Equal(t, cid, ev.ConversationID)
+	require.NotNil(t, ev.Message)
+	assert.Equal(t, divider, *ev.Message)
+
+	convs := listConversations(t, s.router, testUserID)
+	for _, c := range convs {
+		if c.ID != cid {
+			continue
+		}
+		require.NotNil(t, c.LastMessage)
+		assert.Equal(t, "done", c.LastMessage.Preview)
+		assert.Equal(t, int64(100), c.LastMessage.TS)
+		assert.Equal(t, 1, c.Unread)
+	}
+}
+
+func TestClearBeeAppendsResetDivider(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutbound(t, s.outboundStore, "r1", 100)
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/clear", nil)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	assert.Len(t, resetRows(t, s, testSessionKey), 1)
+}
+
+func TestClearSkipsResetOnEmptyChat(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/worker:"+alice.ID+"/clear", nil)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	assert.Empty(t, resetRows(t, s, local.WorkerSessionKey(testUserID, alice.ID)))
+}
+
+func TestClearSkipsResetAfterReset(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutbound(t, s.outboundStore, "r1", 100)
+
+	for range 2 {
+		rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/clear", nil)
+		require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	}
+
+	assert.Len(t, resetRows(t, s, testSessionKey), 1)
+}
+
+func TestClearWithoutClearingAddsNoReset(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutbound(t, s.outboundStore, "r1", 100)
+	s.clear.sessionActive = []model.Task{{ID: "t1", Instruction: "build", Type: model.TaskTypeImmediate}}
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/clear", nil)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	assert.Empty(t, resetRows(t, s, testSessionKey))
+
+	s.clear.sessionActive = nil
+	s.clear.err = errors.New("boom")
+	rec = postJSON(t, s.router, testUserID, "/local/conversations/bee/clear", nil)
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Empty(t, resetRows(t, s, testSessionKey))
+}
+
 func TestStopBeeConversation400(t *testing.T) {
 	s := newLocalChatServer(t)
 
