@@ -17,7 +17,6 @@ const ICON = { size: 16, strokeWidth: 1.75, "aria-hidden": true } as const
 const EMPTY_DESCRIPTION: Record<EnvScope, [string, string]> = {
   global: ["envConfig.emptyGlobal", "Add a variable to pass it to the Bee and every worker."],
   bee: ["envConfig.emptyBee", "Add a variable to pass it to the Bee only."],
-  department: ["envConfig.emptyDepartment", "Add a variable to pass it to every worker in this department."],
   worker: ["envConfig.emptyWorker", "Add a variable to pass it to this worker only."],
 }
 

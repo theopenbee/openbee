@@ -52,17 +52,12 @@
       "constraintsPlaceholder": "这个员工的工作约束...",
       "engineArgs": "引擎参数",
       "engineArgsPlaceholder": "--effort high",
-      "sectionDepartment": "部门",
-      "departmentHelper": "将员工分配到一个或多个部门，可不选。",
-      "searchDepartments": "筛选部门",
-      "noMatchingDepartments": "没有匹配的部门",
       "sectionEnhancement": "描述与约束",
       "sectionOther": "其它配置",
       "sectionPermissions": "权限配置",
       "permissionsHelper": "未选择任何权限时，员工 token 无法使用任何系统内置工具。",
       "constraintsHelper": "每次会话开始时注入。",
       "engineArgsHelper": "启动 {{engine}} 时附加的命令行参数。",
-      "searchDepartmentsPlaceholder": "部门名称",
       "copySubtitle": "基于 {{name}} 的配置创建。",
       "copyLoadError": "无法加载要复制的员工",
       "createError": "无法创建员工",
@@ -133,7 +128,7 @@
     "defaultWorkDir": "默认目录",
     "copyId": "复制员工 ID",
     "copyWorkDir": "复制工作目录",
-    "effectiveEnvDescription": "合并全局、部门与员工级变量后，该员工实际可见的值。"
+    "effectiveEnvDescription": "合并全局与员工级变量后，该员工实际可见的值。"
   },
   "chat": {
     "title": "聊天",
@@ -261,66 +256,10 @@
     "errorTitle": "无法创建账号",
     "goToLogin": "前往登录"
   },
-  "departments": {
-    "title": "部门",
-    "settingsDescription": "管理部门结构和成员",
-    "ungrouped": "未分组",
-    "summary_other": "共 {{count}} 个部门",
-    "create": "创建部门",
-    "addChild": "添加子部门",
-    "loadError": "无法加载部门",
-    "emptyTitle": "还没有部门",
-    "emptyDescription": "部门用来给员工分组，并为组内员工共享环境变量。",
-    "tree": {
-      "title": "组织结构"
-    },
-    "detail": {
-      "topLevel": "顶级部门",
-      "edit": "编辑",
-      "more": "{{name}} 的更多操作",
-      "delete": "删除部门",
-      "subDepartments": "子部门",
-      "workers": "员工",
-      "updated": "最近更新",
-      "created": "创建于 {{time}}",
-      "workersTitle": "员工",
-      "workersDescription": "直接归属于该部门的员工",
-      "workersError": "无法加载员工",
-      "noWorkers": "该部门还没有员工。可在员工详情页为员工分配部门。",
-      "envTitle": "环境变量",
-      "envDescription": "该部门下的所有员工都会继承这些变量。"
-    },
-    "form": {
-      "name": "部门名称",
-      "namePlaceholder": "例如：技术部",
-      "parent": "上级部门",
-      "noParent": "无（顶级部门）",
-      "createDescription": "用部门给员工分组，并共享环境变量。",
-      "createChildTitle": "添加子部门",
-      "createChildDescription": "新部门将位于「{{name}}」之下。",
-      "editTitle": "编辑部门",
-      "editDescription": "重命名「{{name}}」，或把它移到其他部门下。",
-      "save": "保存修改",
-      "saveError": "无法保存部门"
-    },
-    "deleteDialog": {
-      "title": "删除「{{name}}」？",
-      "description": "此操作无法撤销。",
-      "confirm": "删除部门",
-      "blockedTitle": "该部门仍在使用中",
-      "hasChildren_other": "请先移动或删除它的 {{count}} 个子部门。",
-      "hasWorkers_other": "请先把它的 {{count}} 名员工移到其他部门。",
-      "error": "无法删除部门"
-    }
-  },
   "scopes": {
     "readWorkers": {
       "title": "查询员工",
       "description": "允许列出和查看员工的基本信息与状态"
-    },
-    "readDepartments": {
-      "title": "查询部门",
-      "description": "允许列出和查看部门信息"
     },
     "readTasks": {
       "title": "查询任务",
@@ -353,7 +292,6 @@
     "effectiveTitle": "生效变量预览",
     "beeTitle": "Bee 变量",
     "sourceGlobal": "全局",
-    "sourceDepartment": "部门",
     "sourceWorker": "员工",
     "source": "来源",
     "noEffective": "该员工暂无任何环境变量配置。",
@@ -376,7 +314,6 @@
     "deleteAction": "删除变量",
     "emptyGlobal": "添加变量后，Bee 和所有员工都会获得它。",
     "emptyBee": "添加变量后，只有 Bee 会获得它。",
-    "emptyDepartment": "添加变量后，该部门的所有员工都会获得它。",
     "emptyWorker": "添加变量后，只有该员工会获得它。",
     "deleteTitle": "删除 {{key}}？",
     "deleteError": "无法删除变量",
@@ -559,16 +496,9 @@
     }
   },
   "errors": {
-    "department_not_found": "部门不存在",
-    "department_parent_not_found": "上级部门不存在",
-    "department_has_sub": "该部门下存在子部门，请先移除子部门",
-    "department_has_workers": "该部门下存在数字员工，请先将其移动到其他部门",
-    "department_circular_reference": "不能将下级部门设为上级部门",
-    "department_invalid_parent": "上级部门参数无效",
-    "departments_not_found": "存在一个或多个部门不存在",
     "worker_not_found": "数字员工不存在",
     "env_not_found": "环境变量配置不存在",
-    "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee、department 或 worker 之一",
+    "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee 或 worker 之一",
     "env_reserved_key": "{{key}} 为保留键，不可设置",
     "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id",
     "old_password_incorrect": "当前密码不正确。",

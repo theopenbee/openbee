@@ -52,17 +52,12 @@
       "constraintsPlaceholder": "The work constraints for this worker...",
       "engineArgs": "Engine args",
       "engineArgsPlaceholder": "--effort high",
-      "sectionDepartment": "Departments",
-      "departmentHelper": "Assign the worker to one or more departments. Optional.",
-      "searchDepartments": "Filter departments",
-      "noMatchingDepartments": "No matching departments",
       "sectionEnhancement": "Description and constraints",
       "sectionOther": "Other settings",
       "sectionPermissions": "Permissions",
       "permissionsHelper": "With no permissions selected, the worker token cannot use any built-in system tool.",
       "constraintsHelper": "Injected at the start of every session.",
       "engineArgsHelper": "Extra command-line flags passed to {{engine}} on start.",
-      "searchDepartmentsPlaceholder": "Department name",
       "copySubtitle": "Starts from the settings of {{name}}.",
       "copyLoadError": "Couldn't load the worker to copy",
       "createError": "Couldn't create the worker",
@@ -133,7 +128,7 @@
     "defaultWorkDir": "Default directory",
     "copyId": "Copy worker ID",
     "copyWorkDir": "Copy work directory",
-    "effectiveEnvDescription": "What the worker sees after global, department, and worker values are merged."
+    "effectiveEnvDescription": "What the worker sees after global and worker values are merged."
   },
   "chat": {
     "title": "Chat",
@@ -262,69 +257,10 @@
     "errorTitle": "Could not create the account",
     "goToLogin": "Go to sign in"
   },
-  "departments": {
-    "title": "Departments",
-    "settingsDescription": "Manage department structure and members",
-    "ungrouped": "Ungrouped",
-    "summary_one": "{{count}} department",
-    "summary_other": "{{count}} departments",
-    "create": "Create department",
-    "addChild": "Add sub-department",
-    "loadError": "Could not load departments",
-    "emptyTitle": "No departments yet",
-    "emptyDescription": "Departments group workers and share environment variables with them.",
-    "tree": {
-      "title": "Structure"
-    },
-    "detail": {
-      "topLevel": "Top-level department",
-      "edit": "Edit",
-      "more": "More actions for {{name}}",
-      "delete": "Delete department",
-      "subDepartments": "Sub-departments",
-      "workers": "Workers",
-      "updated": "Last updated",
-      "created": "Created {{time}}",
-      "workersTitle": "Workers",
-      "workersDescription": "Workers assigned directly to this department",
-      "workersError": "Could not load workers",
-      "noWorkers": "No workers are assigned to this department yet. Assign departments from a worker's page.",
-      "envTitle": "Environment variables",
-      "envDescription": "Every worker in this department inherits these variables."
-    },
-    "form": {
-      "name": "Department name",
-      "namePlaceholder": "e.g. Engineering",
-      "parent": "Parent department",
-      "noParent": "None (top level)",
-      "createDescription": "Group workers and give them shared environment variables.",
-      "createChildTitle": "Add sub-department",
-      "createChildDescription": "The new department sits under {{name}}.",
-      "editTitle": "Edit department",
-      "editDescription": "Rename {{name}} or move it under another department.",
-      "save": "Save changes",
-      "saveError": "Could not save the department"
-    },
-    "deleteDialog": {
-      "title": "Delete {{name}}?",
-      "description": "This cannot be undone.",
-      "confirm": "Delete department",
-      "blockedTitle": "This department is still in use",
-      "hasChildren_one": "Move or delete its sub-department first.",
-      "hasChildren_other": "Move or delete its {{count}} sub-departments first.",
-      "hasWorkers_one": "Move its worker to another department first.",
-      "hasWorkers_other": "Move its {{count}} workers to another department first.",
-      "error": "Could not delete the department"
-    }
-  },
   "scopes": {
     "readWorkers": {
       "title": "Read Workers",
       "description": "Allows listing and viewing Worker information and status"
-    },
-    "readDepartments": {
-      "title": "Read Departments",
-      "description": "Allows listing and viewing department information"
     },
     "readTasks": {
       "title": "Read Tasks",
@@ -357,7 +293,6 @@
     "effectiveTitle": "Effective Variables",
     "beeTitle": "Bee variables",
     "sourceGlobal": "global",
-    "sourceDepartment": "dept",
     "sourceWorker": "worker",
     "source": "Source",
     "noEffective": "No env variables configured for this worker.",
@@ -381,7 +316,6 @@
     "deleteAction": "Delete variable",
     "emptyGlobal": "Add a variable to pass it to the Bee and every worker.",
     "emptyBee": "Add a variable to pass it to the Bee only.",
-    "emptyDepartment": "Add a variable to pass it to every worker in this department.",
     "emptyWorker": "Add a variable to pass it to this worker only.",
     "deleteTitle": "Delete {{key}}?",
     "deleteError": "Could not delete the variable",
@@ -566,16 +500,9 @@
     }
   },
   "errors": {
-    "department_not_found": "Department not found",
-    "department_parent_not_found": "Parent department not found",
-    "department_has_sub": "This department has sub-departments. Please remove them first.",
-    "department_has_workers": "This department has associated workers. Please move them to another department first.",
-    "department_circular_reference": "Cannot set a descendant as the parent department.",
-    "department_invalid_parent": "Invalid parent_id",
-    "departments_not_found": "One or more departments not found",
     "worker_not_found": "Worker not found",
     "env_not_found": "Env config not found",
-    "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
+    "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, worker",
     "env_reserved_key": "{{key}} is reserved and cannot be set",
     "env_scope_id_required": "scope_id is required for scope {{scope}}",
     "old_password_incorrect": "The current password is incorrect.",

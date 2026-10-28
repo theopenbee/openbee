@@ -365,8 +365,7 @@ describe("workerCacheUpdater", () => {
 
 describe("applyEventToCaches", () => {
   let queryClient: QueryClient
-  const listKey = ["workers", { departmentId: undefined }]
-  const departmentKey = ["workers", { departmentId: "d1" }]
+  const listKey = ["workers", "list"]
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -380,13 +379,12 @@ describe("applyEventToCaches", () => {
 
   const seedWorkers = () => {
     queryClient.setQueryData(listKey, [worker("w1", "working"), worker("w2", "idle")])
-    queryClient.setQueryData(departmentKey, [worker("w2", "idle")])
     queryClient.setQueryData(["workers", "w1"], worker("w1", "working"))
     queryClient.setQueryData(["workers", "w2"], worker("w2", "idle"))
   }
 
   const stamps = () =>
-    [listKey, departmentKey, ["workers", "w1"], ["workers", "w2"]].map((key) => {
+    [listKey, ["workers", "w1"], ["workers", "w2"]].map((key) => {
       const state = queryClient.getQueryState(key)
       return { invalidated: state?.isInvalidated, updatedAt: state?.dataUpdatedAt }
     })
@@ -417,7 +415,6 @@ describe("applyEventToCaches", () => {
     expect(queryClient.getQueryData<Worker[]>(listKey)![1]).toBe(sibling)
     expect(queryClient.getQueryData<Worker>(["workers", "w1"])?.status).toBe("error")
     expect(queryClient.getQueryData<Worker>(["workers", "w2"])).toBe(other)
-    expect(queryClient.getQueryData<Worker[]>(departmentKey)!.map((w) => w.status)).toEqual(["idle"])
   })
 
   it("worker_status creates no cache entries", () => {
@@ -573,16 +570,16 @@ describe("resyncCaches", () => {
   })
 
   it("invalidates the conversation list and every workers query", () => {
-    const workerKeys = [["workers", { departmentId: undefined }], ["workers", "w1"]]
+    const workerKeys = [["workers", "list"], ["workers", "w1"]]
     queryClient.setQueryData(CONVERSATIONS_KEY, [summary("bee")])
     for (const key of workerKeys) queryClient.setQueryData(key, [])
-    queryClient.setQueryData(["departments"], [])
+    queryClient.setQueryData(["envs", "global", null], [])
 
     resyncCaches(queryClient)
 
     for (const key of [CONVERSATIONS_KEY, ...workerKeys]) {
       expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)
     }
-    expect(queryClient.getQueryState(["departments"])?.isInvalidated).toBe(false)
+    expect(queryClient.getQueryState(["envs", "global", null])?.isInvalidated).toBe(false)
   })
 })

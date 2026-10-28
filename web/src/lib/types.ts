@@ -10,27 +10,8 @@ export interface Worker {
   engine_args?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
-  departments?: DepartmentBrief[]
   created_at: number
   updated_at: number
-}
-
-export interface Department {
-  id: string
-  name: string
-  parent_id: string | null
-  sort_order: number
-  created_at: number
-  updated_at: number
-}
-
-export interface DepartmentTree extends Department {
-  children: DepartmentTree[]
-}
-
-export interface DepartmentBrief {
-  id: string
-  name: string
 }
 
 export type ConversationId = "bee" | `worker:${string}`
@@ -93,7 +74,7 @@ export interface ConversationMessagesResponse {
   has_more: boolean
 }
 
-export type EnvScope = "global" | "bee" | "department" | "worker"
+export type EnvScope = "global" | "bee" | "worker"
 
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"

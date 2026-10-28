@@ -1,7 +1,6 @@
 import { useId, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { Building2, CalendarIcon, History } from "lucide-react"
-import { Badge } from "@/components/arc/badge/badge"
+import { CalendarIcon, History } from "lucide-react"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { CopyButton } from "@/components/copy-button"
 import { DetailOverviewStat } from "@/components/detail-primitives"
@@ -29,7 +28,6 @@ function MonoValue({ value, copyLabel }: { value: string; copyLabel: string }) {
 export function WorkerOverview({ worker }: { worker: Worker }) {
   const { t } = useTranslation()
   const headingId = useId()
-  const departments = worker.departments ?? []
 
   return (
     <div className="grid gap-6">
@@ -66,19 +64,6 @@ export function WorkerOverview({ worker }: { worker: Worker }) {
               </span>
             ) : (
               <span className="text-secondary">{t("workers.noEngine")}</span>
-            )}
-          </InfoRow>
-          <InfoRow label={t("departments.title")}>
-            {departments.length > 0 ? (
-              <span className="flex flex-wrap items-center gap-1.5">
-                {departments.map((d) => (
-                  <Badge key={d.id} size="sm" icon={<Building2 size={12} strokeWidth={1.75} />}>
-                    {d.name}
-                  </Badge>
-                ))}
-              </span>
-            ) : (
-              <span className="text-secondary">{t("departments.ungrouped")}</span>
             )}
           </InfoRow>
           <InfoRow label={t("workerDetail.workDir")}>

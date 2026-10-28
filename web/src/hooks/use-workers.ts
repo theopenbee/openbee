@@ -3,15 +3,15 @@ import { api } from "@/lib/api"
 import { CONVERSATIONS_KEY } from "@/lib/chat-events"
 import type { Worker, Engine } from "@/lib/types"
 
-function workersQuery(departmentId?: string) {
+function workersQuery() {
   return {
-    queryKey: ["workers", { departmentId }],
-    queryFn: () => api.workers.list(departmentId),
+    queryKey: ["workers", "list"],
+    queryFn: () => api.workers.list(),
   }
 }
 
-export function useWorkers(departmentId?: string) {
-  return useQuery(workersQuery(departmentId))
+export function useWorkers() {
+  return useQuery(workersQuery())
 }
 
 export function fetchWorkers(queryClient: QueryClient) {

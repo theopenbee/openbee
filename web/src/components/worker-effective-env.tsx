@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { useEnvList, useDepartmentEnvs } from "@/hooks/use-envs"
+import { useEnvList } from "@/hooks/use-envs"
 import { Panel } from "@/components/panel"
 import { cn } from "@/lib/utils"
 import type { EnvScope } from "@/lib/types"
@@ -9,25 +9,20 @@ type EnvSource = Exclude<EnvScope, "bee">
 
 const SOURCE_LABEL: Record<EnvSource, string> = {
   global: "envConfig.sourceGlobal",
-  department: "envConfig.sourceDepartment",
   worker: "envConfig.sourceWorker",
 }
 
-export function WorkerEffectiveEnv({ workerId, departmentIds }: { workerId: string; departmentIds: string[] }) {
+export function WorkerEffectiveEnv({ workerId }: { workerId: string }) {
   const { t } = useTranslation()
   const { data: globalEnvs = [], isLoading: globalLoading } = useEnvList("global")
   const { data: workerEnvs = [], isLoading: workerLoading } = useEnvList("worker", workerId)
-  const deptEnvsList = useDepartmentEnvs(departmentIds)
 
   const rows = useMemo(() => {
     const merged = new Map<string, { masked: string; source: EnvSource }>()
     for (const env of globalEnvs) merged.set(env.key, { masked: env.masked, source: "global" })
-    for (const deptEnvs of deptEnvsList) {
-      for (const env of deptEnvs) merged.set(env.key, { masked: env.masked, source: "department" })
-    }
     for (const env of workerEnvs) merged.set(env.key, { masked: env.masked, source: "worker" })
     return Array.from(merged.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [globalEnvs, workerEnvs, deptEnvsList])
+  }, [globalEnvs, workerEnvs])
 
   const loading = globalLoading || workerLoading
 

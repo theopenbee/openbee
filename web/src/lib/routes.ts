@@ -1,5 +1,4 @@
 import { matchPath, parsePath } from "react-router-dom"
-import type { SettingsSection } from "@/hooks/use-settings-dialog"
 import { BEE_CONVERSATION, conversationPath, workerConversationId, workerIdOf } from "@/lib/conversations"
 import type { ConversationId } from "@/lib/types"
 
@@ -14,11 +13,6 @@ export type PanelView =
   | { mode: "worker"; workerId: string; section: PanelSection }
   | { mode: "new"; copyFrom?: string }
   | null
-
-export interface LegacyTarget {
-  to: string
-  settings?: SettingsSection
-}
 
 const PANEL_SECTIONS: readonly string[] = ["overview", "constraints", "permissions", "env"] satisfies PanelSection[]
 const PANEL_PARAM = "panel"
@@ -69,21 +63,21 @@ export function workerPanelPath(workerId: string): string {
   return withPanel(conversationPath(workerConversationId(workerId)), { mode: "worker", section: "overview" })
 }
 
-export function legacyRedirect(pathname: string, search: string): LegacyTarget | null {
+export function legacyRedirect(pathname: string, search: string): string | null {
   const segments = pathname.split("/").filter(Boolean)
   const params = new URLSearchParams(search)
   const beePath = conversationPath(BEE_CONVERSATION)
 
-  if (segments.length === 1 && segments[0] === "departments") return { to: beePath, settings: "departments" }
+  if (segments.length === 1 && segments[0] === "departments") return beePath
   if (segments[0] !== "workers" || segments.length > 2) return null
-  if (segments.length === 1) return { to: beePath }
+  if (segments.length === 1) return beePath
   if (segments[1] === "create") {
     const copyFrom = params.get(COPY_PARAM)
-    return { to: withPanel(beePath, copyFrom ? { mode: "new", copyFrom } : { mode: "new" }) }
+    return withPanel(beePath, copyFrom ? { mode: "new", copyFrom } : { mode: "new" })
   }
   const tab = params.get("tab")
   const section = isPanelSection(tab) ? tab : "overview"
-  return { to: withPanel(conversationPath(workerConversationId(segments[1])), { mode: "worker", section }) }
+  return withPanel(conversationPath(workerConversationId(segments[1])), { mode: "worker", section })
 }
 
 export function resolveConversationRoute(param: string | undefined, workerIds: Set<string>): ConversationId | null {

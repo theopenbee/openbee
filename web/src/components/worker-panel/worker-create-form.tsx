@@ -9,10 +9,8 @@ import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEngineOptions } from "@/components/engine-select-items"
 import { SectionHeading } from "@/components/section-heading"
-import { WorkerDepartmentPicker } from "@/components/worker-department-picker"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines } from "@/hooks/use-config"
-import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useCreateWorker, useWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
@@ -26,7 +24,6 @@ interface WorkerInitialValues {
   work_dir: string
   permission_scopes: string
   engine: Engine
-  departmentIds: string[]
   engine_args: Record<string, string>
 }
 
@@ -38,7 +35,6 @@ function workerToInitialValues(worker: Worker): WorkerInitialValues {
     work_dir: worker.work_dir,
     permission_scopes: worker.permission_scopes ?? "",
     engine: worker.engine ?? DEFAULT_ENGINE,
-    departmentIds: worker.departments?.map((d) => d.id) ?? [],
     engine_args: worker.engine_args ?? {},
   }
 }
@@ -103,8 +99,6 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   const isCopy = !!copyFrom
 
   const createWorker = useCreateWorker()
-  const setWorkerDepts = useSetWorkerDepartments()
-  const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
   const engineOptions = useEngineOptions(enabledEngines)
   const { data: copyWorker, error: copyError, refetch: refetchCopy } = useWorker(copyFrom ?? "", { enabled: isCopy })
@@ -115,7 +109,6 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   const [workDir, setWorkDir] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
-  const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(new Set())
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [submitError, setSubmitError] = useState("")
   const selectedEngine = availableEngine(engine, enabledEngines)
@@ -139,7 +132,6 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
     setWorkDir(iv?.work_dir ?? "")
     setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
     setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
-    setSelectedDeptIds(iv ? new Set(iv.departmentIds) : new Set())
     setEngineArgs(iv?.engine_args ?? {})
   }, [isCopy, copyWorker, enabledEngines, t])
 
@@ -156,16 +148,13 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
         permission_scopes: serializeScopes(selectedScopes) || undefined,
         engine_args: buildCreateEngineArgsPayload(engineArgs),
       })
-      if (selectedDeptIds.size > 0) {
-        await setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] })
-      }
       onCreated(worker)
     } catch (err) {
       setSubmitError(getErrorMessage(err))
     }
   }
 
-  const isPending = createWorker.isPending || setWorkerDepts.isPending
+  const isPending = createWorker.isPending
   const isCopyLoading = isCopy && !copyWorker && !copyError
   const submitLabel = isCopy ? t("workers.copyWorker") : t("workers.createWorker")
 
@@ -234,17 +223,6 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
           disabled={isPending}
         />
       </FormSection>
-
-      {flatDepts.length > 0 && (
-        <FormSection
-          id="cw-section-department"
-          title={t("workers.form.sectionDepartment")}
-          description={t("workers.form.departmentHelper")}
-          badge={selectedDeptIds.size}
-        >
-          <WorkerDepartmentPicker selected={selectedDeptIds} onChange={setSelectedDeptIds} disabled={isPending} />
-        </FormSection>
-      )}
 
       <FormSection id="cw-section-other" title={t("workers.form.sectionOther")}>
         <EngineArgsSection

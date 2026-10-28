@@ -1,4 +1,4 @@
-import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, Department, DepartmentTree, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -78,9 +78,8 @@ export const api = {
     get: () => fetchAPI<AppConfig>("/config"),
   },
   workers: {
-    list: async (departmentId?: string) => {
-      const qs = departmentId ? `?department_id=${departmentId}` : ""
-      const workers = await fetchAPI<Worker[] | null>(`/workers${qs}`)
+    list: async () => {
+      const workers = await fetchAPI<Worker[] | null>("/workers")
       return Array.isArray(workers) ? workers : []
     },
     get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
@@ -97,11 +96,6 @@ export const api = {
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
-    setDepartments: (id: string, departmentIds: string[]) =>
-      fetchAPI(`/workers/${id}/departments`, {
-        method: "PUT",
-        body: JSON.stringify({ department_ids: departmentIds }),
-      }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
   },
   chat: {
@@ -142,18 +136,6 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
-  },
-  departments: {
-    list: async () => {
-      const tree = await fetchAPI<DepartmentTree[] | null>("/departments")
-      return Array.isArray(tree) ? tree : []
-    },
-    create: (data: { name: string; parent_id?: string | null; sort_order?: number }) =>
-      fetchAPI<Department>("/departments", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; parent_id?: string | null; sort_order?: number }) =>
-      fetchAPI<Department>(`/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    delete: (id: string) =>
-      fetchAPI(`/departments/${id}`, { method: "DELETE" }),
   },
   envs: {
     list: (scope: string, scopeId?: string) => {

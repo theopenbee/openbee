@@ -31,13 +31,7 @@ function SettingsRedirect({ section }: { section: SettingsSection }) {
 
 function LegacyRedirect() {
   const { pathname, search } = useLocation()
-  const show = useSettingsDialog()
-  const target = legacyRedirect(pathname, search)
-  const settings = target?.settings
-  useEffect(() => {
-    if (settings) show({ section: settings })
-  }, [show, settings])
-  return <Navigate to={target?.to ?? "/chat"} replace />
+  return <Navigate to={legacyRedirect(pathname, search) ?? "/chat"} replace />
 }
 
 export function App() {

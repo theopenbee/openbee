@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { KeyRoundIcon, NetworkIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
+import { KeyRoundIcon, PuzzleIcon, SlidersHorizontalIcon, type LucideIcon } from "lucide-react"
 import { PresenceContext } from "motion/react"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { SettingsDialogContext, type SettingsSection, type SettingsTarget } from "@/hooks/use-settings-dialog"
@@ -17,15 +17,11 @@ const PluginsSettings = lazy(() =>
 const PluginDetailSettings = lazy(() =>
   import("@/components/settings/plugin-detail-settings").then((m) => ({ default: m.PluginDetailSettings })),
 )
-const DepartmentsSettings = lazy(() =>
-  import("@/components/settings/departments-settings").then((m) => ({ default: m.DepartmentsSettings })),
-)
 
 const SECTIONS: { id: SettingsSection; titleKey: string; descriptionKey: string; icon: LucideIcon }[] = [
   { id: "env", titleKey: "envConfig.title", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
   { id: "system", titleKey: "systemSettings.title", descriptionKey: "systemSettings.subtitle", icon: SlidersHorizontalIcon },
   { id: "plugins", titleKey: "plugins.title", descriptionKey: "plugins.subtitle", icon: PuzzleIcon },
-  { id: "departments", titleKey: "departments.title", descriptionKey: "departments.settingsDescription", icon: NetworkIcon },
 ]
 
 const DIALOG_STYLE: CSSProperties = {
@@ -121,8 +117,6 @@ function SectionBody({ target }: { target: SettingsTarget }) {
   switch (target.section) {
     case "system":
       return <SystemSettings />
-    case "departments":
-      return <DepartmentsSettings />
     case "plugins":
       return target.plugin ? <PluginDetailSettings id={target.plugin} /> : <PluginsSettings initialTab={target.tab} />
     default:

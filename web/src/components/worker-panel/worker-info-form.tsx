@@ -7,11 +7,8 @@ import { Select } from "@/components/arc/select/select"
 import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEngineOptions } from "@/components/engine-select-items"
-import { SectionHeading } from "@/components/section-heading"
-import { WorkerDepartmentPicker } from "@/components/worker-department-picker"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines } from "@/hooks/use-config"
-import { useFlatDepartments, useSetWorkerDepartments } from "@/hooks/use-departments"
 import { useUpdateWorker } from "@/hooks/use-workers"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
 import { pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
@@ -26,8 +23,6 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const { t } = useTranslation()
   const headingId = useId()
   const updateWorker = useUpdateWorker()
-  const setWorkerDepts = useSetWorkerDepartments()
-  const flatDepts = useFlatDepartments()
   const enabledEngines = useEnabledEngines()
   const engineOptions = useEngineOptions(enabledEngines)
 
@@ -35,9 +30,6 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const [description, setDescription] = useState(worker.description ?? "")
   const [workDir, setWorkDir] = useState(worker.work_dir ?? "")
   const [engine, setEngine] = useState<Engine>(() => pickDefaultEngine(worker.engine, enabledEngines))
-  const [selectedDeptIds, setSelectedDeptIds] = useState<Set<string>>(
-    () => new Set(worker.departments?.map((d) => d.id) ?? []),
-  )
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>(worker.engine_args ?? {})
   const [submitError, setSubmitError] = useState("")
 
@@ -47,8 +39,6 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
     e.preventDefault()
     setSubmitError("")
     try {
-      const originalDeptIds = worker.departments?.map((d) => d.id).sort().join(",") ?? ""
-      const newDeptIds = [...selectedDeptIds].sort().join(",")
       const engineArgsChanged = !engineArgsEqual(stripEmptyEngineArgs(engineArgs), worker.engine_args ?? {})
       const nameChanged = name !== worker.name
       const workDirChanged = trimmedWorkDir !== (worker.work_dir ?? "")
@@ -58,26 +48,20 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
         workDirChanged ||
         engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
         engineArgsChanged
-      const deptsChanged = newDeptIds !== originalDeptIds
 
-      const ops: Promise<unknown>[] = []
       if (workerChanged) {
         const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
         if (nameChanged) data.name = name
         if (workDirChanged) data.work_dir = trimmedWorkDir
-        ops.push(updateWorker.mutateAsync({ id: worker.id, data }))
+        await updateWorker.mutateAsync({ id: worker.id, data })
       }
-      if (deptsChanged) {
-        ops.push(setWorkerDepts.mutateAsync({ workerId: worker.id, departmentIds: [...selectedDeptIds] }))
-      }
-      await Promise.all(ops)
       onDone()
     } catch (err) {
       setSubmitError(getErrorMessage(err))
     }
   }
 
-  const isPending = updateWorker.isPending || setWorkerDepts.isPending
+  const isPending = updateWorker.isPending
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-8" aria-labelledby={headingId}>
@@ -142,16 +126,6 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
           disabled={isPending}
         />
       </div>
-
-      {flatDepts.length > 0 && (
-        <section className="grid gap-3 border-t border-border-subtle pt-6" aria-label={t("workers.form.sectionDepartment")}>
-          <div className="grid gap-1">
-            <SectionHeading text={t("workers.form.sectionDepartment")} badge={selectedDeptIds.size} />
-            <p className="text-sm text-secondary">{t("workers.form.departmentHelper")}</p>
-          </div>
-          <WorkerDepartmentPicker selected={selectedDeptIds} onChange={setSelectedDeptIds} disabled={isPending} />
-        </section>
-      )}
 
       {submitError && (
         <Alert tone="danger" title={t("workers.form.saveError")}>

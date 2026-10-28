@@ -14,23 +14,23 @@ import {
 
 describe("legacyRedirect", () => {
   it("legacyRedirect maps worker detail tabs", () => {
-    expect(legacyRedirect("/workers/w1", "?tab=env")).toEqual({ to: "/chat/w1?panel=env" })
-    expect(legacyRedirect("/workers/w1", "?tab=constraints")).toEqual({ to: "/chat/w1?panel=constraints" })
-    expect(legacyRedirect("/workers/w1", "?tab=permissions")).toEqual({ to: "/chat/w1?panel=permissions" })
-    expect(legacyRedirect("/workers/w1", "")).toEqual({ to: "/chat/w1?panel=overview" })
-    expect(legacyRedirect("/workers/w1", "?tab=sessions")).toEqual({ to: "/chat/w1?panel=overview" })
-    expect(legacyRedirect("/workers/w1/", "?tab=env")).toEqual({ to: "/chat/w1?panel=env" })
+    expect(legacyRedirect("/workers/w1", "?tab=env")).toBe("/chat/w1?panel=env")
+    expect(legacyRedirect("/workers/w1", "?tab=constraints")).toBe("/chat/w1?panel=constraints")
+    expect(legacyRedirect("/workers/w1", "?tab=permissions")).toBe("/chat/w1?panel=permissions")
+    expect(legacyRedirect("/workers/w1", "")).toBe("/chat/w1?panel=overview")
+    expect(legacyRedirect("/workers/w1", "?tab=sessions")).toBe("/chat/w1?panel=overview")
+    expect(legacyRedirect("/workers/w1/", "?tab=env")).toBe("/chat/w1?panel=env")
   })
 
-  it("legacyRedirect maps create and departments", () => {
-    expect(legacyRedirect("/workers/create", "")).toEqual({ to: "/chat/bee?panel=new" })
-    expect(legacyRedirect("/workers/create", "?copy=w1")).toEqual({ to: "/chat/bee?panel=new&copy=w1" })
-    expect(legacyRedirect("/departments", "")).toEqual({ to: "/chat/bee", settings: "departments" })
+  it("legacyRedirect maps create and the old departments page", () => {
+    expect(legacyRedirect("/workers/create", "")).toBe("/chat/bee?panel=new")
+    expect(legacyRedirect("/workers/create", "?copy=w1")).toBe("/chat/bee?panel=new&copy=w1")
+    expect(legacyRedirect("/departments", "")).toBe("/chat/bee")
   })
 
   it("legacyRedirect maps the worker list to the bee chat", () => {
-    expect(legacyRedirect("/workers", "")).toEqual({ to: "/chat/bee" })
-    expect(legacyRedirect("/workers/", "?q=x")).toEqual({ to: "/chat/bee" })
+    expect(legacyRedirect("/workers", "")).toBe("/chat/bee")
+    expect(legacyRedirect("/workers/", "?q=x")).toBe("/chat/bee")
   })
 
   it("legacyRedirect ignores other paths", () => {
