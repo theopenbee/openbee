@@ -25,6 +25,7 @@ const (
 	scanLine      = "Open Telegram and scan the code"
 	firstLink     = "https://login.example.com/qr/1"
 	secondLink    = "https://login.example.com/qr/2"
+	thirdLink     = "https://login.example.com/qr/3"
 	savedFeedback = 2500 * time.Millisecond
 	qrQuietZone   = 2
 	qrDark        = 128
@@ -274,13 +275,22 @@ func TestSetupShowsQRForLatestLink(t *testing.T) {
 	f.awaitShown(secondLink)
 	f.wantShown(scanLine, locales.PluginsSetupRefreshHint())
 	f.wantHidden(firstLink)
+	f.wantQR(secondLink, firstLink)
 
-	box := f.rect(secondLink)
+	f.Fake.SetupEmit(sid, api.SetupEvent{Type: "line", Text: thirdLink})
+	f.awaitShown(thirdLink)
+	f.wantHidden(firstLink, secondLink)
+	f.wantQR(thirdLink, secondLink)
+}
+
+func (f *fixture) wantQR(link, other string) {
+	f.t.Helper()
+	box := f.rect(link)
 	if math.Abs(float64(box.W-qrSize)) > qrSlack || math.Abs(float64(box.H-qrSize)) > qrSlack {
-		t.Fatalf("QR code box = %+v, want a %v DIP square", box, qrSize)
+		f.t.Fatalf("QR code box = %+v, want a %v DIP square", box, qrSize)
 	}
-	want := qrCode(t, secondLink)
-	other := qrCode(t, firstLink)
+	want := qrCode(f.t, link)
+	unwanted := qrCode(f.t, other)
 	frame := f.T.Image()
 	step := box.W / float32(want.Size+2*qrQuietZone)
 	differs := false
@@ -290,13 +300,13 @@ func TestSetupShowsQRForLatestLink(t *testing.T) {
 			py := int(box.Y + (float32(y+qrQuietZone)+0.5)*step)
 			r, _, _, _ := frame.At(px, py).RGBA()
 			if dark := r>>8 < qrDark; dark != want.Black(x, y) {
-				t.Fatalf("QR module (%d, %d) dark = %v, want the code for %q", x, y, dark, secondLink)
+				f.t.Fatalf("QR module (%d, %d) dark = %v, want the code for %q", x, y, dark, link)
 			}
-			differs = differs || want.Black(x, y) != other.Black(x, y)
+			differs = differs || want.Black(x, y) != unwanted.Black(x, y)
 		}
 	}
 	if !differs {
-		t.Fatalf("the code for %q also encodes %q", secondLink, firstLink)
+		f.t.Fatalf("the code for %q also encodes %q", link, other)
 	}
 }
 

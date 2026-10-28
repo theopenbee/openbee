@@ -84,11 +84,11 @@ func TestSetupGivesUpAfterFive(t *testing.T) {
 	fix.Await(t, func() bool { return len(s.Lines) == 1 })
 
 	path := setupEvents(s.ID)
-	for range 4 {
+	for range 5 {
 		fake.FailNext(http.MethodGet, path, http.StatusServiceUnavailable, map[string]string{"error": "setup is busy"})
 	}
 	fake.DropSetupStreams(s.ID)
-	for _, delay := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second} {
+	for _, delay := range []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 10 * time.Second} {
 		fix.Await(t, func() bool { return s.Reconnecting })
 		armed(t, fix, 1)
 		n := countCalls(fake, http.MethodGet, path)
@@ -101,8 +101,8 @@ func TestSetupGivesUpAfterFive(t *testing.T) {
 	if s.Reconnecting || s.Done || !s.Active {
 		t.Fatalf("session after giving up = %+v, want lost, still active and not reconnecting", s)
 	}
-	if n := countCalls(fake, http.MethodGet, path); n != 5 {
-		t.Fatalf("event stream connections = %d, want 5", n)
+	if n := countCalls(fake, http.MethodGet, path); n != 6 {
+		t.Fatalf("event stream connections = %d, want 6", n)
 	}
 	if n := fix.Clock.Sleepers(); n != 0 {
 		t.Fatalf("%d reconnect timers still sleeping after giving up", n)

@@ -15,7 +15,7 @@ import (
 const (
 	setupBackoffBase = time.Second
 	setupBackoffMax  = 10 * time.Second
-	setupAttempts    = 5
+	setupAttempts    = 6
 	setupEventLine   = "line"
 	setupEventDone   = "done"
 )

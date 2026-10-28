@@ -159,7 +159,7 @@ func InitialFieldValues(d api.PluginDetail, random func() string) (FieldValues, 
 		case "int":
 			values[f.Key] = ""
 			if saved {
-				values[f.Key] = scalarString(cur)
+				values[f.Key] = ScalarString(cur)
 			}
 		case "list":
 			items, _ := stringList(cur)
@@ -167,7 +167,7 @@ func InitialFieldValues(d api.PluginDetail, random func() string) (FieldValues, 
 		default:
 			switch {
 			case saved:
-				values[f.Key] = scalarString(cur)
+				values[f.Key] = ScalarString(cur)
 			case f.RandomDefault && !hasKey(d.Config, f.Key):
 				values[f.Key] = random()
 			default:
@@ -222,7 +222,7 @@ func fieldUpdate(f api.PluginConfigField, config map[string]any, raw string, on 
 		return next, (saved && !slices.Equal(next, prev)) || (!saved && len(next) > 0)
 	}
 	if saved {
-		return raw, raw != scalarString(cur)
+		return raw, raw != ScalarString(cur)
 	}
 	return raw, (f.RandomDefault && !hasKey(config, f.Key)) || raw != ""
 }
@@ -276,12 +276,12 @@ func stringList(v any) ([]string, bool) {
 	}
 	out := make([]string, len(items))
 	for i, item := range items {
-		out[i] = scalarString(item)
+		out[i] = ScalarString(item)
 	}
 	return out, true
 }
 
-func scalarString(v any) string {
+func ScalarString(v any) string {
 	switch x := v.(type) {
 	case nil:
 		return "null"

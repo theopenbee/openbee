@@ -2,7 +2,6 @@ package settings
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -208,14 +207,12 @@ func defaultText(v any) string {
 	switch x := v.(type) {
 	case nil:
 		return ""
-	case string:
-		return x
 	case []any:
 		parts := make([]string, len(x))
 		for i, item := range x {
-			parts[i] = fmt.Sprint(item)
+			parts[i] = defaultText(item)
 		}
 		return strings.Join(parts, listJoin)
 	}
-	return fmt.Sprint(v)
+	return model.ScalarString(v)
 }
