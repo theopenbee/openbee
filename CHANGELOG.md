@@ -18,6 +18,7 @@
 - Open worker details from the chat header name.
 - Simplify worker profile labels and drop duplicate status.
 - Rename system settings to Settings; shorten env nav label.
+- Show worker and Bee replies in chat bubbles.
 
 ### Removed
 - Remove user and role management; keep one admin account.
