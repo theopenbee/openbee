@@ -145,6 +145,10 @@ func (s *Store) Busy() int {
 	return int(s.busy.Load())
 }
 
+func (s *Store) Post(fn func()) {
+	s.o.Post(fn)
+}
+
 func (s *Store) async(work func(ctx context.Context, c *api.Client) func(), canceled func()) {
 	sess := s.sess
 	s.Go(func(ctx context.Context) {

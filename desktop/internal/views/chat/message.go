@@ -3,7 +3,6 @@ package chat
 import (
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -35,8 +34,6 @@ const (
 	collapseFade    = 64
 	toggleTop       = 4
 	togglePadY      = 4
-	shortLines      = 26
-	shortLineRunes  = 20
 	senderUser      = "user"
 	senderBee       = "bee"
 	senderWorker    = "worker"
@@ -184,8 +181,8 @@ func (v *View) expandable(c *ui.Context, rc rowContext, m model.Message) {
 	}
 	clip.Children(func() {
 		inner := ui.Column(c).Shrink(0).MinWidth(0)
-		overflows = measuredOverflow(c, inner, m.Content)
-		inner.Children(func() { v.renderBody(c, tk, m) })
+		overflows = measuredOverflow(c, inner)
+		inner.Children(func() { v.renderBody(c, m) })
 		if overflows && !expanded {
 			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(collapseFade).
 				Gradient(tk.SurfaceMuted.Alpha(0), tk.SurfaceMuted, 180)
@@ -212,24 +209,18 @@ func (v *View) expandable(c *ui.Context, rc rowContext, m model.Message) {
 	}).Children(func() { ui.Text(c, label).SingleLine() })
 }
 
-func measuredOverflow(c *ui.Context, inner ui.Element, text string) bool {
-	short := fitsCollapsed(text)
-	seen := ui.Local(inner, measureKey{}, func() bool { return false })
+func measuredOverflow(c *ui.Context, inner ui.Element) bool {
+	over := ui.Local(inner, measureKey{}, func() bool { return false })
 	if b := inner.LayoutBounds(); b.H > 0 {
-		*seen = b.H > collapseHeight
-	} else if !short {
-		c.Invalidate()
+		*over = b.H > collapseHeight
 	}
-	return *seen
-}
-
-func fitsCollapsed(text string) bool {
-	lines := strings.Count(text, "\n") + 1
-	return lines+utf8.RuneCountInString(text)/shortLineRunes < shortLines
-}
-
-func (v *View) renderBody(c *ui.Context, tk theme.Tokens, m model.Message) {
-	ui.Text(c, m.Content).Selectable().FontSize(bodySize).LineHeight(bodyLineHeight).TextColor(tk.Foreground)
+	decided, services := *over, c.Services()
+	inner.Draw(func(_ *ui.Painter, r ui.Rect) {
+		if r.H > collapseHeight != decided {
+			services.Invalidate()
+		}
+	})
+	return decided
 }
 
 func hasText(s string) bool {

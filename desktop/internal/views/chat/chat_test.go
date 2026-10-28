@@ -623,7 +623,7 @@ func TestLongHistoryStaysFast(t *testing.T) {
 	ch.List = model.List{Msgs: msgs}
 	ch.Loaded = true
 	f.settleMotion()
-	if !f.shows(msgs[historySize-1].Content) {
+	if !f.shows(strings.TrimSpace(msgs[historySize-1].Content)) {
 		t.Fatalf("the newest message is not shown; texts %q", f.T.Texts())
 	}
 	times := make([]time.Duration, scrollFrames)

@@ -1,6 +1,11 @@
 package views_test
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
 	"slices"
 	"testing"
@@ -18,6 +23,11 @@ const (
 	wideW, wideH     = 1440, 900
 	narrowW, narrowH = 700, 900
 	titleNudge       = 10
+	chartW, chartH   = 360, 88
+	chartBar         = 14
+	chartGap         = 8
+	imageWait        = 3 * time.Second
+	chartAlt         = "Coverage by package"
 )
 
 type shots int
@@ -212,6 +222,70 @@ func resetConflict(t *testing.T, h *testkit.Harness) {
 	clickAndSettle(t, h, locales.CommonCancel(), r.W/2+40)
 }
 
+const richReply = "## Release 1.4.2 review\n" +
+	"The branch is close; see the [release guide](https://docs.openbee.dev/release) for the steps.\n\n" +
+	"- Signed builds for **macOS** and *Linux*\n" +
+	"- The ~~old~~ new updater feed\n\n" +
+	"* [x] Tag the build and update the changelog\n" +
+	"* [ ] Publish the notes after `make dist` passes\n\n" +
+	"> Windows arm64 still needs a manual retry after signing.\n\n" +
+	"```go\n" +
+	"if err := retry(ctx, \"sign-arm64\", 3); err != nil {\n" +
+	"\treturn fmt.Errorf(\"sign: %w\", err)\n" +
+	"}\n" +
+	"```\n\n" +
+	"| Platform | Status | Size |\n" +
+	"| --- | --- | ---: |\n" +
+	"| macOS universal | Ready | 48.2 MB |\n" +
+	"| Windows arm64 | Retrying | 50.9 MB |\n\n" +
+	"![" + chartAlt + "](/api/local/media/coverage.png)"
+
+func coverageChart(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, chartW, chartH))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{R: 250, G: 246, B: 240, A: 255}}, image.Point{}, draw.Src)
+	for i, share := range []float64{0.92, 0.78, 0.64, 0.41} {
+		y := chartGap + i*(chartBar+chartGap/2)
+		bar := image.Rect(chartGap, y, chartGap+int(share*float64(chartW-2*chartGap)), y+chartBar)
+		draw.Draw(img, bar, &image.Uniform{color.RGBA{R: 244, G: 129 - uint8(i*18), B: 32 + uint8(i*30), A: 255}}, image.Point{}, draw.Src)
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func markdownChat(chart []byte) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		staffed(st)
+		now := time.Now()
+		st.Media = map[string][]byte{"coverage.png": chart}
+		st.Messages = map[string][]api.ChatMessage{
+			api.WorkerConversation("grace"): {
+				said("g1", "user", "", "Where are we with the 1.4.2 release?", now.Add(-30*time.Minute)),
+				said("g2", "worker", "grace", richReply, now.Add(-28*time.Minute)),
+			},
+		}
+	}
+}
+
+func openRich(t *testing.T, h *testkit.Harness) {
+	openChat("grace")(t, h)
+	deadline := time.Now().Add(imageWait)
+	for {
+		h.Settle()
+		h.T.Frame()
+		if r, ok := h.T.Find(chartAlt); ok && r.W == chartW && r.H == chartH {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the chart did not load; texts %q", h.T.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 var chatScreens = []screen{
 	{name: "chat-worker", seed: chatHistory, signedIn: true, prepare: openChat("ada"), shots: wideOnly,
 		want: func() string { return "Exclude the trial accounts this time." }},
@@ -223,11 +297,18 @@ var chatScreens = []screen{
 	{name: "chat-reset-dialog", seed: chatHistory, signedIn: true, prepare: resetConflict, shots: wideOnly, want: locales.ChatStopAndRestart},
 }
 
+func markdownScreens(t *testing.T) []screen {
+	return []screen{
+		{name: "markdown-rich", seed: markdownChat(coverageChart(t)), signedIn: true, prepare: openRich, shots: wideOnly,
+			want: func() string { return "Release 1.4.2 review" }},
+	}
+}
+
 func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t)) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.New
 			if s.signedIn {

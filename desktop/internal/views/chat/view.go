@@ -34,9 +34,16 @@ type View struct {
 	s           *store.Store
 	nav         route.Nav
 	togglePanel func(cid string)
-	md          markdown.Options
+	md          *markdown.Options
+	themes      [2]*markdown.Theme
+	images      *imageCache
+	mediaGen    uint64
+	tk          theme.Tokens
+	link        linkState
+	table       tableModal
 	convs       map[string]*convState
 	foreground  bool
+	save        func(name string, data []byte) (string, error)
 }
 
 type convState struct {
@@ -50,13 +57,24 @@ type convState struct {
 }
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
-	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true}
-	s.OnSessionReset(func() { v.convs = map[string]*convState{} })
+	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog}
+	v.resetMedia()
+	s.OnSessionReset(func() {
+		v.convs = map[string]*convState{}
+		v.link, v.table = linkState{}, tableModal{}
+		v.resetMedia()
+	})
 	return v
 }
 
 func (v *View) Markdown() *markdown.Options {
-	return &v.md
+	return v.md
+}
+
+func (v *View) resetMedia() {
+	v.mediaGen++
+	v.images = newImageCache(v.mediaImages(v.mediaGen), fetchExternalImage)
+	v.md = newMarkdown(v)
 }
 
 func (v *View) state(cid string) *convState {
@@ -73,6 +91,8 @@ func (v *View) state(cid string) *convState {
 
 func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 	tk := theme.Apply(c)
+	v.tk = tk
+	v.md.Theme = v.markdownTheme(tk)
 	cs := v.state(cid)
 	w, ok := v.resolve(cid, cs)
 	if !ok {
@@ -96,6 +116,8 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		v.header(c, tk, p, panel.Mode == route.ModeWorker)
 		v.log(c, tk, p)
 		v.resetDialog(c, tk, p)
+		v.linkDialog(c, tk)
+		v.tableDialog(c, tk)
 	})
 }
 
