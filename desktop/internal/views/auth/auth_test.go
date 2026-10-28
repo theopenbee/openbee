@@ -286,6 +286,20 @@ func TestChangeServerFromLogin(t *testing.T) {
 	}
 }
 
+func TestChangeServerFromSetup(t *testing.T) {
+	h := connected(t, uninitialized)
+	wantText(t, h, locales.SetupTitle())
+	wantText(t, h, locales.LoginServer(h.Fake.URL))
+	click(t, h, locales.LoginChangeServer())
+	if h.Store.Phase != store.PhaseConnect {
+		t.Fatalf("Phase = %v, want PhaseConnect", h.Store.Phase)
+	}
+	wantText(t, h, locales.ConnectTitle())
+	if got := h.Fix.Prefs.Load().ServerURL; got != "" {
+		t.Fatalf("saved server = %q, want empty", got)
+	}
+}
+
 func TestLanguageMenuSwitchesToChinese(t *testing.T) {
 	h := connected(t, nil)
 	wantText(t, h, "Sign in")

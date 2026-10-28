@@ -58,6 +58,7 @@ func (a *Screens) Setup(c *ui.Context, tk theme.Tokens, page ui.Element) {
 			})
 			kit.Button(c, tk, locales.SetupSubmit(), kit.ButtonOpts{Loading: f.loading}).
 				AlignSelf(ui.Stretch).Margin(submitGap, 0, 0, 0).OnClick(submit)
+			a.serverRow(c, tk)
 		})
 	})
 }
