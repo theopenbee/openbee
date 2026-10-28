@@ -26,6 +26,7 @@
 - Remove CLI translations; the CLI is English only.
 - Remove departments and department-level environment variables.
 - Remove the overview tab from the worker profile.
+- Remove the copy worker action from the web console.
 
 ### Fixed
 - Preselect the default engine when creating a worker.
