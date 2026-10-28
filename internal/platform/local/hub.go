@@ -15,6 +15,7 @@ type SSEHub struct {
 	mu          sync.Mutex
 	subscribers map[string][]chan string
 	seq         map[string]uint64
+	closed      bool
 }
 
 func NewSSEHub() *SSEHub {
@@ -27,6 +28,11 @@ func NewSSEHub() *SSEHub {
 func (h *SSEHub) Subscribe(userID string) (<-chan string, func()) {
 	ch := make(chan string, 8)
 	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		close(ch)
+		return ch, func() {}
+	}
 	h.subscribers[userID] = append(h.subscribers[userID], ch)
 	h.mu.Unlock()
 
@@ -45,6 +51,18 @@ func (h *SSEHub) Subscribe(userID string) (<-chan string, func()) {
 			return
 		}
 		h.subscribers[userID] = subs
+	}
+}
+
+func (h *SSEHub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.closed = true
+	for userID, subs := range h.subscribers {
+		for _, ch := range subs {
+			close(ch)
+		}
+		delete(h.subscribers, userID)
 	}
 }
 

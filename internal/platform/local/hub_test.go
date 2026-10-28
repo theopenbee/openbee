@@ -141,3 +141,41 @@ func TestHubFullSubscriberDropsEventAndSeqShowsGap(t *testing.T) {
 	h.Publish("u1", local.Event{Type: "task"})
 	assert.Equal(t, uint64(10), recvEvent(t, ch).Seq)
 }
+
+func assertClosed(t *testing.T, ch <-chan string) {
+	t.Helper()
+	select {
+	case _, ok := <-ch:
+		assert.False(t, ok, "expected channel to be closed")
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timeout waiting for channel close")
+	}
+}
+
+func TestHubCloseEndsEverySubscription(t *testing.T) {
+	h := local.NewSSEHub()
+	chA, unsubA := h.Subscribe("u1")
+	chB, unsubB := h.Subscribe("u2")
+
+	h.Close()
+
+	assertClosed(t, chA)
+	assertClosed(t, chB)
+	assert.NotPanics(t, func() {
+		h.Publish("u1", local.Event{Type: "task"})
+		h.PublishAll(local.Event{Type: "task"})
+		unsubA()
+		unsubB()
+		h.Close()
+	})
+}
+
+func TestHubSubscribeAfterCloseReturnsClosedChannel(t *testing.T) {
+	h := local.NewSSEHub()
+	h.Close()
+
+	ch, unsub := h.Subscribe("u1")
+	defer unsub()
+
+	assertClosed(t, ch)
+}

@@ -50,11 +50,12 @@ import (
 
 // App holds all wired-up components and runs the server.
 type App struct {
-	db      *sql.DB
-	server  *routes.Server
-	runners []func(ctx context.Context)
-	plugins *pluginmgr.Manager
-	addr    string
+	db       *sql.DB
+	server   *routes.Server
+	localHub *local.SSEHub
+	runners  []func(ctx context.Context)
+	plugins  *pluginmgr.Manager
+	addr     string
 }
 
 // Run starts all goroutines, waits for a signal, then shuts down gracefully.
@@ -89,6 +90,7 @@ func (a *App) Run() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
+	a.localHub.Close()
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("server shutdown error", zap.Error(err))
 	}
@@ -256,7 +258,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	}
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	return &App{db: db, server: srv, runners: runners, plugins: pluginMgr, addr: addr}, nil
+	return &App{db: db, server: srv, localHub: localHub, runners: runners, plugins: pluginMgr, addr: addr}, nil
 }
 
 // appStores groups all store instances for passing to sub-builders.
