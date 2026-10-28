@@ -23,11 +23,11 @@ web: ## Build frontend assets
 
 build: ## Build binary for the current platform
 	@mkdir -p $(OUTDIR)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY) ./cmd/openbee/
+	CGO_ENABLED=0 go -C backend build -ldflags "$(LDFLAGS)" -o ../$(OUTDIR)/$(BINARY) ./cmd/openbee/
 
 build-linux-amd64: ## Build binary for linux/amd64
 	@mkdir -p $(OUTDIR)
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY)-linux-amd64 ./cmd/openbee/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C backend build -ldflags "$(LDFLAGS)" -o ../$(OUTDIR)/$(BINARY)-linux-amd64 ./cmd/openbee/
 
 release: web ## Build binaries for all platforms
 	@mkdir -p $(OUTDIR)
@@ -37,7 +37,7 @@ release: web ## Build binaries for all platforms
 		out=$(OUTDIR)/$(BINARY)-$$os-$$arch; \
 		if [ "$$os" = "windows" ]; then out=$$out.exe; fi; \
 		echo "  Building $$out..."; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $$out ./cmd/openbee/ || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go -C backend build -ldflags "$(LDFLAGS)" -o ../$$out ./cmd/openbee/ || exit 1; \
 	done
 	@echo "Done. Artifacts in $(OUTDIR)/"
 

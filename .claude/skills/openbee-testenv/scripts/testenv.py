@@ -78,6 +78,16 @@ def env_dir(name):
     return ENVS / name
 
 
+def backend_dir(src):
+    b = Path(src) / "backend"
+    return b if b.is_dir() else Path(src)
+
+
+def web_dist(src):
+    d = backend_dir(src) / "internal" / "webui"
+    return d / "dist" if d.is_dir() else Path(src) / "web" / "dist"
+
+
 def state_dir(meta):
     return Path(meta["home"]) / STATE_DIR
 
@@ -272,15 +282,15 @@ def build(meta, skip_web):
     src = Path(meta["src"])
     env = dict(os.environ)
     env["PATH"] = f"{node_bin()}:{env.get('PATH', '')}"
-    if skip_web and (src / "web" / "dist" / "index.html").exists():
-        log("web build skipped, embedding the existing web/dist")
+    if skip_web and (web_dist(src) / "index.html").exists():
+        log("web build skipped, embedding the existing web build")
     else:
         log("building web (pnpm install --frozen-lockfile && pnpm build)")
         run(["pnpm", "install", "--frozen-lockfile"], cwd=src / "web", env=env, capture=True)
         run(["pnpm", "build"], cwd=src / "web", env=env, capture=True)
     log("building server")
     env["CGO_ENABLED"] = "0"
-    run(["go", "build", "-o", meta["bin"], "./cmd/openbee"], cwd=src, env=env, capture=True)
+    run(["go", "build", "-o", meta["bin"], "./cmd/openbee"], cwd=backend_dir(src), env=env, capture=True)
     meta["commit"] = git(src, "rev-parse", "--short", "HEAD")
     branch = git(src, "rev-parse", "--abbrev-ref", "HEAD")
     if branch == "HEAD":
@@ -292,7 +302,7 @@ def build(meta, skip_web):
 
 
 def install_skills(meta):
-    src = Path(meta["src"]) / "internal" / "infra" / "skillinstall" / "skills"
+    src = backend_dir(meta["src"]) / "internal" / "infra" / "skillinstall" / "skills"
     if not src.is_dir():
         return
     for target in (Path(meta["home"]) / ".claude" / "skills", Path(meta["home"]) / ".agents" / "skills"):
@@ -524,7 +534,7 @@ def cmd_up(a):
     if port_open(port):
         die(f"port {port} is in use by pid {listener_pid(port)}")
     src = Path(a.src or git(Path.cwd(), "rev-parse", "--show-toplevel") or Path.cwd()).expanduser().resolve()
-    if not (src / "cmd" / "openbee").is_dir():
+    if not (backend_dir(src) / "cmd" / "openbee").is_dir():
         die(f"{src} is not an openbee checkout")
     read_secret("deepseek-key")
     d = env_dir(name)
@@ -715,7 +725,7 @@ def cmd_restart(a):
         if not a.rebuild:
             die("--src needs --rebuild")
         src = Path(a.src).expanduser().resolve()
-        if not (src / "cmd" / "openbee").is_dir():
+        if not (backend_dir(src) / "cmd" / "openbee").is_dir():
             die(f"{src} is not an openbee checkout")
     work = busy(meta) if pid_of(meta) else []
     if work and not a.force:

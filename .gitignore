@@ -1,5 +1,5 @@
-data/openbee.db
-data/workers/
+/data/
+/backend/data/
 *.exe
 /server
 .worktrees/
@@ -11,7 +11,8 @@ openclaw/
 wecom-openclaw-plugin-main/
 aibot-node-sdk-main/
 /openbee
+/backend/openbee
 dist/
-npm/packages/cli/README.md.worktrees/
+npm/packages/cli/README.md
 docs/superpowers/
 __pycache__/

@@ -45,7 +45,7 @@ import (
 	"github.com/theopenbee/openbee/internal/plugin/catalog"
 	"github.com/theopenbee/openbee/internal/rpc"
 	"github.com/theopenbee/openbee/internal/tokenstat"
-	webui "github.com/theopenbee/openbee/web"
+	"github.com/theopenbee/openbee/internal/webui"
 )
 
 // App holds all wired-up components and runs the server.

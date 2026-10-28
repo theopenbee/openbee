@@ -1,4 +1,4 @@
-<img src="docs/logo-full.svg" alt="OpenBee" width="220" />
+<img src="docs/images/logo-full.svg" alt="OpenBee" width="220" />
 
 # OpenBee — Build smarter AI teams.
 
@@ -16,7 +16,7 @@ To learn more about the project, visit [docs.theopenbee.com](https://docs.theope
 
 ## 📸 Screenshots
 
-<img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
+<img src="docs/images/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## 🚀 Quick Start
 

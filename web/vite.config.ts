@@ -18,6 +18,8 @@ export default defineConfig({
   },
   build: {
     target: "es2020",
+    outDir: "../backend/internal/webui/dist",
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

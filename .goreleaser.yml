@@ -2,11 +2,12 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
+    - go -C backend mod tidy
     - bash -c "cd web && pnpm install --frozen-lockfile && pnpm build"
 
 builds:
   - id: openbee
+    dir: backend
     main: ./cmd/openbee/
     binary: openbee
     env:

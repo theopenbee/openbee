@@ -40,7 +40,8 @@ Run `openbee config` to interactively generate `config.yaml` with all available 
 ### Running Tests
 
 ```bash
-go test ./...
+go -C backend test ./...
+pnpm -C web test
 ```
 
 ## Development Workflow
@@ -53,7 +54,7 @@ go test ./...
 3. **Make your changes** and add tests where appropriate
 4. **Run tests** to ensure nothing is broken:
    ```bash
-   go test ./...
+   go -C backend test ./...
    ```
 5. **Commit** your changes with a clear message (see [Commit Messages](#commit-messages))
 6. **Push** to your fork and open a **Pull Request** against `main`
@@ -92,21 +93,23 @@ docs: update configuration guide
 
 ```
 openbee/
-├── cmd/openbee/       # CLI entry point
-├── internal/
-│   ├── api/           # HTTP API handlers
-│   ├── app/           # Application lifecycle
-│   ├── bee/           # Core bot logic
-│   ├── claude/        # Claude integration
-│   ├── config/        # Configuration loading
-│   ├── rpc/           # internal RPC for ctl/bee/worker callbacks
-│   ├── platform/      # Platform adapters (local chat, channel plugins)
-│   ├── store/         # Data persistence (SQLite)
-│   ├── task_dispatcher/ # Background task dispatch
-│   ├── task_scheduler/  # Task scheduling
-│   └── worker/        # Worker management
-├── web/               # Frontend (React + TypeScript)
-├── docs/              # Technical documentation
+├── backend/               # Go service and CLI (Go module)
+│   ├── cmd/openbee/       # CLI entry point
+│   └── internal/
+│       ├── ai/            # Engine adapters (Claude, Codex, pi)
+│       ├── api/           # HTTP API handlers
+│       ├── app/           # Application wiring and lifecycle
+│       ├── domain/        # Bee, worker, task and session logic
+│       ├── infra/         # Config, storage, auth, logging, i18n
+│       ├── platform/      # Platform adapters (local chat, channel plugins)
+│       ├── plugin/        # Channel plugin runtime
+│       ├── routes/        # HTTP server and routing
+│       ├── rpc/           # Internal RPC for ctl/bee/worker callbacks
+│       └── webui/         # Embedded web UI (web/ builds into dist/)
+├── web/                   # Frontend (React + TypeScript)
+├── docs/                  # Technical documentation and images
+├── npm/                   # npm distribution packages
+├── install.sh             # One-line installer
 ├── Makefile
 └── .goreleaser.yml
 ```
