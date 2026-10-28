@@ -49,6 +49,7 @@ type Server struct {
 	tokens  tokenBook
 	account account
 	hub     chatHub
+	reads   map[string]int64
 	setups  setupBook
 }
 
@@ -62,6 +63,7 @@ func New(t testing.TB) *Server {
 		tokens:  newTokenBook(),
 		account: account{createdAt: time.Now().UnixMilli()},
 		hub:     newChatHub(),
+		reads:   map[string]int64{},
 		setups:  newSetupBook(),
 	}
 	s.routes()
@@ -194,21 +196,25 @@ type handler func(q *request) reply
 
 func (s *Server) route(pattern string, mode authMode, h handler) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		out := s.guard(mode, r)
-		if out.status == 0 {
-			out = h(&request{r: r})
-		}
-		s.mu.Unlock()
+		out := func() reply {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if denied := s.guard(mode, r); denied.status != 0 {
+				return denied
+			}
+			return h(&request{r: r})
+		}()
 		out.write(w)
 	})
 }
 
 func (s *Server) raw(pattern string, mode authMode, h http.HandlerFunc) {
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		denied := s.guard(mode, r)
-		s.mu.Unlock()
+		denied := func() reply {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.guard(mode, r)
+		}()
 		if denied.status != 0 {
 			denied.write(w)
 			return

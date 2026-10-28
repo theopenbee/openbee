@@ -205,19 +205,24 @@ func (s *Server) markRead(q *request) reply {
 	if bad, good := q.decodeOptional(&req); !good {
 		return bad
 	}
-	i := s.ensureSummary(cid)
-	if req.TS <= 0 {
-		s.st.Conversations[i].Unread = 0
-		return noContent()
+	mark := req.TS
+	if mark <= 0 {
+		mark = s.now()
 	}
+	mark = max(mark, s.reads[cid])
+	s.reads[cid] = mark
+	s.st.Conversations[s.ensureSummary(cid)].Unread = s.unreadAfter(cid, mark)
+	return noContent()
+}
+
+func (s *Server) unreadAfter(cid string, mark int64) int {
 	unread := 0
 	for _, m := range s.st.Messages[cid] {
-		if m.TS > req.TS && countsAsUnread(m) {
+		if m.TS > mark && countsAsUnread(m) {
 			unread++
 		}
 	}
-	s.st.Conversations[i].Unread = unread
-	return noContent()
+	return unread
 }
 
 func countsAsUnread(m api.ChatMessage) bool {
@@ -320,7 +325,7 @@ func (s *Server) noteMessage(cid string, m api.ChatMessage) {
 		last.HandoffWorkerID = m.Handoff.WorkerID
 	}
 	s.st.Conversations[i].LastMessage = last
-	if countsAsUnread(m) {
+	if countsAsUnread(m) && m.TS > s.reads[cid] {
 		s.st.Conversations[i].Unread++
 	}
 }

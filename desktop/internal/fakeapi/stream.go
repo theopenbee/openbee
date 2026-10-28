@@ -69,7 +69,41 @@ func (s *Server) emitLocked(ev api.ChatEvent) {
 func (s *Server) Emit(ev api.ChatEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.applyEvent(ev)
 	s.emitLocked(ev)
+}
+
+func (s *Server) SkipSeq(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n > 0 {
+		s.hub.seq += uint64(n)
+	}
+}
+
+func (s *Server) applyEvent(ev api.ChatEvent) {
+	switch ev.Type {
+	case "worker_status":
+		if i := s.workerIndex(ev.WorkerID); i >= 0 {
+			s.st.Workers[i].Status = ev.Status
+		}
+	case "task":
+		cid := ev.ConversationID
+		if cid == "" && ev.WorkerID != "" {
+			cid = api.WorkerConversation(ev.WorkerID)
+		}
+		if !s.conversationExists(cid) {
+			return
+		}
+		activity := api.ConversationActivity{State: activityIdle}
+		switch ev.State {
+		case "running":
+			activity.State = ev.State
+		case "queued":
+			activity = api.ConversationActivity{State: ev.State, QueuedAhead: ev.QueuedAhead}
+		}
+		s.st.Conversations[s.ensureSummary(cid)].Activity = activity
+	}
 }
 
 func (s *Server) DropStreams() {

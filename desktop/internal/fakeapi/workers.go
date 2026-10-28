@@ -260,6 +260,7 @@ func (s *Server) deleteWorker(q *request) reply {
 	s.st.Conversations = slices.DeleteFunc(s.st.Conversations, func(c api.ConversationSummary) bool { return c.ID == cid })
 	delete(s.st.Messages, cid)
 	delete(s.st.ActiveTasks, cid)
+	delete(s.reads, cid)
 	return ok(map[string]string{"status": "deleted"})
 }
 

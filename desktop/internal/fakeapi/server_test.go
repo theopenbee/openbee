@@ -1494,3 +1494,195 @@ func TestPluginSetupCancelAndRestart(t *testing.T) {
 	}
 	secondStream.ended(t)
 }
+
+func unreadOf(t *testing.T, s *session, cid string) int {
+	t.Helper()
+	convs, err := s.client.Conversations(ctx(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cv := range convs {
+		if cv.ID == cid {
+			return cv.Unread
+		}
+	}
+	t.Fatalf("conversation %q not listed", cid)
+	return 0
+}
+
+func TestReadMarkOnlyMovesForward(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	for _, ts := range []int64{100, 200, 300} {
+		s.fake.Reply("bee", api.ChatMessage{TS: ts, Content: "m"})
+	}
+	steps := []struct {
+		name string
+		ts   int64
+		want int
+	}{
+		{"mark at 200", 200, 1},
+		{"older mark does not raise unread", 100, 1},
+		{"same mark again", 200, 1},
+		{"newer mark", 300, 0},
+		{"older mark after catching up", 150, 0},
+	}
+	for _, step := range steps {
+		if err := s.client.MarkRead(c, "bee", step.ts); err != nil {
+			t.Fatal(err)
+		}
+		if got := unreadOf(t, s, "bee"); got != step.want {
+			t.Fatalf("%s: unread = %d, want %d", step.name, got, step.want)
+		}
+	}
+}
+
+func TestReadMarkWithoutTimestampUsesNow(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	s.fake.Reply("bee", api.ChatMessage{TS: 100, Content: "old"})
+	if err := s.client.MarkRead(c, "bee", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.client.MarkRead(c, "bee", 50); err != nil {
+		t.Fatal(err)
+	}
+	if got := unreadOf(t, s, "bee"); got != 0 {
+		t.Fatalf("unread after now-mark then older mark = %d, want 0", got)
+	}
+
+	s.fake.Reply("bee", api.ChatMessage{Content: "after the mark"})
+	if got := unreadOf(t, s, "bee"); got != 1 {
+		t.Fatalf("unread after a new message = %d, want 1", got)
+	}
+	s.fake.Reply("bee", api.ChatMessage{TS: 150, Content: "stamped before the mark"})
+	if got := unreadOf(t, s, "bee"); got != 1 {
+		t.Fatalf("a message older than the mark counted as unread: %d", got)
+	}
+	if err := s.client.MarkRead(c, "bee", 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := unreadOf(t, s, "bee"); got != 0 {
+		t.Fatalf("unread after reading = %d, want 0", got)
+	}
+}
+
+func TestOwnMessagesDoNotCountAsUnread(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	if _, err := s.client.SendMessage(c, "bee", api.SendMessageRequest{Content: "mine"}); err != nil {
+		t.Fatal(err)
+	}
+	s.fake.Reply("bee", api.ChatMessage{Content: "theirs"})
+	if err := s.client.MarkRead(c, "bee", 1); err != nil {
+		t.Fatal(err)
+	}
+	if got := unreadOf(t, s, "bee"); got != 1 {
+		t.Fatalf("unread = %d, want 1 (only the reply)", got)
+	}
+}
+
+func TestSkipSeqCreatesGapOnLiveStream(t *testing.T) {
+	s := signedIn(t)
+	stream := openChat(t, s)
+
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: "w"})
+	s.fake.SkipSeq(2)
+	s.fake.SkipSeq(0)
+	s.fake.SkipSeq(-3)
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: "w"})
+
+	if first := stream.chatEvent(t); first.Seq != 1 {
+		t.Fatalf("first seq = %d, want 1", first.Seq)
+	}
+	if second := stream.chatEvent(t); second.Seq != 4 {
+		t.Fatalf("second seq = %d, want 4", second.Seq)
+	}
+	stream.quiet(t)
+}
+
+func TestEmitWorkerStatusUpdatesWorker(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	w := mustWorker(t, s, "sam")
+	other := mustWorker(t, s, "ann")
+
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: w.ID, Status: "working"})
+	if got, err := s.client.Worker(c, w.ID); err != nil || got.Status != "working" {
+		t.Fatalf("Worker = %+v, %v", got, err)
+	}
+	if got, _ := s.client.Worker(c, other.ID); got.Status != "idle" {
+		t.Fatalf("other worker status = %q", got.Status)
+	}
+	if list, _ := s.client.Workers(c); list[0].Status != "working" || list[1].Status != "idle" {
+		t.Fatalf("Workers = %+v", list)
+	}
+
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: w.ID, Status: "error"})
+	if got, _ := s.client.Worker(c, w.ID); got.Status != "error" {
+		t.Fatalf("status after error = %q", got.Status)
+	}
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: "ghost", Status: "working"})
+	if list, _ := s.client.Workers(c); len(list) != 2 {
+		t.Fatalf("unknown worker event changed the list: %+v", list)
+	}
+}
+
+func TestEmitTaskUpdatesConversationActivity(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	w := mustWorker(t, s, "sam")
+	cid := api.WorkerConversation(w.ID)
+	activity := func() api.ConversationActivity {
+		t.Helper()
+		convs, err := s.client.Conversations(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, cv := range convs {
+			if cv.ID == cid {
+				return cv.Activity
+			}
+		}
+		t.Fatalf("conversation %q not listed", cid)
+		return api.ConversationActivity{}
+	}
+
+	steps := []struct {
+		name string
+		ev   api.ChatEvent
+		want api.ConversationActivity
+	}{
+		{"queued", api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t1", State: "queued", QueuedAhead: 2}, api.ConversationActivity{State: "queued", QueuedAhead: 2}},
+		{"running", api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t1", State: "running"}, api.ConversationActivity{State: "running"}},
+		{"completed", api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t1", State: "completed"}, api.ConversationActivity{State: "idle"}},
+		{"running by worker id", api.ChatEvent{Type: "task", WorkerID: w.ID, TaskID: "t2", State: "running"}, api.ConversationActivity{State: "running"}},
+		{"failed", api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t2", State: "failed"}, api.ConversationActivity{State: "idle"}},
+		{"cancelled", api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t3", State: "cancelled"}, api.ConversationActivity{State: "idle"}},
+	}
+	for _, step := range steps {
+		s.fake.Emit(step.ev)
+		if got := activity(); got != step.want {
+			t.Fatalf("%s: activity = %+v, want %+v", step.name, got, step.want)
+		}
+	}
+
+	s.fake.Emit(api.ChatEvent{Type: "task", ConversationID: "worker:ghost", State: "running"})
+	convs, _ := s.client.Conversations(c)
+	if len(convs) != 2 {
+		t.Fatalf("task for an unknown conversation created a summary: %+v", convs)
+	}
+}
+
+func TestEmittedEventsStillReachStreamsAfterApplying(t *testing.T) {
+	s := signedIn(t)
+	w := mustWorker(t, s, "sam")
+	stream := openChat(t, s)
+	s.fake.Emit(api.ChatEvent{Type: "worker_status", WorkerID: w.ID, Status: "working"})
+	if ev := stream.chatEvent(t); ev.Seq != 1 || ev.Status != "working" {
+		t.Fatalf("event = %+v", ev)
+	}
+	if got := s.fake.Snapshot().Workers[0].Status; got != "working" {
+		t.Fatalf("Snapshot status = %q", got)
+	}
+}
