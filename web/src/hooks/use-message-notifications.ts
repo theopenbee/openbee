@@ -129,7 +129,7 @@ export function useMessageNotifications() {
     onMessage: (conversation, message) => {
       if (!enabled || !shouldNotify(conversation, message, pageAttention())) return
       void Promise.all([anotherTabInFront(), resolveWorkers(conversation, message)]).then(([elsewhere, known]) => {
-        if (!elsewhere) show(conversation, message, known)
+        if (!elsewhere && !inFront()) show(conversation, message, known)
       })
     },
   })
