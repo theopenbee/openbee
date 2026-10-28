@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { PlusIcon } from "lucide-react"
+import { useReducedMotion } from "motion/react"
 import { Button } from "@/components/arc/button/button"
 import { SearchField } from "@/components/arc/search-field/search-field"
 import { Tooltip } from "@/components/arc/tooltip/tooltip"
@@ -32,6 +33,9 @@ export function ConversationList({ active, className }: ConversationListProps) {
   const now = useNow(true, CLOCK_INTERVAL_MS)
   const conversations = useConversations()
   const workers = useWorkers()
+  const reduced = useReducedMotion()
+  const navRef = useRef<HTMLElement>(null)
+  const revealedRef = useRef<ConversationId | null>(null)
 
   const workerMap = useMemo(
     () => new Map<string, Worker>((workers.data ?? []).map((worker) => [worker.id, worker])),
@@ -45,6 +49,14 @@ export function ConversationList({ active, className }: ConversationListProps) {
     )
     return filterConversations(sortConversations(listed, names), query, workerMap)
   }, [conversations.data, workerMap, query])
+
+  useEffect(() => {
+    if (active === revealedRef.current) return
+    const row = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!row) return
+    row.scrollIntoView({ block: "nearest", behavior: revealedRef.current && !reduced ? "smooth" : "auto" })
+    revealedRef.current = active
+  }, [active, rows, reduced])
 
   const openNewWorker = () => setSearchParams((current) => panelToSearch({ mode: "new" }, current))
   const loading = conversations.isPending || workers.isPending
@@ -70,7 +82,11 @@ export function ConversationList({ active, className }: ConversationListProps) {
       <div className="shrink-0 px-3 pb-3 [&_label]:sr-only">
         <SearchField label={t("chat.search")} placeholder={t("chat.search")} value={query} onValueChange={setQuery} />
       </div>
-      <nav aria-label={t("chat.title")} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [overflow-anchor:none]">
+      <nav
+        ref={navRef}
+        aria-label={t("chat.title")}
+        className="relative min-h-0 flex-1 scroll-py-3 overflow-y-auto overscroll-contain px-3 pb-3 [overflow-anchor:none]"
+      >
         {loading ? (
           <ListSkeleton />
         ) : failed ? (
