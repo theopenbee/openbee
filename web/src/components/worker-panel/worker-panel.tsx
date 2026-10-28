@@ -130,10 +130,12 @@ function WorkerHeader({ worker, editing, onEdit, onCopy, onDelete }: WorkerHeade
           <h3 className="truncate text-lg font-medium text-foreground">{worker.name}</h3>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-secondary">
             <StatusBadge status={worker.status} />
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              {worker.engine && <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />}
-              <span className="truncate">{worker.engine ? formatEngineLabel(worker.engine, t) : t("workers.noEngine")}</span>
-            </span>
+            {worker.engine && (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />
+                <span className="truncate">{formatEngineLabel(worker.engine, t)}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>

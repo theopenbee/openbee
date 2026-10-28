@@ -81,13 +81,9 @@
       "pi": "Pi"
     },
     "deleteWorker": "删除员工",
-    "noEngine": "未设置",
     "rowActions": "{{name}} 的操作"
   },
   "workerDetail": {
-    "workerInfo": "员工信息",
-    "id": "ID",
-    "workDir": "工作目录",
     "created": "创建时间",
     "updated": "最近更新",
     "editConstraints": "编辑工作约束",
@@ -125,9 +121,6 @@
     "saveInfo": "保存修改",
     "loadError": "无法加载该员工",
     "permissionsSaveError": "无法更新权限",
-    "defaultWorkDir": "默认目录",
-    "copyId": "复制员工 ID",
-    "copyWorkDir": "复制工作目录",
     "effectiveEnvDescription": "合并全局与员工级变量后，该员工实际可见的值。"
   },
   "chat": {

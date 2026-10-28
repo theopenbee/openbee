@@ -81,13 +81,9 @@
       "pi": "Pi"
     },
     "deleteWorker": "Delete worker",
-    "noEngine": "Not set",
     "rowActions": "Actions for {{name}}"
   },
   "workerDetail": {
-    "workerInfo": "Worker info",
-    "id": "ID",
-    "workDir": "Work directory",
     "created": "Created",
     "updated": "Last updated",
     "editConstraints": "Edit work constraints",
@@ -125,9 +121,6 @@
     "saveInfo": "Save changes",
     "loadError": "Couldn't load this worker",
     "permissionsSaveError": "Couldn't update permissions",
-    "defaultWorkDir": "Default directory",
-    "copyId": "Copy worker ID",
-    "copyWorkDir": "Copy work directory",
     "effectiveEnvDescription": "What the worker sees after global and worker values are merged."
   },
   "chat": {
