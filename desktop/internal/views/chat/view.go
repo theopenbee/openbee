@@ -47,6 +47,7 @@ type View struct {
 	photos      *photoLoads
 	opening     map[string]bool
 	openPath    func(path string) error
+	reveal      func(path string) error
 	convs       map[string]*convState
 	foreground  bool
 	save        func(name string, data []byte) (string, error)
@@ -64,7 +65,7 @@ type convState struct {
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog,
-		openPath: mygo.Shell.OpenPath}
+		openPath: mygo.Shell.OpenPath, reveal: revealInFolder}
 	v.resetMedia()
 	s.OnSessionReset(func() {
 		v.convs = map[string]*convState{}
@@ -76,6 +77,11 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 		v.photos.retryFailed()
 	})
 	return v
+}
+
+func revealInFolder(path string) error {
+	mygo.Shell.ShowItemInFolder(path)
+	return nil
 }
 
 func (v *View) Markdown() *markdown.Options {

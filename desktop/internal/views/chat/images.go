@@ -34,6 +34,7 @@ const (
 	photoKeyPrefix       = "photo:"
 	svgExtension         = ".svg"
 	photoEdge            = 2560
+	photoDecodeSlots     = 2
 	maxPhotoPixels       = 100_000_000
 	jpegPrefix           = 0xff
 	jpegStart            = 0xd8
@@ -68,8 +69,10 @@ type cachedImage struct {
 }
 
 type imageCache struct {
-	media func(name string) ([]byte, error)
-	web   func(url string) ([]byte, error)
+	media  func(name string) ([]byte, error)
+	web    func(url string) ([]byte, error)
+	decode func(data []byte, svg bool) (ui.ImageSource, int64, error)
+	slots  chan struct{}
 
 	mu    sync.Mutex
 	items map[string]*list.Element
@@ -129,7 +132,7 @@ func (l *imageLoads) due(retryFailed bool) bool {
 }
 
 func newImageCache(media, web func(string) ([]byte, error)) *imageCache {
-	return &imageCache{media: media, web: web, items: map[string]*list.Element{}}
+	return &imageCache{media: media, web: web, decode: decodePhoto, slots: make(chan struct{}, photoDecodeSlots), items: map[string]*list.Element{}}
 }
 
 func (ic *imageCache) Load(address string) (ui.ImageSource, error) {
@@ -176,12 +179,18 @@ func (ic *imageCache) loadPhoto(name string) (ui.ImageSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	src, size, err := decodePhoto(data, hasSVGExtension(name))
+	src, size, err := ic.decodeBounded(data, hasSVGExtension(name))
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", errImageDecode, name, err)
 	}
 	ic.put(key, src, size)
 	return src, nil
+}
+
+func (ic *imageCache) decodeBounded(data []byte, svg bool) (ui.ImageSource, int64, error) {
+	ic.slots <- struct{}{}
+	defer func() { <-ic.slots }()
+	return ic.decode(data, svg)
 }
 
 func photoKey(name string) string {

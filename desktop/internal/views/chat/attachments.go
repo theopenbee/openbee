@@ -57,6 +57,14 @@ var categoryIcons = map[string]string{
 	categoryOther:    "file",
 }
 
+var openableCategories = map[string]bool{
+	categoryImage:    true,
+	categoryAudio:    true,
+	categoryVideo:    true,
+	categoryDocument: true,
+	categoryArchive:  true,
+}
+
 var extensionCategories = func() map[string]string {
 	m := map[string]string{}
 	for _, c := range categoryExtensions {
@@ -73,6 +81,10 @@ func fileCategory(name string) string {
 		return category
 	}
 	return categoryOther
+}
+
+func safeToOpen(name string) bool {
+	return openableCategories[fileCategory(strings.TrimRight(mediaBase(name), ". "))]
 }
 
 func isImage(name string) bool {
@@ -256,11 +268,18 @@ func (v *View) openMedia(name string) {
 		}
 		delete(v.opening, name)
 		if err == nil {
-			err = v.openPath(localPath)
+			err = v.launch(localPath)
 		}
 		if err != nil {
 			log.Printf("chat: open attachment %s: %v", name, err)
 			v.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: locales.FileOpenFailed()})
 		}
 	})
+}
+
+func (v *View) launch(localPath string) error {
+	if safeToOpen(localPath) {
+		return v.openPath(localPath)
+	}
+	return v.reveal(localPath)
 }

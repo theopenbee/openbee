@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -23,36 +24,37 @@ import (
 )
 
 const (
-	photoName      = "photo.png"
-	photoW         = 400
-	photoH         = 300
-	thumbHeight    = 240
-	thumbBorder    = 2
-	photoEdge      = 2560
-	photoShort     = 853
-	thumbSlack     = 0.5
-	pixelSlack     = 6
-	barHeight      = 76
-	stageBottom    = 32
-	stageMiddle    = (barHeight + wideH - stageBottom) / 2
-	tallPhotoW     = 9000
-	tallPhotoH     = 7000
-	landscapeW     = 3000
-	landscapeH     = 1000
-	exifRotateCW   = 6
-	declaredSide   = 20000
-	reportName     = "report.pdf"
-	reportContent  = "%PDF-1.7 report"
-	lightboxEdge   = 20
-	columnMax      = 768
-	columnPadding  = 24
-	controlsHeight = 32
-	controlsLeft   = 80
-	controlsRight  = 140
-	narrowPhone    = 500
-	longNameLength = 160
-	panoramaW      = 1800
-	panoramaH      = 300
+	photoName       = "photo.png"
+	photoW          = 400
+	photoH          = 300
+	thumbHeight     = 240
+	thumbBorder     = 2
+	photoEdge       = 2560
+	photoShort      = 853
+	thumbSlack      = 0.5
+	pixelSlack      = 6
+	barHeight       = 76
+	stageBottom     = 32
+	stageMiddle     = (barHeight + wideH - stageBottom) / 2
+	tallPhotoW      = 9000
+	tallPhotoH      = 7000
+	landscapeW      = 3000
+	landscapeH      = 1000
+	exifRotateCW    = 6
+	declaredSide    = 20000
+	reportName      = "report.pdf"
+	reportContent   = "%PDF-1.7 report"
+	lightboxEdge    = 20
+	columnMax       = 768
+	columnPadding   = 24
+	controlsHeight  = 32
+	controlsLeft    = 80
+	controlsRight   = 140
+	narrowPhone     = 500
+	longNameLength  = 160
+	panoramaW       = 1800
+	panoramaH       = 300
+	bigPhotoTimeout = 30 * time.Second
 )
 
 type opener struct {
@@ -98,7 +100,12 @@ func photoChat(t *testing.T) *fixture {
 
 func (f *fixture) awaitThumb(name string, width float32) {
 	f.t.Helper()
-	deadline := time.Now().Add(imageTimeout)
+	f.awaitThumbWithin(name, width, imageTimeout)
+}
+
+func (f *fixture) awaitThumbWithin(name string, width float32, timeout time.Duration) {
+	f.t.Helper()
+	deadline := time.Now().Add(timeout)
 	for {
 		f.Settle()
 		f.T.Frame()
@@ -396,7 +403,7 @@ func TestWorkerAttachmentsKeepTheSenderHeader(t *testing.T) {
 func TestLargePhotoDisplaysDownscaled(t *testing.T) {
 	m := withAttachments(message("m1", "worker", "w1", "Full resolution.", time.Now().Add(-time.Hour)), "wide.png")
 	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{"wide.png": grayPNG(t, tallPhotoW, tallPhotoH)}, m))
-	f.awaitThumb("wide.png", float32(tallPhotoW)*thumbHeight/tallPhotoH)
+	f.awaitThumbWithin("wide.png", float32(tallPhotoW)*thumbHeight/tallPhotoH, bigPhotoTimeout)
 	if got, limit := f.view.CachedImageBytes(), int64(photoEdge*photoEdge*4); got <= 0 || got > limit {
 		t.Fatalf("cached %d bytes for a %d×%d photo, want a bitmap of at most %d×%d (%d bytes)", got, tallPhotoW, tallPhotoH, photoEdge, photoEdge, limit)
 	}
@@ -488,5 +495,172 @@ func TestPhotoFollowsExifOrientation(t *testing.T) {
 	}
 	if b := plain.Bounds(); b.Dx() != photoEdge {
 		t.Fatalf("unrotated photo is %d wide, want %d", b.Dx(), photoEdge)
+	}
+}
+
+func TestOnlyKnownSafeAttachmentsOpenDirectly(t *testing.T) {
+	opens := map[string]bool{reportName: true}
+	names := []string{reportName, "run.command", "setup.exe", "x.exe.", "script.sh", "tool.py", "readme", "x.lnk", "Setup.EXE"}
+	media := map[string][]byte{}
+	for _, name := range names {
+		media[name] = []byte("content of " + name)
+	}
+	m := withAttachments(message("m1", "worker", "w1", "Files.", time.Now().Add(-time.Hour)), names...)
+	f := newFixture(t, wideW, wideH, "w1", attached(media, m))
+	opened, revealed := &opener{}, &opener{}
+	f.view.SetOpener(opened.open)
+	f.view.SetRevealer(revealed.open)
+	for i, name := range names {
+		f.wantShown(name)
+		f.click(name)
+		f.Fix.Await(t, func() bool { return len(opened.paths())+len(revealed.paths()) == i+1 })
+		got := revealed.paths()
+		if opens[name] {
+			got = opened.paths()
+		}
+		if len(got) == 0 {
+			t.Fatalf("%s: handed to the wrong launcher; opened %q, revealed %q", name, opened.paths(), revealed.paths())
+		}
+		last := got[len(got)-1]
+		if filepath.Base(last) != name || filepath.Base(filepath.Dir(last)) != "media" {
+			t.Fatalf("%s: launcher got %q, want the cached file", name, last)
+		}
+	}
+	if got := opened.paths(); len(got) != len(opens) {
+		t.Fatalf("opened %q, want only %s", got, reportName)
+	}
+	if got := revealed.paths(); len(got) != len(names)-len(opens) {
+		t.Fatalf("revealed %q, want the %d unsafe files", got, len(names)-len(opens))
+	}
+}
+
+func TestSafeToOpen(t *testing.T) {
+	for name, want := range map[string]bool{
+		"report.pdf":     true,
+		"photo.PNG":      true,
+		"clip.MP4":       true,
+		"song.mp3":       true,
+		"backup.tar.gz":  true,
+		"uploads/x.pdf":  true,
+		"x.pdf.":         true,
+		"x.pdf ":         true,
+		"x.pdf. .":       true,
+		"run.command":    false,
+		"setup.exe":      false,
+		"x.exe.":         false,
+		"x.exe ":         false,
+		"x.EXE. .":       false,
+		"x.pdf.exe":      false,
+		"script.sh":      false,
+		"tool.py":        false,
+		"index.html":     false,
+		"readme":         false,
+		"x.lnk":          false,
+		"":               false,
+		"...":            false,
+		"C:\\dir\\a.bat": false,
+	} {
+		if got := chat.SafeToOpen(name); got != want {
+			t.Errorf("safeToOpen(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestUppercaseImageOpensFromLightbox(t *testing.T) {
+	const name = "photo.PNG"
+	m := withAttachments(message("m1", "worker", "w1", "Here.", time.Now().Add(-time.Hour)), name)
+	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{name: pngImage(t, photoW, photoH)}, m))
+	f.awaitThumb(name, photoW*thumbHeight/photoH)
+	opened, revealed := &opener{}, &opener{}
+	f.view.SetOpener(opened.open)
+	f.view.SetRevealer(revealed.open)
+	f.click(locales.ChatViewImage(name))
+	f.click(locales.ChatOpenOriginal())
+	f.Fix.Await(t, func() bool { return len(opened.paths()) == 1 })
+	if got := opened.paths()[0]; filepath.Base(got) != name {
+		t.Fatalf("opened %q, want the cached %s", got, name)
+	}
+	if got := revealed.paths(); len(got) != 0 {
+		t.Fatalf("revealed %q, want none", got)
+	}
+}
+
+func TestRevealFailureToasts(t *testing.T) {
+	m := withAttachments(message("m1", "worker", "w1", "Files.", time.Now().Add(-time.Hour)), "run.command")
+	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{"run.command": []byte("#!/bin/sh")}, m))
+	opened, revealed := &opener{}, &opener{err: errors.New("no file manager")}
+	f.view.SetOpener(opened.open)
+	f.view.SetRevealer(revealed.open)
+	f.wantHidden(locales.FileOpenFailed())
+	f.click("run.command")
+	f.Fix.Await(t, func() bool { return len(revealed.paths()) == 1 })
+	f.settleMotion()
+	f.wantShown(locales.FileOpenFailed())
+	if got := opened.paths(); len(got) != 0 {
+		t.Fatalf("opened %q after a failed reveal, want none", got)
+	}
+}
+
+func TestPhotoDecodesAreBounded(t *testing.T) {
+	const loads, slots = 6, 2
+	var mu sync.Mutex
+	var active, peak, fetched int
+	release := make(chan struct{})
+	var once sync.Once
+	releaseAll := func() { once.Do(func() { close(release) }) }
+	defer releaseAll()
+	data := pngImage(t, 4, 4)
+	ic := chat.NewImageCache(func(string) ([]byte, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fetched++
+		return data, nil
+	})
+	ic.SetPhotoDecoder(func([]byte, bool) (ui.ImageSource, int64, error) {
+		mu.Lock()
+		active++
+		peak = max(peak, active)
+		mu.Unlock()
+		<-release
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 1, 1))), 4, nil
+	})
+	var wg sync.WaitGroup
+	for i := range loads {
+		wg.Go(func() {
+			if _, err := ic.LoadPhoto(fmt.Sprintf("p%d.png", i)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	state := func() (int, int, int) {
+		mu.Lock()
+		defer mu.Unlock()
+		return fetched, active, peak
+	}
+	deadline := time.Now().Add(imageTimeout)
+	for {
+		if fetched, active, _ := state(); fetched == loads && active == slots {
+			break
+		}
+		if time.Now().After(deadline) {
+			fetched, active, peak := state()
+			t.Fatalf("after %v: %d of %d photos downloaded, %d decoding (peak %d), want all downloaded and %d decoding", imageTimeout, fetched, loads, active, peak, slots)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if _, active, peak := state(); active != slots || peak != slots {
+		t.Fatalf("%d decoding (peak %d) while %d wait, want %d", active, peak, loads-slots, slots)
+	}
+	releaseAll()
+	wg.Wait()
+	if _, _, peak := state(); peak > slots {
+		t.Fatalf("peak of %d concurrent decodes, want at most %d", peak, slots)
+	}
+	if ic.Len() != loads {
+		t.Fatalf("%d photos cached, want %d", ic.Len(), loads)
 	}
 }

@@ -74,10 +74,15 @@ func TableExports(src string) (markdown, csv, tsv string) {
 var (
 	FileCategory = fileCategory
 	IsImage      = isImage
+	SafeToOpen   = safeToOpen
 )
 
 func (v *View) SetOpener(open func(path string) error) {
 	v.openPath = open
+}
+
+func (v *View) SetRevealer(reveal func(path string) error) {
+	v.reveal = reveal
 }
 
 func (v *View) CachedImageBytes() int64 {
@@ -90,4 +95,8 @@ func (ic *imageCache) LoadPhoto(name string) (ui.ImageSource, error) {
 
 func ScaledPhoto(data []byte) (*image.RGBA, error) {
 	return scalePhoto(data)
+}
+
+func (ic *imageCache) SetPhotoDecoder(decode func(data []byte, svg bool) (ui.ImageSource, int64, error)) {
+	ic.decode = decode
 }
