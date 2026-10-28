@@ -83,6 +83,11 @@ func (r *Resource[T]) refetch(then func()) {
 	}
 }
 
+func (r *Resource[T]) reload(then func()) {
+	r.waiters = append(r.waiters, then)
+	r.load()
+}
+
 func (r *Resource[T]) flushWaiters() {
 	waiters := r.waiters
 	r.waiters = nil

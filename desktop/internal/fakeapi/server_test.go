@@ -920,6 +920,41 @@ func TestFailNextFifoPerRoute(t *testing.T) {
 	}
 }
 
+func TestHoldNextDelaysOneRequest(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	release := s.fake.HoldNext("get", "/api/workers")
+	t.Cleanup(release)
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.client.Workers(c)
+		done <- err
+	}()
+	deadline := time.Now().Add(waitLimit)
+	for len(s.fake.Calls("GET", "/api/workers")) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("held request never reached the fake")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if _, err := s.client.Config(c); err != nil {
+		t.Fatalf("unrelated request blocked by the hold: %v", err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("held request answered before release: %v", err)
+	default:
+	}
+	release()
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("released request: %v", err)
+	}
+	if _, err := s.client.Workers(c); err != nil {
+		t.Fatalf("hold applied twice: %v", err)
+	}
+}
+
 func TestUnknownPathReturnsHTML(t *testing.T) {
 	s := signedIn(t)
 	c := ctx(t)

@@ -76,8 +76,14 @@ func (f *fixture) installedTab() {
 	f.wantShown(locales.PluginsInstalledTitle())
 }
 
+func (f *fixture) armed() {
+	f.t.Helper()
+	f.Fix.Await(f.t, func() bool { return f.Fix.Clock.Sleepers() == 1 })
+}
+
 func (f *fixture) poll(path string) {
 	f.t.Helper()
+	f.armed()
 	n := len(f.Fake.Calls(http.MethodGet, path))
 	f.Fix.Clock.Advance(time.Second)
 	f.Fix.Await(f.t, func() bool { return len(f.Fake.Calls(http.MethodGet, path)) > n })
@@ -104,6 +110,41 @@ func (f *fixture) lastOperation() api.PluginOperation {
 
 func (f *fixture) posted(path string) int {
 	return len(f.Fake.Calls(http.MethodPost, path))
+}
+
+func (f *fixture) press(name string) {
+	f.t.Helper()
+	if err := f.T.Click(name); err != nil {
+		f.t.Fatalf("click %q: %v (texts %q)", name, err, f.T.Texts())
+	}
+	f.pump(func() bool { return true })
+}
+
+func (f *fixture) pump(cond func() bool) {
+	f.t.Helper()
+	f.Fix.Pump(f.t, func() bool {
+		f.T.Frame()
+		return cond()
+	})
+}
+
+func (f *fixture) advance(d time.Duration, path string) {
+	f.t.Helper()
+	f.armed()
+	n := len(f.Fake.Calls(http.MethodGet, path))
+	f.Fix.Clock.Advance(d)
+	f.Fix.Await(f.t, func() bool { return len(f.Fake.Calls(http.MethodGet, path)) > n })
+	f.settle()
+}
+
+func (f *fixture) reads(path string) int {
+	n := 0
+	for _, call := range f.Fake.Calls(http.MethodGet, path) {
+		if call.Path == path {
+			n++
+		}
+	}
+	return n
 }
 
 func TestMarketplaceFilterByTag(t *testing.T) {
@@ -274,5 +315,67 @@ func TestInstallDialogSurvivesResize(t *testing.T) {
 	f.wantShown(locales.PluginsInstallDialogTitle())
 	if got := f.fieldText(locales.PluginsInstallDialogSpec()); got != linearPkg {
 		t.Fatalf("spec = %q after crossing the two-pane breakpoint, want the draft kept", got)
+	}
+}
+
+func TestUninstallRequestKeepsOtherRowsActive(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withPlugins)
+	f.installedTab()
+	deletePath := pluginsAPI + "/discord"
+	release := f.Fake.HoldNext(http.MethodDelete, deletePath)
+	t.Cleanup(release)
+	f.click(locales.PluginsActionMoreFor("Discord"))
+	f.click(locales.PluginsActionUninstall())
+	f.press(locales.PluginsUninstallDialogConfirm())
+	f.pump(func() bool { return len(f.Fake.Calls(http.MethodDelete, deletePath)) == 1 })
+	f.press(locales.CommonCancel())
+	f.wantHidden(locales.PluginsUninstallDialogTitle("Discord"))
+
+	f.press(locales.PluginsActionToggle("Discord"))
+	f.press(locales.PluginsActionMoreFor("Telegram"))
+	f.press(locales.PluginsActionRestart())
+	f.pump(func() bool { return f.posted(pluginsAPI+"/telegram/restart") == 1 && !f.Store.Plugins().Acting() })
+	f.press(locales.PluginsActionToggle("Telegram"))
+	f.pump(func() bool { return f.posted(pluginsAPI+"/telegram/disable") == 1 })
+	if n := f.posted(pluginsAPI + "/discord/disable"); n != 0 {
+		t.Fatalf("the plugin being uninstalled was toggled %d times while its DELETE ran", n)
+	}
+	release()
+	f.settle()
+	f.wantShown(locales.PluginsStateUninstalling(), locales.PluginsToastRestarted("Telegram"), locales.PluginsToastDisabled("Telegram"))
+}
+
+func TestPluginDetailWatchedOnlyWhileOpen(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, func(st *fakeapi.State) {
+		withPlugins(st)
+		st.Plugins[0].State = "starting"
+	})
+	detailPath := pluginsAPI + "/telegram"
+	f.installedTab()
+	f.click("Telegram")
+	f.wantShown(locales.PluginsDetailBack())
+	f.Store.Plugins().Detail("telegram").Ensure()
+	f.settle()
+	f.advance(2*time.Second, detailPath)
+
+	title := f.rect("Telegram")
+	f.T.ClickAt(title.X+backInset, title.Y-detailGap-theme.ControlSM/2)
+	f.settle()
+	f.wantShown(locales.PluginsInstalledTitle())
+	n := f.reads(detailPath)
+	f.advance(2*time.Second, pluginsAPI)
+	if got := f.reads(detailPath); got != n {
+		t.Fatalf("detail reads went from %d to %d after leaving the detail, want no poll", n, got)
+	}
+
+	f.click("Telegram")
+	f.wantShown(locales.PluginsDetailBack())
+	f.T.Key(0, ui.KeyEscape)
+	f.settle()
+	f.Root.OpenSettings(settings.SectionPlugins)
+	f.settle()
+	f.advance(2*time.Second, pluginsAPI)
+	if got := f.reads(detailPath); got != n {
+		t.Fatalf("detail reads went from %d to %d after closing on the detail, want no poll", n, got)
 	}
 }

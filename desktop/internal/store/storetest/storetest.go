@@ -235,3 +235,23 @@ func (f *Fixture) Await(t testing.TB, cond func() bool) {
 		}
 	}
 }
+
+func (f *Fixture) Pump(t testing.TB, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(settleTimeout)
+	for {
+		for _, fn := range f.queue.take() {
+			fn()
+		}
+		if cond() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("condition not met within %v while work is held", settleTimeout)
+		}
+		select {
+		case <-f.queue.wake:
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}

@@ -30,6 +30,9 @@ type PluginsState struct {
 
 	s         *Store
 	active    bool
+	watched   string
+	actions   int
+	toggling  map[string]bool
 	requested map[string]bool
 	seen      map[string]bool
 	stopOps   func()
@@ -61,7 +64,10 @@ func (s *Store) Plugins() *PluginsState {
 func (p *PluginsState) reset() {
 	p.stop()
 	p.active = false
+	p.watched = ""
+	p.actions = 0
 	p.Pending = map[string]bool{}
+	p.toggling = map[string]bool{}
 	p.requested = map[string]bool{}
 	p.seen = nil
 }
@@ -85,12 +91,32 @@ func (p *PluginsState) SetActive(active bool) {
 	p.active = active
 	if !active {
 		p.stop()
+		p.seen = nil
 		return
 	}
 	p.List.Invalidate()
 	p.Catalog.Invalidate()
 	p.Ops.Invalidate()
 	p.schedule()
+}
+
+func (p *PluginsState) Watch(id string) {
+	if p.watched == id {
+		return
+	}
+	p.watched = id
+	p.schedule()
+}
+
+func (p *PluginsState) Enabled(plugin api.PluginStatus) bool {
+	if on, ok := p.toggling[plugin.ID]; ok {
+		return on
+	}
+	return plugin.Enabled
+}
+
+func (p *PluginsState) Acting() bool {
+	return p.actions > 0
 }
 
 func (p *PluginsState) Requested(pkg string) bool {
@@ -167,7 +193,7 @@ func (p *PluginsState) Uninstall(id string, done func(api.PluginOperation, error
 }
 
 func (p *PluginsState) Toggle(id string, enable bool, done func(error)) {
-	p.showEnabled(id, enable)
+	p.toggling[id] = enable
 	toast := locales.Messages.PluginsToastDisabled
 	if enable {
 		toast = locales.Messages.PluginsToastEnabled
@@ -202,11 +228,15 @@ func (p *PluginsState) SaveSettings(id string, u api.PluginSettingsUpdate, done 
 func (p *PluginsState) act(id string, success func(locales.Messages, string) string, done func(error), call func(ctx context.Context, c *api.Client) error) {
 	done = orNop(done)
 	p.Pending[id] = true
+	p.actions++
 	p.s.async(func(ctx context.Context, c *api.Client) func() {
 		err := call(ctx, c)
 		return func() {
-			delete(p.Pending, id)
-			p.invalidatePlugins()
+			p.refetchPlugins(func() {
+				delete(p.Pending, id)
+				delete(p.toggling, id)
+				p.actions--
+			})
 			if err != nil {
 				p.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: l10n.ErrorText(err)})
 			} else {
@@ -217,17 +247,22 @@ func (p *PluginsState) act(id string, success func(locales.Messages, string) str
 	}, canceledBy(done))
 }
 
-func (p *PluginsState) showEnabled(id string, enabled bool) {
-	if i := slices.IndexFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == id }); i >= 0 {
-		list := slices.Clone(p.List.Data)
-		list[i].Enabled = enabled
-		p.List.patch(list)
+func (p *PluginsState) refetchPlugins(then func()) {
+	left := 1
+	landed := func() {
+		if left--; left == 0 {
+			then()
+		}
 	}
-	if r, ok := p.Details[id]; ok && r.Loaded {
-		d := r.Data
-		d.Enabled = enabled
-		r.patch(d)
+	for id, r := range p.Details {
+		if id == p.watched {
+			left++
+			r.reload(landed)
+		} else {
+			r.Invalidate()
+		}
 	}
+	p.List.reload(landed)
 }
 
 func (p *PluginsState) track(op api.PluginOperation) {
@@ -251,6 +286,10 @@ func (p *PluginsState) opsSettled() {
 }
 
 func (p *PluginsState) observe() {
+	if !p.active {
+		p.seen = nil
+		return
+	}
 	previous := p.seen
 	p.seen = map[string]bool{}
 	var finished []api.PluginOperation
@@ -332,12 +371,8 @@ func (p *PluginsState) pluginsTransitional() bool {
 	if settled(p.List) && model.PluginNeedsPolling(p.List.Data) {
 		return true
 	}
-	for _, r := range p.Details {
-		if settled(r) && detailTransitional(r) {
-			return true
-		}
-	}
-	return false
+	r := p.watchedDetail()
+	return r != nil && settled(r) && detailTransitional(r)
 }
 
 func (p *PluginsState) pollPlugins() {
@@ -345,11 +380,17 @@ func (p *PluginsState) pollPlugins() {
 	if model.PluginNeedsPolling(p.List.Data) {
 		p.List.Invalidate()
 	}
-	for _, r := range p.Details {
-		if detailTransitional(r) {
-			r.Invalidate()
-		}
+	if r := p.watchedDetail(); r != nil && detailTransitional(r) {
+		r.Invalidate()
 	}
+}
+
+func (p *PluginsState) watchedDetail() *Resource[api.PluginDetail] {
+	r, ok := p.Details[p.watched]
+	if !ok || r.Err != nil || !slices.ContainsFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == p.watched }) {
+		return nil
+	}
+	return r
 }
 
 func (p *PluginsState) stop() {

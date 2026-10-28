@@ -56,7 +56,7 @@ var defaultHTTPClient = &http.Client{Transport: &http.Transport{
 	Proxy:                 http.ProxyFromEnvironment,
 	DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 	TLSHandshakeTimeout:   10 * time.Second,
-	ResponseHeaderTimeout: 30 * time.Second,
+	ResponseHeaderTimeout: 120 * time.Second,
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          10,
 	IdleConnTimeout:       90 * time.Second,

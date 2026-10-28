@@ -216,9 +216,9 @@ func botCell(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, icon bool)
 
 func (d *Dialog) rowActions(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, name string, busy bool) ui.Element {
 	p := d.s.Plugins()
-	acting := len(p.Pending) > 0
+	acting := p.Acting() || p.Pending[plugin.ID]
 	return ui.Row(c).AlignItems(ui.Center).Justify(ui.End).Gap(actionsGap).Children(func() {
-		enabled := plugin.Enabled
+		enabled := p.Enabled(plugin)
 		locked := busy || acting || (!plugin.Enabled && plugin.State == stateNoConfig)
 		kit.Switch(c, tk, &enabled, locales.PluginsActionToggle(name), locked).
 			OnChange(func() { p.Toggle(plugin.ID, enabled, nil) })

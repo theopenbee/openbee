@@ -52,6 +52,13 @@ func withStartingPlugin(st *fakeapi.State) {
 	st.Plugins[0].State = "starting"
 }
 
+func withRetryingPlugin(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Plugins[0].State = "retrying"
+	st.Plugins[0].Error = "telegram: 409 Conflict"
+}
+
 func activePlugins(t *testing.T, seed func(st *fakeapi.State)) (*store.PluginsState, *fakeapi.Server, *storetest.Fixture, *store.Store) {
 	t.Helper()
 	st, fake, fix := loaded(t, seed)
@@ -67,8 +74,14 @@ func activePlugins(t *testing.T, seed func(st *fakeapi.State)) (*store.PluginsSt
 	return p, fake, fix, st
 }
 
-func tick(t *testing.T, fix *storetest.Fixture, fake *fakeapi.Server, d time.Duration, path string) {
+func armed(t *testing.T, fix *storetest.Fixture, timers int) {
 	t.Helper()
+	fix.Await(t, func() bool { return fix.Clock.Sleepers() == timers })
+}
+
+func tick(t *testing.T, fix *storetest.Fixture, fake *fakeapi.Server, timers int, d time.Duration, path string) {
+	t.Helper()
+	armed(t, fix, timers)
 	n := countCalls(fake, http.MethodGet, path)
 	fix.Clock.Advance(d)
 	fix.Await(t, func() bool { return countCalls(fake, http.MethodGet, path) > n })
@@ -142,11 +155,11 @@ func TestOpsPollingStopsWhenDone(t *testing.T) {
 	if n := countCalls(fake, http.MethodGet, opsPath); n != 1 {
 		t.Fatalf("operations reads = %d after Ensure, want 1", n)
 	}
-	tick(t, fix, fake, time.Second, opsPath)
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	fake.FinishOperation("op-seed", true, "")
 	lists, catalogs := countCalls(fake, http.MethodGet, pluginsPath), countCalls(fake, http.MethodGet, catalogPath)
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	fix.Settle(t)
 	if p.Ops.Data[0].Status != "succeeded" {
 		t.Fatalf("op status = %q, want succeeded", p.Ops.Data[0].Status)
@@ -169,7 +182,7 @@ func TestPollingOnlyWhileActive(t *testing.T) {
 	if n := countCalls(fake, http.MethodGet, opsPath); n != 2 {
 		t.Fatalf("operations reads = %d after activation, want a fresh read", n)
 	}
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	fix.Settle(t)
 
 	p.SetActive(false)
@@ -196,7 +209,7 @@ func TestInstallCompletionToast(t *testing.T) {
 		t.Fatalf("toasts before the op finished: %+v", st.Toasts)
 	}
 	fake.FinishOperation(op.ID, true, "")
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	awaitToasts(t, fix, st, 1)
 	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsInstallDone("Linear") {
 		t.Fatalf("toast = %+v, want install done for Linear", got)
@@ -204,7 +217,7 @@ func TestInstallCompletionToast(t *testing.T) {
 
 	op = install(t, fix, p, telegramPkg+"@1.3.0")
 	fake.FinishOperation(op.ID, true, "")
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	awaitToasts(t, fix, st, 2)
 	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsUpdateDone("Telegram", "1.3.0") {
 		t.Fatalf("toast = %+v, want update done for Telegram 1.3.0", got)
@@ -212,7 +225,7 @@ func TestInstallCompletionToast(t *testing.T) {
 
 	op = install(t, fix, p, missingPackage+"@1.0.0")
 	fake.FinishOperation(op.ID, false, "npm ERR! 404")
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	awaitToasts(t, fix, st, 3)
 	if got := lastToast(t, st); got.Tone != kit.ToneDanger || got.Title != en.PluginsInstallFailed(missingPackage, "npm ERR! 404") {
 		t.Fatalf("toast = %+v, want install failed named by the package", got)
@@ -241,7 +254,7 @@ func TestUninstallCompletionToast(t *testing.T) {
 		t.Fatalf("pending=%v uninstalling=%v after the DELETE, want the op tracked", p.Pending, p.Uninstalling("telegram"))
 	}
 	fake.FinishOperation(op.ID, true, "")
-	tick(t, fix, fake, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
 	awaitToasts(t, fix, st, 1)
 	if got := lastToast(t, st); got.Title != en.PluginsUninstallDone("Telegram") {
 		t.Fatalf("toast = %+v, want uninstall done", got)
@@ -259,14 +272,17 @@ func TestPluginsPollWhileStarting(t *testing.T) {
 	if p.Detail("telegram") != d {
 		t.Fatal("Detail returned a new resource for the same id")
 	}
+	p.Watch("telegram")
 	d.Ensure()
 	fix.Settle(t)
+	armed(t, fix, 1)
 	unchanged(t, fix, fake, time.Second, pluginsPath, detailPath)
 	fix.Clock.Advance(time.Second)
 	fix.Await(t, func() bool {
 		return countCalls(fake, http.MethodGet, pluginsPath) == 2 && countCalls(fake, http.MethodGet, detailPath) == 2
 	})
 	fake.Update(func(s *fakeapi.State) { s.Plugins[0].State = "running" })
+	armed(t, fix, 1)
 	fix.Clock.Advance(2 * time.Second)
 	fix.Await(t, func() bool {
 		return countCalls(fake, http.MethodGet, pluginsPath) == 3 && countCalls(fake, http.MethodGet, detailPath) == 3
@@ -285,8 +301,8 @@ func TestToggleIsOptimisticAndToasts(t *testing.T) {
 	en := locales.In("en")
 	err := call(t, fix, func(done func(error)) {
 		p.Toggle("telegram", false, done)
-		if !p.Pending["telegram"] || p.List.Data[0].Enabled {
-			t.Errorf("toggle off: pending=%v enabled=%v, want pending and shown off", p.Pending, p.List.Data[0].Enabled)
+		if !p.Pending["telegram"] || !p.Acting() || p.Enabled(p.List.Data[0]) {
+			t.Errorf("toggle off: pending=%v acting=%v shown=%v, want pending and shown off", p.Pending, p.Acting(), p.Enabled(p.List.Data[0]))
 		}
 	})
 	if err != nil {
@@ -299,8 +315,8 @@ func TestToggleIsOptimisticAndToasts(t *testing.T) {
 	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsToastDisabled("Telegram") {
 		t.Fatalf("toast = %+v", got)
 	}
-	if p.Pending["telegram"] || p.List.Data[0].State != "disabled" {
-		t.Fatalf("pending=%v state=%q after the refetch", p.Pending, p.List.Data[0].State)
+	if p.Pending["telegram"] || p.Acting() || p.List.Data[0].State != "disabled" || p.Enabled(p.List.Data[0]) {
+		t.Fatalf("pending=%v acting=%v state=%q shown=%v after the refetch", p.Pending, p.Acting(), p.List.Data[0].State, p.Enabled(p.List.Data[0]))
 	}
 
 	fake.FailNext(http.MethodPost, pluginsPath+"/telegram/restart", http.StatusBadRequest, map[string]string{"error": "plugin is disabled"})
@@ -374,4 +390,147 @@ func TestPluginsResetOnSignOut(t *testing.T) {
 		t.Fatal("plugin state survived sign-out")
 	}
 	fix.Await(t, func() bool { return fix.Clock.Sleepers() == 0 })
+}
+
+func TestPluginDetailPollsOnlyWhileWatched(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withStartingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 1 {
+		t.Fatalf("unwatched starting detail read %d times, want only its first load", n)
+	}
+
+	p.Watch("telegram")
+	tick(t, fix, fake, 1, 2*time.Second, detailPath)
+	fix.Settle(t)
+
+	fake.FailNext(http.MethodGet, detailPath, http.StatusBadGateway, map[string]string{"error": "plugin host down"})
+	tick(t, fix, fake, 1, 2*time.Second, detailPath)
+	fix.Settle(t)
+	if d.Err == nil {
+		t.Fatal("the failed detail poll did not record an error")
+	}
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 3 {
+		t.Fatalf("detail reads = %d, want polling to stop after its last load failed", n)
+	}
+
+	p.Watch("")
+	d.Invalidate()
+	fix.Settle(t)
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 4 {
+		t.Fatalf("detail reads = %d after unwatching, want no poll", n)
+	}
+}
+
+func TestUninstalledDetailStopsPolling(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withRetryingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	p.Watch("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	var op api.PluginOperation
+	p.Uninstall("telegram", func(o api.PluginOperation, err error) {
+		if err != nil {
+			t.Errorf("Uninstall: %v", err)
+		}
+		op = o
+	})
+	fix.Settle(t)
+	fake.FinishOperation(op.ID, true, "")
+	tick(t, fix, fake, 2, time.Second, opsPath)
+	fix.Await(t, func() bool { return d.Err != nil && p.List.Loaded && len(p.List.Data) == 0 })
+	if !d.Loaded || d.Data.State != "retrying" {
+		t.Fatalf("detail loaded=%v state=%q, want the stale retrying data kept beside the 404", d.Loaded, d.Data.State)
+	}
+	quiet(t, fix, fake, 6*time.Second, detailPath, pluginsPath)
+}
+
+func TestDetailLeftOutOfListIsNotPolled(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withRetryingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	p.Watch("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	fake.Update(func(st *fakeapi.State) { st.Plugins = nil })
+	p.List.Invalidate()
+	fix.Settle(t)
+	if d.Err != nil || d.Data.State != "retrying" || len(p.List.Data) != 0 {
+		t.Fatalf("detail err=%v state=%q list=%d, want a retrying detail beside an empty list", d.Err, d.Data.State, len(p.List.Data))
+	}
+	quiet(t, fix, fake, 6*time.Second, detailPath, pluginsPath)
+}
+
+func TestToggleHoldsThroughRefetch(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	disablePath := pluginsPath + "/telegram/disable"
+	release := fake.HoldNext(http.MethodPost, disablePath)
+	t.Cleanup(release)
+	p.Toggle("telegram", false, nil)
+	fix.Pump(t, func() bool { return countCalls(fake, http.MethodPost, disablePath) == 1 })
+	p.List.Invalidate()
+	fix.Pump(t, func() bool { return !p.List.Loading })
+	if !p.List.Data[0].Enabled {
+		t.Fatal("the refetch during the request did not land with the server's enabled state")
+	}
+	if p.Enabled(p.List.Data[0]) || !p.Acting() {
+		t.Fatalf("shown=%v acting=%v while the disable runs, want the switch kept off", p.Enabled(p.List.Data[0]), p.Acting())
+	}
+	release()
+	fix.Settle(t)
+	if p.List.Data[0].Enabled || p.Enabled(p.List.Data[0]) || p.Acting() || len(st.Toasts) != 1 {
+		t.Fatalf("enabled=%v shown=%v acting=%v toasts=%d after the request settled", p.List.Data[0].Enabled, p.Enabled(p.List.Data[0]), p.Acting(), len(st.Toasts))
+	}
+
+	enablePath := pluginsPath + "/telegram/enable"
+	fake.FailNext(http.MethodPost, enablePath, http.StatusBadRequest, map[string]string{"error": "plugin is not configured"})
+	err := call(t, fix, func(done func(error)) {
+		p.Toggle("telegram", true, done)
+		if !p.Enabled(p.List.Data[0]) {
+			t.Error("toggle on not shown while the request runs")
+		}
+	})
+	if err == nil {
+		t.Fatal("enable error not reported")
+	}
+	if p.Enabled(p.List.Data[0]) || p.Acting() {
+		t.Fatalf("shown=%v acting=%v after a failed enable, want the server state back", p.Enabled(p.List.Data[0]), p.Acting())
+	}
+}
+
+func TestReopenForgetsFinishedOperations(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+		s.Operations = []api.PluginOperation{
+			{ID: "op-linear", Kind: "install", Spec: linearPackage + "@0.4.0", Status: "running", CreatedAt: time.Now()},
+			{ID: "op-telegram", Kind: "uninstall", PluginID: "telegram", Status: "running", CreatedAt: time.Now()},
+		}
+	})
+	en := locales.In("en")
+	p.SetActive(false)
+	fake.FinishOperation("op-linear", true, "")
+	p.SetActive(true)
+	fix.Settle(t)
+	if len(st.Toasts) != 0 {
+		t.Fatalf("toasts on reopen = %+v, want none for an op that finished while closed", st.Toasts)
+	}
+	fake.FinishOperation("op-telegram", true, "")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 1)
+	if got := lastToast(t, st); got.Title != en.PluginsUninstallDone("Telegram") {
+		t.Fatalf("toast = %+v, want uninstall done for the op seen after reopening", got)
+	}
 }

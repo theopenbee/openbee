@@ -96,6 +96,7 @@ func (d *Dialog) showPlugins(tab int) {
 }
 
 func (d *Dialog) pluginDetail(c *ui.Context, tk theme.Tokens, id string) {
+	d.s.Plugins().Watch(id)
 	ui.Column(c).Key(id).MinWidth(0).Gap(detailGap).Children(func() {
 		back := ui.ButtonBase(c).Label(locales.PluginsDetailBack()).Role(ui.RoleLink).AlignSelf(ui.Start).
 			MinHeight(theme.ControlSM).Gap(backGap).AlignItems(ui.Center).FontSize(textSize)

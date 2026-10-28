@@ -30,6 +30,12 @@ type failure struct {
 	body   any
 }
 
+type hold struct {
+	method  string
+	path    string
+	release chan struct{}
+}
+
 type Server struct {
 	URL string
 
@@ -43,6 +49,7 @@ type Server struct {
 	st     State
 	calls  []Call
 	fails  []failure
+	holds  []hold
 	lastTS int64
 	idSeq  int
 
@@ -100,6 +107,20 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	s.calls = append(s.calls, Call{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery, Body: body})
+	held := s.takeHold(r)
+	s.mu.Unlock()
+
+	if held != nil {
+		select {
+		case <-held:
+		case <-r.Context().Done():
+			return
+		case <-s.stop:
+			return
+		}
+	}
+
+	s.mu.Lock()
 	canned, found := s.takeFailure(r)
 	s.mu.Unlock()
 
@@ -120,6 +141,27 @@ func (s *Server) takeFailure(r *http.Request) (reply, bool) {
 	f := s.fails[i]
 	s.fails = slices.Delete(s.fails, i, i+1)
 	return reply{status: f.status, body: f.body}, true
+}
+
+func (s *Server) takeHold(r *http.Request) chan struct{} {
+	i := slices.IndexFunc(s.holds, func(h hold) bool {
+		return h.method == r.Method && h.path == r.URL.Path
+	})
+	if i < 0 {
+		return nil
+	}
+	h := s.holds[i]
+	s.holds = slices.Delete(s.holds, i, i+1)
+	return h.release
+}
+
+func (s *Server) HoldNext(method, path string) (release func()) {
+	h := hold{method: strings.ToUpper(method), path: path, release: make(chan struct{})}
+	s.mu.Lock()
+	s.holds = append(s.holds, h)
+	s.mu.Unlock()
+	var once sync.Once
+	return func() { once.Do(func() { close(h.release) }) }
 }
 
 func (s *Server) FailNext(method, path string, status int, body any) {

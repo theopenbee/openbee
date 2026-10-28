@@ -68,7 +68,12 @@ func (d *Dialog) Close() {
 }
 
 func (d *Dialog) syncPolling() {
-	d.s.Plugins().SetActive(d.open && d.section == SectionPlugins)
+	p := d.s.Plugins()
+	shown := d.open && d.section == SectionPlugins
+	if !shown || d.pluginID == "" {
+		p.Watch("")
+	}
+	p.SetActive(shown)
 }
 
 func current(id string) section {
