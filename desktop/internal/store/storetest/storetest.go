@@ -119,6 +119,7 @@ type Fixture struct {
 	Tokens   prefs.TokenStore
 	Locales  []string
 	Themes   []string
+	OnLocale func(lang string)
 
 	store *store.Store
 	queue *queue
@@ -138,6 +139,12 @@ func (q *queue) push(fn func()) {
 	case q.wake <- struct{}{}:
 	default:
 	}
+}
+
+func (q *queue) empty() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.items) == 0
 }
 
 func (q *queue) take() []func() {
@@ -169,10 +176,21 @@ func New(t testing.TB, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Ser
 		Now:            fix.Clock.Now,
 		Sleep:          fix.Clock.Sleep,
 		CacheDir:       t.TempDir(),
-		SetLocale:      func(lang string) { fix.Locales = append(fix.Locales, lang) },
+		SetLocale:      fix.setLocale,
 		SetThemeSource: func(pref string) { fix.Themes = append(fix.Themes, pref) },
 	})
 	return fix.store, fake, fix
+}
+
+func (f *Fixture) setLocale(lang string) {
+	f.Locales = append(f.Locales, lang)
+	if f.OnLocale != nil {
+		f.OnLocale(lang)
+	}
+}
+
+func (f *Fixture) Idle() bool {
+	return f.store.Busy() == 0 && f.queue.empty()
 }
 
 func (f *Fixture) Settle(t testing.TB) {
