@@ -135,11 +135,6 @@ func (sh *Shell) inlinePanel(c *ui.Context, tk theme.Tokens, param, cid string, 
 	})
 }
 
-func BackButton(c *ui.Context, tk theme.Tokens, nav route.Nav) ui.Element {
-	return kit.IconButton(c, tk, "chevron-left", locales.ChatBack(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM}).
-		OnClick(func() { nav.Push(route.ChatPath) })
-}
-
 func (sh *Shell) settings() {
 	sh.openSettings(settingsSection)
 }

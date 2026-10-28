@@ -10,13 +10,13 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
+	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/shell"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
 const (
-	headerPadX    = 12
 	triggerHeight = 40
 	triggerPad    = 4
 	triggerPadEnd = 10
@@ -47,19 +47,6 @@ type noPanel struct{}
 
 func (noPanel) View(*ui.Context, string, route.Panel) {}
 
-type chatPlaceholder struct{ nav route.Nav }
-
-func (p chatPlaceholder) View(c *ui.Context, _ string, _ route.Panel) {
-	tk := theme.Apply(c)
-	w, _ := c.Size()
-	ui.Row(c).Height(theme.HeaderHeight).Shrink(0).PaddingX(headerPadX).BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).
-		Children(func() {
-			if w < theme.BreakTwoPane {
-				shell.BackButton(c, tk, p.nav)
-			}
-		})
-}
-
 type accountPlaceholder struct{ s *store.Store }
 
 func (a accountPlaceholder) View(c *ui.Context) {
@@ -86,8 +73,17 @@ func NewRoot(s *store.Store) *Root {
 	r := &Root{s: s, router: ui.NewRouter("/"), settings: noDialogs{}, account: noDialogs{}}
 	r.router.Transition = ui.TransitionNone
 	r.auth = auth.New(s, r.router)
-	r.shell = shell.New(s, r.router, chatPlaceholder{nav: r.router}, noPanel{}, accountPlaceholder{s: s}, r.OpenSettings)
+	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), noPanel{}, accountPlaceholder{s: s}, r.OpenSettings)
 	return r
+}
+
+func (r *Root) togglePanel(cid string) {
+	param := route.Param(cid)
+	if route.ParsePanel(param, r.router.Query(route.PanelQuery)).Mode == route.ModeWorker {
+		r.router.Push(route.Chat(param))
+		return
+	}
+	r.router.Push(route.ChatPanel(param, route.PanelConstraints))
 }
 
 func (r *Root) Nav() route.Nav {
@@ -130,6 +126,10 @@ func (r *Root) follow(c *ui.Context) {
 	if target, move := phaseRoute(r.s.Phase, path); move {
 		r.router.Replace(target)
 		path = target
+	}
+	if param := conversationParam(path); r.s.Phase == store.PhaseReady && param != "" && route.ConversationID(param) == "" {
+		path = route.Chat(api.BeeConversation)
+		r.router.Replace(path)
 	}
 	if w, _ := c.Size(); r.s.Phase == store.PhaseReady && path == route.ChatPath && w >= theme.BreakTwoPane {
 		target := route.Chat(api.BeeConversation)

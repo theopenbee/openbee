@@ -104,6 +104,28 @@ func TestIconButtonHasLabel(t *testing.T) {
 	}
 }
 
+func TestCopyIconButtonCopies(t *testing.T) {
+	tt := newTester(300, 160, func(c *ui.Context, tk theme.Tokens) {
+		kit.CopyIconButton(c, tk, "hello there", "Copy message")
+	})
+	r, ok := tt.Find("Copy message")
+	if !ok {
+		t.Fatal("copy button not found by its label")
+	}
+	if r.W != theme.ControlSM || r.H != theme.ControlSM {
+		t.Errorf("copy button is %vx%v, want %vx%v", r.W, r.H, theme.ControlSM, theme.ControlSM)
+	}
+	if err := tt.Click("Copy message"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != "hello there" {
+		t.Errorf("clipboard = %q", got)
+	}
+	if got := tt.Announcements(); len(got) != 1 || got[0] != locales.ArcCopyButtonCopiedAnnouncement("Copy message") {
+		t.Errorf("announcements = %q", got)
+	}
+}
+
 func TestPasswordToggle(t *testing.T) {
 	value, shown := "hunter2", false
 	tt := newTester(400, 200, func(c *ui.Context, tk theme.Tokens) {

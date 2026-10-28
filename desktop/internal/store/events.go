@@ -69,6 +69,10 @@ func (s *Store) SetForeground(visible bool) {
 	s.ReconnectNow()
 }
 
+func (s *Store) Foreground() bool {
+	return s.foreground
+}
+
 func (s *Store) ReconnectNow() {
 	if s.Online || s.wake == nil {
 		return
