@@ -17,8 +17,8 @@ describe("legacyRedirect", () => {
     expect(legacyRedirect("/workers/w1", "?tab=env")).toBe("/chat/w1?panel=env")
     expect(legacyRedirect("/workers/w1", "?tab=constraints")).toBe("/chat/w1?panel=constraints")
     expect(legacyRedirect("/workers/w1", "?tab=permissions")).toBe("/chat/w1?panel=permissions")
-    expect(legacyRedirect("/workers/w1", "")).toBe("/chat/w1?panel=overview")
-    expect(legacyRedirect("/workers/w1", "?tab=sessions")).toBe("/chat/w1?panel=overview")
+    expect(legacyRedirect("/workers/w1", "")).toBe("/chat/w1?panel=constraints")
+    expect(legacyRedirect("/workers/w1", "?tab=sessions")).toBe("/chat/w1?panel=constraints")
     expect(legacyRedirect("/workers/w1/", "?tab=env")).toBe("/chat/w1?panel=env")
   })
 
@@ -60,7 +60,6 @@ describe("panel search", () => {
   it("panel search round trip", () => {
     const states: PanelState[] = [
       null,
-      { mode: "worker", section: "overview" },
       { mode: "worker", section: "constraints" },
       { mode: "worker", section: "permissions" },
       { mode: "worker", section: "env" },
@@ -100,9 +99,9 @@ describe("panelView", () => {
 
   it("shows worker sections only in worker chats", () => {
     expect(panelView("w1", { mode: "worker", section: "env" })).toEqual({ mode: "worker", workerId: "w1", section: "env" })
-    expect(panelView("bee", { mode: "worker", section: "overview" })).toBeNull()
-    expect(panelView(undefined, { mode: "worker", section: "overview" })).toBeNull()
-    expect(panelView("", { mode: "worker", section: "overview" })).toBeNull()
+    expect(panelView("bee", { mode: "worker", section: "constraints" })).toBeNull()
+    expect(panelView(undefined, { mode: "worker", section: "constraints" })).toBeNull()
+    expect(panelView("", { mode: "worker", section: "constraints" })).toBeNull()
   })
 
   it("stays closed without a panel", () => {
@@ -112,14 +111,15 @@ describe("panelView", () => {
 })
 
 describe("workerPanelPath", () => {
-  it("opens the new worker chat on its overview", () => {
-    expect(workerPanelPath("w9")).toBe("/chat/w9?panel=overview")
+  it("opens the new worker chat on its constraints", () => {
+    expect(workerPanelPath("w9")).toBe("/chat/w9?panel=constraints")
   })
 })
 
 describe("isPanelSection", () => {
-  it("accepts only the four worker sections", () => {
-    expect(["overview", "constraints", "permissions", "env"].every(isPanelSection)).toBe(true)
+  it("accepts only the three worker sections", () => {
+    expect(["constraints", "permissions", "env"].every(isPanelSection)).toBe(true)
+    expect(isPanelSection("overview")).toBe(false)
     expect(isPanelSection("new")).toBe(false)
     expect(isPanelSection("sessions")).toBe(false)
     expect(isPanelSection(null)).toBe(false)
@@ -128,14 +128,14 @@ describe("isPanelSection", () => {
 
 describe("panelReplacesHistory", () => {
   it("replaces history only when switching worker sections", () => {
-    const overview: PanelState = { mode: "worker", section: "overview" }
+    const constraints: PanelState = { mode: "worker", section: "constraints" }
     const env: PanelState = { mode: "worker", section: "env" }
 
-    expect(panelReplacesHistory(overview, env)).toBe(true)
-    expect(panelReplacesHistory(null, overview)).toBe(false)
-    expect(panelReplacesHistory(overview, null)).toBe(false)
-    expect(panelReplacesHistory(overview, { mode: "new", copyFrom: "w1" })).toBe(false)
-    expect(panelReplacesHistory({ mode: "new" }, overview)).toBe(false)
+    expect(panelReplacesHistory(constraints, env)).toBe(true)
+    expect(panelReplacesHistory(null, constraints)).toBe(false)
+    expect(panelReplacesHistory(constraints, null)).toBe(false)
+    expect(panelReplacesHistory(constraints, { mode: "new", copyFrom: "w1" })).toBe(false)
+    expect(panelReplacesHistory({ mode: "new" }, constraints)).toBe(false)
   })
 })
 
@@ -146,7 +146,7 @@ describe("hashShowsConversation", () => {
   })
 
   it("ignores the panel query", () => {
-    expect(hashShowsConversation("#/chat/w1?panel=overview", "worker:w1")).toBe(true)
+    expect(hashShowsConversation("#/chat/w1?panel=env", "worker:w1")).toBe(true)
   })
 
   it("matches the same loose paths the router accepts", () => {

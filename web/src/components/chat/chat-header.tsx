@@ -14,7 +14,7 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { useClearConversation, useStopConversation } from "@/hooks/use-conversations"
 import { activeTasksOf, taskTypeLabelKey } from "@/lib/chat-view"
 import { BEE_CONVERSATION } from "@/lib/conversations"
-import { panelFromSearch, panelToSearch } from "@/lib/routes"
+import { DEFAULT_PANEL_SECTION, panelFromSearch, panelToSearch } from "@/lib/routes"
 import type { ActiveTask, ConversationId, Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
@@ -59,7 +59,7 @@ export function ChatHeader({ conversation, worker, name, status, busy, onCleared
 
   const togglePanel = () =>
     setSearchParams((current) =>
-      panelToSearch(panelOpen ? null : { mode: "worker", section: "overview" }, current),
+      panelToSearch(panelOpen ? null : { mode: "worker", section: DEFAULT_PANEL_SECTION }, current),
     )
 
   return (

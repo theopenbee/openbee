@@ -13,17 +13,15 @@ import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { DeleteWorkerDialog, type DeleteTarget } from "@/components/worker-panel/delete-worker-dialog"
 import { WorkerEnvSection } from "@/components/worker-panel/worker-env-section"
 import { WorkerInfoForm } from "@/components/worker-panel/worker-info-form"
-import { WorkerOverview } from "@/components/worker-panel/worker-overview"
 import { WorkerPermissions } from "@/components/worker-panel/worker-permissions"
 import { useWorker } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
 import { formatEngineLabel } from "@/lib/format"
-import { isPanelSection, type PanelSection, type PanelState } from "@/lib/routes"
+import { DEFAULT_PANEL_SECTION, isPanelSection, type PanelSection, type PanelState } from "@/lib/routes"
 import type { Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
 const SECTIONS: { key: PanelSection; labelKey: string }[] = [
-  { key: "overview", labelKey: "chat.panelTabs.overview" },
   { key: "constraints", labelKey: "chat.panelTabs.constraints" },
   { key: "permissions", labelKey: "chat.panelTabs.permissions" },
   { key: "env", labelKey: "chat.panelTabs.env" },
@@ -43,7 +41,7 @@ export function WorkerPanel({ workerId, panel, onPanelChange }: WorkerPanelProps
   const { data: worker, error, refetch } = useWorker(workerId)
   const [editing, setEditing] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
-  const section = panel?.mode === "worker" ? panel.section : "overview"
+  const section = panel?.mode === "worker" ? panel.section : DEFAULT_PANEL_SECTION
 
   if (error && !worker) {
     return (
@@ -91,9 +89,6 @@ export function WorkerPanel({ workerId, panel, onPanelChange }: WorkerPanelProps
               </TabsTrigger>
             ))}
           </TabsList>
-          <TabsContent value="overview">
-            <WorkerOverview worker={worker} />
-          </TabsContent>
           <TabsContent value="constraints">
             <WorkerConstraintsPanel worker={worker} />
           </TabsContent>

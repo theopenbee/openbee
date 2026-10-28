@@ -84,8 +84,6 @@
     "rowActions": "{{name}} 的操作"
   },
   "workerDetail": {
-    "created": "创建时间",
-    "updated": "最近更新",
     "editConstraints": "编辑工作约束",
     "constraintsPanel": {
       "charCount": "{{count}} 字",
@@ -182,7 +180,6 @@
       "scheduled": "周期任务"
     },
     "panelTabs": {
-      "overview": "概览",
       "constraints": "约束",
       "permissions": "权限",
       "env": "环境变量"

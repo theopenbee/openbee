@@ -84,8 +84,6 @@
     "rowActions": "Actions for {{name}}"
   },
   "workerDetail": {
-    "created": "Created",
-    "updated": "Last updated",
     "editConstraints": "Edit work constraints",
     "constraintsPanel": {
       "charCount": "{{count}} chars",
@@ -183,7 +181,6 @@
       "scheduled": "Recurring"
     },
     "panelTabs": {
-      "overview": "Overview",
       "constraints": "Constraints",
       "permissions": "Permissions",
       "env": "Env"

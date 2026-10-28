@@ -2,7 +2,7 @@ import { matchPath, parsePath } from "react-router-dom"
 import { BEE_CONVERSATION, conversationPath, workerConversationId, workerIdOf } from "@/lib/conversations"
 import type { ConversationId } from "@/lib/types"
 
-export type PanelSection = "overview" | "constraints" | "permissions" | "env"
+export type PanelSection = "constraints" | "permissions" | "env"
 
 export type PanelState =
   | { mode: "worker"; section: PanelSection }
@@ -14,7 +14,8 @@ export type PanelView =
   | { mode: "new"; copyFrom?: string }
   | null
 
-const PANEL_SECTIONS: readonly string[] = ["overview", "constraints", "permissions", "env"] satisfies PanelSection[]
+const PANEL_SECTIONS: readonly string[] = ["constraints", "permissions", "env"] satisfies PanelSection[]
+export const DEFAULT_PANEL_SECTION: PanelSection = "constraints"
 const PANEL_PARAM = "panel"
 const COPY_PARAM = "copy"
 const NEW_PANEL = "new"
@@ -60,7 +61,7 @@ function withPanel(pathname: string, panel: PanelState): string {
 }
 
 export function workerPanelPath(workerId: string): string {
-  return withPanel(conversationPath(workerConversationId(workerId)), { mode: "worker", section: "overview" })
+  return withPanel(conversationPath(workerConversationId(workerId)), { mode: "worker", section: DEFAULT_PANEL_SECTION })
 }
 
 export function legacyRedirect(pathname: string, search: string): string | null {
@@ -76,7 +77,7 @@ export function legacyRedirect(pathname: string, search: string): string | null 
     return withPanel(beePath, copyFrom ? { mode: "new", copyFrom } : { mode: "new" })
   }
   const tab = params.get("tab")
-  const section = isPanelSection(tab) ? tab : "overview"
+  const section = isPanelSection(tab) ? tab : DEFAULT_PANEL_SECTION
   return withPanel(conversationPath(workerConversationId(segments[1])), { mode: "worker", section })
 }
 
