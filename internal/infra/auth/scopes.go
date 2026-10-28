@@ -8,15 +8,13 @@ import (
 )
 
 const (
-	ScopeReadWorkers     = "read:workers"
-	ScopeReadDepartments = "read:departments"
-	ScopeReadTasks       = "read:tasks"
-	ScopeReadMessages    = "read:messages"
+	ScopeReadWorkers  = "read:workers"
+	ScopeReadTasks    = "read:tasks"
+	ScopeReadMessages = "read:messages"
 )
 
 var AllScopes = []string{
 	ScopeReadWorkers,
-	ScopeReadDepartments,
 	ScopeReadTasks,
 	ScopeReadMessages,
 }
@@ -56,8 +54,6 @@ var toolScopeMap = map[string]string{
 	utils.ListWorkers:          ScopeReadWorkers,
 	utils.GetWorker:            ScopeReadWorkers,
 	utils.GetWorkerStatus:      ScopeReadWorkers,
-	utils.ListDepartments:      ScopeReadDepartments,
-	utils.GetDepartment:        ScopeReadDepartments,
 	utils.ListTasks:            ScopeReadTasks,
 	utils.ListMessages:         ScopeReadMessages,
 	utils.ListOutboundMessages: ScopeReadMessages,

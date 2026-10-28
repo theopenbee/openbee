@@ -10,8 +10,7 @@ var ErrValidation = errors.New("validation error")
 
 // Valid scope values for env configs.
 const (
-	ScopeGlobal     = "global"
-	ScopeBee        = "bee"
-	ScopeDepartment = "department"
-	ScopeWorker     = "worker"
+	ScopeGlobal = "global"
+	ScopeBee    = "bee"
+	ScopeWorker = "worker"
 )

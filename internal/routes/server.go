@@ -14,7 +14,6 @@ import (
 
 type ServerParams struct {
 	Workers           *api.WorkerHandler
-	Departments       *api.DepartmentHandler
 	Config            *api.ConfigHandler
 	LocalChat         *api.LocalChatHandler
 	Auth              *auth.AuthHandler

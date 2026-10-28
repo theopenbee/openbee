@@ -8,11 +8,6 @@ runtime:
   rpc:
     clear_session_confirm: "This session has %d workers linked. Clearing will reset all worker and bee conversation contexts. Confirm by re-calling with force=true."
     clear_session_tasks_confirm: "There are %d active tasks in this session. Clearing will terminate them. Confirm by re-calling with force=true."
-  department:
-    has_sub_departments: "This department has sub-departments. Please remove them first."
-    has_associated_workers: "This department has associated workers. Please move them to another department first."
-    parent_not_found: "Parent department not found."
-    circular_reference: "Cannot set a descendant as the parent department."
   engine_command:
     usage: "Usage:\n/engine {engine} — switch the default engine\n/engine {engine} {workerName} — switch the engine for a specific worker"
     switch_failed: "Switch failed, please try again later"

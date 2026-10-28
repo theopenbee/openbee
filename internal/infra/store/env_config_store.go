@@ -126,23 +126,3 @@ func (s *EnvConfigStore) Delete(id string) error {
 	}
 	return nil
 }
-
-// ListForDepartments returns department-scoped env configs for the given department IDs.
-// Returns empty result without querying if departmentIDs is empty.
-func (s *EnvConfigStore) ListForDepartments(departmentIDs []string) ([]*model.EnvConfig, error) {
-	if len(departmentIDs) == 0 {
-		return []*model.EnvConfig{}, nil
-	}
-	args := append([]any{"department"}, stringsToArgs(departmentIDs)...)
-	rows, err := s.db.Query(
-		`SELECT `+envConfigColumns+` FROM bee_env_configs
-		 WHERE scope = ? AND scope_id IN (`+inPlaceholders(len(departmentIDs))+`)
-		 ORDER BY scope_id ASC`,
-		args...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list env configs for departments: %w", err)
-	}
-	defer rows.Close()
-	return scanEnvConfigs(rows)
-}

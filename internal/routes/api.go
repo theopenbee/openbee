@@ -23,13 +23,6 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.PUT("/workers/:id", s.Workers.Update)
 	r.DELETE("/workers/:id", s.Workers.Delete)
 
-	// Departments
-	r.POST("/departments", s.Departments.Create)
-	r.GET("/departments", s.Departments.List)
-	r.PUT("/departments/:id", s.Departments.Update)
-	r.DELETE("/departments/:id", s.Departments.Delete)
-	r.PUT("/workers/:id/departments", s.Departments.SetWorkerDepartments)
-
 	// Local chat & messages
 	r.GET("/local/conversations", s.LocalChat.ListConversations)
 	r.GET("/local/conversations/:cid/messages", s.LocalChat.GetMessages)

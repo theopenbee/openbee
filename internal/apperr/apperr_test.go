@@ -11,9 +11,9 @@ import (
 )
 
 func TestCodeAndMessage(t *testing.T) {
-	err := apperr.New("department_has_sub", "department has sub-departments")
-	require.Equal(t, "department_has_sub", apperr.Code(err))
-	require.Equal(t, "department has sub-departments", err.Error())
+	err := apperr.New("worker_not_found", "worker not found")
+	require.Equal(t, "worker_not_found", apperr.Code(err))
+	require.Equal(t, "worker not found", err.Error())
 }
 
 func TestParams(t *testing.T) {

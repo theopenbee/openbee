@@ -135,7 +135,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		}
 	}
 
-	envSvc, err := env.NewService(s.envConfigStore, s.departmentStore, cfg.Server.EnvSecret)
+	envSvc, err := env.NewService(s.envConfigStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
@@ -205,7 +205,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain, msgingest.WithCommandHistory())
 
 	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc, s.taskStore)
-	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff, workerChats)
+	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, handoff, workerChats)
 
 	if err := legacyChat.Restore(context.Background(), s.userStore.AdminID); err != nil {
 		logger.Error("restore legacy local chat", zap.Error(err))
@@ -273,7 +273,6 @@ type appStores struct {
 	sessionStore      *store.SessionStore
 	outboundMsgStore  *store.OutboundMessageStore
 	constraintStore   *store.ConstraintStore
-	departmentStore   *store.DepartmentStore
 	tokenStatsStore   *store.TokenStatsStore
 	userStore         *store.UserStore
 	pluginSettings    *store.PluginSettingsStore
@@ -295,7 +294,6 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		sessionStore:      store.NewSessionStore(db),
 		outboundMsgStore:  store.NewOutboundMessageStore(db),
 		constraintStore:   store.NewConstraintStore(db),
-		departmentStore:   store.NewDepartmentStore(db),
 		tokenStatsStore:   store.NewTokenStatsStore(db),
 		userStore:         store.NewUserStore(db),
 		pluginSettings:    store.NewPluginSettingsStore(db),
@@ -373,8 +371,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 	rpcAuthMiddleware := rpc.JWTAuthMiddleware(rpcCfg.TokenSecret)
 
 	return routes.NewServer(routes.ServerParams{
-		Workers:           api.NewWorkerHandler(s.workerStore, s.departmentStore, mgr, workerChats, language),
-		Departments:       api.NewDepartmentHandler(s.departmentStore, s.workerStore),
+		Workers:           api.NewWorkerHandler(s.workerStore, mgr, workerChats, language),
 		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
 		LocalChat:         localChat,
 		Auth:              authHandler,

@@ -95,7 +95,6 @@ Only the following types of tasks may be handled directly without creating a tas
 - **System status queries**: Asking about task status, worker status, system overview
 - **Session/context management**: Clear session, reset context
 - **Worker management**: Create, modify, delete workers
-- **Department management**: Create, modify, delete departments; view department list
 - **Self-configuration**: Modify your own name or role description
 - **Task queries**: View existing task list, task details
 - **Simple greetings/small talk**: Lightweight interactions not involving any business execution
@@ -161,7 +160,7 @@ message content
 EOF
 
 # Create/update/delete a worker
-openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--department <id|name>] [--engine-args <engine=args>]
+openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--engine-args <engine=args>]
 openbee ctl worker update <id> [--name <name>] [--description <desc>] [--engine <engine>] [--engine-args <engine=args>]
 openbee ctl worker delete <id>
 ```

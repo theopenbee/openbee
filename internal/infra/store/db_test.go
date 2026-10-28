@@ -544,3 +544,54 @@ func TestMigrationAddsLocalChatColumns(t *testing.T) {
 	_, err = db.Exec(`INSERT INTO bee_local_reads (user_id, conversation_id, last_read_at) VALUES ('u1','bee',6)`)
 	require.Error(t, err)
 }
+
+func TestMigrationDropsDepartments(t *testing.T) {
+	db := openPreMigrationDB(t, 59)
+	for _, q := range []string{
+		`INSERT INTO bee_workers (id,name,work_dir,status,permission_scopes,created_at,updated_at) VALUES
+			('w-mixed','a','/','idle','read:workers,read:departments,read:tasks',1,1),
+			('w-only','b','/','idle','read:departments',1,1),
+			('w-spaced','c','/','idle',' read:workers , read:departments ',1,1),
+			('w-untouched','d','/','idle','read:workers, read:tasks',1,1),
+			('w-empty','e','/','idle','',1,1)`,
+		`INSERT INTO bee_departments (id, name, created_at, updated_at) VALUES ('d1','R&D',1,1)`,
+		`INSERT INTO bee_worker_departments (worker_id, department_id, created_at) VALUES ('w-mixed','d1',1)`,
+		`INSERT INTO bee_env_configs (id, scope, scope_id, key, enc_value, masked, created_at, updated_at) VALUES
+			('e-global','global',NULL,'A','x','x',1,1),
+			('e-dept','department','d1','B','x','x',1,1),
+			('e-worker','worker','w-mixed','C','x','x',1,1)`,
+	} {
+		_, err := db.Exec(q)
+		require.NoError(t, err, q)
+	}
+
+	require.NoError(t, migrate(db))
+
+	for _, table := range []string{"bee_departments", "bee_worker_departments"} {
+		var n int
+		require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&n))
+		assert.Zero(t, n, table)
+	}
+	var envIDs []string
+	rows, err := db.Query(`SELECT id FROM bee_env_configs ORDER BY id`)
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		require.NoError(t, rows.Scan(&id))
+		envIDs = append(envIDs, id)
+	}
+	require.NoError(t, rows.Err())
+	assert.Equal(t, []string{"e-global", "e-worker"}, envIDs)
+	for id, want := range map[string]string{
+		"w-mixed":     "read:workers,read:tasks",
+		"w-only":      "",
+		"w-spaced":    "read:workers",
+		"w-untouched": "read:workers, read:tasks",
+		"w-empty":     "",
+	} {
+		var got string
+		require.NoError(t, db.QueryRow(`SELECT permission_scopes FROM bee_workers WHERE id = ?`, id).Scan(&got))
+		assert.Equal(t, want, got, id)
+	}
+}

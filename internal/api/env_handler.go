@@ -16,7 +16,7 @@ func NewEnvHandler(svc *env.Service) *EnvHandler {
 }
 
 type createEnvRequest struct {
-	Scope   string `json:"scope"    binding:"required,oneof=global bee department worker"`
+	Scope   string `json:"scope"    binding:"required,oneof=global bee worker"`
 	ScopeID string `json:"scope_id"`
 	Key     string `json:"key"      binding:"required"`
 	Value   string `json:"value"    binding:"required"`

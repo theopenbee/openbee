@@ -42,11 +42,6 @@ type workerResponse struct {
 	UpdatedAt        int64              `json:"updated_at"`
 }
 
-type workerWithDepartmentsResponse struct {
-	workerResponse
-	Departments []model.DepartmentBrief `json:"departments"`
-}
-
 func parseWorkerEngineArgs(raw string) (map[string]string, error) {
 	if raw == "" || raw == "{}" {
 		return map[string]string{}, nil
@@ -78,28 +73,19 @@ func toWorkerResponse(w model.Worker) (workerResponse, error) {
 	}, nil
 }
 
-func toWorkerWithDepartmentsResponse(w model.Worker, depts []model.DepartmentBrief) (workerWithDepartmentsResponse, error) {
-	resp, err := toWorkerResponse(w)
-	if err != nil {
-		return workerWithDepartmentsResponse{}, err
-	}
-	return workerWithDepartmentsResponse{workerResponse: resp, Departments: depts}, nil
-}
-
 type WorkerChatCleaner interface {
 	DeleteWorkerChats(ctx context.Context, w model.Worker) error
 }
 
 type WorkerHandler struct {
-	workers     *store.WorkerStore
-	departments *store.DepartmentStore
-	manager     *worker.Manager
-	chats       WorkerChatCleaner
-	language    string
+	workers  *store.WorkerStore
+	manager  *worker.Manager
+	chats    WorkerChatCleaner
+	language string
 }
 
-func NewWorkerHandler(ws *store.WorkerStore, ds *store.DepartmentStore, mgr *worker.Manager, chats WorkerChatCleaner, lang string) *WorkerHandler {
-	return &WorkerHandler{workers: ws, departments: ds, manager: mgr, chats: chats, language: lang}
+func NewWorkerHandler(ws *store.WorkerStore, mgr *worker.Manager, chats WorkerChatCleaner, lang string) *WorkerHandler {
+	return &WorkerHandler{workers: ws, manager: mgr, chats: chats, language: lang}
 }
 
 func (h *WorkerHandler) Create(c *gin.Context) {
@@ -153,33 +139,15 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 }
 
 func (h *WorkerHandler) List(c *gin.Context) {
-	deptID := c.Query("department_id")
-
-	var workers []model.Worker
-	var err error
-	if deptID != "" {
-		workers, err = h.workers.GetByDepartmentID(deptID)
-	} else {
-		workers, err = h.workers.List()
-	}
+	workers, err := h.workers.List()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	workerIDs := make([]string, len(workers))
-	for i, w := range workers {
-		workerIDs[i] = w.ID
-	}
-	deptMap, err := h.departments.GetWorkersDepartments(workerIDs)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	resp := make([]workerWithDepartmentsResponse, 0, len(workers))
+	resp := make([]workerResponse, 0, len(workers))
 	for _, w := range workers {
-		item, convErr := toWorkerWithDepartmentsResponse(w, model.ToDepartmentBriefs(deptMap[w.ID]))
+		item, convErr := toWorkerResponse(w)
 		if convErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
 			return
@@ -195,12 +163,7 @@ func (h *WorkerHandler) Get(c *gin.Context) {
 		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
 		return
 	}
-	depts, err := h.departments.GetWorkerDepartments(w.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	resp, convErr := toWorkerWithDepartmentsResponse(w, model.ToDepartmentBriefs(depts))
+	resp, convErr := toWorkerResponse(w)
 	if convErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
 		return
@@ -240,10 +203,6 @@ func (h *WorkerHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.manager.DeleteWorker(id, deleteWorkDir); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if err := h.departments.DeleteWorkerDepartments(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

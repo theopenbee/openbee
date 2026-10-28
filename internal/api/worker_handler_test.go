@@ -76,7 +76,7 @@ func newWorkerDeleteEnv(t *testing.T, cleaner func(env *workerDeleteEnv) WorkerC
 		clear:   &fakeClearer{},
 	}
 	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, env.workers, nil, nil, nil, nil, nil)
-	h := NewWorkerHandler(env.workers, store.NewDepartmentStore(db), mgr, cleaner(env), "en")
+	h := NewWorkerHandler(env.workers, mgr, cleaner(env), "en")
 	gin.SetMode(gin.TestMode)
 	env.router = gin.New()
 	env.router.DELETE("/workers/:id", h.Delete)

@@ -29,24 +29,16 @@ func newWorkerCommand(run Runner) *cobra.Command {
 
 func newWorkerListCommand(run Runner, short string) *cobra.Command {
 	var (
-		department  string
-		noRecursive bool
-		name        string
-		id          string
-		page        int
-		pageSize    int
+		name     string
+		id       string
+		page     int
+		pageSize int
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: short,
 		RunE: func(c *cobra.Command, args []string) error {
 			a := map[string]any{}
-			if department != "" {
-				a["department_id"] = department
-				if noRecursive {
-					a["recursive"] = false
-				}
-			}
 			setIfNonEmpty(a, "name", name)
 			setIfNonEmpty(a, "id", id)
 			setIfPositive(a, "page", page)
@@ -54,8 +46,6 @@ func newWorkerListCommand(run Runner, short string) *cobra.Command {
 			return run(utils.ListWorkers, a)
 		},
 	}
-	cmd.Flags().StringVar(&department, "department", "", "Filter by department ID or name")
-	cmd.Flags().BoolVar(&noRecursive, "no-recursive", false, "Only return workers directly in the department (not in child departments)")
 	cmd.Flags().StringVar(&name, "name", "", "Filter by name (case-insensitive partial match)")
 	cmd.Flags().StringVar(&id, "id", "", "Filter by exact worker ID")
 	cmd.Flags().IntVar(&page, "page", 0, "Page number (default: 1)")
@@ -92,7 +82,6 @@ func newWorkerCreateCommand(run Runner, short string) *cobra.Command {
 		constraints string
 		workDir     string
 		engine      string
-		department  string
 		scopes      string
 		engineArgs  []string
 	)
@@ -105,7 +94,6 @@ func newWorkerCreateCommand(run Runner, short string) *cobra.Command {
 			setIfNonEmpty(a, "constraints", constraints)
 			setIfNonEmpty(a, "work_dir", workDir)
 			setIfNonEmpty(a, "engine", engine)
-			setIfNonEmpty(a, "department_ids", department)
 			setIfNonEmpty(a, "permission_scopes", scopes)
 			if len(engineArgs) > 0 {
 				parsed, err := parseEngineArgsFlag(engineArgs)
@@ -123,7 +111,6 @@ func newWorkerCreateCommand(run Runner, short string) *cobra.Command {
 	cmd.Flags().StringVar(&constraints, "constraints", "", "Worker constraints content")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "Working directory path")
 	cmd.Flags().StringVar(&engine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty for server default")
-	cmd.Flags().StringVar(&department, "department", "", "Department ID or name (comma-separated for multiple)")
 	cmd.Flags().StringVar(&scopes, "scopes", "", "Permission scopes (comma-separated, e.g. read:workers,read:tasks)")
 	cmd.Flags().StringArrayVar(&engineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-sonnet-4-5 --effort high\" (repeatable)")
 	return cmd
@@ -136,7 +123,6 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 		constraints string
 		workDir     string
 		engine      string
-		department  string
 		scopes      string
 		engineArgs  []string
 	)
@@ -151,7 +137,6 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 			setIfFlagChanged(c, a, "constraints", "constraints", constraints)
 			setIfFlagChanged(c, a, "work-dir", "work_dir", workDir)
 			setIfFlagChanged(c, a, "engine", "engine", engine)
-			setIfFlagChanged(c, a, "department", "department_ids", department)
 			setIfFlagChanged(c, a, "scopes", "permission_scopes", scopes)
 			if c.Flags().Changed(engineArgsFlagName) {
 				parsed, err := parseEngineArgsFlag(engineArgs)
@@ -168,7 +153,6 @@ func newWorkerUpdateCommand(run Runner, short string) *cobra.Command {
 	cmd.Flags().StringVar(&constraints, "constraints", "", "New constraints content")
 	cmd.Flags().StringVar(&workDir, "work-dir", "", "New working directory path")
 	cmd.Flags().StringVar(&engine, "engine", "", "AI engine to use (e.g. claude, codex, pi); leave empty to keep unchanged")
-	cmd.Flags().StringVar(&department, "department", "", "Department ID or name (comma-separated); replaces all associations. Pass empty string to clear.")
 	cmd.Flags().StringVar(&scopes, "scopes", "", "Permission scopes (comma-separated); replaces all scopes. Pass empty string to clear.")
 	cmd.Flags().StringArrayVar(&engineArgs, engineArgsFlagName, nil, "Extra CLI args per engine, e.g. \"claude=--model claude-opus-4-7\" (repeatable); pass \"claude=\" to clear")
 	return cmd

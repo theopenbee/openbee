@@ -582,6 +582,16 @@ SELECT DISTINCT substr(session_key, 7), 'bee', CAST(ROUND((julianday('now') - 24
 ON CONFLICT(user_id, conversation_id) DO UPDATE
    SET last_read_at = MAX(last_read_at, excluded.last_read_at)`,
 	},
+	{
+		version: 59,
+		name:    "drop_departments",
+		sql: `DROP TABLE IF EXISTS bee_worker_departments;
+DROP TABLE IF EXISTS bee_departments;
+DELETE FROM bee_env_configs WHERE scope = 'department';
+UPDATE bee_workers
+   SET permission_scopes = trim(replace(',' || replace(permission_scopes, ' ', '') || ',', ',read:departments,', ','), ',')
+ WHERE ',' || replace(permission_scopes, ' ', '') || ',' LIKE '%,read:departments,%';`,
+	},
 }
 
 type whereBuilder struct {
@@ -592,11 +602,6 @@ type whereBuilder struct {
 func (b *whereBuilder) add(clause string, arg any) {
 	b.clauses = append(b.clauses, clause)
 	b.args = append(b.args, arg)
-}
-
-func (b *whereBuilder) addAll(clause string, args ...any) {
-	b.clauses = append(b.clauses, clause)
-	b.args = append(b.args, args...)
 }
 
 func (b *whereBuilder) build() (string, []any) {

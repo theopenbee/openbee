@@ -21,7 +21,7 @@ func TestValidatePermissionScopes_ValidMultiple_OK(t *testing.T) {
 }
 
 func TestValidatePermissionScopes_ValidWithSpaces_OK(t *testing.T) {
-	require.NoError(t, auth.ValidatePermissionScopes(" read:workers , read:departments "))
+	require.NoError(t, auth.ValidatePermissionScopes(" read:workers , read:tasks "))
 }
 
 func TestValidatePermissionScopes_InvalidScope_Error(t *testing.T) {

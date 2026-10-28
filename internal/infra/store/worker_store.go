@@ -41,10 +41,7 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	return w, nil
 }
 
-const (
-	workerColumns        = `id, name, description, constraints, work_dir, engine, engine_args, status, permission_scopes, created_at, updated_at`
-	workerColumnsAliased = `w.id, w.name, w.description, w.constraints, w.work_dir, w.engine, w.engine_args, w.status, w.permission_scopes, w.created_at, w.updated_at`
-)
+const workerColumns = `id, name, description, constraints, work_dir, engine, engine_args, status, permission_scopes, created_at, updated_at`
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
@@ -133,22 +130,6 @@ func (s *WorkerStore) GetByIDs(ids []string) ([]model.Worker, error) {
 	return scanWorkers(rows)
 }
 
-func (s *WorkerStore) GetByDepartmentID(deptID string) ([]model.Worker, error) {
-	rows, err := s.db.Query(
-		`SELECT `+workerColumnsAliased+`
-		 FROM bee_workers w
-		 INNER JOIN bee_worker_departments wd ON w.id = wd.worker_id
-		 WHERE wd.department_id = ?
-		 ORDER BY w.created_at DESC`,
-		deptID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("get workers by department: %w", err)
-	}
-	defer rows.Close()
-	return scanWorkers(rows)
-}
-
 func (s *WorkerStore) List() ([]model.Worker, error) {
 	rows, err := s.db.Query(`SELECT ` + workerColumns + ` FROM bee_workers ORDER BY created_at DESC`)
 	if err != nil {
@@ -177,26 +158,18 @@ func (s *WorkerStore) ListNames() ([]string, error) {
 
 // WorkerFilter holds optional filter criteria for listing workers.
 type WorkerFilter struct {
-	Name      string   // case-insensitive partial match; empty means no filter
-	ID        string   // exact match; empty means no filter
-	WorkerIDs []string // nil means no restriction; non-nil (even empty) restricts to these IDs
+	Name string // case-insensitive partial match; empty means no filter
+	ID   string // exact match; empty means no filter
 }
 
 // ListFiltered returns workers matching the filter with pagination, plus the total count.
 func (s *WorkerStore) ListFiltered(ctx context.Context, filter WorkerFilter, limit, offset int) ([]model.Worker, int, error) {
-	if filter.WorkerIDs != nil && len(filter.WorkerIDs) == 0 {
-		return []model.Worker{}, 0, nil
-	}
-
 	var b whereBuilder
 	if filter.ID != "" {
 		b.add("id = ?", filter.ID)
 	}
 	if filter.Name != "" {
 		b.add("LOWER(name) LIKE LOWER(?)", "%"+filter.Name+"%")
-	}
-	if filter.WorkerIDs != nil {
-		b.addAll("id IN ("+inPlaceholders(len(filter.WorkerIDs))+")", stringsToArgs(filter.WorkerIDs)...)
 	}
 	where, args := b.build()
 

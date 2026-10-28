@@ -18,20 +18,18 @@ import (
 const reservedKey = "OPENBEE_API_KEY"
 
 type Service struct {
-	store     *store.EnvConfigStore
-	deptStore *store.DepartmentStore
-	gcm       cipher.AEAD
+	store *store.EnvConfigStore
+	gcm   cipher.AEAD
 }
 
-func NewService(envStore *store.EnvConfigStore, ds *store.DepartmentStore, encKey string) (*Service, error) {
+func NewService(envStore *store.EnvConfigStore, encKey string) (*Service, error) {
 	gcm, err := crypto.NewGCM(encKey)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
 	return &Service{
-		store:     envStore,
-		deptStore: ds,
-		gcm:       gcm,
+		store: envStore,
+		gcm:   gcm,
 	}, nil
 }
 
@@ -45,11 +43,11 @@ func (s *Service) encryptAndMask(plainValue string) (encValue, masked string, er
 
 func validateScope(scope string) error {
 	switch scope {
-	case ScopeGlobal, ScopeBee, ScopeDepartment, ScopeWorker:
+	case ScopeGlobal, ScopeBee, ScopeWorker:
 		return nil
 	default:
 		return apperr.New("env_invalid_scope",
-			fmt.Sprintf("invalid scope %q: must be one of global, bee, department, worker", scope)).
+			fmt.Sprintf("invalid scope %q: must be one of global, bee, worker", scope)).
 			WithParams(map[string]any{"scope": scope}).Wrapping(ErrValidation)
 	}
 }
@@ -148,20 +146,13 @@ func (s *Service) Delete(id string) error {
 }
 
 // ResolveWorkerEnv returns complete env vars for Worker execution (KEY=VALUE slice).
-// Resolution chain: global <- department (last dept alphabetically by ID wins) <- worker
+// Resolution chain: global <- worker
 func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	var globalEnvs, workerEnvs []*model.EnvConfig
-	var depts []model.Department
-
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
 		globalEnvs, err = s.store.List(ScopeGlobal, nil)
-		return err
-	})
-	g.Go(func() error {
-		var err error
-		depts, err = s.deptStore.GetWorkerDepartments(workerID)
 		return err
 	})
 	g.Go(func() error {
@@ -172,18 +163,7 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-
-	deptIDs := make([]string, len(depts))
-	for i, d := range depts {
-		deptIDs[i] = d.ID
-	}
-
-	deptEnvs, err := s.store.ListForDepartments(deptIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.decryptMerged(merge(globalEnvs, deptEnvs, workerEnvs))
+	return s.decryptMerged(merge(globalEnvs, workerEnvs))
 }
 
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).

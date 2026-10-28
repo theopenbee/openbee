@@ -47,16 +47,8 @@ Ask the administrator to run `openbee ctl worker update <id> --scopes <scope>`.
 
 ```bash
 openbee ctl worker list                        # List all workers
-openbee ctl worker list --department <id>      # Filter by department ID or name
 openbee ctl worker get <id>                    # Get worker details by ID
 openbee ctl worker status <id>                 # Get worker current status (idle/working/error)
-```
-
-**Requires `read:departments` scope:**
-
-```bash
-openbee ctl department list                    # List all departments (tree structure)
-openbee ctl department get <id|name>           # Get department details by ID or name
 ```
 
 **Requires `read:tasks` scope:**

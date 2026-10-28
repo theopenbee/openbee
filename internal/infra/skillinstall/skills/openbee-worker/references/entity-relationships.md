@@ -11,7 +11,6 @@ Understanding the relationships between the core entities helps you interpret yo
 | **Task** | The unit of work you receive and execute. Created by the Bee from a Message. Carries `instruction`, `type` (immediate / countdown / scheduled), `status`, the conversation it delivers to (`session_key`), the originating Message (`message_id`), and you (`worker_id`). |
 | **Execution** | The runtime instance created when your Task is dispatched. Records your process lifecycle: PID, log path, start/end time, result, and final status (`pending` / `running` / `completed` / `failed`). A Task may produce one or more Executions (e.g. scheduled tasks run repeatedly); each Execution references its Task via `task_id`. |
 | **Worker** | An AI agent (you) that executes Tasks. Has attributes including `name`, `description`, `status` (idle / working / error), `permission_scopes`, `work_dir`, and `constraints`. |
-| **Department** | A hierarchical grouping of Workers (tree structure). A Worker can belong to multiple Departments. Used for organizational management. |
 | **Session** | Per-agent conversation context, keyed by `(session_key, agent_id)`. You and the Bee each maintain independent Sessions. Your Session accumulates conversation history across multiple tasks in the same session, enabling multi-turn context. |
 
 ## Data Flow
@@ -46,7 +45,6 @@ External Platform
 
 - **Task → Message**: every Task you receive traces back to a user Message; the `session_key` in that message scopes the conversation
 - **Task → Execution**: each Task has one or more Execution records; the newest ones are returned inline in the `executions` array of each task from `openbee ctl task list` (default: latest 10 per task; use `--task-id <id> --execution-limit 0` for the full history of one task)
-- **Worker ↔ Department**: you may belong to multiple Departments; departments are used for grouping and filtering only
 - **Outbound Message → Message**: every reply you send via `openbee ctl message send --message-id` is recorded as an Outbound Message linked to the original inbound Message; `--session-key` sends are recorded against the conversation only
 - **Session**: your conversation context is isolated per `session_key`; each new session_key starts fresh with no prior conversation history; constraints are re-injected from your worker config at the start of every session
 

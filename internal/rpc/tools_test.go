@@ -147,7 +147,7 @@ func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.
 	})
 	ms := store.NewMessageStore(db)
 	handoff := localchat.NewHandoff(ms, ts, cards, local.NewEventPublisher(local.NewSSEHub()))
-	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, store.NewDepartmentStore(db), handoff, chats)
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, handoff, chats)
 	return srv, db, stopper, disp
 }
 
@@ -234,8 +234,6 @@ func TestCallTool_GetWorker(t *testing.T) {
 	require.NoError(t, err)
 	fetched := decodeResult(t, result)
 	assert.Equal(t, w.ID, fetched["id"].(string))
-	_, ok := fetched["departments"]
-	assert.True(t, ok, "expected departments field in get_worker response")
 }
 
 func TestCallTool_UpdateWorker(t *testing.T) {
@@ -1443,43 +1441,6 @@ func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
 	}
 }
 
-func TestResolveDepartmentID_ByID(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-
-	dept, err := ds.Create(model.Department{Name: "Engineering"})
-	require.NoError(t, err)
-
-	result, err := s.CallTool(context.Background(), "get_department",
-		mustMarshal(t, map[string]any{"id": dept.ID}))
-	require.NoError(t, err)
-	got, ok := result.(model.Department)
-	require.True(t, ok, "expected model.Department, got %T", result)
-	assert.Equal(t, dept.ID, got.ID)
-}
-
-func TestResolveDepartmentID_ByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-
-	_, err := ds.Create(model.Department{Name: "Marketing"})
-	require.NoError(t, err)
-
-	result, err := s.CallTool(context.Background(), "get_department",
-		mustMarshal(t, map[string]any{"id": "Marketing"}))
-	require.NoError(t, err)
-	got, ok := result.(model.Department)
-	require.True(t, ok, "expected model.Department, got %T", result)
-	assert.Equal(t, "Marketing", got.Name)
-}
-
-func TestResolveDepartmentID_NotFound(t *testing.T) {
-	s, _ := setupServerWithSender(t, "beta", &mockSender{})
-	_, err := s.CallTool(context.Background(), "get_department",
-		mustMarshal(t, map[string]any{"id": "nonexistent"}))
-	require.Error(t, err)
-}
-
 func TestToolListTasks_IncludesExecutions(t *testing.T) {
 	s, db := setupServerWithSender(t, "beta", &mockSender{})
 	ctx := context.Background()
@@ -1578,217 +1539,6 @@ func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
 	require.Len(t, execs, 1)
 	firstExec := execs[0].(map[string]any)
 	require.Equal(t, newestExecForFirstTask, firstExec["id"])
-}
-
-func decodeDeptTree(t *testing.T, result any) []map[string]any {
-	t.Helper()
-	b, err := json.Marshal(result)
-	require.NoError(t, err)
-	var tree []map[string]any
-	require.NoError(t, json.Unmarshal(b, &tree))
-	return tree
-}
-
-func TestCallTool_ListDepartments_Empty(t *testing.T) {
-	s := setupServerWithMessaging(t)
-	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
-	require.NoError(t, err)
-	tree := decodeDeptTree(t, result)
-	assert.Empty(t, tree)
-}
-
-func TestCallTool_ListDepartments_Tree(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-
-	parent, _ := ds.Create(model.Department{Name: "R&D"})
-	_, _ = ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
-	_, _ = ds.Create(model.Department{Name: "Backend", ParentID: &parent.ID})
-
-	result, err := s.CallTool(context.Background(), "list_departments", mustMarshal(t, map[string]any{}))
-	require.NoError(t, err)
-	tree := decodeDeptTree(t, result)
-	require.Len(t, tree, 1)
-	assert.Equal(t, "R&D", tree[0]["name"].(string))
-	children := tree[0]["children"].([]any)
-	assert.Len(t, children, 2)
-	// Verify slim fields (no parent_id, created_at, updated_at).
-	_, hasParentID := tree[0]["parent_id"]
-	assert.False(t, hasParentID, "expected no parent_id in department list response")
-	_, hasCreatedAt := tree[0]["created_at"]
-	assert.False(t, hasCreatedAt, "expected no created_at in department list response")
-}
-
-func TestCallTool_CreateDepartment(t *testing.T) {
-	s := setupServerWithMessaging(t)
-	result, err := s.CallTool(context.Background(), "create_department",
-		mustMarshal(t, map[string]any{"name": "Engineering"}))
-	require.NoError(t, err)
-	dept, ok := result.(model.Department)
-	require.True(t, ok, "expected model.Department, got %T", result)
-	assert.NotEmpty(t, dept.ID)
-	assert.Equal(t, "Engineering", dept.Name)
-}
-
-func TestCallTool_CreateDepartment_WithParentByName(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	parent, _ := ds.Create(model.Department{Name: "R&D"})
-
-	result, err := s.CallTool(context.Background(), "create_department",
-		mustMarshal(t, map[string]any{"name": "Frontend", "parent_id": "R&D"}))
-	require.NoError(t, err)
-	child, ok := result.(model.Department)
-	require.True(t, ok, "expected model.Department, got %T", result)
-	// guard: nil check protects the *child.ParentID dereference below.
-	require.NotNil(t, child.ParentID)
-	assert.Equal(t, parent.ID, *child.ParentID)
-}
-
-func TestCallTool_UpdateDepartment_Name(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	dept, _ := ds.Create(model.Department{Name: "OldName"})
-
-	result, err := s.CallTool(context.Background(), "update_department",
-		mustMarshal(t, map[string]any{"id": dept.ID, "name": "NewName"}))
-	require.NoError(t, err)
-	updated, ok := result.(model.Department)
-	require.True(t, ok, "expected model.Department, got %T", result)
-	assert.Equal(t, "NewName", updated.Name)
-}
-
-func TestCallTool_DeleteDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	dept, _ := ds.Create(model.Department{Name: "ToDelete"})
-
-	_, err := s.CallTool(context.Background(), "delete_department",
-		mustMarshal(t, map[string]any{"id": dept.ID}))
-	require.NoError(t, err)
-
-	_, err = ds.GetByID(dept.ID)
-	assert.Error(t, err)
-}
-
-func TestCallTool_DeleteDepartment_FailsWithChildren(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	parent, _ := ds.Create(model.Department{Name: "Parent"})
-	_, _ = ds.Create(model.Department{Name: "Child", ParentID: &parent.ID})
-
-	_, err := s.CallTool(context.Background(), "delete_department",
-		mustMarshal(t, map[string]any{"id": parent.ID}))
-	assert.Error(t, err)
-}
-
-func TestCallTool_ListWorkers_FilterByDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	ws := store.NewWorkerStore(db)
-
-	dept, _ := ds.Create(model.Department{Name: "Engineering"})
-	other, _ := ds.Create(model.Department{Name: "Marketing"})
-
-	w1, _ := ws.Create(model.Worker{Name: "Alice"})
-	w2, _ := ws.Create(model.Worker{Name: "Bob"})
-	_ = ds.SetWorkerDepartments(w1.ID, []string{dept.ID})
-	_ = ds.SetWorkerDepartments(w2.ID, []string{other.ID})
-
-	result, err := s.CallTool(context.Background(), "list_workers",
-		mustMarshal(t, map[string]any{"department_id": dept.ID}))
-	require.NoError(t, err)
-	items, total := decodeListWorkersResult(t, result)
-	require.Equal(t, 1, total)
-	require.Len(t, items, 1)
-	item := items[0].(map[string]any)
-	assert.Equal(t, "Alice", item["name"].(string))
-}
-
-func TestCallTool_ListWorkers_FilterByDepartment_Recursive(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	ws := store.NewWorkerStore(db)
-
-	parent, _ := ds.Create(model.Department{Name: "R&D"})
-	child, _ := ds.Create(model.Department{Name: "Frontend", ParentID: &parent.ID})
-
-	w1, _ := ws.Create(model.Worker{Name: "Alice"})
-	w2, _ := ws.Create(model.Worker{Name: "Bob"})
-	_ = ds.SetWorkerDepartments(w1.ID, []string{parent.ID})
-	_ = ds.SetWorkerDepartments(w2.ID, []string{child.ID})
-
-	// recursive (default): should return both.
-	result, err := s.CallTool(context.Background(), "list_workers",
-		mustMarshal(t, map[string]any{"department_id": parent.ID}))
-	require.NoError(t, err)
-	items, _ := decodeListWorkersResult(t, result)
-	assert.Len(t, items, 2)
-
-	// non-recursive: should return only Alice.
-	result2, err := s.CallTool(context.Background(), "list_workers",
-		mustMarshal(t, map[string]any{"department_id": parent.ID, "recursive": false}))
-	require.NoError(t, err)
-	items2, _ := decodeListWorkersResult(t, result2)
-	// guard: length check protects the items2[0] index below.
-	require.Len(t, items2, 1)
-	item2 := items2[0].(map[string]any)
-	assert.Equal(t, "Alice", item2["name"].(string))
-}
-
-func TestCallTool_CreateWorker_WithDepartment(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	dept, _ := ds.Create(model.Department{Name: "Engineering"})
-
-	result, err := s.CallTool(context.Background(), "create_worker",
-		mustMarshal(t, map[string]any{"name": "Alice", "department_ids": dept.ID}))
-	require.NoError(t, err)
-	w, ok := result.(model.Worker)
-	require.True(t, ok, "expected model.Worker, got %T", result)
-
-	depts, err := ds.GetWorkerDepartments(w.ID)
-	require.NoError(t, err)
-	// guard: length check protects the depts[0] index below.
-	require.Len(t, depts, 1)
-	assert.Equal(t, dept.ID, depts[0].ID)
-}
-
-func TestCallTool_UpdateWorker_SetDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	ws := store.NewWorkerStore(db)
-
-	dept1, _ := ds.Create(model.Department{Name: "Engineering"})
-	dept2, _ := ds.Create(model.Department{Name: "Design"})
-	w, _ := ws.Create(model.Worker{Name: "Alice"})
-	_ = ds.SetWorkerDepartments(w.ID, []string{dept1.ID})
-
-	_, err := s.CallTool(context.Background(), "update_worker",
-		mustMarshal(t, map[string]any{"worker_id": w.ID, "department_ids": dept2.Name}))
-	require.NoError(t, err)
-
-	depts, _ := ds.GetWorkerDepartments(w.ID)
-	// guard: length check protects the depts[0] index below.
-	require.Len(t, depts, 1)
-	assert.Equal(t, dept2.ID, depts[0].ID)
-}
-
-func TestCallTool_UpdateWorker_ClearDepartments(t *testing.T) {
-	s, db := setupServerWithSender(t, "beta", &mockSender{})
-	ds := store.NewDepartmentStore(db)
-	ws := store.NewWorkerStore(db)
-
-	dept, _ := ds.Create(model.Department{Name: "Engineering"})
-	w, _ := ws.Create(model.Worker{Name: "Alice"})
-	_ = ds.SetWorkerDepartments(w.ID, []string{dept.ID})
-
-	_, err := s.CallTool(context.Background(), "update_worker",
-		mustMarshal(t, map[string]any{"worker_id": w.ID, "department_ids": ""}))
-	require.NoError(t, err)
-
-	depts, _ := ds.GetWorkerDepartments(w.ID)
-	assert.Empty(t, depts)
 }
 
 func workerCtx(workerID string, scopes []string) context.Context {

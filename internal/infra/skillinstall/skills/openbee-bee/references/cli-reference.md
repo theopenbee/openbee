@@ -5,16 +5,14 @@
 ## worker subcommand
 
 ```bash
-openbee ctl worker list [--department <id|name>] [--no-recursive] [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
+openbee ctl worker list [--name <name>] [--id <id>] [--page <n>] [--page-size <n>]
 openbee ctl worker get <id>
 openbee ctl worker status <id>
-openbee ctl worker create --name <name> [--description <description>] [--constraints <constraints content>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
-openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--work-dir <directory>] [--engine <engine>] [--department <id|name>] [--scopes <scopes>] [--engine-args <engine=args>]
+openbee ctl worker create --name <name> [--description <description>] [--constraints <constraints content>] [--work-dir <directory>] [--engine <engine>] [--scopes <scopes>] [--engine-args <engine=args>]
+openbee ctl worker update <id> [--name <name>] [--description <description>] [--constraints <constraints>] [--work-dir <directory>] [--engine <engine>] [--scopes <scopes>] [--engine-args <engine=args>]
 openbee ctl worker delete <id> [--delete-work-dir]
 ```
 
-- `--department` accepts an ID or name; comma-separated for multiple departments
-- `--no-recursive` (only for `worker list`): return only workers directly in the department, excluding child departments; default is recursive
 - `--name` (only for `worker list`): filter by name (case-insensitive partial match)
 - `--id` (only for `worker list`): filter by exact worker ID
 - `--page` / `--page-size` (only for `worker list`): pagination; default page 1, default 50 per page, max 200
@@ -31,7 +29,6 @@ Available scopes:
 | Scope | Grants access to |
 |---|---|
 | `read:workers` | `list_workers`, `get_worker`, `get_worker_status` |
-| `read:departments` | `list_departments`, `get_department` |
 | `read:tasks` | `list_tasks` |
 | `read:messages` | `list_messages`, `list_outbound_messages` |
 
@@ -42,20 +39,10 @@ If a worker token calls a tool without the required scope, the call returns: `pe
 openbee ctl worker update <id> --scopes read:workers,read:tasks
 
 # Grant all read scopes
-openbee ctl worker update <id> --scopes read:workers,read:departments,read:tasks,read:messages
+openbee ctl worker update <id> --scopes read:workers,read:tasks,read:messages
 
 # Clear all scopes
 openbee ctl worker update <id> --scopes ""
-```
-
-## department subcommand
-
-```bash
-openbee ctl department list
-openbee ctl department get <id|name>
-openbee ctl department create --name <name> [--parent <id|name>] [--sort-order <n>]
-openbee ctl department update <id|name> [--name <name>] [--parent <id|name>] [--sort-order <n>]
-openbee ctl department delete <id|name>
 ```
 
 ## task subcommand

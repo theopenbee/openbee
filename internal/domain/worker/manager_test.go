@@ -70,7 +70,7 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 	ws := store.NewWorkerStore(db)
 	es := store.NewExecutionStore(db, dir)
 	const testKey = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-	envSvc, err := env.NewService(store.NewEnvConfigStore(db), store.NewDepartmentStore(db), testKey)
+	envSvc, err := env.NewService(store.NewEnvConfigStore(db), testKey)
 	require.NoError(t, err)
 	bc := config.BeeConfig{}
 	bc.RPC.TokenTTL = time.Minute

@@ -32,7 +32,6 @@ func NewCommand() *cobra.Command {
 		newSessionCommand(run),
 		newSystemCommand(run),
 		newMessageCommand(run),
-		newDepartmentCommand(run),
 	)
 	return cmd
 }

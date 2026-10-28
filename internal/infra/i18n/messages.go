@@ -8,14 +8,13 @@ type Messages struct {
 // RuntimeMessages holds server-runtime user-visible text (sent to IM users,
 // platform placeholders, etc.) that must respond to the language setting.
 type RuntimeMessages struct {
-	FailureNotifier FailureNotifierMessages   `yaml:"failure_notifier"`
-	RPC             RPCRuntimeMessages        `yaml:"rpc"`
-	Department      DepartmentRuntimeMessages `yaml:"department"`
-	EngineCommand   EngineCommandMessages     `yaml:"engine_command"`
-	ClearCommand    ClearCommandMessages      `yaml:"clear_command"`
-	StopCommand     StopCommandMessages       `yaml:"stop_command"`
-	StatusCommand   StatusCommandMessages     `yaml:"status_command"`
-	ListCommand     ListCommandMessages       `yaml:"list_command"`
+	FailureNotifier FailureNotifierMessages `yaml:"failure_notifier"`
+	RPC             RPCRuntimeMessages      `yaml:"rpc"`
+	EngineCommand   EngineCommandMessages   `yaml:"engine_command"`
+	ClearCommand    ClearCommandMessages    `yaml:"clear_command"`
+	StopCommand     StopCommandMessages     `yaml:"stop_command"`
+	StatusCommand   StatusCommandMessages   `yaml:"status_command"`
+	ListCommand     ListCommandMessages     `yaml:"list_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -89,14 +88,6 @@ type ListCommandMessages struct {
 	StatusIdle    string `yaml:"status_idle"`
 	StatusWorking string `yaml:"status_working"`
 	StatusError   string `yaml:"status_error"`
-}
-
-// DepartmentRuntimeMessages holds error messages returned by the department API.
-type DepartmentRuntimeMessages struct {
-	HasSubDepartments    string `yaml:"has_sub_departments"`
-	HasAssociatedWorkers string `yaml:"has_associated_workers"`
-	ParentNotFound       string `yaml:"parent_not_found"`
-	CircularReference    string `yaml:"circular_reference"`
 }
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.

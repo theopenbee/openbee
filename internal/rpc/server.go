@@ -45,7 +45,6 @@ type Server struct {
 	executionStore       *store.ExecutionStore
 	constraintStore      *store.ConstraintStore
 	sessionStore         *store.SessionStore
-	departmentStore      *store.DepartmentStore
 	handoff              *localchat.Handoff
 	chats                WorkerChatCleaner
 }
@@ -61,7 +60,6 @@ func NewBeeServer(
 	es *store.ExecutionStore,
 	constraintStore *store.ConstraintStore,
 	sessionStore *store.SessionStore,
-	ds *store.DepartmentStore,
 	handoff *localchat.Handoff,
 	chats WorkerChatCleaner,
 ) *Server {
@@ -76,7 +74,6 @@ func NewBeeServer(
 		executionStore:       es,
 		constraintStore:      constraintStore,
 		sessionStore:         sessionStore,
-		departmentStore:      ds,
 		handoff:              handoff,
 		chats:                chats,
 	}

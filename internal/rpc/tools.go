@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -98,16 +97,6 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolListSessionContexts(ctx, args)
 	case utils.ClearWorkerSession:
 		return s.toolClearWorkerSession(ctx, args)
-	case utils.ListDepartments:
-		return s.toolListDepartments(args)
-	case utils.GetDepartment:
-		return s.toolGetDepartment(args)
-	case utils.CreateDepartment:
-		return s.toolCreateDepartment(args)
-	case utils.UpdateDepartment:
-		return s.toolUpdateDepartment(args)
-	case utils.DeleteDepartment:
-		return s.toolDeleteDepartment(args)
 	case utils.ListMessages:
 		return s.toolListMessages(ctx, args)
 	case utils.ListOutboundMessages:
@@ -168,12 +157,10 @@ type LinkedWorkerSummary struct {
 
 func (s *Server) toolListWorkers(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		DepartmentID string `json:"department_id"`
-		Recursive    *bool  `json:"recursive"`
-		Name         string `json:"name"`
-		ID           string `json:"id"`
-		Page         int    `json:"page"`
-		PageSize     int    `json:"page_size"`
+		Name     string `json:"name"`
+		ID       string `json:"id"`
+		Page     int    `json:"page"`
+		PageSize int    `json:"page_size"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -184,25 +171,6 @@ func (s *Server) toolListWorkers(ctx context.Context, args json.RawMessage) (any
 	filter := store.WorkerFilter{
 		Name: params.Name,
 		ID:   params.ID,
-	}
-
-	if params.DepartmentID != "" {
-		recursive := params.Recursive == nil || *params.Recursive
-		var workerIDs []string
-		var err error
-		if recursive {
-			workerIDs, err = s.listWorkersRecursive(params.DepartmentID)
-		} else {
-			deptID, resolveErr := s.resolveDepartmentID(params.DepartmentID)
-			if resolveErr != nil {
-				return nil, resolveErr
-			}
-			workerIDs, err = s.departmentStore.GetWorkerIDsForDepartments([]string{deptID})
-		}
-		if err != nil {
-			return nil, fmt.Errorf("list workers: %w", err)
-		}
-		filter.WorkerIDs = workerIDs
 	}
 
 	workers, total, err := s.workerStore.ListFiltered(ctx, filter, pageSize, offset)
@@ -228,32 +196,11 @@ func (s *Server) toolGetWorker(args json.RawMessage) (any, error) {
 	if params.WorkerID == "" {
 		return nil, fmt.Errorf("worker_id is required")
 	}
-	type workerResult struct {
-		w   model.Worker
-		err error
+	w, err := s.workerStore.GetByID(params.WorkerID)
+	if err != nil {
+		return nil, fmt.Errorf("worker not found: %w", err)
 	}
-	type deptsResult struct {
-		depts []model.Department
-		err   error
-	}
-	wCh := make(chan workerResult, 1)
-	dCh := make(chan deptsResult, 1)
-	go func() {
-		w, err := s.workerStore.GetByID(params.WorkerID)
-		wCh <- workerResult{w, err}
-	}()
-	go func() {
-		depts, err := s.departmentStore.GetWorkerDepartments(params.WorkerID)
-		dCh <- deptsResult{depts, err}
-	}()
-	wr, dr := <-wCh, <-dCh
-	if wr.err != nil {
-		return nil, fmt.Errorf("worker not found: %w", wr.err)
-	}
-	if dr.err != nil {
-		return nil, fmt.Errorf("get worker departments: %w", dr.err)
-	}
-	return model.WorkerWithDepartments{Worker: wr.w, Departments: model.ToDepartmentBriefs(dr.depts)}, nil
+	return w, nil
 }
 
 func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
@@ -263,7 +210,6 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 		Constraints      string `json:"constraints"`
 		WorkDir          string `json:"work_dir"`
 		Engine           string `json:"engine"`
-		DepartmentIDs    string `json:"department_ids"`
 		PermissionScopes string `json:"permission_scopes"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
@@ -289,18 +235,12 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if params.DepartmentIDs != "" {
-		if err := s.applyWorkerDepartments(w.ID, params.DepartmentIDs); err != nil {
-			return nil, err
-		}
-	}
 	return w, nil
 }
 
 func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		WorkerID      string  `json:"worker_id"`
-		DepartmentIDs *string `json:"department_ids"`
+		WorkerID string `json:"worker_id"`
 		worker.UpdateWorkerParams
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
@@ -312,11 +252,6 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 	w, err := s.manager.UpdateWorker(params.WorkerID, params.UpdateWorkerParams)
 	if err != nil {
 		return nil, err
-	}
-	if params.DepartmentIDs != nil {
-		if err := s.applyWorkerDepartments(w.ID, *params.DepartmentIDs); err != nil {
-			return nil, err
-		}
 	}
 	return w, nil
 }
@@ -967,271 +902,6 @@ func (s *Server) toolClearWorkerSession(ctx context.Context, args json.RawMessag
 		"worker_id":       params.WorkerID,
 		"worker_name":     s.workerDisplayName(params.WorkerID),
 	}, nil
-}
-
-type deptTreeBrief struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	SortOrder int             `json:"sort_order"`
-	Children  []deptTreeBrief `json:"children"`
-}
-
-func toDeptTreeBriefs(nodes []model.DepartmentTree) []deptTreeBrief {
-	result := make([]deptTreeBrief, 0, len(nodes))
-	for _, n := range nodes {
-		result = append(result, deptTreeBrief{
-			ID:        n.ID,
-			Name:      n.Name,
-			SortOrder: n.SortOrder,
-			Children:  toDeptTreeBriefs(n.Children),
-		})
-	}
-	return result
-}
-
-func (s *Server) toolListDepartments(_ json.RawMessage) (any, error) {
-	all, err := s.departmentStore.ListAll()
-	if err != nil {
-		return nil, fmt.Errorf("list departments: %w", err)
-	}
-	tree := s.departmentStore.BuildTree(all)
-	return toDeptTreeBriefs(tree), nil
-}
-
-func (s *Server) toolGetDepartment(args json.RawMessage) (any, error) {
-	var params struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.ID == "" {
-		return nil, fmt.Errorf("id is required")
-	}
-	deptID, err := s.resolveDepartmentID(params.ID)
-	if err != nil {
-		return nil, err
-	}
-	return s.departmentStore.GetByID(deptID)
-}
-
-func (s *Server) toolCreateDepartment(args json.RawMessage) (any, error) {
-	var params struct {
-		Name      string `json:"name"`
-		ParentID  string `json:"parent_id"`
-		SortOrder int    `json:"sort_order"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	d := model.Department{
-		Name:      params.Name,
-		SortOrder: params.SortOrder,
-	}
-	if params.ParentID != "" {
-		parentID, err := s.resolveDepartmentID(params.ParentID)
-		if err != nil {
-			return nil, fmt.Errorf("parent: %w", err)
-		}
-		d.ParentID = &parentID
-	}
-	return s.departmentStore.Create(d)
-}
-
-func (s *Server) toolUpdateDepartment(args json.RawMessage) (any, error) {
-	var params struct {
-		ID        string  `json:"id"`
-		Name      *string `json:"name"`
-		ParentID  *string `json:"parent_id"`
-		SortOrder *int    `json:"sort_order"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.ID == "" {
-		return nil, fmt.Errorf("id is required")
-	}
-	toResolve := []string{params.ID}
-	if params.ParentID != nil {
-		toResolve = append(toResolve, *params.ParentID)
-	}
-	resolvedIDs, err := s.resolveDepartmentIDs(toResolve)
-	if err != nil {
-		return nil, err
-	}
-	deptID := resolvedIDs[0]
-	d, err := s.departmentStore.GetByID(deptID)
-	if err != nil {
-		return nil, fmt.Errorf("get department: %w", err)
-	}
-	fieldsChanged := params.Name != nil || params.SortOrder != nil || params.ParentID != nil
-	if params.Name != nil {
-		d.Name = *params.Name
-	}
-	if params.SortOrder != nil {
-		d.SortOrder = *params.SortOrder
-	}
-	if params.ParentID != nil {
-		resolvedParentID := resolvedIDs[1]
-		if err := s.departmentStore.CheckCircularReference(d.ID, resolvedParentID); err != nil {
-			return nil, err
-		}
-		d.ParentID = &resolvedParentID
-	}
-	if !fieldsChanged {
-		return d, nil
-	}
-	return s.departmentStore.Update(d)
-}
-
-func (s *Server) toolDeleteDepartment(args json.RawMessage) (any, error) {
-	var params struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid args: %w", err)
-	}
-	if params.ID == "" {
-		return nil, fmt.Errorf("id is required")
-	}
-	deptID, err := s.resolveDepartmentID(params.ID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.departmentStore.Delete(deptID); err != nil {
-		return nil, err
-	}
-	return map[string]string{"status": "deleted"}, nil
-}
-
-func (s *Server) resolveDepartmentID(idOrName string) (string, error) {
-	ids, err := s.resolveDepartmentIDs([]string{idOrName})
-	if err != nil {
-		return "", err
-	}
-	return ids[0], nil
-}
-
-// resolveDepartmentIDs resolves a slice of ID-or-name strings to department IDs with a single
-// ListAll call to avoid per-element DB queries.
-func (s *Server) resolveDepartmentIDs(idOrNames []string) ([]string, error) {
-	if len(idOrNames) == 0 {
-		return nil, nil
-	}
-	all, err := s.departmentStore.ListAll()
-	if err != nil {
-		return nil, fmt.Errorf("list departments: %w", err)
-	}
-	return resolveDeptIDsFromList(all, idOrNames)
-}
-
-// resolveDeptIDsFromList resolves ID-or-name strings using an already-loaded department list,
-// avoiding an extra DB query when the caller already has all departments in memory.
-func resolveDeptIDsFromList(all []model.Department, idOrNames []string) ([]string, error) {
-	deptByID := make(map[string]model.Department, len(all))
-	deptByName := make(map[string][]model.Department)
-	for _, d := range all {
-		deptByID[d.ID] = d
-		deptByName[d.Name] = append(deptByName[d.Name], d)
-	}
-
-	ids := make([]string, 0, len(idOrNames))
-	for _, v := range idOrNames {
-		if _, ok := deptByID[v]; ok {
-			ids = append(ids, v)
-			continue
-		}
-		matches := deptByName[v]
-		switch len(matches) {
-		case 0:
-			return nil, fmt.Errorf("department %q not found", v)
-		case 1:
-			ids = append(ids, matches[0].ID)
-		default:
-			paths := make([]string, len(matches))
-			for i, m := range matches {
-				paths[i] = departmentAncestorPath(deptByID, m)
-			}
-			return nil, fmt.Errorf("department name %q is ambiguous, matches: %s; use an ID instead",
-				v, strings.Join(paths, ", "))
-		}
-	}
-	return ids, nil
-}
-
-// applyWorkerDepartments resolves a comma-separated list of department IDs or names and
-// replaces all department associations for the worker. An empty string clears all associations.
-func (s *Server) applyWorkerDepartments(workerID, deptIDsParam string) error {
-	var deptIDs []string
-	if deptIDsParam != "" {
-		var err error
-		deptIDs, err = s.resolveDepartmentIDs(utils.SplitAndTrim(deptIDsParam))
-		if err != nil {
-			return fmt.Errorf("set departments: %w", err)
-		}
-	}
-	if err := s.departmentStore.SetWorkerDepartments(workerID, deptIDs); err != nil {
-		return fmt.Errorf("set worker departments: %w", err)
-	}
-	return nil
-}
-
-func departmentAncestorPath(deptMap map[string]model.Department, d model.Department) string {
-	var parts []string
-	cur := d
-	for {
-		parts = append(parts, cur.Name)
-		if cur.ParentID == nil {
-			break
-		}
-		parent, ok := deptMap[*cur.ParentID]
-		if !ok {
-			break
-		}
-		cur = parent
-	}
-	// Reverse: we collected child→root, want root→child.
-	slices.Reverse(parts)
-	return strings.Join(parts, " > ")
-}
-
-func collectDescendantIDs(all []model.Department, rootID string) []string {
-	childrenMap := make(map[string][]string)
-	for _, d := range all {
-		if d.ParentID != nil {
-			childrenMap[*d.ParentID] = append(childrenMap[*d.ParentID], d.ID)
-		}
-	}
-	var ids []string
-	var dfs func(id string)
-	dfs = func(id string) {
-		ids = append(ids, id)
-		for _, childID := range childrenMap[id] {
-			dfs(childID)
-		}
-	}
-	dfs(rootID)
-	return ids
-}
-
-func (s *Server) listWorkersRecursive(idOrName string) ([]string, error) {
-	all, err := s.departmentStore.ListAll()
-	if err != nil {
-		return nil, fmt.Errorf("list departments: %w", err)
-	}
-	resolvedIDs, err := resolveDeptIDsFromList(all, []string{idOrName})
-	if err != nil {
-		return nil, err
-	}
-	deptIDs := collectDescendantIDs(all, resolvedIDs[0])
-	workerIDs, err := s.departmentStore.GetWorkerIDsForDepartments(deptIDs)
-	if err != nil {
-		return nil, fmt.Errorf("get department workers: %w", err)
-	}
-	return workerIDs, nil
 }
 
 const (
