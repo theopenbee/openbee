@@ -36,15 +36,14 @@ func NewSystemConfigHandler(store sysConfigStore, validator engineValidatorForSy
 }
 
 // Get returns all known system config keys as a JSON object.
-// Missing DB rows are returned as empty strings.
 func (h *SystemConfigHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 	keys := []string{
-		model.SystemConfigKeyDefaultEngine,
 		model.SystemConfigKeyEngineArgsGlobal,
 		model.SystemConfigKeyEngineArgsBee,
 	}
-	result := make(map[string]string, len(keys))
+	result := make(map[string]string, len(keys)+1)
+	result[model.SystemConfigKeyDefaultEngine] = h.engineCfg.Get()
 	for _, key := range keys {
 		cfg, found, err := h.store.Get(ctx, key)
 		if err != nil {

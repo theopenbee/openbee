@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 import { Check } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
@@ -8,7 +8,7 @@ import { Select } from "@/components/arc/select/select"
 import { FadeIn } from "@/components/fade-in"
 import { useEngineOptions } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
-import { useEnabledEngines } from "@/hooks/use-config"
+import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import { getErrorMessage } from "@/lib/utils"
 import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
@@ -79,10 +79,7 @@ export function SystemSettings() {
   const enabledEngines = useEnabledEngines()
   const engineOptions = useEngineOptions(enabledEngines)
 
-  const { data: sysConfigs, error: loadError, isLoading, refetch } = useQuery({
-    queryKey: ["system-configs"],
-    queryFn: () => api.systemConfigs.get(),
-  })
+  const { data: sysConfigs, error: loadError, isLoading, refetch } = useSystemConfigs()
 
   const savedEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE] ?? ""
   const globalArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL]

@@ -325,8 +325,8 @@
     "title": "系统设置",
     "engineSection": {
       "title": "默认引擎",
-      "rowTitle": "新员工",
-      "description": "创建员工时预先选中的引擎。",
+      "rowTitle": "Bee 与新员工",
+      "description": "Bee 用它运行，新建员工时默认选中它。",
       "label": "引擎"
     },
     "globalArgsSection": {
@@ -337,7 +337,7 @@
       "title": "Bee 协调器",
       "description": "应用于把消息分派给员工的 Bee。"
     },
-    "subtitle": "新员工的默认引擎，以及各引擎启动时附加的参数。",
+    "subtitle": "Bee 和新员工的默认引擎，以及各引擎启动时附加的参数。",
     "loadError": "无法加载系统设置",
     "save": "保存更改",
     "saved": "已保存",

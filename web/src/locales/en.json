@@ -328,8 +328,8 @@
     "title": "System settings",
     "engineSection": {
       "title": "Default engine",
-      "rowTitle": "New workers",
-      "description": "Preselected when you create a worker.",
+      "rowTitle": "Bee and new workers",
+      "description": "The Bee runs on it, and new workers start with it selected.",
       "label": "Engine"
     },
     "globalArgsSection": {
@@ -340,7 +340,7 @@
       "title": "Bee coordinator",
       "description": "Applied to the Bee that routes messages to workers."
     },
-    "subtitle": "Defaults for new workers and the flags each engine starts with.",
+    "subtitle": "The default engine for the Bee and new workers, and the flags each engine starts with.",
     "loadError": "Couldn't load settings",
     "save": "Save changes",
     "saved": "Saved",

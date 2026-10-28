@@ -4,6 +4,13 @@ import { api } from "@/lib/api"
 import { ENGINES } from "@/lib/types"
 import type { Engine } from "@/lib/types"
 
+export function useSystemConfigs() {
+  return useQuery({
+    queryKey: ["system-configs"],
+    queryFn: () => api.systemConfigs.get(),
+  })
+}
+
 function useAppConfig() {
   return useQuery({
     queryKey: ["config"],

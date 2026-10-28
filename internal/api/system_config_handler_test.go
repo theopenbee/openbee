@@ -92,8 +92,12 @@ func TestSystemConfigHandler_Get_Empty(t *testing.T) {
 }
 
 func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
-	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyDefaultEngine: "claude"}}
-	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	store := &fakeSysConfigStore{vals: map[string]string{
+		model.SystemConfigKeyDefaultEngine:    "claude",
+		model.SystemConfigKeyEngineArgsGlobal: `{"pi":"--verbose"}`,
+	}}
+	router, cfg := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	cfg.Set("claude")
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/system-configs", nil)
@@ -102,6 +106,26 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 	var resp map[string]string
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	assert.Equal(t, "claude", resp[model.SystemConfigKeyDefaultEngine])
+	assert.Equal(t, `{"pi":"--verbose"}`, resp[model.SystemConfigKeyEngineArgsGlobal])
+}
+
+func TestSystemConfigHandler_Get_ReturnsEffectiveDefaultEngine(t *testing.T) {
+	for name, vals := range map[string]map[string]string{
+		"no row":       {},
+		"disabled row": {model.SystemConfigKeyDefaultEngine: "claude"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			router, cfg := newSysConfigRouter(&fakeSysConfigStore{vals: vals}, &fakeEngineValidatorForSys{})
+			cfg.Set("pi")
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/system-configs", nil))
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			var resp map[string]string
+			require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+			assert.Equal(t, "pi", resp[model.SystemConfigKeyDefaultEngine])
+		})
+	}
 }
 
 func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {

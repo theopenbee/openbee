@@ -97,6 +97,10 @@ export function pickDefaultEngine(current: Engine | undefined, enabled: readonly
   return current ?? enabled[0] ?? DEFAULT_ENGINE
 }
 
+export function newWorkerEngine(systemDefault: string | undefined, enabled: readonly Engine[]): Engine {
+  return enabled.find((engine) => engine === systemDefault) ?? enabled[0] ?? DEFAULT_ENGINE
+}
+
 export function availableEngine(engine: Engine, enabled: readonly Engine[]): Engine {
   return enabled.includes(engine) ? engine : (enabled[0] ?? engine)
 }

@@ -10,11 +10,11 @@ import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEngineOptions } from "@/components/engine-select-items"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
-import { useEnabledEngines } from "@/hooks/use-config"
+import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useCreateWorker, useWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
 import { KNOWN_SCOPES, parseScopes, serializeScopes, toggleScope } from "@/lib/scopes"
-import { DEFAULT_ENGINE, availableEngine, pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
+import { DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
 interface WorkerInitialValues {
@@ -102,6 +102,8 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   const enabledEngines = useEnabledEngines()
   const engineOptions = useEngineOptions(enabledEngines)
   const { data: copyWorker, error: copyError, refetch: refetchCopy } = useWorker(copyFrom ?? "", { enabled: isCopy })
+  const { data: sysConfigs, isPending: sysConfigsPending } = useSystemConfigs()
+  const systemDefaultEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE]
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -124,16 +126,17 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
   useEffect(() => {
     if (seededRef.current) return
     if (isCopy && !copyWorker) return
+    if (!isCopy && sysConfigsPending) return
     seededRef.current = true
     const iv = copyWorker ? workerToInitialValues(copyWorker) : undefined
     setName(iv ? `${iv.name} ${t("workers.form.copySuffix")}` : "")
     setDescription(iv?.description ?? "")
     setConstraints(iv?.constraints ?? "")
     setWorkDir(iv?.work_dir ?? "")
-    setEngine(pickDefaultEngine(iv?.engine, enabledEngines))
+    setEngine(iv ? pickDefaultEngine(iv.engine, enabledEngines) : newWorkerEngine(systemDefaultEngine, enabledEngines))
     setSelectedScopes(iv ? parseScopes(iv.permission_scopes) : [])
     setEngineArgs(iv?.engine_args ?? {})
-  }, [isCopy, copyWorker, enabledEngines, t])
+  }, [isCopy, copyWorker, sysConfigsPending, systemDefaultEngine, enabledEngines, t])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -156,6 +159,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
 
   const isPending = createWorker.isPending
   const isCopyLoading = isCopy && !copyWorker && !copyError
+  const isSeedLoading = isCopyLoading || (!isCopy && sysConfigsPending)
   const submitLabel = isCopy ? t("workers.copyWorker") : t("workers.createWorker")
 
   if (copyError && !copyWorker) {
@@ -171,7 +175,7 @@ export function WorkerCreateForm({ copyFrom, onCreated, onCancel }: WorkerCreate
     )
   }
 
-  if (isCopyLoading) return <CreateWorkerSkeleton />
+  if (isSeedLoading) return <CreateWorkerSkeleton />
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-8">
