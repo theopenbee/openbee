@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ChevronLeftIcon, PanelRightCloseIcon, PanelRightOpenIcon, SquareIcon, SquarePenIcon } from "lucide-react"
+import { ChevronLeftIcon, SquareIcon, SquarePenIcon } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
 import { Avatar } from "@/components/arc/avatar/avatar"
 import { Badge } from "@/components/arc/badge/badge"
@@ -76,14 +76,16 @@ export function ChatHeader({ conversation, worker, name, status, busy }: ChatHea
           {isBee ? (
             <span className="truncate text-base font-medium text-foreground">{name}</span>
           ) : (
-            <button
-              type="button"
-              onClick={togglePanel}
-              aria-expanded={panelOpen}
-              className="-mx-2 min-w-0 truncate rounded-control px-2 text-left text-base font-medium text-foreground transition-colors hover:bg-surface-muted"
-            >
-              {name}
-            </button>
+            <Tooltip content={panelLabel} side="bottom">
+              <button
+                type="button"
+                onClick={togglePanel}
+                aria-expanded={panelOpen}
+                className="-mx-2 min-w-0 truncate rounded-control px-2 text-left text-base font-medium text-foreground transition-colors hover:bg-surface-muted"
+              >
+                {name}
+              </button>
+            </Tooltip>
           )}
         </h1>
         <p className="max-w-full truncate text-xs text-secondary">{status}</p>
@@ -91,17 +93,6 @@ export function ChatHeader({ conversation, worker, name, status, busy }: ChatHea
       <div className="flex shrink-0 items-center gap-1">
         {!isBee && busy && <StopButton conversation={conversation} />}
         <NewConversationButton conversation={conversation} isBee={isBee} />
-        {!isBee && (
-          <Tooltip content={panelLabel}>
-            <Button variant="ghost" size="sm" aria-label={panelLabel} aria-pressed={panelOpen} onClick={togglePanel}>
-              {panelOpen ? (
-                <PanelRightCloseIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-              ) : (
-                <PanelRightOpenIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-              )}
-            </Button>
-          </Tooltip>
-        )}
       </div>
     </header>
   )
