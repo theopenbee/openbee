@@ -62,6 +62,7 @@ type Gateway struct {
 	commandHandler CommandHandler   // intercepts slash commands before DB write
 	botNameREs     map[string]*regexp.Regexp // platform → compiled @mention regex
 	botMu          sync.RWMutex
+	recordCommands bool
 }
 
 // Option configures a Gateway.
@@ -72,6 +73,10 @@ type Option func(*Gateway)
 func WithPlatformBotNames(names map[string]string) Option {
 	res := compileBotNames(names)
 	return func(g *Gateway) { g.botNameREs = res }
+}
+
+func WithCommandHistory() Option {
+	return func(g *Gateway) { g.recordCommands = true }
 }
 
 func compileBotNames(names map[string]string) map[string]*regexp.Regexp {
@@ -131,10 +136,29 @@ func (g *Gateway) runCommandConsumer(ctx context.Context) {
 	for {
 		select {
 		case task := <-g.cmdCh:
+			if g.recordCommands {
+				g.recordCommand(ctx, task)
+			}
 			g.commandHandler.HandleCommand(ctx, task.content, task.msg)
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+func (g *Gateway) recordCommand(ctx context.Context, task commandTask) {
+	msg := task.msg
+	if _, err := g.msgStore.CreateBatch(ctx, []store.BatchMsg{{
+		ID:            uuid.New().String(),
+		SessionKey:    msg.SessionKey,
+		Platform:      msg.Platform,
+		Content:       task.content,
+		Raw:           msg.Raw,
+		PlatformMsgID: msg.PlatformMessageID,
+		MessageTime:   msg.MessageTime,
+		Status:        store.MsgStatusCommand,
+	}}); err != nil {
+		log.Error("record command", zap.String("sessionKey", msg.SessionKey), zap.Error(err))
 	}
 }
 

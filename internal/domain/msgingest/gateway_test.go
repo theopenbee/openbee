@@ -373,6 +373,77 @@ func TestGateway_Command(t *testing.T) {
 	}
 }
 
+type historyCheckingHandler struct {
+	st          *mockMsgStore
+	batchesSeen int
+	called      chan struct{}
+}
+
+func (h *historyCheckingHandler) IsCommand(_ string) bool { return true }
+
+func (h *historyCheckingHandler) HandleCommand(_ context.Context, _ string, _ platform.InboundMessage) bool {
+	h.batchesSeen = len(h.st.batches)
+	close(h.called)
+	return true
+}
+
+func runCommandHistoryGateway(t *testing.T, st *mockMsgStore, msg platform.InboundMessage) (*msgingest.Gateway, *historyCheckingHandler) {
+	t.Helper()
+	handler := &historyCheckingHandler{st: st, called: make(chan struct{})}
+	g := msgingest.New(st, 0, handler, msgingest.WithCommandHistory())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go g.Run(ctx)
+
+	g.Dispatch(msg)
+	select {
+	case <-handler.called:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timeout waiting for command handler to be called")
+	}
+	return g, handler
+}
+
+func TestGateway_CommandHistory_RecordsCommandBeforeHandling(t *testing.T) {
+	st := newMock()
+	g, handler := runCommandHistoryGateway(t, st, platform.InboundMessage{
+		Platform:          "local",
+		SessionKey:        "local:u1",
+		Content:           "/clear",
+		Raw:               "raw",
+		PlatformMessageID: "local:u1:m1",
+		MessageTime:       1234,
+	})
+
+	assert.Equal(t, 1, handler.batchesSeen)
+	require.Len(t, st.batches, 1)
+	require.Len(t, st.batches[0], 1)
+	row := st.batches[0][0]
+	assert.NotEmpty(t, row.ID)
+	assert.Equal(t, "local:u1", row.SessionKey)
+	assert.Equal(t, "local", row.Platform)
+	assert.Equal(t, "/clear", row.Content)
+	assert.Equal(t, "raw", row.Raw)
+	assert.Equal(t, "local:u1:m1", row.PlatformMsgID)
+	assert.Equal(t, int64(1234), row.MessageTime)
+	assert.Equal(t, store.MsgStatusCommand, row.Status)
+
+	select {
+	case m := <-g.Out():
+		t.Fatalf("command emitted as a message: %+v", m)
+	default:
+	}
+}
+
+func TestGateway_CommandHistory_HandlesCommandWhenRecordFails(t *testing.T) {
+	st := newMock().withError(errors.New("db down"))
+	_, handler := runCommandHistoryGateway(t, st, platform.InboundMessage{
+		Platform: "local", SessionKey: "local:u1", Content: "/clear",
+	})
+
+	assert.Equal(t, 0, handler.batchesSeen)
+}
+
 // TestGateway_BotMention merges the bot-mention-stripping scenarios for a
 // single message and for messages merged by the debounce window.
 func TestGateway_BotMention(t *testing.T) {

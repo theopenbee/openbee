@@ -106,6 +106,44 @@ func TestInsertProcessedSkipsClaim(t *testing.T) {
 	assert.Equal(t, store.MsgStatusBeeProcessed, status)
 }
 
+func TestCommandRowsStayOutOfBeeQueue(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	s := store.NewMessageStore(db)
+	ctx := context.Background()
+
+	_, err = s.CreateBatch(ctx, []store.BatchMsg{
+		{ID: "cmd", SessionKey: "local:u1", Platform: "local", Content: "/status",
+			Status: store.MsgStatusCommand, MessageTime: 2000},
+	})
+	require.NoError(t, err)
+
+	active, err := s.HasActiveMessages(ctx)
+	require.NoError(t, err)
+	assert.False(t, active)
+	claimed, err := s.ClaimBatch(ctx, 10)
+	require.NoError(t, err)
+	assert.Empty(t, claimed)
+
+	_, err = s.CreateBatch(ctx, []store.BatchMsg{
+		{ID: "queued", SessionKey: "local:u1", Platform: "local", Content: "hello",
+			Status: store.MsgStatusReceived, MessageTime: 1000},
+	})
+	require.NoError(t, err)
+	claimed, err = s.ClaimBatch(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	assert.Equal(t, "queued", claimed[0].ID)
+
+	msgs, err := s.ListBySessionKey(ctx, "local:u1", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "cmd", msgs[1].ID)
+	assert.Equal(t, "/status", msgs[1].Content)
+	assert.Equal(t, store.SenderTypeUser, msgs[1].SenderType)
+}
+
 func TestInsertProcessedDefaultsSenderAndTime(t *testing.T) {
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)

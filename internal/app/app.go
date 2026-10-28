@@ -200,7 +200,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
 	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
-	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain)
+	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain, msgingest.WithCommandHistory())
 
 	workerChats := localchat.NewChatCleanup(s.localChatStore, clearSvc, s.taskStore)
 	beeRPCSrv := rpc.NewBeeServer(s.workerStore, mgr, s.taskStore, s.msgStore, s.outboundMsgStore, sendersByPlatform, clearSvc, s.execStore, s.constraintStore, s.sessionStore, s.departmentStore, handoff, workerChats)

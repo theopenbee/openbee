@@ -19,6 +19,7 @@
 - Remove CLI translations; the CLI is English only.
 
 ### Fixed
+- Keep slash commands in the web chat history.
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.
 - Refuse to restore over a database that is in use.

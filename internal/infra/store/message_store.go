@@ -17,6 +17,7 @@ const (
 	MsgStatusBeeProcessed = "bee_processed"
 	MsgStatusFailed       = "failed"
 	MsgStatusStale        = "stale"
+	MsgStatusCommand      = "command"
 )
 
 const (
