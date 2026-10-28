@@ -227,6 +227,13 @@ def read_secret(name):
     return p.read_text().strip()
 
 
+def engine_bin(name):
+    path = shutil.which(name)
+    if not path:
+        die(f"engine {name} not found on PATH")
+    return path
+
+
 def render_config(meta):
     cfg = {
         "language": "zh",
@@ -248,6 +255,8 @@ def render_config(meta):
             "rpc": {"token_secret": meta["rpc_secret"]},
         },
     }
+    for name in meta.get("extra_engines", []):
+        cfg["bee"]["engines"][name] = {"enabled": True, "path": engine_bin(name)}
     if meta.get("legacy_platforms"):
         cfg["bee"]["platforms"] = meta["legacy_platforms"]
     p = Path(meta["config"])
@@ -545,6 +554,7 @@ def cmd_up(a):
         "env_secret": secrets.token_hex(32),
         "rpc_secret": secrets.token_hex(32),
         "extra_env": extra_env,
+        "extra_engines": a.engine or [],
         "channels": [],
         "legacy_platforms": {},
         "worker_id": None,
@@ -717,6 +727,10 @@ def cmd_restart(a):
         build(meta, a.skip_web)
         install_skills(meta)
         save_meta(meta)
+    if a.engine is not None:
+        meta["extra_engines"] = [e for e in a.engine if e]
+        render_config(meta)
+        save_meta(meta)
     start(meta)
     print_status(meta)
 
@@ -842,6 +856,7 @@ def main():
     p.add_argument("--worker", default="tester")
     p.add_argument("--channel", action="append")
     p.add_argument("--env", action="append")
+    p.add_argument("--engine", action="append", choices=["claude", "codex"])
 
     p = cmd("channel", cmd_channel)
     p.add_argument("channel")
@@ -863,6 +878,7 @@ def main():
     p.add_argument("--src")
     p.add_argument("--skip-web", action="store_true")
     p.add_argument("--force", action="store_true")
+    p.add_argument("--engine", action="append", choices=["claude", "codex", ""])
 
     p = cmd("ctl", cmd_ctl)
     p.add_argument("args", nargs=argparse.REMAINDER)

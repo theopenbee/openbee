@@ -55,6 +55,7 @@ Options:
 - `--skip-web` (only when `web/` is untouched since the last build)
 - `--worker ""` (no worker)
 - `--model deepseek-v4-pro`
+- `--engine claude|codex` (repeatable) also enables that engine from PATH, so the web shows several engines. pi stays the default and the only one that can run under the mock HOME. `restart --engine ...` changes the set; `restart --engine ""` turns them all off.
 - `--env KEY=VALUE` (extra server env, e.g. `OPENBEE_PLUGIN_CATALOG=<catalog.json>`, or a `PATH` override for runtime tests)
 
 ### 2. Connect channels
