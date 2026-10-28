@@ -7,7 +7,6 @@ import { Button } from "@/components/arc/button/button"
 import { DropdownMenu } from "@/components/arc/dropdown-menu/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/arc/tabs/tabs"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
-import { StatusBadge } from "@/components/status-badge"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { WorkerConstraintsPanel } from "@/components/worker-constraints-panel"
 import { DeleteWorkerDialog, type DeleteTarget } from "@/components/worker-panel/delete-worker-dialog"
@@ -121,15 +120,12 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
         <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="lg" />
         <div className="grid min-w-0 flex-1 gap-1.5">
           <h3 className="truncate text-lg font-medium text-foreground">{worker.name}</h3>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-secondary">
-            <StatusBadge status={worker.status} />
-            {worker.engine && (
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />
-                <span className="truncate">{formatEngineLabel(worker.engine, t)}</span>
-              </span>
-            )}
-          </div>
+          {worker.engine && (
+            <span className="flex min-w-0 items-center gap-1.5 text-sm text-secondary">
+              <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />
+              <span className="truncate">{formatEngineLabel(worker.engine, t)}</span>
+            </span>
+          )}
         </div>
       </div>
       <p className="text-sm whitespace-pre-wrap text-secondary wrap-anywhere">

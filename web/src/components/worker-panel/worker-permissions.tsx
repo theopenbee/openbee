@@ -36,7 +36,6 @@ export function WorkerPermissions({ worker }: { worker: Worker }) {
 
   return (
     <section className="grid gap-4" aria-label={t("workerDetail.permissions")}>
-      <p className="text-sm text-secondary">{t("workers.form.permissionsHelper")}</p>
       {scopeError && (
         <Alert tone="danger" title={t("workerDetail.permissionsSaveError")}>
           {scopeError}
