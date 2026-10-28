@@ -20,6 +20,7 @@
 - Rename system settings to Settings; shorten env nav label.
 - Show worker and Bee replies in chat bubbles.
 - Shrink conversation list previews to 12px.
+- Fold optional new worker fields under Advanced settings.
 
 ### Removed
 - Remove user and role management; keep one admin account.
