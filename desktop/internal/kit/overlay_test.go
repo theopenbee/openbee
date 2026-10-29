@@ -235,6 +235,46 @@ func TestSegmentedChanges(t *testing.T) {
 	}
 }
 
+func TestSegmentedCompactIsCompact(t *testing.T) {
+	selected, wide := 0, 0
+	tt := newTester(500, 200, func(c *ui.Context, tk theme.Tokens) {
+		kit.SegmentedCompact(c, tk, &selected, "Theme", []kit.SegmentItem{{Icon: "sun", Tooltip: "Light"}, {Icon: "moon", Tooltip: "Dark"}, {Icon: "monitor", Tooltip: "System"}}, kit.CompactOpts{})
+		kit.SegmentedCompact(c, tk, &wide, "Toggle", []kit.SegmentItem{{Text: "Off"}, {Text: "On"}}, kit.CompactOpts{Wide: true})
+	})
+	settle(tt)
+	icons, ok := tt.Find("Theme")
+	toggle, okWide := tt.Find("Toggle")
+	if !ok || !okWide {
+		t.Fatalf("tracks missing; texts %q", tt.Texts())
+	}
+	if icons.H != 26 || toggle.H != 26 {
+		t.Errorf("track heights = %v and %v, want 26", icons.H, toggle.H)
+	}
+	if want := float32(3*28 + 4); icons.W != want {
+		t.Errorf("icon track width = %v, want %v", icons.W, want)
+	}
+	if want := float32(2*42 + 4); toggle.W != want {
+		t.Errorf("wide track width = %v, want %v", toggle.W, want)
+	}
+	if err := tt.Click("On"); err != nil {
+		t.Fatal(err)
+	}
+	if wide != 1 {
+		t.Errorf("selected = %d, want 1", wide)
+	}
+}
+
+func TestSegmentedCompactDisabledIgnoresClicks(t *testing.T) {
+	selected := 0
+	tt := newTester(500, 200, func(c *ui.Context, tk theme.Tokens) {
+		kit.SegmentedCompact(c, tk, &selected, "Toggle", []kit.SegmentItem{{Text: "Off"}, {Text: "On"}}, kit.CompactOpts{Wide: true, Disabled: true})
+	})
+	_ = tt.Click("On")
+	if selected != 0 {
+		t.Errorf("disabled control changed to %d", selected)
+	}
+}
+
 func TestTabsChange(t *testing.T) {
 	selected := 0
 	tt := newTester(500, 200, func(c *ui.Context, tk theme.Tokens) {

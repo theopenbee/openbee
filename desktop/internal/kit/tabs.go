@@ -73,5 +73,5 @@ func tabs(c *ui.Context, tk theme.Tokens, selected *int, label string, items []T
 	if len(items) == 0 {
 		return list
 	}
-	return paintSelection(c, tk, list, chosen, radius)
+	return paintSelection(c, list, chosen, radius, paintRegularThumb(tk))
 }

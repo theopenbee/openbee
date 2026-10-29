@@ -376,6 +376,7 @@
   "notificationsPromptDescription": "Get notified when a reply arrives.",
   "notificationsPromptTitle": "Turn on desktop notifications",
   "notificationsUnavailableDenied": "Blocked by browser",
+  "notificationsUnavailableDeniedDesktop": "Turned off in System Settings",
   "notificationsUnavailableDesktop": "Available in the installed app",
   "notificationsUnavailableInsecure": "Needs HTTPS",
   "notificationsUnavailableUnsupported": "Unsupported",

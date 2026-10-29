@@ -3200,6 +3200,18 @@ func (msgs Messages) NotificationsUnavailableDenied() string {
 	return Catalog.Format(msgs.locale, "notificationsUnavailableDenied", nil)
 }
 
+// NotificationsUnavailableDeniedDesktop says "Turned off in System Settings"
+// in the language the app shows.
+func NotificationsUnavailableDeniedDesktop() string {
+	return In(i18n.Locale()).NotificationsUnavailableDeniedDesktop()
+}
+
+// NotificationsUnavailableDeniedDesktop says "Turned off in System Settings"
+// in the language of msgs.
+func (msgs Messages) NotificationsUnavailableDeniedDesktop() string {
+	return Catalog.Format(msgs.locale, "notificationsUnavailableDeniedDesktop", nil)
+}
+
 // NotificationsUnavailableDesktop says "Available in the installed app"
 // in the language the app shows.
 func NotificationsUnavailableDesktop() string {

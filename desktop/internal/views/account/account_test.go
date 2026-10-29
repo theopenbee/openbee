@@ -165,8 +165,8 @@ func TestNotificationsDisabledWhenDenied(t *testing.T) {
 	f.Store.Prefs.NotificationsDenied = true
 	f.Settle()
 	f.openMenu()
-	f.wantShown(locales.NotificationsUnavailableDenied())
-	f.wantHidden(locales.NotificationsUnavailableDesktop())
+	f.wantShown(locales.NotificationsUnavailableDeniedDesktop())
+	f.wantHidden(locales.NotificationsUnavailableDenied(), locales.NotificationsUnavailableDesktop())
 	_ = f.T.Click(locales.ArcUserMenuTogglesOn())
 	f.Settle()
 	if got := f.Fix.Prefs.Load().Notifications; got != "" {
@@ -177,7 +177,7 @@ func TestNotificationsDisabledWhenDenied(t *testing.T) {
 func TestNotificationsToggle(t *testing.T) {
 	f := signedIn(t)
 	f.openMenu()
-	f.wantHidden(locales.NotificationsUnavailableDesktop(), locales.NotificationsUnavailableDenied())
+	f.wantHidden(locales.NotificationsUnavailableDesktop(), locales.NotificationsUnavailableDeniedDesktop(), locales.NotificationsUnavailableDenied())
 	f.click(locales.ArcUserMenuTogglesOn())
 	if got := f.Fix.Prefs.Load().Notifications; got != "on" {
 		t.Fatalf("saved notifications = %q, want on", got)
@@ -226,6 +226,74 @@ func TestKeyboardOpensMenuAndTabCloses(t *testing.T) {
 	f.Settle()
 	if !f.T.Focused(locales.ArcUserMenuSignOut()) {
 		t.Fatalf("ArrowUp did not focus the last item; texts %q", f.T.Texts())
+	}
+}
+
+func TestTabClosesMenuOpenedByClick(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	f.T.Key(0, ui.KeyTab)
+	f.Settle()
+	f.wantHidden(locales.AccountRole())
+	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
+		t.Fatalf("trigger lost the focus when Tab closed the menu; texts %q", f.T.Texts())
+	}
+}
+
+func TestTabClosesMenuOpenedByEnter(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	f.T.Key(0, ui.KeyEscape)
+	f.Settle()
+	f.wantHidden(locales.AccountRole())
+	f.T.Key(0, ui.KeyEnter)
+	f.Settle()
+	f.wantShown(locales.AccountRole())
+	f.T.Key(0, ui.KeyTab)
+	f.Settle()
+	f.wantHidden(locales.AccountRole())
+	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
+		t.Fatalf("trigger lost the focus when Tab closed the menu; texts %q", f.T.Texts())
+	}
+}
+
+func roleY(t *testing.T, f *fixture) float32 {
+	t.Helper()
+	r, ok := f.T.Find(locales.AccountRole())
+	if !ok {
+		t.Fatalf("role not found; texts %q", f.T.Texts())
+	}
+	return r.Y
+}
+
+func TestSettingRowsAreTheSameHeight(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	item, ok0 := f.T.Find(locales.AccountChangePassword())
+	theme, ok1 := f.T.Find(locales.ArcUserMenuTheme())
+	language, ok2 := f.T.Find(locales.ArcUserMenuLanguage())
+	notifications, ok3 := f.T.Find(locales.ArcUserMenuNotifications())
+	if !ok0 || !ok1 || !ok2 || !ok3 {
+		t.Fatalf("menu rows missing; texts %q", f.T.Texts())
+	}
+	row := item.H * 36 / 32
+	for name, got := range map[string]float32{"language": language.Y - theme.Y, "notifications": notifications.Y - language.Y} {
+		if got < row-0.1 || got > row+0.1 {
+			t.Fatalf("%s row is %v below the previous one, want %v", name, got, row)
+		}
+	}
+}
+
+func TestNotificationNoteKeepsMenuHeight(t *testing.T) {
+	plain := signedIn(t)
+	plain.openMenu()
+	noted := signedIn(t)
+	noted.Fix.Notifier.Unsupported = true
+	noted.Settle()
+	noted.openMenu()
+	noted.wantShown(locales.NotificationsUnavailableDesktop())
+	if got, want := roleY(t, noted), roleY(t, plain); got != want {
+		t.Fatalf("menu top with the note = %v, want %v without it", got, want)
 	}
 }
 

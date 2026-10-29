@@ -41,7 +41,6 @@ const (
 	headerFace   = 34
 	roleSize     = 12
 	noteSize     = 11
-	noteBottom   = 6
 	separatorGap = 4
 	dangerTint   = 0.08
 	chinese      = "zh"
@@ -113,6 +112,9 @@ func (a *Account) View(c *ui.Context) {
 	}
 	trigger.Background(trigger.AnimateColor("bg", bg, fade)).OnClick(func() { a.open = !a.open }).
 		OnShortcut(0, ui.KeyDown, func() { a.openAt(entryFirst) }).OnShortcut(0, ui.KeyUp, func() { a.openAt(entryLast) })
+	if a.open {
+		trigger.OnShortcut(0, ui.KeyTab, a.closeFromTab)
+	}
 	trigger.Children(func() {
 		kit.InitialsAvatar(c, tk, name, kit.AvatarSM).Size(triggerFace, triggerFace).TextColor(tk.TextSecondary)
 		ui.Text(c, name).FontSize(triggerSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).MaxWidth(triggerName)
@@ -193,16 +195,15 @@ func (a *Account) item(c *ui.Context, tk theme.Tokens, icon, text string, danger
 }
 
 func (a *Account) row(c *ui.Context, tk theme.Tokens, icon, label, note string, control func()) {
-	ui.Column(c).Children(func() {
-		ui.Row(c).MinHeight(rowHeight).AlignItems(ui.Center).Gap(menuGap).Padding(0, rowPadEnd, 0, menuPadX).Children(func() {
-			ui.Icon(c, icons.Get(icon)).Size(menuGlyph, menuGlyph).Shrink(0).TextColor(tk.TextSecondary)
-			ui.Text(c, label).FontSize(menuSize).Grow(1).MinWidth(0)
-			control()
+	ui.Row(c).Height(rowHeight).AlignItems(ui.Center).Gap(menuGap).Padding(0, rowPadEnd, 0, menuPadX).Children(func() {
+		ui.Icon(c, icons.Get(icon)).Size(menuGlyph, menuGlyph).Shrink(0).TextColor(tk.TextSecondary)
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, label).FontSize(menuSize).SingleLine().MinWidth(0)
+			if note != "" {
+				ui.Text(c, note).FontSize(noteSize).TextColor(tk.TextMuted).SingleLine().MinWidth(0)
+			}
 		})
-		if note != "" {
-			ui.Text(c, note).FontSize(noteSize).TextColor(tk.TextMuted).
-				Padding(0, menuPadX, noteBottom, menuPadX+menuGlyph+menuGap)
-		}
+		control()
 	})
 }
 
@@ -214,7 +215,7 @@ func (a *Account) themeRow(c *ui.Context, tk theme.Tokens) {
 		{Icon: "monitor", Tooltip: locales.ArcUserMenuThemesSystem()},
 	}
 	a.row(c, tk, "sun-moon", locales.ArcUserMenuTheme(), "", func() {
-		kit.Segmented(c, tk, &selected, locales.ArcUserMenuTheme(), items).AlignSelf(ui.Center).Shrink(0).OnChange(func() {
+		kit.SegmentedCompact(c, tk, &selected, locales.ArcUserMenuTheme(), items, kit.CompactOpts{}).AlignSelf(ui.Center).Shrink(0).OnChange(func() {
 			a.s.SetTheme(themes[selected])
 		})
 	})
@@ -228,7 +229,7 @@ func (a *Account) languageRow(c *ui.Context, tk theme.Tokens) {
 	}
 	items := []kit.SegmentItem{{Text: "EN"}, {Text: "中文"}}
 	a.row(c, tk, "languages", locales.ArcUserMenuLanguage(), "", func() {
-		kit.Segmented(c, tk, &selected, locales.ArcUserMenuLanguage(), items).AlignSelf(ui.Center).Shrink(0).OnChange(func() {
+		kit.SegmentedCompact(c, tk, &selected, locales.ArcUserMenuLanguage(), items, kit.CompactOpts{}).AlignSelf(ui.Center).Shrink(0).OnChange(func() {
 			a.s.SetLanguage(codes[selected])
 		})
 	})
@@ -240,16 +241,21 @@ func (a *Account) notificationsRow(c *ui.Context, tk theme.Tokens) {
 	case !a.s.NotificationsSupported():
 		note = locales.NotificationsUnavailableDesktop()
 	case a.s.Prefs.NotificationsDenied:
-		note = locales.NotificationsUnavailableDenied()
+		note = locales.NotificationsUnavailableDeniedDesktop()
 	}
 	selected := toggleOff
 	if note == "" && a.s.Prefs.Notifications == prefs.NotificationsOn {
 		selected = toggleOn
 	}
 	items := []kit.SegmentItem{{Text: locales.ArcUserMenuTogglesOff()}, {Text: locales.ArcUserMenuTogglesOn()}}
-	a.row(c, tk, "bell", locales.ArcUserMenuNotifications(), note, func() {
-		kit.Segmented(c, tk, &selected, locales.ArcUserMenuNotifications(), items).AlignSelf(ui.Center).Shrink(0).
-			Disabled(note != "").OnChange(func() {
+	label := locales.ArcUserMenuNotifications()
+	controlLabel := label
+	if note != "" {
+		controlLabel = label + ", " + note
+	}
+	a.row(c, tk, "bell", label, note, func() {
+		kit.SegmentedCompact(c, tk, &selected, controlLabel, items, kit.CompactOpts{Wide: true, Disabled: note != ""}).
+			AlignSelf(ui.Center).Shrink(0).OnChange(func() {
 			a.s.SetNotifications(selected == toggleOn)
 		})
 	})

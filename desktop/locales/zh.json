@@ -376,6 +376,7 @@
   "notificationsPromptDescription": "回复到达时提醒你。",
   "notificationsPromptTitle": "开启桌面通知",
   "notificationsUnavailableDenied": "已被浏览器拦截",
+  "notificationsUnavailableDeniedDesktop": "已在系统设置中关闭",
   "notificationsUnavailableDesktop": "安装版应用中可用",
   "notificationsUnavailableInsecure": "需要 HTTPS 访问",
   "notificationsUnavailableUnsupported": "此浏览器不支持",
