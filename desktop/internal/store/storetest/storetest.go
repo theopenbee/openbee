@@ -11,7 +11,10 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/store"
 )
 
-const settleTimeout = 3 * time.Second
+const (
+	settleTimeout = 3 * time.Second
+	liveTimeout   = 2 * time.Minute
+)
 
 type FakeNotifier struct {
 	Unsupported bool
@@ -122,8 +125,9 @@ type Fixture struct {
 	Themes   []string
 	OnLocale func(lang string)
 
-	store *store.Store
-	queue *queue
+	store   *store.Store
+	queue   *queue
+	timeout time.Duration
 }
 
 type queue struct {
@@ -162,25 +166,39 @@ func New(t testing.TB, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Ser
 	if seed != nil {
 		fake.Update(seed)
 	}
+	clock := NewClock(time.Now())
+	fix := build(t, settleTimeout, clock.Now, clock.Sleep)
+	fix.Clock = clock
+	return fix.store, fake, fix
+}
+
+func Live(t testing.TB) (*store.Store, *Fixture) {
+	t.Helper()
+	fix := build(t, liveTimeout, nil, nil)
+	return fix.store, fix
+}
+
+func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func(context.Context, time.Duration, <-chan struct{}) error) *Fixture {
+	t.Helper()
 	fix := &Fixture{
-		Clock:    NewClock(time.Now()),
 		Notifier: &FakeNotifier{},
 		Prefs:    prefs.NewMemoryStore(prefs.Prefs{}),
 		Tokens:   prefs.NewMemoryTokenStore(),
 		queue:    &queue{wake: make(chan struct{}, 1)},
+		timeout:  timeout,
 	}
 	fix.store = store.New(store.Options{
 		Post:           fix.queue.push,
 		Prefs:          fix.Prefs,
 		Tokens:         fix.Tokens,
 		Notifier:       fix.Notifier,
-		Now:            fix.Clock.Now,
-		Sleep:          fix.Clock.Sleep,
+		Now:            now,
+		Sleep:          sleep,
 		CacheDir:       t.TempDir(),
 		SetLocale:      fix.setLocale,
 		SetThemeSource: func(pref string) { fix.Themes = append(fix.Themes, pref) },
 	})
-	return fix.store, fake, fix
+	return fix
 }
 
 func (f *Fixture) setLocale(lang string) {
@@ -196,7 +214,7 @@ func (f *Fixture) Idle() bool {
 
 func (f *Fixture) Settle(t testing.TB) {
 	t.Helper()
-	deadline := time.Now().Add(settleTimeout)
+	deadline := time.Now().Add(f.timeout)
 	for {
 		idle := f.store.Busy() == 0
 		items := f.queue.take()
@@ -210,7 +228,7 @@ func (f *Fixture) Settle(t testing.TB) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("store did not settle within %v: %d tasks still running", settleTimeout, f.store.Busy())
+			t.Fatalf("store did not settle within %v: %d tasks still running", f.timeout, f.store.Busy())
 		}
 		select {
 		case <-f.queue.wake:
@@ -221,14 +239,14 @@ func (f *Fixture) Settle(t testing.TB) {
 
 func (f *Fixture) Await(t testing.TB, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(settleTimeout)
+	deadline := time.Now().Add(f.timeout)
 	for {
 		f.Settle(t)
 		if cond() {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("condition not met within %v", settleTimeout)
+			t.Fatalf("condition not met within %v", f.timeout)
 		}
 		select {
 		case <-f.queue.wake:
@@ -237,9 +255,16 @@ func (f *Fixture) Await(t testing.TB, cond func() bool) {
 	}
 }
 
+func (f *Fixture) Wait(d time.Duration) {
+	select {
+	case <-f.queue.wake:
+	case <-time.After(d):
+	}
+}
+
 func (f *Fixture) Pump(t testing.TB, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(settleTimeout)
+	deadline := time.Now().Add(f.timeout)
 	for {
 		for _, fn := range f.queue.take() {
 			fn()
@@ -248,7 +273,7 @@ func (f *Fixture) Pump(t testing.TB, cond func() bool) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("condition not met within %v while work is held", settleTimeout)
+			t.Fatalf("condition not met within %v while work is held", f.timeout)
 		}
 		select {
 		case <-f.queue.wake:
