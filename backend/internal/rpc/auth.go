@@ -46,7 +46,14 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 
 // RequireBeeOrWorker accepts tokens of either type.
 func RequireBeeOrWorker() gin.HandlerFunc {
-	return requireTypeIn(auth.TokenTypeBee, auth.TokenTypeWorker)
+	allowed := requireTypeIn(auth.TokenTypeBee, auth.TokenTypeWorker)
+	return func(c *gin.Context) {
+		if tokenType, _ := c.Get(CtxKeyTokenType); tokenType == auth.TokenTypeWorker && c.GetString(CtxKeyWorkerID) == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		allowed(c)
+	}
 }
 
 func requireTypeIn(allowed ...string) gin.HandlerFunc {

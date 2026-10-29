@@ -98,6 +98,17 @@ func TestJWTAuthMiddleware(t *testing.T) {
 			extra:    []gin.HandlerFunc{rpc.RequireBeeOrWorker()},
 			wantCode: http.StatusOK,
 		},
+		{
+			name: "RejectsWorkerTokenWithoutWorkerID",
+			token: func(t *testing.T) string {
+				tok, err := auth.GenerateWorkerToken(testSecret, "", nil, time.Hour)
+				require.NoError(t, err)
+				return tok
+			},
+			via:      "header",
+			extra:    []gin.HandlerFunc{rpc.RequireBeeOrWorker()},
+			wantCode: http.StatusForbidden,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
