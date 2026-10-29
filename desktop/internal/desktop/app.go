@@ -13,6 +13,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/prefs"
@@ -29,24 +30,26 @@ const (
 	minWidth     = 720
 	minHeight    = 480
 	flushTimeout = 2 * time.Second
+	overlayDelay = time.Second
 )
 
 type App struct {
-	debug       bool
-	prefs       prefs.Store
-	tokens      prefs.TokenStore
-	cache       string
-	theme       mygo.ThemeSource
-	notifier    *Notifier
-	tray        *Tray
-	st          *store.Store
-	root        *views.Root
-	win         atomic.Pointer[mygo.Window]
-	postMu      sync.Mutex
-	queued      []func()
-	pending     string
-	quitting    bool
-	windowBadge string
+	debug    bool
+	prefs    prefs.Store
+	tokens   prefs.TokenStore
+	cache    string
+	theme    mygo.ThemeSource
+	notifier *Notifier
+	tray     *Tray
+	st       *store.Store
+	root     *views.Root
+	win      atomic.Pointer[mygo.Window]
+	postMu   sync.Mutex
+	queued   []func()
+	pending  string
+	quitting bool
+	badge    string
+	badgePNG []byte
 }
 
 func New() *App {
@@ -96,7 +99,13 @@ func (a *App) Run() error {
 		}
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
-	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { a.flush() })
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
+		a.flush()
+		if a.tray != nil {
+			a.tray.Destroy()
+		}
+	})
+	mygo.App.OnQuit(a.flush)
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
 }
@@ -166,9 +175,10 @@ func (a *App) openWindow() *mygo.Window {
 		}
 	})
 	w.OnClosed(a.syncForeground)
+	if runtime.GOOS == windows {
+		w.OnShow(func() { time.AfterFunc(overlayDelay, func() { a.post(a.applyOverlay) }) })
+	}
 	a.attach(w)
-	a.windowBadge = ""
-	a.setWindowIcon(w, a.notifier.unread)
 	a.syncForeground()
 	return w
 }
@@ -190,23 +200,33 @@ func (a *App) showUnread(n int) {
 	if a.tray != nil {
 		a.tray.SetUnread(n)
 	}
-	if w := a.win.Load(); w != nil {
-		a.setWindowIcon(w, n)
-	}
+	a.applyOverlay()
 }
 
-func (a *App) setWindowIcon(w *mygo.Window, unread int) {
+func (a *App) applyOverlay() {
 	if runtime.GOOS != windows {
 		return
 	}
-	badge := model.IconBadgeText(unread)
-	if badge == a.windowBadge {
+	w := a.win.Load()
+	if w == nil || w.IsDestroyed() || !w.IsVisible() {
 		return
 	}
-	a.windowBadge = badge
-	if err := w.SetIcon(windowIcon(unread)); err != nil {
-		log.Printf("desktop: window icon: %v", err)
+	unread := a.notifier.unread
+	if err := setOverlay(w.NativeHandle(), a.overlayIcon(unread), TrayToolTip(unread)); err != nil {
+		log.Printf("desktop: %v", err)
 	}
+}
+
+func (a *App) overlayIcon(unread int) []byte {
+	badge := model.IconBadgeText(unread)
+	if badge == "" {
+		return nil
+	}
+	if badge != a.badge {
+		a.badge = badge
+		a.badgePNG = icons.CountBadge(iconPixels(overlayIconPoints, displayScale()), badge)
+	}
+	return a.badgePNG
 }
 
 func (a *App) view(c *ui.Context) {

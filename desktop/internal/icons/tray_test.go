@@ -86,3 +86,29 @@ func TestAppIconBadge(t *testing.T) {
 		t.Error("badges 3 and 9+ draw the same icon")
 	}
 }
+
+func TestCountBadge(t *testing.T) {
+	for _, badge := range []string{"3", "9+"} {
+		img := decode(t, CountBadge(16, badge))
+		if b := img.Bounds(); b.Dx() != 16 || b.Dy() != 16 {
+			t.Fatalf("%q: size = %v, want 16x16", badge, b)
+		}
+		if _, _, _, a := img.At(0, 0).RGBA(); a != 0 {
+			t.Errorf("%q: corner alpha = %d, want 0", badge, a)
+		}
+		if n := redPixels(img); n < 60 {
+			t.Errorf("%q: %d red pixels, want a red badge", badge, n)
+		}
+		white := 0
+		for y := 0; y < 16; y++ {
+			for x := 0; x < 16; x++ {
+				if r, g, b, a := img.At(x, y).RGBA(); a > 0xe000 && r > 0xe000 && g > 0xe000 && b > 0xe000 {
+					white++
+				}
+			}
+		}
+		if white == 0 {
+			t.Errorf("%q: no white pixels, want the count drawn", badge)
+		}
+	}
+}

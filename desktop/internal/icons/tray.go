@@ -14,6 +14,7 @@ const (
 	appIconMark     = 0.8
 	badgeDiameter   = 0.62
 	badgeFontScale  = 0.74
+	wideFontScale   = 0.6
 	badgeFontWeight = 700
 )
 
@@ -52,22 +53,34 @@ func MenuBarIcon(size int) []byte {
 func AppIcon(size int, badge string) []byte {
 	s := float32(size)
 	mark := LogoMark(theme.Light())
-	danger := theme.Light().Danger
 	img := renderTransparent(size, func(c *ui.Context) {
 		ui.Box(c).Size(s, s).Center().Background(white).Radius(s * appIconCorner).Children(func() {
 			ui.Image(c, mark).Size(s*appIconMark, s*appIconMark)
 		})
-		if badge == "" {
-			return
+		if badge != "" {
+			countBadge(c, badge, s*badgeDiameter)
 		}
-		d := s * badgeDiameter
-		ui.Row(c).Absolute().Right(0).Bottom(0).Height(d).MinWidth(d).Radius(d / 2).
-			Background(danger).Center().Children(func() {
-			ui.Text(c, badge).FontSize(d * badgeFontScale).FontWeight(badgeFontWeight).TextColor(white).
-				FontFeatures("tnum").LineHeight(1).SingleLine()
-		})
 	})
 	return encode(img)
+}
+
+func CountBadge(size int, badge string) []byte {
+	img := renderTransparent(size, func(c *ui.Context) {
+		countBadge(c, badge, float32(size))
+	})
+	return encode(img)
+}
+
+func countBadge(c *ui.Context, badge string, d float32) {
+	scale := float32(badgeFontScale)
+	if len(badge) > 1 {
+		scale = wideFontScale
+	}
+	ui.Row(c).Absolute().Right(0).Bottom(0).Height(d).MinWidth(d).Radius(d / 2).
+		Background(theme.Light().Danger).Center().Children(func() {
+		ui.Text(c, badge).FontSize(d * scale).FontWeight(badgeFontWeight).TextColor(white).
+			FontFeatures("tnum").LineHeight(1).SingleLine()
+	})
 }
 
 func renderTransparent(size int, content func(c *ui.Context)) *image.NRGBA {

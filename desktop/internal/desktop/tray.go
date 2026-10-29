@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	windows          = "windows"
-	trayID           = "openbee"
-	menuBarIconSize  = 36
-	trayIconPoints   = 16
-	windowIconPoints = 32
+	windows           = "windows"
+	trayID            = "openbee"
+	menuBarIconSize   = 36
+	trayIconPoints    = 16
+	overlayIconPoints = 16
 )
 
 type Tray struct {
@@ -61,7 +61,7 @@ func TrayMenu(open func()) []*mygo.MenuItem {
 
 func NewTray(goos string, open func()) (*Tray, error) {
 	t := &Tray{goos: goos}
-	icon, template := t.icon()
+	icon, template := t.icon("")
 	native, err := mygo.NewTray(mygo.TrayOptions{
 		ID:             trayID,
 		Icon:           icon,
@@ -81,11 +81,11 @@ func NewTray(goos string, open func()) (*Tray, error) {
 	return t, nil
 }
 
-func (t *Tray) icon() ([]byte, bool) {
+func (t *Tray) icon(badge string) ([]byte, bool) {
 	if t.goos == darwin {
 		return icons.MenuBarIcon(menuBarIconSize), true
 	}
-	return icons.AppIcon(iconPixels(trayIconPoints, displayScale()), t.badge), false
+	return icons.AppIcon(iconPixels(trayIconPoints, displayScale()), badge), false
 }
 
 func (t *Tray) SetUnread(n int) {
@@ -99,21 +99,18 @@ func (t *Tray) SetUnread(n int) {
 	if badge == t.badge {
 		return
 	}
-	t.badge = badge
-	icon, template := t.icon()
+	icon, template := t.icon(badge)
 	if err := t.native.SetIcon(icon, template); err != nil {
 		log.Printf("desktop: tray icon: %v", err)
+		return
 	}
+	t.badge = badge
 }
 
 func (t *Tray) Relabel() {
 	t.native.SetToolTip(TrayToolTip(t.unread))
 }
 
-func windowIcon(unread int) []byte {
-	badge := model.IconBadgeText(unread)
-	if badge == "" {
-		return nil
-	}
-	return icons.AppIcon(iconPixels(windowIconPoints, displayScale()), badge)
+func (t *Tray) Destroy() {
+	t.native.Destroy()
 }
