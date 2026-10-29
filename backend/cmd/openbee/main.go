@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/cmd/openbee/internal/cli"
+	"github.com/theopenbee/openbee/internal/codemode"
 	"github.com/theopenbee/openbee/internal/infra/buildinfo"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
@@ -19,6 +20,8 @@ var (
 )
 
 func main() {
+	codemode.MaybeRunChild()
+
 	// Publish build metadata so non-CLI layers (e.g. the HTTP API) can read it
 	// without threading the values through every constructor.
 	buildinfo.Set(version, commit, date)

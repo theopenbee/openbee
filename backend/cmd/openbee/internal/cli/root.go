@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -45,5 +46,21 @@ func NewRoot(info BuildInfo) *cobra.Command {
 	root.AddCommand(configcmd.NewCommand())
 	root.AddCommand(plugincmd.NewCommand())
 	root.AddCommand(servicecmd.NewCommand())
+	root.AddCommand(newRemovedCtlCommand())
 	return root
+}
+
+const ctlRemoved = "openbee ctl has been removed. Agents reach openbee through the openbee MCP server: " +
+	"call its send_message tool to talk to the user and its execute tool for everything else. " +
+	"Load the openbee-bee or openbee-worker skill again for details."
+
+func newRemovedCtlCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:                "ctl",
+		Hidden:             true,
+		DisableFlagParsing: true,
+		RunE: func(*cobra.Command, []string) error {
+			return errors.New(ctlRemoved)
+		},
+	}
 }

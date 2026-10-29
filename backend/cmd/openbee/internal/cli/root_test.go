@@ -19,3 +19,11 @@ func TestNewRootCommandVersionTemplate(t *testing.T) {
 	cmd := NewRoot(BuildInfo{Version: "1.2.3", Commit: "abc123", Date: "2026-06-01T00:00:00Z"})
 	require.Equal(t, "1.2.3", cmd.Version)
 }
+
+func TestRemovedCtlPointsToMCP(t *testing.T) {
+	cmd := NewRoot(BuildInfo{Version: "test"})
+	cmd.SetArgs([]string{"ctl", "message", "send", "--message-id", "m1", "--stdin"})
+	err := cmd.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "send_message")
+}

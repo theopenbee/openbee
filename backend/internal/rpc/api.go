@@ -85,6 +85,15 @@ func (c caller) methods() []apiMethod {
 	return out
 }
 
+func (c caller) methodNames() []string {
+	methods := c.methods()
+	names := make([]string, len(methods))
+	for i, m := range methods {
+		names[i] = m.name
+	}
+	return names
+}
+
 func (c caller) declaration() string {
 	var b strings.Builder
 	b.WriteString(apiTypes)

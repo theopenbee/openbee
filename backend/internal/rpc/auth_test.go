@@ -161,3 +161,29 @@ func TestWorkerScopesStoredInContext(t *testing.T) {
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+func TestJWTAuthMiddlewareAuthorizationHeader(t *testing.T) {
+	tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+	require.NoError(t, err)
+	cases := []struct {
+		name     string
+		header   string
+		query    string
+		wantCode int
+	}{
+		{"Bearer", "Bearer " + tok, "", http.StatusOK},
+		{"LowercaseBearer", "bearer " + tok, "", http.StatusOK},
+		{"BasicFallsBackToQuery", "Basic abc", "?api_key=" + tok, http.StatusOK},
+		{"BasicAlone", "Basic abc", "", http.StatusUnauthorized},
+		{"BareToken", tok, "", http.StatusUnauthorized},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/test"+tc.query, nil)
+			req.Header.Set("Authorization", tc.header)
+			w := httptest.NewRecorder()
+			newRouter(testSecret).ServeHTTP(w, req)
+			assert.Equal(t, tc.wantCode, w.Code)
+		})
+	}
+}

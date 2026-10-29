@@ -21,7 +21,9 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := c.GetHeader("X-API-Key")
 		if tokenStr == "" {
-			tokenStr, _ = strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
+			if scheme, token, ok := strings.Cut(c.GetHeader("Authorization"), " "); ok && strings.EqualFold(scheme, "Bearer") {
+				tokenStr = strings.TrimSpace(token)
+			}
 		}
 		if tokenStr == "" {
 			tokenStr = c.Query("api_key")

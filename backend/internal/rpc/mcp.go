@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/codemode"
 	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
@@ -132,7 +133,9 @@ func (s *Server) newMCPServer(c caller) *mcp.Server {
 		if err := json.Unmarshal(req.Params.Arguments, &params); err != nil || params.Code == "" {
 			return toolError("code is required"), nil
 		}
-		out, err := s.runScript(ctx, c, params.Code)
+		out, err := codemode.Run(ctx, params.Code, c.methodNames(), func(ctx context.Context, name string, args json.RawMessage) (any, error) {
+			return s.beeCallTool(c.context(ctx), name, args)
+		})
 		if err != nil {
 			log.Debug("execute failed", zap.String("worker_id", c.workerID), zap.Error(err))
 			if out != "" {
