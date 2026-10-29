@@ -3,7 +3,7 @@
 ## Environment
 
 - Inside an openbee worker, the agent's environment carries `OPENBEE_URL`, `OPENBEE_API_KEY` and `OPENBEE_MESSAGE_ID` for the real instance, and the real `openbee` binary may be first on PATH. `$T` runs every test command with a clean environment and the env's own binary, so these never leak in.
-- `openbee ctl -c <config>` without the `OPENBEE_*` vars acts as bee. It needs `bee.rpc.token_secret` in the config, which the script always sets.
+- `$T mcp` and `$T js` sign a bee token with the env's `bee.rpc.token_secret`, which the script always sets. Builds from before MCP have no `/mcp`; drive them with `$T ctl -- <ctl args>` instead.
 - `server.env_secret` must be 64 hex chars (32 bytes), or startup fails with "key must be 32 bytes".
 - The first admin can only be created with `POST /api/setup`. Setting `auth.password` in the config doesn't create a user.
 - `pi -p` hangs if stdin is left open.
@@ -14,7 +14,7 @@
 ## Upgrade-compat check (channel moved to a plugin)
 
 1. Insert a `bee_platform_messages` row whose `raw` uses the old built-in format (non-envelope JSON), with status `bee_processed` and an older `received_at`. `$T db` is read-only, so write with `sqlite3 <db path>`, and only while no message is in flight.
-2. Reply to the row as bee: `$T ctl -- message send --message-id <row id> --stdin`.
+2. Reply to the row as bee: `$T mcp send_message '{"message_id": "<row id>", "content": "..."}'`.
 
 ## Platforms
 

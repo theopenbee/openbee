@@ -11,6 +11,7 @@
 - Mark where a web chat started a new conversation.
 - Add a native desktop app for macOS, Windows and Linux.
 - Desktop: show unread counts in menu bar and tray.
+- Agents reach openbee through an MCP server with codemode.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
@@ -28,6 +29,7 @@
 - Desktop: keep sign-in tokens in a file, not keychain.
 - Show reconnect progress and failure in the offline banner.
 - Windows desktop: closing the window hides it to the tray.
+- Workers can only send messages and read; writes are refused.
 
 ### Removed
 - Remove user and role management; keep one admin account.
@@ -41,6 +43,7 @@
 - Remove the copy worker action from the web console.
 - Drop unused legacy local chat tables from the database.
 - Drop unused accordion and popover web dependencies.
+- Remove `openbee ctl` and the `/rpc/bee/call` endpoint.
 
 ### Fixed
 - Preselect the default engine when creating a worker.
@@ -54,6 +57,7 @@
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.
 - Refuse to restore over a database that is in use.
+- Keep engine args when creating a worker through the API.
 
 ## [0.0.46] - 2026-10-25
 

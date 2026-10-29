@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -14,11 +15,14 @@ const (
 )
 
 // JWTAuthMiddleware validates the RPC JWT and writes claims to gin.Context.
-// Reads the token from X-API-Key header or api_key query param.
+// Reads the token from the X-API-Key header, a Bearer Authorization header or the api_key query param.
 // Returns 401 on missing, invalid, or expired token.
 func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := c.GetHeader("X-API-Key")
+		if tokenStr == "" {
+			tokenStr, _ = strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
+		}
 		if tokenStr == "" {
 			tokenStr = c.Query("api_key")
 		}

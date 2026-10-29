@@ -1,6 +1,7 @@
 package skillinstall
 
 import (
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -29,4 +30,17 @@ func TestBeeSkillLocalDispatchSendsNoText(t *testing.T) {
 	dispatched := beeNotificationRule(t, "2. **When a task is dispatched**")
 	assert.Contains(t, dispatched, `from is "local"`)
 	assert.Contains(t, dispatched, "inside another message")
+}
+
+func TestSkillsDoNotMentionRemovedCLI(t *testing.T) {
+	err := fs.WalkDir(skillsFS, "skills", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := skillsFS.ReadFile(path)
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), "openbee ctl", path)
+		return nil
+	})
+	require.NoError(t, err)
 }

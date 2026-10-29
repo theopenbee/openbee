@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
@@ -59,6 +60,17 @@ func buildArgs(threadID string, resume bool, prompt string, extraArgs []string) 
 	return append(base, extraArgs...)
 }
 
+func mcpArgs(url string) []string {
+	if url == "" {
+		return nil
+	}
+	prefix := "mcp_servers." + ai.MCPServerName + "."
+	return []string{
+		"-c", prefix + "url=" + strconv.Quote(url),
+		"-c", prefix + "bearer_token_env_var=" + strconv.Quote(ai.APIKeyEnv),
+	}
+}
+
 // extractSessionID reads a Codex JSON stream and returns the thread_id from
 // the first "thread.started" event, or "" if not found.
 func extractSessionID(r io.Reader) string {
@@ -105,7 +117,7 @@ func ExtractResultFromLog(logPath string) string {
 // For new sessions, prompt is passed via stdin; for resumes, the thread_id is resolved from the store.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	threadID, resume := inv.resolveThread(opts.SessionID, opts.Resume)
-	args := buildArgs(threadID, resume, prompt, opts.ExtraArgs)
+	args := buildArgs(threadID, resume, prompt, append(mcpArgs(ai.MCPURL()), opts.ExtraArgs...))
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

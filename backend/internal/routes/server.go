@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/api"
 	"github.com/theopenbee/openbee/internal/infra/auth"
+	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/rpc"
 )
 
@@ -38,7 +39,7 @@ func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/stream",
-	})))
+	}), gzip.WithExcludedPaths([]string{config.MCPPath})))
 
 	s := &Server{
 		router:       router,
@@ -62,7 +63,7 @@ func (s *Server) setupRoutes() error {
 	apiGroup.Use(s.AuthMiddleware)
 	s.registerAPIRoutes(apiGroup)
 
-	s.registerRPCRoutes()
+	s.registerMCPRoutes()
 
 	return s.registerStaticRoutes()
 }

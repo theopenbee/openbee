@@ -47,8 +47,11 @@ func (s *Server) checkWorkerScope(ctx context.Context, toolName string) error {
 	if workerID == "" {
 		return nil
 	}
-	requiredScope, ok := auth.ScopeForTool(toolName)
+	requiredScope, ok := auth.WorkerToolScope(toolName)
 	if !ok {
+		return fmt.Errorf("permission denied: %s is not available to workers", toolName)
+	}
+	if requiredScope == "" {
 		return nil
 	}
 	scopes, _ := ctx.Value(CtxScopesKey).([]string)
@@ -205,12 +208,13 @@ func (s *Server) toolGetWorker(args json.RawMessage) (any, error) {
 
 func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 	var params struct {
-		Name             string `json:"name"`
-		Description      string `json:"description"`
-		Constraints      string `json:"constraints"`
-		WorkDir          string `json:"work_dir"`
-		Engine           string `json:"engine"`
-		PermissionScopes string `json:"permission_scopes"`
+		Name             string            `json:"name"`
+		Description      string            `json:"description"`
+		Constraints      string            `json:"constraints"`
+		WorkDir          string            `json:"work_dir"`
+		Engine           string            `json:"engine"`
+		PermissionScopes string            `json:"permission_scopes"`
+		EngineArgs       map[string]string `json:"engine_args"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -224,6 +228,17 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 	if err := auth.ValidatePermissionScopes(params.PermissionScopes); err != nil {
 		return nil, err
 	}
+	var engineArgs string
+	if len(params.EngineArgs) > 0 {
+		if err := s.manager.ValidateEngineArgs(params.EngineArgs); err != nil {
+			return nil, err
+		}
+		b, err := json.Marshal(params.EngineArgs)
+		if err != nil {
+			return nil, fmt.Errorf("encode engine_args: %w", err)
+		}
+		engineArgs = string(b)
+	}
 	w, err := s.manager.CreateWorker(worker.CreateWorkerParams{
 		Name:             params.Name,
 		Description:      params.Description,
@@ -231,6 +246,7 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 		WorkDir:          params.WorkDir,
 		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
+		EngineArgs:       engineArgs,
 	})
 	if err != nil {
 		return nil, err

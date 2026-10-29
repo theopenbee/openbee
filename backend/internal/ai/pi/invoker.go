@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,11 +17,15 @@ import (
 	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
+//go:embed openbee-mcp.js
+var mcpExtension []byte
+
 // Invoker spawns pi CLI processes. It is stateless and safe for concurrent use.
 type Invoker struct {
-	binary     string
-	baseEnv    []string // pre-built env (openbee vars + extraEnv), without per-run API key
-	sessionDir string   // ~/.openbee/.pi/sessions, created once at startup
+	binary        string
+	baseEnv       []string // pre-built env (openbee vars + extraEnv), without per-run API key
+	sessionDir    string   // ~/.openbee/.pi/sessions, created once at startup
+	extensionPath string
 }
 
 func NewInvoker(binary string, extraEnv map[string]string) (*Invoker, error) {
@@ -28,8 +33,19 @@ func NewInvoker(binary string, extraEnv map[string]string) (*Invoker, error) {
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
+	extensionPath := filepath.Join(filepath.Dir(sessionDir), "openbee-mcp.js")
+	if err := writeIfChanged(extensionPath, mcpExtension); err != nil {
+		return nil, fmt.Errorf("write mcp extension: %w", err)
+	}
 	base := ai.BuildBaseEnv()
-	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), sessionDir: sessionDir}, nil
+	return &Invoker{binary: binary, baseEnv: ai.AppendExtraEnv(base, extraEnv), sessionDir: sessionDir, extensionPath: extensionPath}, nil
+}
+
+func writeIfChanged(path string, data []byte) error {
+	if current, err := os.ReadFile(path); err == nil && bytes.Equal(current, data) {
+		return nil
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 type piAgentEnd struct {
@@ -163,7 +179,12 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 
 	sessionPath := inv.sessionFilePath(opts.SessionID)
 
-	args := buildArgs(prompt, sessionPath, opts.ExtraArgs)
+	mcpURL := ai.MCPURL()
+	extraArgs := opts.ExtraArgs
+	if mcpURL != "" {
+		extraArgs = append([]string{"-e", inv.extensionPath}, extraArgs...)
+	}
+	args := buildArgs(prompt, sessionPath, extraArgs)
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -175,6 +196,9 @@ func (inv *Invoker) Run(ctx context.Context, workDir, prompt string,
 	cmd.Dir = workDir
 	cmd.Stderr = io.MultiWriter(logFile, &limitWriter{w: &stderrBuf, rem: 4096})
 	cmd.Env = ai.BuildRunEnv(inv.baseEnv, opts.ExtraEnv, opts.APIKey)
+	if mcpURL != "" {
+		cmd.Env = append(cmd.Env, ai.MCPURLEnv+"="+mcpURL)
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

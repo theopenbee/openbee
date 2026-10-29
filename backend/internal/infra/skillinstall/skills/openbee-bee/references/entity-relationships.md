@@ -41,7 +41,7 @@ External Platform
 ## Key Relationships at a Glance
 
 - **Message → Task**: one Message can produce one or more Tasks (e.g. the Bee creates tasks for multiple workers)
-- **Task → Execution**: a Task has one or more Executions; the newest ones are returned inline in the `executions` array of each task from `openbee ctl task list` (default: latest 10 per task; use `--task-id <id> --execution-limit 0` for the full history of one task)
+- **Task → Execution**: a Task has one or more Executions; the newest ones are returned inline in the `executions` array of each task from `openbee.list_tasks` (default: latest 10 per task; use `task_id` with `execution_limit: 0` for the full history of one task)
 - **Task → Worker**: each Task is assigned to exactly one Worker
 - **Outbound Message → Message**: each outbound reply references the inbound Message that triggered it
 - **Session**: both Bee and Workers each have their own Session per `session_key`; clearing the session resets conversation history for all agents in that session
@@ -49,7 +49,7 @@ External Platform
 ## Practical Implications for the Bee
 
 - Use `session_key` from the incoming `<message_meta>` to scope constraint, session, and task queries to the current conversation
-- When querying task history for a conversation, filter by `--session-key` on `openbee ctl task list`
-- When querying outbound message history, use `--source-type worker --source-id <id>` to isolate a specific worker's replies
-- `openbee ctl task list` returns each task with the newest entries from its `executions` array (runtime details: logs path, timing, status) — there is no standalone execution-list command; results are paginated with `items`, `total`, `page`, `page_size`
-- `openbee ctl system overview` aggregates worker load and task stats across all workers
+- When querying task history for a conversation, pass `session_key` to `openbee.list_tasks`
+- When querying outbound message history, pass `source_type: "worker", source_id: "<id>"` to `openbee.list_outbound_messages` to isolate a specific worker's replies
+- `openbee.list_tasks` returns each task with the newest entries from its `executions` array (runtime details: logs path, timing, status) — there is no standalone execution query; results are paginated with `items`, `total`, `page`, `page_size`
+- `openbee.get_system_overview` aggregates worker load and task stats across all workers

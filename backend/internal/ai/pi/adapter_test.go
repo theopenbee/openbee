@@ -12,6 +12,7 @@ import (
 )
 
 func TestAdapter_Prepare_NoOp(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	a, err := pi.NewAdapter("echo", nil)
 	require.NoError(t, err)
@@ -22,6 +23,7 @@ func TestAdapter_Prepare_NoOp(t *testing.T) {
 }
 
 func TestAdapter_Prepare_BothRoles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	a, err := pi.NewAdapter("echo", nil)
 	require.NoError(t, err)
 	for _, role := range []ai.Role{ai.RoleBee, ai.RoleWorker} {

@@ -4,23 +4,26 @@ You have a persistent constraint system that can accumulate experience and remem
 
 ## Usage Rules
 
-- Before processing a message, load relevant constraints:
+- Before processing a message, load relevant constraints — user preferences and global experience — in one `execute` call:
 
-```bash
-openbee ctl constraint get --scope <session_key>   # Get user preferences
-openbee ctl constraint get --scope global          # Get global experience
+```js
+const [user, global] = await Promise.all([
+  openbee.get_constraint({ scope: "<session_key>" }),
+  openbee.get_constraint({ scope: "global" }),
+]);
+return { user, global };
 ```
 
 - When you discover user preferences, proactively save them:
 
-```bash
-openbee ctl constraint save --scope <scope> --key <key> --value <value>
+```js
+return await openbee.save_constraint({ scope: "<scope>", key: "<key>", value: "<value>" });
 ```
 
 - When reflecting, store conclusions as global constraints; delete stale constraints:
 
-```bash
-openbee ctl constraint delete --scope <scope> --key <key>
+```js
+return await openbee.delete_constraint({ scope: "<scope>", key: "<key>" });
 ```
 
 - Use descriptive keys, such as `user_language_preference`, `task_assignment_insight`

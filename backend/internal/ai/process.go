@@ -3,6 +3,7 @@ package ai
 import (
 	"bufio"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,8 +39,32 @@ func BuildRunEnv(baseEnv, extraEnv []string, apiKey string) []string {
 	env := make([]string, 0, len(baseEnv)+len(extraEnv)+1)
 	env = append(env, baseEnv...)
 	env = append(env, extraEnv...)
-	env = append(env, "OPENBEE_API_KEY="+apiKey)
+	env = append(env, APIKeyEnv+"="+apiKey)
+	return bypassProxyForMCP(env, MCPURL())
+}
+
+func bypassProxyForMCP(env []string, mcpURL string) []string {
+	u, err := url.Parse(mcpURL)
+	if mcpURL == "" || err != nil || u.Hostname() == "" {
+		return env
+	}
+	for _, key := range []string{"NO_PROXY", "no_proxy"} {
+		value := u.Hostname()
+		if current := lastEnvValue(env, key); current != "" {
+			value = current + "," + value
+		}
+		env = append(env, key+"="+value)
+	}
 	return env
+}
+
+func lastEnvValue(env []string, key string) string {
+	for i := len(env) - 1; i >= 0; i-- {
+		if v, ok := strings.CutPrefix(env[i], key+"="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // AppendExtraEnv appends non-empty entries from extraEnv to base and returns

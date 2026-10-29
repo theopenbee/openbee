@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -751,6 +754,43 @@ def cmd_ctl(a):
     os.execve(meta["bin"], [meta["bin"], "ctl", "-c", meta["config"], *args], instance_env(meta))
 
 
+def bee_token(meta):
+    def b64(raw):
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    payload = b64(json.dumps({"type": "bee", "exp": int(time.time()) + 3600}).encode())
+    sig = hmac.new(meta["rpc_secret"].encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest()
+    return f"{header}.{payload}.{b64(sig)}"
+
+
+def call_mcp(meta, tool, args):
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": args}}
+    req = urllib.request.Request(f"http://127.0.0.1:{meta['port']}/mcp", data=json.dumps(body).encode(), method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json, text/event-stream")
+    req.add_header("Authorization", f"Bearer {bee_token(meta)}")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            out = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        die(f"/mcp returned {e.code}: {e.read().decode(errors='replace')} (builds before MCP use $T ctl)")
+    if "error" in out:
+        die(json.dumps(out["error"], ensure_ascii=False))
+    result = out["result"]
+    print("\n".join(c.get("text", json.dumps(c, ensure_ascii=False)) for c in result.get("content", [])))
+    if result.get("isError"):
+        sys.exit(1)
+
+
+def cmd_mcp(a):
+    call_mcp(load_meta(a.name), a.tool, json.loads(a.args) if a.args else {})
+
+
+def cmd_js(a):
+    call_mcp(load_meta(a.name), "execute", {"code": sys.stdin.read() if a.code == "-" else a.code})
+
+
 def cmd_api(a):
     meta = load_meta(a.name)
     body = json.loads(a.data) if a.data else None
@@ -889,6 +929,13 @@ def main():
     p.add_argument("--skip-web", action="store_true")
     p.add_argument("--force", action="store_true")
     p.add_argument("--engine", action="append", choices=["claude", "codex", ""])
+
+    p = cmd("mcp", cmd_mcp)
+    p.add_argument("tool")
+    p.add_argument("args", nargs="?")
+
+    p = cmd("js", cmd_js)
+    p.add_argument("code")
 
     p = cmd("ctl", cmd_ctl)
     p.add_argument("args", nargs=argparse.REMAINDER)

@@ -25,7 +25,7 @@ func TestInstallSkills_UpdatedWhenFileMissing(t *testing.T) {
 	_, err := InstallSkills(dir)
 	require.NoError(t, err, "first install failed")
 	// Delete a reference file from openbee-bee.
-	missing := filepath.Join(dir, "openbee-bee", "references", "cli-reference.md")
+	missing := filepath.Join(dir, "openbee-bee", "references", "api-reference.md")
 	require.NoError(t, os.Remove(missing))
 	results, err := InstallSkills(dir)
 	require.NoError(t, err, "reinstall failed")

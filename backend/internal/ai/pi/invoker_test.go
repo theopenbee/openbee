@@ -63,6 +63,7 @@ func TestExtractResultFromLog_NoAgentEnd(t *testing.T) {
 }
 
 func TestResolveSessionPath_UsesUUID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	sessionID := "4d0ce91b-0856-44e2-b0d7-7765d824bba3"
 	inv, err := NewInvoker("true", nil)
@@ -74,6 +75,7 @@ func TestResolveSessionPath_UsesUUID(t *testing.T) {
 }
 
 func TestInvoker_Run_ExitsCleanly(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("OPENBEE_URL", "http://localhost:8080")
 	inv, err := NewInvoker("true", nil)
 	require.NoError(t, err)

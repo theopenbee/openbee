@@ -1675,3 +1675,23 @@ func TestCallTool_UpdateWorker_InvalidEngine(t *testing.T) {
 	}))
 	assert.Error(t, err)
 }
+
+func TestCheckWorkerScope_WorkerToken_WriteToolDenied(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	ctx := workerCtx(w.ID, []string{"read:workers", "read:tasks", "read:messages"})
+	for _, tool := range []string{utils.UpdateWorker, utils.CreateWorker, utils.DeleteWorker, utils.CreateTask, utils.CancelTask, utils.ClearSession, utils.SaveConstraint, utils.GetSystemOverview} {
+		_, err := s.CallTool(ctx, tool, mustMarshal(t, map[string]any{"worker_id": w.ID, "name": "Hacked"}))
+		require.Error(t, err, tool)
+		assert.Contains(t, err.Error(), "not available to workers", tool)
+	}
+	got, err := s.CallTool(context.Background(), utils.GetWorker, mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	require.NoError(t, err)
+	assert.Equal(t, "MaoMao", got.(model.Worker).Name)
+}
+
+func TestCallTool_CreateWorker_WithEngineArgs(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W", "engine_args": map[string]string{"claude": "--model x"}})
+	assert.JSONEq(t, `{"claude":"--model x"}`, w.EngineArgs)
+}

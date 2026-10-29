@@ -2,10 +2,7 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -77,28 +74,4 @@ func NewBeeServer(
 		handoff:              handoff,
 		chats:                chats,
 	}
-}
-
-func (s *Server) workerIDContext(c *gin.Context) context.Context {
-	ctx := context.WithValue(c.Request.Context(), CtxWorkerIDKey, c.GetString(CtxKeyWorkerID))
-	scopes, _ := c.Get(CtxKeyScopes)
-	return context.WithValue(ctx, CtxScopesKey, scopes)
-}
-
-// Tool errors are returned as 200 {"error": "..."} to match the RPC-over-HTTP convention.
-func (s *Server) HandleCall(c *gin.Context) {
-	var req struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
-		return
-	}
-	result, err := s.beeCallTool(s.workerIDContext(c), req.Name, req.Arguments)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"result": result})
 }

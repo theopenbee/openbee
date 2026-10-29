@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	RPCBeeBasePath = "/rpc/bee"
+	MCPPath = ai.MCPPath
 )
 
 //go:embed config.yaml.tmpl

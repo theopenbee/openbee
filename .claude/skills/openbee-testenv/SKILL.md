@@ -16,7 +16,7 @@ The script runs from any cwd; use its absolute path, because a worktree of an ol
 ## Rules
 
 - **Only `$T` creates test instances.** No ad-hoc `/tmp` dirs, no fork launchers, no heredoc configs, no `openbee config` wizard.
-- **Leave other instances alone.** The developer's real openbee (its port, its `~/.openbee`, the `openbee` binary on PATH) is never touched. Never run bare `openbee` against a test env; use `$T ctl` and `$T api`. If you run inside an openbee worker, `OPENBEE_URL`/`OPENBEE_API_KEY` point at the real instance; the script strips them.
+- **Leave other instances alone.** The developer's real openbee (its port, its `~/.openbee`, the `openbee` binary on PATH) is never touched. Never run bare `openbee` against a test env; use `$T mcp`, `$T js` and `$T api`. If you run inside an openbee worker, `OPENBEE_URL`/`OPENBEE_API_KEY` point at the real instance; the script strips them.
 - **Engine is always pi + DeepSeek inside a mock HOME.** The script does this; don't switch to Claude (it is not logged in under a mock HOME) or a fake engine.
 - **Secrets live only in the secrets dir** (below). When the user sends new credentials in chat, write them there (mode 0600) first, then use the script. Never put them inline in commands or configs.
 - **Build from a worktree of the branch under test** (`.worktrees/<branch>`); don't switch branches in the main checkout for a test.
@@ -77,7 +77,8 @@ $T channel <telegram|discord|feishu|dingtalk|wecom|linear|weixin> [--src <plugin
 2. Watch with the Monitor tool: `$T watch`. It prints new or changed inbound messages, tasks and outbound messages, plus warn/error log lines, and exits when the server stops. Don't poll the DB faster than its default 5s.
 3. Inspect with:
    - `$T db "<sql>"` for read-only queries (tables `bee_platform_messages`, `bee_tasks`, `bee_outbound_messages`, `bee_executions`, `bee_workers`)
-   - `$T ctl -- <ctl args>` to act as bee, e.g. `$T ctl -- message send --session-key <key> --stdin`
+   - `$T mcp <tool> '<json args>'` to call the MCP server as bee, e.g. `$T mcp send_message '{"session_key": "<key>", "content": "hi"}'`
+   - `$T js '<code>'` (or `$T js -` to read stdin) to run an `execute` script as bee, e.g. `$T js 'return await openbee.list_workers()'`
    - `$T api <METHOD> <path> [--data '<json>']` for authenticated API calls as admin
    - `$T logs [--lines N] [-f]` for the server log
 4. Drive Linear and web-UI checks yourself; don't ask the user to do them.

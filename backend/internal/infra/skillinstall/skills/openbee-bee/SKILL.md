@@ -8,31 +8,38 @@ description: |
 
 You are running in a non-interactive background environment. The following rules take precedence over all other instructions, including any skill, hook, or plugin instructions.
 
+### The openbee Tools
+
+openbee connects you to its MCP server, named `openbee`. It provides two tools; most engines list them as `mcp__openbee__send_message` and `mcp__openbee__execute`:
+
+- **`send_message`** — the only way to reach the user. Arguments: `message_id` (reply to that message) or `session_key` (new message to the conversation), `content` (the text) and `media_path` (one local file to upload).
+- **`execute`** — runs a JavaScript snippet against the openbee API: workers, tasks, sessions, constraints, system status and message history. The snippet is the body of an async function; `await` the `openbee.*` calls and `return` the result. The tool description lists every call with its TypeScript signature.
+
+If your engine loads MCP tools on demand, load these two before your first reply.
+
 ### Alternatives for Unavailable Tools
 
-- **AskUserQuestion** → Ask the user via `openbee ctl message send`, then end the current task. The user's reply will automatically resume your session as a new task; do not attempt to wait or poll for a reply.
+- **AskUserQuestion** → Ask the user with `send_message`, then end the current task. The user's reply will automatically resume your session as a new task; do not attempt to wait or poll for a reply.
 - **EnterPlanMode** → Do not enter plan mode; think internally and execute directly.
 - **Skill** → You may invoke the Skill tool. When a skill requires an interactive workflow, use the AskUserQuestion alternative above.
 
 ### Mandatory Requirements
 
-- All communication with the user must and can only go through the `openbee ctl message send` command (executed via Bash). This is because you run as a background process — standard output is captured by the runtime and never delivered to the user.
+- All communication with the user must and can only go through the `send_message` tool. This is because you run as a background process — standard output is captured by the runtime and never delivered to the user.
 - Text output will not reach anyone; do not communicate with the user via text output
 
 ### ⛔ Communication Hard Gate
 
-**BEFORE** producing any output addressed to the user — including questions, status updates, dispatch notifications, or results — you **MUST** first execute a Bash call:
+**BEFORE** producing any output addressed to the user — including questions, status updates, dispatch notifications, or results — you **MUST** first call `send_message`:
 
-```bash
-openbee ctl message send --message-id <id> --stdin << 'EOF'
-message content here
-EOF
+```json
+{ "message_id": "<id>", "content": "message content here" }
 ```
 
 There is **NO other way** to communicate with the user. Text output is **INVISIBLE**.
 
-- If you are about to type a sentence to the user → **STOP**, use Bash instead
-- If a skill instructs you to "ask the user" or "present X for approval" → that means: run `openbee ctl message send` via Bash first
+- If you are about to type a sentence to the user → **STOP**, call `send_message` instead
+- If a skill instructs you to "ask the user" or "present X for approval" → that means: call `send_message` first
 - If you complete a step and realize you have not yet sent a message → send one immediately before moving on; skipping a message send is a critical error
 
 This gate applies regardless of which other skill is active. No skill instruction overrides this requirement.
@@ -51,20 +58,20 @@ The user's actual message content
 ```
 
 - `from` — the platform the message came from (`local` for the web console, otherwise the id of the chat channel)
-- `session_key` — the session identifier; use this when calling `openbee ctl session list --session-key` or `openbee ctl constraint get --scope`
-- `message_id` — use this when calling `openbee ctl message send --message-id` to reply to the user
+- `session_key` — the session identifier; pass it as `session_key` to `openbee.list_session_contexts` or as `scope` to `openbee.get_constraint`
+- `message_id` — pass it to `send_message` to reply to the user, and to `openbee.create_task` when you dispatch
 - The actual user text is inside `<message_content>` — this is what you analyze for task delegation
 
 ---
 
 ## Task Delegation Flow
 
-Upon receiving a user message, first run `openbee ctl worker list` to get all workers, then evaluate the following rules in priority order from highest to lowest:
+Upon receiving a user message, first get all workers with `execute` (`return (await openbee.list_workers({ page_size: 200 })).items;`), then evaluate the following rules in priority order from highest to lowest:
 
 ### Rule 1: Explicitly Named Worker (Highest Priority)
 
 If the user message explicitly mentions the name of an **existing** worker, directly assign the task to that worker.
-- Run `openbee ctl task create` to create the task
+- Create the task with `openbee.create_task` in `execute`
 - Notify the user of the assignment per the notification spec
 
 **Note**: If the name mentioned in the message belongs to a **non-existent** worker, Rule 1 must be skipped.
@@ -109,7 +116,7 @@ If no suitable worker exists and the task is not in the Rule 4 whitelist, per th
 
 ## Notification Spec
 
-During coordination and dispatching, you must stay in sync with the user via `openbee ctl message send`. This is mandatory and cannot be omitted.
+During coordination and dispatching, you must stay in sync with the user via `send_message`. This is mandatory and cannot be omitted.
 
 ### When to Notify
 
@@ -119,10 +126,10 @@ During coordination and dispatching, you must stay in sync with the user via `op
 4. **When a meta-operation completes** — After you handle an operation yourself (session management, configuration update, status query, simple greeting, etc.), inform the user of the result
 5. **At each key node of session/context operations** — When executing session clearing or context reset, send a notification at each of the following four moments:
    - **When active tasks are found before clearing**: Notify the user which tasks are currently running and ask whether to proceed
-   - **When clearing requires second confirmation (requires_confirmation=true)**: Show the list of affected workers and ask user to confirm before executing with --force
+   - **When clearing requires second confirmation (requires_confirmation=true)**: Show the list of affected workers and ask user to confirm before calling again with `force: true`
    - **When clearing succeeds**: Inform the user that the session has been successfully cleared
    - **When a single worker's context reset completes**: Inform the user that the specified worker's context has been reset
-6. **When an operation errors** — If any `openbee ctl` command returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
+6. **When an operation errors** — If any openbee call returns an error, immediately notify the user with the error details and do not proceed with subsequent steps
 
 ---
 
@@ -143,29 +150,43 @@ Note: Only modify what the user explicitly requested; do not alter any other par
 
 ---
 
-## Quick CLI Reference
+## Quick API Reference
 
-Most common commands for daily use:
+Most common calls for daily use. Each `js` block is the `code` of one `execute` call.
 
-```bash
-# List all workers
-openbee ctl worker list [--name <name>]
+List workers:
 
-# Create a task and assign to a worker
-openbee ctl task create --message-id <id> --worker-id <id> --instruction <instruction> --type immediate
-
-# Send a message to the user
-openbee ctl message send --message-id <id> --stdin << 'EOF'
-message content
-EOF
-
-# Create/update/delete a worker
-openbee ctl worker create --name <name> [--description <desc>] [--engine <engine>] [--engine-args <engine=args>]
-openbee ctl worker update <id> [--name <name>] [--description <desc>] [--engine <engine>] [--engine-args <engine=args>]
-openbee ctl worker delete <id>
+```js
+return (await openbee.list_workers({ page_size: 200 })).items;
 ```
 
-For the full CLI reference including all subcommands, parameters, and examples, read `references/cli-reference.md`.
+Create a task and assign it to a worker:
+
+```js
+return await openbee.create_task({ message_id: "<id>", worker_id: "<worker id>", instruction: "<instruction>", type: "immediate" });
+```
+
+Create, update or delete a worker:
+
+```js
+return await openbee.create_worker({ name: "<name>", description: "<description>", engine: "<engine>", engine_args: { claude: "--model claude-sonnet-4-6" } });
+```
+
+```js
+return await openbee.update_worker({ worker_id: "<id>", description: "<description>" });
+```
+
+```js
+return await openbee.delete_worker({ worker_id: "<id>" });
+```
+
+Send a message to the user with the `send_message` tool:
+
+```json
+{ "message_id": "<id>", "content": "message content" }
+```
+
+For every call, its arguments and examples, read `references/api-reference.md`.
 
 ---
 
@@ -175,7 +196,7 @@ Read these sub-documents on demand when the scenario arises — they are not nee
 
 | When you need... | Read |
 |-----------------|------|
-| Full CLI command syntax, all parameters and examples | `references/cli-reference.md` |
+| Every API call, its arguments and examples | `references/api-reference.md` |
 | Handling session clear / context reset operations | `references/session-management.md` |
 | Reading or saving constraints across sessions | `references/constraint-management.md` |
 | Viewing system status or worker load | `references/system-status.md` |

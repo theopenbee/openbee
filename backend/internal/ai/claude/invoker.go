@@ -81,12 +81,27 @@ func ExtractResultFromLog(logPath string) string {
 	return lastAssistantText
 }
 
+func mcpConfig(url string) string {
+	b, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{
+		ai.MCPServerName: map[string]any{
+			"type":       "http",
+			"url":        url,
+			"headers":    map[string]string{"Authorization": "Bearer ${" + ai.APIKeyEnv + "}"},
+			"alwaysLoad": true,
+		},
+	}})
+	return string(b)
+}
+
 // Run starts a Claude CLI process, redirecting output to logPath.
 func (inv *Invoker) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.Process, <-chan ai.Output, error) {
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--verbose",
 		"--output-format", "stream-json",
+	}
+	if url := ai.MCPURL(); url != "" {
+		args = append(args, "--mcp-config="+mcpConfig(url))
 	}
 	if opts.SessionID != "" {
 		if opts.Resume {
