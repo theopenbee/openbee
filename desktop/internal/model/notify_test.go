@@ -80,3 +80,22 @@ func TestBadgeText(t *testing.T) {
 		}
 	}
 }
+
+func TestIconBadgeText(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{-1, ""},
+		{0, ""},
+		{1, "1"},
+		{9, "9"},
+		{10, "9+"},
+		{250, "9+"},
+	}
+	for _, tc := range tests {
+		if got := IconBadgeText(tc.n); got != tc.want {
+			t.Errorf("IconBadgeText(%d) = %q, want %q", tc.n, got, tc.want)
+		}
+	}
+}

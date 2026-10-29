@@ -5096,6 +5096,26 @@ func (msgs Messages) TimeMinutesAgo(count int) string {
 	return Catalog.Format(msgs.locale, "timeMinutesAgo", map[string]any{"count": count})
 }
 
+// TrayOpen says "Open OpenBee"
+// in the language the app shows.
+func TrayOpen() string { return In(i18n.Locale()).TrayOpen() }
+
+// TrayOpen says "Open OpenBee"
+// in the language of msgs.
+func (msgs Messages) TrayOpen() string {
+	return Catalog.Format(msgs.locale, "trayOpen", nil)
+}
+
+// TrayUnread says "OpenBee · {count} unread"
+// in the language the app shows.
+func TrayUnread(count int) string { return In(i18n.Locale()).TrayUnread(count) }
+
+// TrayUnread says "OpenBee · {count} unread"
+// in the language of msgs.
+func (msgs Messages) TrayUnread(count int) string {
+	return Catalog.Format(msgs.locale, "trayUnread", map[string]any{"count": count})
+}
+
 // WorkerDetailConstraintsPanelAdd says "Add work constraints"
 // in the language the app shows.
 func WorkerDetailConstraintsPanelAdd() string {

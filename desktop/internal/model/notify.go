@@ -41,3 +41,12 @@ func BadgeText(n int) string {
 	}
 	return strconv.Itoa(n)
 }
+
+const maxIconBadge = 9
+
+func IconBadgeText(n int) string {
+	if n > maxIconBadge {
+		return strconv.Itoa(maxIconBadge) + "+"
+	}
+	return BadgeText(n)
+}

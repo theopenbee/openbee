@@ -31,5 +31,7 @@
   "tableCopyTsv": "TSV",
   "tableDownload": "下载表格",
   "tableFullscreen": "全屏",
-  "downloadSaved": "已保存 {name}"
+  "downloadSaved": "已保存 {name}",
+  "trayOpen": "打开 OpenBee",
+  "trayUnread": "OpenBee · {count} 条未读"
 }

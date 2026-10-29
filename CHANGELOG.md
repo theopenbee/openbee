@@ -10,6 +10,7 @@
 - Show desktop notifications and tab unread counts for web chats.
 - Mark where a web chat started a new conversation.
 - Add a native desktop app for macOS, Windows and Linux.
+- Desktop: show unread counts in menu bar and tray.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
@@ -26,6 +27,7 @@
 - Desktop sidebar: drop logo, put search beside new worker.
 - Desktop: keep sign-in tokens in a file, not keychain.
 - Show reconnect progress and failure in the offline banner.
+- Windows desktop: closing the window hides it to the tray.
 
 ### Removed
 - Remove user and role management; keep one admin account.

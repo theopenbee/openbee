@@ -165,3 +165,34 @@ func TestTitleWithUnread(t *testing.T) {
 		}
 	}
 }
+
+func TestTrayMenu(t *testing.T) {
+	opened := 0
+	items := desktop.TrayMenu(func() { opened++ })
+	if len(items) == 0 || items[0].Label != locales.TrayOpen() || items[0].Click == nil {
+		t.Fatalf("first tray item = %+v, want %q", items, locales.TrayOpen())
+	}
+	items[0].Click(items[0], nil)
+	if opened != 1 {
+		t.Errorf("clicking %q opened %d times, want 1", locales.TrayOpen(), opened)
+	}
+	if top(items, role(mygo.RoleQuit)) == nil {
+		t.Error("tray menu has no quit role")
+	}
+}
+
+func TestTrayToolTip(t *testing.T) {
+	for _, tc := range []struct {
+		n    int
+		want string
+	}{
+		{0, "OpenBee"},
+		{-2, "OpenBee"},
+		{3, locales.TrayUnread(3)},
+		{250, locales.TrayUnread(250)},
+	} {
+		if got := desktop.TrayToolTip(tc.n); got != tc.want {
+			t.Errorf("TrayToolTip(%d) = %q, want %q", tc.n, got, tc.want)
+		}
+	}
+}

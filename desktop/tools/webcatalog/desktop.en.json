@@ -31,5 +31,7 @@
   "tableCopyTsv": "TSV",
   "tableDownload": "Download table",
   "tableFullscreen": "Full screen",
-  "downloadSaved": "Saved {name}"
+  "downloadSaved": "Saved {name}",
+  "trayOpen": "Open OpenBee",
+  "trayUnread": "OpenBee · {count} unread"
 }

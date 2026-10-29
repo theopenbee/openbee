@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/prefs"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
@@ -31,23 +32,26 @@ const (
 )
 
 type App struct {
-	debug    bool
-	prefs    prefs.Store
-	tokens   prefs.TokenStore
-	cache    string
-	theme    mygo.ThemeSource
-	notifier *Notifier
-	st       *store.Store
-	root     *views.Root
-	win      atomic.Pointer[mygo.Window]
-	postMu   sync.Mutex
-	queued   []func()
-	pending  string
+	debug       bool
+	prefs       prefs.Store
+	tokens      prefs.TokenStore
+	cache       string
+	theme       mygo.ThemeSource
+	notifier    *Notifier
+	tray        *Tray
+	st          *store.Store
+	root        *views.Root
+	win         atomic.Pointer[mygo.Window]
+	postMu      sync.Mutex
+	queued      []func()
+	pending     string
+	quitting    bool
+	windowBadge string
 }
 
 func New() *App {
 	a := &App{debug: slices.ContainsFunc(os.Args[1:], isDebugFlag)}
-	a.notifier = NewNotifier(a.window, a.open)
+	a.notifier = NewNotifier(a.window, a.open, a.showUnread)
 	return a
 }
 
@@ -85,7 +89,13 @@ func (a *App) Run() error {
 	})
 	mygo.App.OnDidBecomeActive(a.syncForeground)
 	mygo.App.OnDidResignActive(a.syncForeground)
-	mygo.App.OnLocaleChanged(func(string) { a.setMenu() })
+	mygo.App.OnLocaleChanged(func(string) {
+		a.setMenu()
+		if a.tray != nil {
+			a.tray.Relabel()
+		}
+	})
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.quitting = true })
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { a.flush() })
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
@@ -103,6 +113,7 @@ func (a *App) start() {
 	})
 	a.root = views.NewRoot(a.st)
 	a.setMenu()
+	a.startTray()
 	a.openWindow()
 	a.st.Start()
 }
@@ -147,10 +158,55 @@ func (a *App) openWindow() *mygo.Window {
 	})
 	w.OnFocus(a.syncForeground)
 	w.OnBlur(a.syncForeground)
+	w.OnClose(func(e *mygo.CloseEvent) {
+		if closesToTray(runtime.GOOS, a.tray != nil, a.quitting) {
+			e.PreventDefault()
+			w.Hide()
+			a.syncForeground()
+		}
+	})
 	w.OnClosed(a.syncForeground)
 	a.attach(w)
+	a.windowBadge = ""
+	a.setWindowIcon(w, a.notifier.unread)
 	a.syncForeground()
 	return w
+}
+
+func (a *App) startTray() {
+	if !showsTray(runtime.GOOS) {
+		return
+	}
+	t, err := NewTray(runtime.GOOS, a.show)
+	if err != nil {
+		log.Printf("desktop: tray: %v", err)
+		return
+	}
+	a.tray = t
+	t.SetUnread(a.notifier.unread)
+}
+
+func (a *App) showUnread(n int) {
+	if a.tray != nil {
+		a.tray.SetUnread(n)
+	}
+	if w := a.win.Load(); w != nil {
+		a.setWindowIcon(w, n)
+	}
+}
+
+func (a *App) setWindowIcon(w *mygo.Window, unread int) {
+	if runtime.GOOS != windows {
+		return
+	}
+	badge := model.IconBadgeText(unread)
+	if badge == a.windowBadge {
+		return
+	}
+	a.windowBadge = badge
+	if err := w.SetIcon(windowIcon(unread)); err != nil {
+		log.Printf("desktop: window icon: %v", err)
+	}
 }
 
 func (a *App) view(c *ui.Context) {
@@ -173,6 +229,9 @@ func (a *App) show() {
 	}
 	if w.IsMinimized() {
 		w.Restore()
+	}
+	if !w.IsVisible() {
+		w.Show()
 	}
 	w.Focus()
 	mygo.App.Focus()
