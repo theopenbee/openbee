@@ -16,7 +16,7 @@ import (
 
 type Notifier interface {
 	Supported() bool
-	Show(n Notification) error
+	Show(n Notification, done func(error))
 	CloseConversation(cid string)
 	SetUnread(total int)
 	Foreground() bool
@@ -94,16 +94,16 @@ type Store struct {
 type writer struct {
 	mu      sync.Mutex
 	queue   []func() error
-	running bool
+	drained chan struct{}
 }
 
 type noNotifier struct{}
 
-func (noNotifier) Supported() bool          { return false }
-func (noNotifier) Show(Notification) error  { return nil }
-func (noNotifier) CloseConversation(string) {}
-func (noNotifier) SetUnread(int)            {}
-func (noNotifier) Foreground() bool         { return true }
+func (noNotifier) Supported() bool                       { return false }
+func (noNotifier) Show(_ Notification, done func(error)) { done(nil) }
+func (noNotifier) CloseConversation(string)              {}
+func (noNotifier) SetUnread(int)                         {}
+func (noNotifier) Foreground() bool                      { return true }
 
 func New(o Options) *Store {
 	if o.Now == nil {
@@ -171,10 +171,10 @@ func (s *Store) persist(fn func() error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.queue = append(w.queue, fn)
-	if w.running {
+	if w.drained != nil {
 		return
 	}
-	w.running = true
+	w.drained = make(chan struct{})
 	s.busy.Add(1)
 	go s.flushWrites()
 }
@@ -185,7 +185,8 @@ func (s *Store) flushWrites() {
 	for {
 		w.mu.Lock()
 		if len(w.queue) == 0 {
-			w.running = false
+			close(w.drained)
+			w.drained = nil
 			w.mu.Unlock()
 			return
 		}
@@ -195,6 +196,24 @@ func (s *Store) flushWrites() {
 		if err := fn(); err != nil {
 			log.Printf("store: %v", err)
 		}
+	}
+}
+
+func (s *Store) Flush(timeout time.Duration) bool {
+	w := &s.writes
+	w.mu.Lock()
+	drained := w.drained
+	w.mu.Unlock()
+	if drained == nil {
+		return true
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+	select {
+	case <-drained:
+		return true
+	case <-t.C:
+		return false
 	}
 }
 

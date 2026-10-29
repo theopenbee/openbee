@@ -72,7 +72,10 @@ func (s *Store) notify(ev api.ChatEvent) {
 }
 
 func (s *Store) show(n Notification) {
-	err := s.o.Notifier.Show(n)
+	s.o.Notifier.Show(n, s.notificationShown)
+}
+
+func (s *Store) notificationShown(err error) {
 	switch {
 	case errors.Is(err, ErrNotificationsDenied):
 		s.setNotificationsDenied(true)

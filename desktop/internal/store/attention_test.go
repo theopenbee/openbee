@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/theopenbee/openbee/desktop/internal/prefs"
 	"github.com/theopenbee/openbee/desktop/internal/store"
@@ -82,5 +83,54 @@ func TestDismissNotificationsHintPersists(t *testing.T) {
 
 	if !st.Prefs.NotificationsHintDismissed || !fix.Prefs.Load().NotificationsHintDismissed {
 		t.Fatalf("prefs = %+v / saved %+v, want the hint dismissed", st.Prefs, fix.Prefs.Load())
+	}
+}
+
+type heldNotifier struct {
+	shown   []store.Notification
+	answers []func(error)
+}
+
+func (n *heldNotifier) Supported() bool { return true }
+
+func (n *heldNotifier) Show(x store.Notification, done func(error)) {
+	n.shown = append(n.shown, x)
+	n.answers = append(n.answers, done)
+}
+
+func (n *heldNotifier) CloseConversation(string) {}
+
+func (n *heldNotifier) SetUnread(int) {}
+
+func (n *heldNotifier) Foreground() bool { return false }
+
+func TestNotificationsDeniedWhenShowAnswersLater(t *testing.T) {
+	saved := prefs.NewMemoryStore(prefs.Prefs{})
+	n := &heldNotifier{}
+	st := store.New(store.Options{Post: func(fn func()) { fn() }, Prefs: saved, Tokens: prefs.NewMemoryTokenStore(), Notifier: n})
+
+	st.SetNotifications(true)
+	if len(n.shown) != 1 || n.shown[0].Title != locales.In("en").NotificationsEnabledTitle() {
+		t.Fatalf("shown = %+v, want the confirmation", n.shown)
+	}
+	if st.Prefs.NotificationsDenied {
+		t.Fatal("NotificationsDenied set before Show answered")
+	}
+
+	n.answers[0](store.ErrNotificationsDenied)
+	if !st.Flush(time.Second) {
+		t.Fatal("Flush timed out")
+	}
+	if !st.Prefs.NotificationsDenied || !saved.Load().NotificationsDenied {
+		t.Fatalf("prefs = %+v / saved %+v, want denied after the late answer", st.Prefs, saved.Load())
+	}
+
+	st.SetNotifications(true)
+	n.answers[1](nil)
+	if !st.Flush(time.Second) {
+		t.Fatal("Flush timed out")
+	}
+	if st.Prefs.NotificationsDenied || saved.Load().NotificationsDenied {
+		t.Fatal("NotificationsDenied kept after a later Show succeeded")
 	}
 }

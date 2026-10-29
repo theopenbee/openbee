@@ -24,12 +24,13 @@ type FakeNotifier struct {
 
 func (n *FakeNotifier) Supported() bool { return !n.Unsupported }
 
-func (n *FakeNotifier) Show(x store.Notification) error {
+func (n *FakeNotifier) Show(x store.Notification, done func(error)) {
 	if n.ShowErr != nil {
-		return n.ShowErr
+		done(n.ShowErr)
+		return
 	}
 	n.Shown = append(n.Shown, x)
-	return nil
+	done(nil)
 }
 
 func (n *FakeNotifier) CloseConversation(cid string) { n.Closed = append(n.Closed, cid) }

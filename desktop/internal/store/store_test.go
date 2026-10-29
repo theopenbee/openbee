@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
@@ -286,5 +287,37 @@ func TestResourceSetAndReset(t *testing.T) {
 	}
 	if calls := fake.Calls("GET", "/api/workers"); len(calls) != 2 {
 		t.Fatalf("workers calls = %d, want 2", len(calls))
+	}
+}
+
+type gatedPrefs struct {
+	prefs.Store
+	gate chan struct{}
+}
+
+func (g gatedPrefs) Save(p prefs.Prefs) error {
+	<-g.gate
+	return g.Store.Save(p)
+}
+
+func TestFlushWaitsForPendingWrites(t *testing.T) {
+	saved := gatedPrefs{Store: prefs.NewMemoryStore(prefs.Prefs{}), gate: make(chan struct{})}
+	st := store.New(store.Options{Post: func(fn func()) { fn() }, Prefs: saved, Tokens: prefs.NewMemoryTokenStore()})
+	if !st.Flush(0) {
+		t.Fatal("Flush with nothing queued = false, want true")
+	}
+
+	st.SetTheme("light")
+	st.SetLanguage("zh")
+	if st.Flush(10 * time.Millisecond) {
+		t.Fatal("Flush = true while a write was blocked")
+	}
+
+	close(saved.gate)
+	if !st.Flush(time.Second) {
+		t.Fatal("Flush timed out after the writes were released")
+	}
+	if got := saved.Load(); got.Theme != "light" || got.Language != "zh" {
+		t.Fatalf("saved = %+v, want both writes applied in order", got)
 	}
 }

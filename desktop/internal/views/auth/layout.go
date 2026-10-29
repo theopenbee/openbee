@@ -16,6 +16,7 @@ const (
 	screenPadY    = 48
 	screenPadX    = 16
 	toolbarInset  = 16
+	dragBand      = 32
 	logoHeight    = 32
 	logoAspect    = 1448.0 / 420.0
 	cardPadding   = 32
@@ -65,7 +66,9 @@ func (a *Screens) layout(c *ui.Context, tk theme.Tokens, title, description stri
 				})
 			})
 		})
-		ui.Row(c).Absolute().Top(toolbarInset).Right(toolbarInset).Children(func() {
+		bar := c.TitleBar()
+		ui.Row(c).Absolute().Top(0).Left(0).Size(w, max(bar.Height, dragBand)).DragWindow()
+		ui.Row(c).Absolute().Top(toolbarInset).Right(toolbarInset + bar.Right).Children(func() {
 			a.languageMenu(c, tk)
 		})
 	})
