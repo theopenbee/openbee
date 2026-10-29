@@ -1,6 +1,7 @@
 package codemode
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -132,4 +133,37 @@ func TestCrashReason(t *testing.T) {
 	assert.Equal(t, "fatal error: stack overflow", crashReason("runtime: goroutine stack exceeds 67108864-byte limit\nfatal error: stack overflow\n\nstack:\n"))
 	assert.Equal(t, "boom", crashReason("\nboom\nmore"))
 	assert.Empty(t, crashReason(""))
+}
+
+func TestRunTruncatesHugeErrors(t *testing.T) {
+	_, err := Run(context.Background(), `throw new Error("x".repeat(5e6));`, nil, noCalls)
+	require.Error(t, err)
+	assert.LessOrEqual(t, len(err.Error()), maxOutput+100)
+}
+
+func TestRunRejectsHugeCallArguments(t *testing.T) {
+	called := false
+	call := func(context.Context, string, json.RawMessage) (any, error) {
+		called = true
+		return nil, nil
+	}
+	start := time.Now()
+	_, err := Run(context.Background(), `await openbee.list({ name: "x".repeat(5 << 20) });`, []string{"list"}, call)
+	assert.ErrorIs(t, err, errMessageTooLarge)
+	assert.False(t, called)
+	assert.Less(t, time.Since(start), 10*time.Second)
+}
+
+func TestReadLine(t *testing.T) {
+	r := bufio.NewReaderSize(strings.NewReader(strings.Repeat("a", 40)+"\nok\n"), 16)
+	line, err := readLine(r, 64)
+	require.NoError(t, err)
+	assert.Equal(t, strings.Repeat("a", 40)+"\n", string(line))
+	line, err = readLine(r, 64)
+	require.NoError(t, err)
+	assert.Equal(t, "ok\n", string(line))
+
+	r = bufio.NewReaderSize(strings.NewReader(strings.Repeat("a", 100)+"\n"), 16)
+	_, err = readLine(r, 64)
+	assert.ErrorIs(t, err, errMessageTooLarge)
 }

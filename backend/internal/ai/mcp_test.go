@@ -17,16 +17,23 @@ func TestMCPURL(t *testing.T) {
 
 func TestBuildRunEnvBypassesProxyForMCP(t *testing.T) {
 	t.Setenv("OPENBEE_URL", "http://127.0.0.1:8080")
-	env := BuildRunEnv([]string{"NO_PROXY=example.com, 127.0.0.1", "no_proxy=corp.internal"}, nil, "tok")
-	want := "example.com,127.0.0.1,corp.internal"
-	assert.Equal(t, want, lastValue(env, "NO_PROXY"))
-	if runtime.GOOS != "windows" {
-		assert.Equal(t, want, lastValue(env, "no_proxy"))
+	both := func(env []string, want string) {
+		t.Helper()
+		assert.Equal(t, want, lastValue(env, "NO_PROXY"))
+		if runtime.GOOS != "windows" {
+			assert.Equal(t, want, lastValue(env, "no_proxy"))
+		}
 	}
+
+	env := BuildRunEnv([]string{"NO_PROXY=example.com, 127.0.0.1", "no_proxy=corp.internal"}, nil, "tok")
+	both(env, "example.com,127.0.0.1,corp.internal")
 	assert.Equal(t, "tok", lastValue(env, "OPENBEE_API_KEY"))
 
-	env = BuildRunEnv(nil, nil, "tok")
-	assert.Equal(t, "127.0.0.1", lastValue(env, "NO_PROXY"))
+	both(BuildRunEnv(nil, nil, "tok"), "127.0.0.1")
+	both(BuildRunEnv([]string{"NO_PROXY=system.example"}, []string{"NO_PROXY=worker.example"}, "tok"), "worker.example,127.0.0.1")
+
+	base := []string{"NO_PROXY=*"}
+	assert.Equal(t, append(base, "OPENBEE_API_KEY=tok"), BuildRunEnv(base, nil, "tok"))
 
 	t.Setenv("OPENBEE_URL", "")
 	assert.Empty(t, lastValue(BuildRunEnv(nil, nil, "tok"), "NO_PROXY"))

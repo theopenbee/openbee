@@ -1,6 +1,7 @@
 package codemode
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,16 +15,21 @@ import (
 )
 
 const (
-	Timeout      = 50 * time.Second
-	childEnv     = "OPENBEE_CODEMODE_CHILD"
-	killGrace    = 3 * time.Second
-	stderrLimit  = 4096
-	crashedError = "the script crashed"
+	Timeout         = 50 * time.Second
+	childEnv        = "OPENBEE_CODEMODE_CHILD"
+	protocolVersion = 1
+	killGrace       = 3 * time.Second
+	stderrLimit     = 4096
+	maxMessageBytes = 4 << 20
+	crashedError    = "the script crashed"
 )
+
+var errMessageTooLarge = fmt.Errorf("the script sent more than %d MiB at once", maxMessageBytes>>20)
 
 type CallFunc func(ctx context.Context, name string, args json.RawMessage) (any, error)
 
 type request struct {
+	Version     int           `json:"version"`
 	Code        string        `json:"code"`
 	Methods     []string      `json:"methods"`
 	Timeout     time.Duration `json:"timeout"`
@@ -76,17 +82,23 @@ func run(ctx context.Context, code string, methods []string, call CallFunc, time
 	}
 	defer func() {
 		_ = stdin.Close()
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 	}()
 
 	enc := json.NewEncoder(stdin)
-	dec := json.NewDecoder(stdout)
-	if err := enc.Encode(request{Code: code, Methods: methods, Timeout: timeout, MemoryLimit: memoryLimit}); err != nil {
+	lines := bufio.NewReader(stdout)
+	req := request{Version: protocolVersion, Code: code, Methods: methods, Timeout: timeout, MemoryLimit: memoryLimit}
+	if err := enc.Encode(req); err != nil {
 		return "", childFailure(ctx, cmd, stderr, timeout)
 	}
 	for {
+		line, err := readLine(lines, maxMessageBytes)
+		if errors.Is(err, errMessageTooLarge) {
+			return "", err
+		}
 		var msg childMessage
-		if err := dec.Decode(&msg); err != nil {
+		if err != nil || json.Unmarshal(line, &msg) != nil {
 			return "", childFailure(ctx, cmd, stderr, timeout)
 		}
 		if msg.Call == nil {
@@ -97,6 +109,20 @@ func run(ctx context.Context, code string, methods []string, call CallFunc, time
 		}
 		if err := enc.Encode(serve(ctx, methods, call, msg.Call)); err != nil {
 			return "", childFailure(ctx, cmd, stderr, timeout)
+		}
+	}
+}
+
+func readLine(r *bufio.Reader, limit int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if len(line)+len(chunk) > limit {
+			return nil, errMessageTooLarge
+		}
+		line = append(line, chunk...)
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			return line, err
 		}
 	}
 }

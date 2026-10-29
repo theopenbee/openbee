@@ -51,6 +51,9 @@ func serveChild(in io.Reader, out io.Writer) error {
 	if err := dec.Decode(&req); err != nil {
 		return fmt.Errorf("read script: %w", err)
 	}
+	if req.Version != protocolVersion {
+		return enc.Encode(childMessage{Done: true, Error: "the script runner is a different openbee version; restart openbee"})
+	}
 	if req.MemoryLimit > 0 {
 		memoryLimit = req.MemoryLimit
 	}
@@ -71,7 +74,7 @@ func serveChild(in io.Reader, out io.Writer) error {
 	output, err := execute(req.Code, req.Methods, req.Timeout, call)
 	msg := childMessage{Done: true, Output: output}
 	if err != nil {
-		msg.Error = err.Error()
+		msg.Error = truncate(err.Error())
 	}
 	return enc.Encode(msg)
 }
@@ -283,9 +286,12 @@ func (r *scriptRun) output(result string) string {
 		b.WriteString("console:\n")
 		b.WriteString(strings.Join(r.logs, "\n"))
 	}
-	out := b.String()
-	if len(out) > maxOutput {
-		out = strings.ToValidUTF8(out[:maxOutput], "") + "\n[output truncated: return less data]"
+	return truncate(b.String())
+}
+
+func truncate(s string) string {
+	if len(s) <= maxOutput {
+		return s
 	}
-	return out
+	return strings.ToValidUTF8(s[:maxOutput], "") + "\n[output truncated: return less data]"
 }

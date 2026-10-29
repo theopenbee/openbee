@@ -50,14 +50,18 @@ func bypassProxyForMCP(env []string, mcpURL string) []string {
 	if mcpURL == "" || err != nil || u.Hostname() == "" {
 		return env
 	}
+	keys := []string{"NO_PROXY", "no_proxy"}
+	if runtime.GOOS == "windows" {
+		keys = keys[:1]
+	}
 	var hosts []string
-	for _, entry := range env {
-		key, value, ok := strings.Cut(entry, "=")
-		if !ok || !strings.EqualFold(key, "no_proxy") {
-			continue
-		}
-		for _, h := range strings.Split(value, ",") {
-			if h = strings.TrimSpace(h); h != "" && !slices.Contains(hosts, h) {
+	for _, key := range keys {
+		for _, h := range strings.Split(effectiveEnv(env, key), ",") {
+			h = strings.TrimSpace(h)
+			if h == "*" {
+				return env
+			}
+			if h != "" && !slices.Contains(hosts, h) {
 				hosts = append(hosts, h)
 			}
 		}
@@ -66,14 +70,20 @@ func bypassProxyForMCP(env []string, mcpURL string) []string {
 		hosts = append(hosts, u.Hostname())
 	}
 	merged := strings.Join(hosts, ",")
-	keys := []string{"NO_PROXY", "no_proxy"}
-	if runtime.GOOS == "windows" {
-		keys = keys[:1]
-	}
 	for _, key := range keys {
 		env = append(env, key+"="+merged)
 	}
 	return env
+}
+
+func effectiveEnv(env []string, key string) string {
+	for i := len(env) - 1; i >= 0; i-- {
+		k, v, ok := strings.Cut(env[i], "=")
+		if ok && (k == key || runtime.GOOS == "windows" && strings.EqualFold(k, key)) {
+			return v
+		}
+	}
+	return ""
 }
 
 // AppendExtraEnv appends non-empty entries from extraEnv to base and returns
