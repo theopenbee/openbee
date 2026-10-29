@@ -40,7 +40,21 @@ jobs:
       - name: Test
         env:
           CGO_ENABLED: "0"
-        run: go test ./...
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee "$RUNNER_TEMP/desktop-test.log"
+
+      - name: Report failed tests
+        if: failure()
+        run: |
+          grep -E -- '--- FAIL|^FAIL|panic:|_test\.go:[0-9]+' "$RUNNER_TEMP/desktop-test.log" | head -60 | sed 's/^/::error::/' || true
+
+      - name: Upload test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-test-log
+          path: ${{ runner.temp }}/desktop-test.log
 
       - name: Cross-compile
         run: |
