@@ -67,7 +67,9 @@ func (a *Screens) layout(c *ui.Context, tk theme.Tokens, title, description stri
 			})
 		})
 		bar := c.TitleBar()
-		ui.Row(c).Absolute().Top(0).Left(0).Size(w, max(bar.Height, dragBand)).DragWindow()
+		if bar.Height > 0 {
+			ui.Row(c).Absolute().Top(0).Left(0).Size(w, max(bar.Height, dragBand)).DragWindow()
+		}
 		ui.Row(c).Absolute().Top(toolbarInset).Right(toolbarInset + bar.Right).Children(func() {
 			a.languageMenu(c, tk)
 		})

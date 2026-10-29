@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	width  = 1280
-	height = 800
+	width          = 1280
+	height         = 800
+	shortHeight    = 110
+	dragBandHeight = 32
 )
 
 func uninitialized(st *fakeapi.State) { st.Initialized = false }
@@ -311,5 +313,32 @@ func TestLanguageMenuSwitchesToChinese(t *testing.T) {
 	}
 	if got := h.Fix.Locales[len(h.Fix.Locales)-1]; got != "zh" {
 		t.Fatalf("last SetLocale = %q, want zh", got)
+	}
+}
+
+func TestDragBandOnlyWithHiddenTitleBar(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		bar         ui.TitleBar
+		wantClicked bool
+	}{
+		{"native title bar", ui.TitleBar{}, true},
+		{"hidden title bar", ui.TitleBar{Height: 28, Left: 72}, false},
+	} {
+		h := newHarness(t, nil)
+		fill(t, h, locales.ConnectServerLabel(), "http://")
+		h.T.SetSize(width, shortHeight)
+		h.T.SetTitleBar(tc.bar)
+		h.T.Scroll(width/2, shortHeight/2, 0, shortHeight*10)
+		h.Settle()
+		button, ok := h.T.Find(locales.ConnectSubmit())
+		if !ok || button.Y+button.H/2 >= dragBandHeight {
+			t.Fatalf("%s: submit button at %+v (found %v), want it under the top %d px", tc.name, button, ok, dragBandHeight)
+		}
+		h.T.ClickAt(button.X+button.W/2, button.Y+button.H/2)
+		h.Settle()
+		if got := h.T.HasText(locales.ConnectErrorInvalid()); got != tc.wantClicked {
+			t.Errorf("%s: clicking the button under the top edge submitted = %v, want %v", tc.name, got, tc.wantClicked)
+		}
 	}
 }

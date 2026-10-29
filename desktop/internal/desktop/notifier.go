@@ -77,14 +77,22 @@ func (n *Notifier) Foreground() bool {
 }
 
 func (n *Notifier) Click(id string) {
-	cid, _, found := strings.Cut(id, "/")
-	if !found || cid == "" {
+	cid, ok := conversationFromNotification(id)
+	if !ok {
 		closeNotification(id)
 		n.open("")
 		return
 	}
 	n.track(cid, id)
 	n.open(cid)
+}
+
+func conversationFromNotification(id string) (string, bool) {
+	cid, _, found := strings.Cut(id, "/")
+	if !found || cid == "" {
+		return "", false
+	}
+	return cid, true
 }
 
 func (n *Notifier) track(cid, id string) {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,6 +40,8 @@ type App struct {
 	st       *store.Store
 	root     *views.Root
 	win      atomic.Pointer[mygo.Window]
+	postMu   sync.Mutex
+	queued   []func()
 	pending  string
 }
 
@@ -103,7 +106,25 @@ func (a *App) window() *mygo.Window {
 }
 
 func (a *App) post(fn func()) {
-	a.win.Load().Update(fn)
+	a.postMu.Lock()
+	w := a.win.Load()
+	if w == nil {
+		a.queued = append(a.queued, fn)
+		a.postMu.Unlock()
+		return
+	}
+	a.postMu.Unlock()
+	w.Update(fn)
+}
+
+func (a *App) attach(w *mygo.Window) {
+	a.postMu.Lock()
+	defer a.postMu.Unlock()
+	a.win.Store(w)
+	for _, fn := range a.queued {
+		w.Update(fn)
+	}
+	a.queued = nil
 }
 
 func (a *App) openWindow() *mygo.Window {
@@ -114,14 +135,14 @@ func (a *App) openWindow() *mygo.Window {
 		MinWidth:        minWidth,
 		MinHeight:       minHeight,
 		StateKey:        windowState,
-		TitleBarStyle:   mygo.TitleBarHidden,
+		TitleBarStyle:   titleBarStyle(runtime.GOOS),
 		BackgroundColor: background(a.theme),
 		Content:         ui.View(a.view),
 	})
 	w.OnFocus(a.syncForeground)
 	w.OnBlur(a.syncForeground)
 	w.OnClosed(a.syncForeground)
-	a.win.Store(w)
+	a.attach(w)
 	a.syncForeground()
 	return w
 }
@@ -203,6 +224,13 @@ func (a *App) flush() {
 	if a.st != nil && !a.st.Flush(flushTimeout) {
 		log.Printf("desktop: preferences and tokens not saved before quit")
 	}
+}
+
+func titleBarStyle(goos string) mygo.TitleBarStyle {
+	if goos == darwin {
+		return mygo.TitleBarHidden
+	}
+	return mygo.TitleBarDefault
 }
 
 func themeSource(pref string) mygo.ThemeSource {
