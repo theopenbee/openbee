@@ -122,6 +122,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -159,7 +161,7 @@ jobs:
 
       - name: Build
         env:
-          MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: go tool mygo build -platform "${{ matrix.platform }}"
 
       - name: Collect macOS packages
@@ -175,7 +177,7 @@ jobs:
           mkdir -p "$ASSETS"
           for arch in amd64 arm64; do
             cp "build/windows-$arch/OpenBee.exe" "$ASSETS/openbee-desktop-$VERSION-windows-$arch.exe"
-            cp "build/windows-$arch/"openbee-setup-*.exe "$ASSETS/openbee-desktop-$VERSION-windows-$arch-setup.exe"
+            cp "build/windows-$arch/"openbee-desktop-setup-*.exe "$ASSETS/openbee-desktop-$VERSION-windows-$arch-setup.exe"
           done
 
       - name: Collect Linux packages

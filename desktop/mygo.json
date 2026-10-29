@@ -1,1 +1,1 @@
-{"name":"OpenBee","slug":"openbee","identifier":"com.theopenbee.desktop","version":"0.0.0","out":"build","copyright":"© 2026 OpenBee","i18n":{"dir":"locales","source":"en"},"linux":{"webview":false,"depends":["libsecret-1-0"],"comment":"OpenBee desktop client"}}
+{"name":"OpenBee","slug":"openbee-desktop","identifier":"com.theopenbee.desktop","version":"0.0.0","out":"build","copyright":"© 2026 OpenBee","i18n":{"dir":"locales","source":"en"},"linux":{"webview":false,"depends":["libsecret-1-0"],"comment":"OpenBee desktop client"}}

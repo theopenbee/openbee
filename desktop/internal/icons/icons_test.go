@@ -3,6 +3,7 @@ package icons
 import (
 	"bytes"
 	"io/fs"
+	"os"
 	"strings"
 	"testing"
 
@@ -91,5 +92,19 @@ func TestEngineMarks(t *testing.T) {
 	}
 	if Engine("unknown") != nil {
 		t.Error("Engine(\"unknown\") is not nil")
+	}
+}
+
+func TestLucideLicenseShips(t *testing.T) {
+	source, err := os.ReadFile("lucide/LICENSE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shipped, err := os.ReadFile("../../resources/licenses/lucide-LICENSE.txt")
+	if err != nil {
+		t.Fatalf("the app resources do not carry the Lucide license: %v", err)
+	}
+	if !bytes.Equal(shipped, source) {
+		t.Fatal("resources/licenses/lucide-LICENSE.txt differs from the Lucide license of the icons")
 	}
 }
