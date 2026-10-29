@@ -88,9 +88,15 @@ func mount(t testing.TB, st *store.Store, fake *fakeapi.Server, fix *storetest.F
 	fix.OnLocale = hs.setLanguage
 	hs.Root = views.NewRoot(st)
 	st.Start()
-	hs.T = ui.NewTester(hs.Root.View, w, h)
+	hs.T = NewTester(hs.Root.View, w, h)
 	hs.Settle()
 	return hs
+}
+
+func NewTester(view func(c *ui.Context), w, h int) *ui.Tester {
+	tt := ui.NewTester(view, w, h)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	return tt
 }
 
 func SignedIn(t testing.TB, w, h int, seed func(st *fakeapi.State)) *Harness {

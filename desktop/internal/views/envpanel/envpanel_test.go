@@ -63,7 +63,7 @@ func newHost(t *testing.T, w int, scope, scopeID string, inset bool, seed func(s
 	hs := testkit.SignedIn(t, w, hostH, seed)
 	h := &host{Harness: hs, t: t}
 	h.panel = envpanel.New(hs.Store, scope, scopeID, "Worker Variables", "Passed to this worker.", inset)
-	hs.T = ui.NewTester(h.build, w, hostH)
+	hs.T = testkit.NewTester(h.build, w, hostH)
 	h.settle()
 	return h
 }

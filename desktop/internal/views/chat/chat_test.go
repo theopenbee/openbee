@@ -56,7 +56,7 @@ func openFixture(t *testing.T, w, h int, param string, seed func(st *fakeapi.Sta
 	f := &fixture{Harness: hs, t: t, router: ui.NewRouter(route.Chat(param))}
 	f.router.Transition = ui.TransitionNone
 	f.view = chat.New(hs.Store, f.router, func(cid string) { f.toggled = append(f.toggled, cid) })
-	hs.T = ui.NewTester(f.build, w, h)
+	hs.T = testkit.NewTester(f.build, w, h)
 	f.Settle()
 	return f
 }

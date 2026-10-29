@@ -88,7 +88,7 @@ func newFixture(t *testing.T, w int, path string, seed func(st *fakeapi.State)) 
 	f.router.Transition = ui.TransitionNone
 	f.panel = worker.New(hs.Store, f.router)
 	sh := shell.New(hs.Store, f.router, noPane{}, f.panel, noAccount{}, func(string) {})
-	hs.T = ui.NewTester(func(c *ui.Context) {
+	hs.T = testkit.NewTester(func(c *ui.Context) {
 		tk := theme.Apply(c)
 		ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
 			f.router.View(c, func(rt *ui.Route) {

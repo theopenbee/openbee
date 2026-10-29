@@ -23,10 +23,16 @@ func TestMain(m *testing.M) {
 }
 
 func newTester(w, h int, build func(c *ui.Context, tk theme.Tokens)) *ui.Tester {
-	return ui.NewTester(func(c *ui.Context) {
+	return calmTester(func(c *ui.Context) {
 		tk := theme.Apply(c)
 		ui.Column(c).Fill().Padding(24).Gap(12).AlignItems(ui.Start).Children(func() { build(c, tk) })
 	}, w, h)
+}
+
+func calmTester(view func(c *ui.Context), w, h int) *ui.Tester {
+	tt := ui.NewTester(view, w, h)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	return tt
 }
 
 func settle(tt *ui.Tester) {
@@ -346,7 +352,7 @@ func (g *gallery) feedback(c *ui.Context, tk theme.Tokens) {
 
 func TestKitGallery(t *testing.T) {
 	g := &gallery{name: "Ada Lovelace", password: "hunter2", invalid: "openbee"}
-	tt := ui.NewTester(g.view, 1280, 1040)
+	tt := calmTester(g.view, 1280, 1040)
 	tt.SetScale(2)
 	for _, text := range []string{"Primary", "Display name", "Turn on notifications", "Running", "Installed plugins", "No plugins yet", "Thinking about your request"} {
 		if !tt.HasText(text) {
@@ -355,7 +361,7 @@ func TestKitGallery(t *testing.T) {
 	}
 	shoot(t, tt, "kit-gallery", nil)
 	for _, s := range overlayShots() {
-		tt := ui.NewTester(s.view, s.w, s.h)
+		tt := calmTester(s.view, s.w, s.h)
 		tt.SetScale(2)
 		for _, text := range s.texts {
 			if !tt.HasText(text) {

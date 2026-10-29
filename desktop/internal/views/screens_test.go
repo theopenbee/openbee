@@ -617,7 +617,7 @@ func envCrew(st *fakeapi.State) {
 func envScreen(h *testkit.Harness) {
 	global := envpanel.New(h.Store, "global", "", locales.EnvConfigGlobalTitle(), locales.EnvConfigGlobalDescription(), false)
 	bee := envpanel.New(h.Store, "bee", "default", locales.EnvConfigBeeTitle(), locales.EnvConfigBeeDescription(), false)
-	h.T = ui.NewTester(func(c *ui.Context) {
+	h.T = testkit.NewTester(func(c *ui.Context) {
 		tk := theme.Apply(c)
 		ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
 			ui.Scroll(c).Grow(1).Children(func() {

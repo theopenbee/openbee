@@ -63,7 +63,7 @@ func newFixture(t *testing.T, w, h int, path string, seed func(st *fakeapi.State
 	f.shell = shell.New(hs.Store, f.router, f.chat, f.panel, noAccount{}, func(section string) {
 		f.settings = append(f.settings, section)
 	})
-	hs.T = ui.NewTester(f.view, w, h)
+	hs.T = testkit.NewTester(f.view, w, h)
 	hs.Settle()
 	return f
 }
