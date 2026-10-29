@@ -104,6 +104,26 @@ openbee plugin list                # 查看所有插件及其运行状态
 
 另有 `openbee plugin install <id>`、`enable`、`disable`、`restart`、`update`、`remove`；`configure --set key=value` 可以不经问答直接配置。插件运行在 Bun 或 Node.js 上；两者都没有时，OpenBee 会把 Bun 下载到 `~/.openbee/runtime`。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
 
+## 🖥️ 桌面版
+
+基于 [MyGo](https://github.com/egoist/mygo) 构建的原生桌面客户端，支持 macOS、Windows 和 Linux，连接你已经运行的 OpenBee 服务。
+
+1. 前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-universal.dmg`（或 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
+2. 打开应用，输入 OpenBee 服务地址（默认 `http://localhost:8080`）。
+3. 使用 OpenBee 账号登录。
+
+发布包暂未做代码签名，首次打开需要手动放行：
+
+- **macOS：** 右键点击应用并选择“打开”（macOS 15 及以上请在“系统设置 > 隐私与安全性”中点击“仍要打开”），或运行 `xattr -dr com.apple.quarantine /Applications/OpenBee.app`。
+- **Windows：** SmartScreen 提示“Windows 已保护你的电脑”时，点击“更多信息”，再点击“仍要运行”。
+
+从源码构建（会自动下载 Go 1.27）：
+
+```bash
+make desktop       # 当前平台，产物在 desktop/build/
+make desktop-all   # macOS、Windows 和 Linux
+```
+
 ## 🌟 Star History
 
 <div align="center">

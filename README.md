@@ -104,6 +104,26 @@ openbee plugin list                # see every plugin and whether it is running
 
 `openbee plugin install <id>`, `enable`, `disable`, `restart`, `update` and `remove` cover the rest; `configure --set key=value` works without prompts. Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
 
+## 🖥️ Desktop app
+
+A native desktop client for macOS, Windows and Linux, built with [MyGo](https://github.com/egoist/mygo). It connects to an OpenBee server you already run.
+
+1. Download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-universal.dmg` (or `.zip`) for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
+2. Open it and enter your OpenBee server address (default `http://localhost:8080`).
+3. Sign in with your OpenBee account.
+
+Release builds are not code signed yet, so the first launch needs a manual approval:
+
+- **macOS:** right-click the app and choose Open (on macOS 15 and later, use Open Anyway in System Settings > Privacy & Security), or run `xattr -dr com.apple.quarantine /Applications/OpenBee.app`.
+- **Windows:** when SmartScreen shows "Windows protected your PC", click More info, then Run anyway.
+
+To build it from source (Go 1.27 is downloaded automatically):
+
+```bash
+make desktop       # current platform, output in desktop/build/
+make desktop-all   # macOS, Windows and Linux
+```
+
 ## 🌟 Star History
 
 <div align="center">
