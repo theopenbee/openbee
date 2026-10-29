@@ -76,11 +76,18 @@ npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set ver
 npm-publish: npm-prepare  ## Publish all npm packages to registry
 	bash npm/scripts/publish.sh
 
+DESKTOP_BUILD = cd desktop && \
+	backup=$$(mktemp) && \
+	cp mygo.json "$$backup" && \
+	trap 'cat "$$backup" > mygo.json; rm -f "$$backup"' EXIT && \
+	./scripts/set-version.sh "$(VERSION)" > /dev/null && \
+	go tool mygo build
+
 desktop: ## Build the desktop app for the current platform
-	cd desktop && go tool mygo build
+	$(DESKTOP_BUILD)
 
 desktop-test: ## Vet, test and cross-compile the desktop app
 	cd desktop && go vet ./... && go tool mygo vet . && CGO_ENABLED=0 go test ./... && GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./...
 
 desktop-all: ## Build the desktop app for all platforms
-	cd desktop && go tool mygo build -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64
+	$(DESKTOP_BUILD) -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64
