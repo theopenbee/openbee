@@ -1760,6 +1760,16 @@ func (msgs Messages) ChatPanelTitle() string {
 	return Catalog.Format(msgs.locale, "chatPanelTitle", nil)
 }
 
+// ChatReconnectFailed says "Still can't reach the server. Retrying automatically."
+// in the language the app shows.
+func ChatReconnectFailed() string { return In(i18n.Locale()).ChatReconnectFailed() }
+
+// ChatReconnectFailed says "Still can't reach the server. Retrying automatically."
+// in the language of msgs.
+func (msgs Messages) ChatReconnectFailed() string {
+	return Catalog.Format(msgs.locale, "chatReconnectFailed", nil)
+}
+
 // ChatReconnectNow says "Reconnect now"
 // in the language the app shows.
 func ChatReconnectNow() string { return In(i18n.Locale()).ChatReconnectNow() }
@@ -1768,6 +1778,16 @@ func ChatReconnectNow() string { return In(i18n.Locale()).ChatReconnectNow() }
 // in the language of msgs.
 func (msgs Messages) ChatReconnectNow() string {
 	return Catalog.Format(msgs.locale, "chatReconnectNow", nil)
+}
+
+// ChatReconnecting says "Reconnecting…"
+// in the language the app shows.
+func ChatReconnecting() string { return In(i18n.Locale()).ChatReconnecting() }
+
+// ChatReconnecting says "Reconnecting…"
+// in the language of msgs.
+func (msgs Messages) ChatReconnecting() string {
+	return Catalog.Format(msgs.locale, "chatReconnecting", nil)
 }
 
 // ChatRemoveNamedAttachment says "Remove {name}"

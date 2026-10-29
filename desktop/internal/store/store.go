@@ -57,16 +57,18 @@ const (
 )
 
 type Store struct {
-	Phase         Phase
-	Prefs         prefs.Prefs
-	Server        string
-	Config        *Resource[api.Config]
-	Workers       *Resource[[]api.Worker]
-	Conversations *Resource[[]api.ConversationSummary]
-	SystemConfigs *Resource[map[string]string]
-	Online        bool
-	Offline       bool
-	Toasts        []kit.Toast
+	Phase           Phase
+	Prefs           prefs.Prefs
+	Server          string
+	Config          *Resource[api.Config]
+	Workers         *Resource[[]api.Worker]
+	Conversations   *Resource[[]api.ConversationSummary]
+	SystemConfigs   *Resource[map[string]string]
+	Online          bool
+	Offline         bool
+	Reconnecting    bool
+	ReconnectFailed bool
+	Toasts          []kit.Toast
 
 	o      Options
 	sess   *session
@@ -84,6 +86,8 @@ type Store struct {
 	wake       chan struct{}
 	restart    chan struct{}
 	stopGrace  context.CancelFunc
+	stopHold   context.CancelFunc
+	retrying   bool
 	unread     int
 	onMessage  hooks[func(cid string, m api.ChatMessage)]
 	onResync   hooks[func()]

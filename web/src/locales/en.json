@@ -149,6 +149,8 @@
     "connectionLost": "Lost connection to the OpenBee server",
     "connectionLostDescription": "Reconnecting automatically. New messages won't arrive until then.",
     "reconnectNow": "Reconnect now",
+    "reconnecting": "Reconnecting…",
+    "reconnectFailed": "Still can't reach the server. Retrying automatically.",
     "panelTitle": "Profile",
     "panelClose": "Close panel",
     "messagePlaceholder": "Message {{name}}",

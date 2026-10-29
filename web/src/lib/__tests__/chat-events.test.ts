@@ -12,6 +12,8 @@ import {
   previewOf,
   reconnectDelay,
   resyncCaches,
+  retryFeedback,
+  RETRY_FEEDBACK_MS,
   workerCacheUpdater,
   workerIdsOf,
   type ChatEvent,
@@ -581,5 +583,69 @@ describe("resyncCaches", () => {
       expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)
     }
     expect(queryClient.getQueryState(["envs", "global", null])?.isInvalidated).toBe(false)
+  })
+})
+
+describe("retryFeedback", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const track = () => {
+    const states: string[] = []
+    return { states, feedback: retryFeedback((state) => states.push(state)) }
+  }
+
+  it("holds a fast failure for the feedback window, then reports it", () => {
+    const { states, feedback } = track()
+    feedback.start()
+    feedback.failed()
+    expect(states).toEqual(["retrying"])
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS - 1)
+    expect(states).toEqual(["retrying"])
+    vi.advanceTimersByTime(1)
+    expect(states).toEqual(["retrying", "failed"])
+  })
+
+  it("waits for a slow attempt past the feedback window", () => {
+    const { states, feedback } = track()
+    feedback.start()
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS * 5)
+    expect(states).toEqual(["retrying"])
+    feedback.failed()
+    expect(states).toEqual(["retrying", "failed"])
+  })
+
+  it("ignores drops that come without a manual retry", () => {
+    const { states, feedback } = track()
+    feedback.failed()
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS)
+    expect(states).toEqual([])
+  })
+
+  it("keeps waiting when retried again within the window", () => {
+    const { states, feedback } = track()
+    feedback.start()
+    feedback.failed()
+    feedback.start()
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS)
+    expect(states).toEqual(["retrying"])
+    feedback.failed()
+    expect(states).toEqual(["retrying", "failed"])
+  })
+
+  it("clears on connect and retries again from failed", () => {
+    const { states, feedback } = track()
+    feedback.start()
+    feedback.failed()
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS)
+    feedback.start()
+    feedback.reset()
+    vi.advanceTimersByTime(RETRY_FEEDBACK_MS)
+    expect(states).toEqual(["retrying", "failed", "retrying", "idle"])
   })
 })

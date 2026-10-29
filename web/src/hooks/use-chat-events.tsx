@@ -10,7 +10,14 @@ import {
 } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { ensureFreshToken, tokenParam } from "@/lib/auth"
-import { ingestChatEvent, reconnectDelay, resyncCaches, type ChatEvent } from "@/lib/chat-events"
+import {
+  ingestChatEvent,
+  reconnectDelay,
+  resyncCaches,
+  retryFeedback,
+  type ChatEvent,
+  type RetryState,
+} from "@/lib/chat-events"
 import { config } from "@/lib/config"
 import type { ChatMessage, ConversationId } from "@/lib/types"
 
@@ -26,6 +33,7 @@ interface ActiveConversation {
 
 interface Connection {
   online: boolean
+  retry: RetryState
   reconnect: () => void
 }
 
@@ -57,6 +65,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
   const activeRef = useRef<ConversationId | null>(null)
   const [active, setActiveState] = useState<ConversationId | null>(null)
   const [online, setOnline] = useState(true)
+  const [retry, setRetry] = useState<RetryState>("idle")
   const reconnectRef = useRef<() => void>(() => {})
 
   const subscribe = useCallback<Subscribe>((handler) => {
@@ -74,7 +83,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
   const activeValue = useMemo(() => ({ active, setActive }), [active, setActive])
 
   const reconnect = useCallback(() => reconnectRef.current(), [])
-  const connectionValue = useMemo(() => ({ online, reconnect }), [online, reconnect])
+  const connectionValue = useMemo(() => ({ online, retry, reconnect }), [online, retry, reconnect])
 
   useEffect(() => {
     let source: EventSource | undefined
@@ -84,6 +93,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
     let stopped = false
     let attempts = 0
     let lastSeq: number | null = null
+    const feedback = retryFeedback(setRetry)
 
     const resync = () => {
       lastSeq = null
@@ -130,6 +140,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
 
       es.onopen = () => {
         attempts = 0
+        feedback.reset()
         markOnline()
         resync()
       }
@@ -143,6 +154,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
         es.close()
         clearTimeout(reconnectTimer)
         attempts += 1
+        feedback.failed()
         markLost()
         reconnectTimer = setTimeout(open, reconnectDelay(attempts))
       }
@@ -154,7 +166,11 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
       open()
     }
 
-    reconnectRef.current = retryNow
+    reconnectRef.current = () => {
+      if (stopped) return
+      feedback.start()
+      retryNow()
+    }
     window.addEventListener("online", retryNow)
     window.addEventListener("focus", retryNow)
     open()
@@ -166,6 +182,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", retryNow)
       clearTimeout(reconnectTimer)
       clearTimeout(offlineTimer)
+      feedback.reset()
       source?.close()
     }
   }, [queryClient])

@@ -48,6 +48,7 @@ const WORKERS_KEY = ["workers"] as const
 
 const RECONNECT_BASE_DELAY_MS = 2000
 const RECONNECT_MAX_DELAY_MS = 30_000
+export const RETRY_FEEDBACK_MS = 1000
 
 const PREVIEW_MAX_CODE_POINTS = 120
 const MEDIA_MARKERS = ["\u0000[file] ", "[file] "]
@@ -74,6 +75,46 @@ export function detectGap(lastSeq: number | null, seq: number): boolean {
 
 export function reconnectDelay(attempt: number): number {
   return Math.min(RECONNECT_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1), RECONNECT_MAX_DELAY_MS)
+}
+
+export type RetryState = "idle" | "retrying" | "failed"
+
+export function retryFeedback(onChange: (state: RetryState) => void) {
+  let state: RetryState = "idle"
+  let pending = false
+  let hold: ReturnType<typeof setTimeout> | undefined
+
+  const set = (next: RetryState) => {
+    if (next === state) return
+    state = next
+    onChange(next)
+  }
+
+  const settle = () => {
+    if (state === "retrying" && !pending && hold === undefined) set("failed")
+  }
+
+  return {
+    start() {
+      pending = true
+      if (state === "retrying") return
+      set("retrying")
+      hold = setTimeout(() => {
+        hold = undefined
+        settle()
+      }, RETRY_FEEDBACK_MS)
+    },
+    failed() {
+      pending = false
+      settle()
+    },
+    reset() {
+      clearTimeout(hold)
+      hold = undefined
+      pending = false
+      set("idle")
+    },
+  }
 }
 
 export function resyncCaches(queryClient: QueryClient) {

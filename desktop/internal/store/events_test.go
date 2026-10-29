@@ -231,6 +231,49 @@ func TestOfflineAfterGrace(t *testing.T) {
 	}
 }
 
+func TestReconnectNowHoldsFeedback(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	fake.FailNext("GET", streamPath, http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	dropStream(t, fake, fix, st)
+	fix.Clock.Advance(3 * time.Second)
+	fix.Await(t, func() bool { return countCalls(fake, "GET", streamPath) == 2 && fix.Clock.Sleepers() == 2 })
+	fix.Clock.Advance(time.Second)
+	fix.Await(t, func() bool { return st.Offline })
+	if st.Reconnecting || st.ReconnectFailed {
+		t.Fatalf("before a retry Reconnecting=%v ReconnectFailed=%v, want both false", st.Reconnecting, st.ReconnectFailed)
+	}
+
+	fake.FailNext("GET", streamPath, http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	st.ReconnectNow()
+	if !st.Reconnecting {
+		t.Fatal("Reconnecting = false right after ReconnectNow")
+	}
+	fix.Await(t, func() bool { return countCalls(fake, "GET", streamPath) == 3 })
+	fix.Settle(t)
+	if !st.Reconnecting || st.ReconnectFailed {
+		t.Fatalf("after a fast failure Reconnecting=%v ReconnectFailed=%v, want the feedback held for a second", st.Reconnecting, st.ReconnectFailed)
+	}
+
+	fake.FailNext("GET", streamPath, http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	st.ReconnectNow()
+	fix.Await(t, func() bool { return countCalls(fake, "GET", streamPath) == 4 })
+	if !st.Reconnecting || st.ReconnectFailed {
+		t.Fatalf("after a retry within the held second Reconnecting=%v ReconnectFailed=%v, want still held", st.Reconnecting, st.ReconnectFailed)
+	}
+
+	fix.Clock.Advance(time.Second)
+	fix.Await(t, func() bool { return st.ReconnectFailed })
+	if st.Reconnecting {
+		t.Fatal("Reconnecting after the held second")
+	}
+
+	st.ReconnectNow()
+	fix.Await(t, func() bool { return st.Online })
+	if st.Reconnecting || st.ReconnectFailed || st.Offline {
+		t.Fatalf("online with Reconnecting=%v ReconnectFailed=%v Offline=%v, want all false", st.Reconnecting, st.ReconnectFailed, st.Offline)
+	}
+}
+
 func TestForegroundReconnectsClosedStream(t *testing.T) {
 	st, fake, fix := loaded(t, team)
 	dropStream(t, fake, fix, st)

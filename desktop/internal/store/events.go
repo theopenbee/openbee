@@ -20,6 +20,7 @@ const (
 	apiPrefix       = "/api"
 	eventStreamType = "text/event-stream"
 	offlineGrace    = 4 * time.Second
+	retryFeedback   = time.Second
 	reconnectBase   = 2 * time.Second
 	reconnectMax    = 30 * time.Second
 	chatIdle        = 75 * time.Second
@@ -85,7 +86,54 @@ func (s *Store) ReconnectNow() {
 	if s.Online || s.wake == nil {
 		return
 	}
+	if s.Offline {
+		s.retrying = true
+		if !s.Reconnecting {
+			s.Reconnecting = true
+			s.holdReconnecting()
+		}
+	}
 	signal(s.wake)
+}
+
+func (s *Store) holdReconnecting() {
+	sess := s.sess
+	ctx, cancel := context.WithCancel(sess.ctx)
+	s.stopHold = cancel
+	go func() {
+		if s.o.Sleep(ctx, retryFeedback, nil) != nil {
+			return
+		}
+		s.o.Post(func() {
+			if s.sess != sess || ctx.Err() != nil {
+				return
+			}
+			s.endHold()
+			s.settleReconnect()
+		})
+	}()
+}
+
+func (s *Store) endHold() {
+	if s.stopHold != nil {
+		s.stopHold()
+		s.stopHold = nil
+	}
+}
+
+func (s *Store) settleReconnect() {
+	if !s.Reconnecting || s.retrying || s.stopHold != nil {
+		return
+	}
+	s.Reconnecting = false
+	s.ReconnectFailed = true
+}
+
+func (s *Store) clearReconnect() {
+	s.endHold()
+	s.Reconnecting = false
+	s.ReconnectFailed = false
+	s.retrying = false
 }
 
 func (s *Store) Reconnect() {
@@ -204,11 +252,14 @@ func (s *Store) streamOpened() {
 	s.Online = true
 	s.Offline = false
 	s.endGrace()
+	s.clearReconnect()
 	s.resync()
 }
 
 func (s *Store) streamDropped() {
 	s.Online = false
+	s.retrying = false
+	s.settleReconnect()
 	if s.Offline || s.stopGrace != nil {
 		return
 	}
@@ -292,6 +343,7 @@ func (s *Store) resetLive() {
 	s.wake, s.restart = nil, nil
 	s.active = ""
 	s.endGrace()
+	s.clearReconnect()
 	s.setUnread(0)
 }
 

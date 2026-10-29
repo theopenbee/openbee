@@ -25,6 +25,7 @@
 - Split the repo into backend, web, docs and npm.
 - Desktop sidebar: drop logo, put search beside new worker.
 - Desktop: keep sign-in tokens in a file, not keychain.
+- Show reconnect progress and failure in the offline banner.
 
 ### Removed
 - Remove user and role management; keep one admin account.

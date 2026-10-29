@@ -142,6 +142,32 @@ func TestBannerReconnectNow(t *testing.T) {
 	}
 }
 
+func TestBannerReconnectFailure(t *testing.T) {
+	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID))
+	f.goOffline()
+
+	f.Fake.FailNext(http.MethodGet, streamPath, http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	f.click(locales.ChatReconnectNow())
+	f.Fix.Await(t, func() bool { return len(f.Fake.Calls(http.MethodGet, streamPath)) == 3 })
+	f.settleMotion()
+	if !f.Store.Reconnecting {
+		t.Fatal("button not loading right after a fast failure")
+	}
+	f.wantShown(locales.ChatConnectionLostDescription())
+	f.wantHidden(locales.ChatReconnectFailed())
+
+	f.Fix.Clock.Advance(time.Second)
+	f.Fix.Await(t, func() bool { return f.Store.ReconnectFailed })
+	f.settleMotion()
+	f.wantShown(locales.ChatConnectionLost(), locales.ChatReconnectFailed(), locales.ChatReconnectNow())
+	f.wantHidden(locales.ChatConnectionLostDescription())
+
+	f.click(locales.ChatReconnectNow())
+	f.Fix.Await(t, func() bool { return f.Store.Online })
+	f.settleMotion()
+	f.wantHidden(locales.ChatConnectionLost(), locales.ChatReconnectFailed())
+}
+
 func TestActivityWhileBusy(t *testing.T) {
 	f := newFixture(t, wideW, wideH, "w1", both(seedChat(team(), workerCID, message("m1", "worker", "w1", "Draft is ready", time.Now())), activity("idle")))
 	idle := f.T.Texts()

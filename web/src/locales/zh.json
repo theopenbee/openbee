@@ -149,6 +149,8 @@
     "connectionLost": "与 OpenBee 服务的连接已断开",
     "connectionLostDescription": "正在自动重连，恢复前不会收到新消息。",
     "reconnectNow": "立即重连",
+    "reconnecting": "正在重连…",
+    "reconnectFailed": "仍然连不上服务器，会继续自动重试。",
     "panelTitle": "资料",
     "panelClose": "关闭面板",
     "messagePlaceholder": "给 {{name}} 发消息",

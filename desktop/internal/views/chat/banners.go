@@ -44,14 +44,19 @@ func (v *View) connectionBanner(c *ui.Context, tk theme.Tokens) {
 	if !v.s.Offline {
 		return
 	}
+	body := locales.ChatConnectionLostDescription()
+	if v.s.ReconnectFailed {
+		body = locales.ChatReconnectFailed()
+	}
 	ui.Column(c).Key(connectionKey{}).Shrink(0).Transition(bannerMotion).Children(func() {
 		column(c, func() {
 			kit.Alert(c, tk, kit.AlertOpts{
-				Tone:        kit.ToneWarning,
-				Title:       locales.ChatConnectionLost(),
-				Body:        locales.ChatConnectionLostDescription(),
-				ActionLabel: locales.ChatReconnectNow(),
-				OnAction:    v.s.ReconnectNow,
+				Tone:          kit.ToneWarning,
+				Title:         locales.ChatConnectionLost(),
+				Body:          body,
+				ActionLabel:   locales.ChatReconnectNow(),
+				ActionLoading: v.s.Reconnecting,
+				OnAction:      v.s.ReconnectNow,
 			}).Margin(0, 0, bannerGap, 0)
 		})
 	})

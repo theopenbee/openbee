@@ -250,6 +250,23 @@ func offline(t *testing.T, h *testkit.Harness) {
 	h.Settle()
 }
 
+func retrying(t *testing.T, h *testkit.Harness) {
+	offline(t, h)
+	h.Fake.FailNext(http.MethodGet, "/api/local/stream", http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	clickAndSettle(t, h, locales.ChatReconnectNow(), 0)
+	h.Fix.Await(t, func() bool { return len(h.Fake.Calls(http.MethodGet, "/api/local/stream")) == 3 })
+	h.Settle()
+}
+
+func retryFailed(t *testing.T, h *testkit.Harness) {
+	retrying(t, h)
+	h.Fix.Clock.Advance(time.Second)
+	h.Fix.Await(t, func() bool { return h.Store.ReconnectFailed })
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
 func blockedHint(t *testing.T, h *testkit.Harness) {
 	h.Fix.Notifier.ShowErr = store.ErrNotificationsDenied
 	openChat("ada")(t, h)
@@ -358,6 +375,8 @@ var chatScreens = []screen{
 		want: func() string { return locales.ChatEmptyWorker("Grace Hopper") }},
 	{name: "chat-reset-dialog", seed: chatHistory, signedIn: true, prepare: resetConflict, shots: wideOnly, want: locales.ChatStopAndRestart},
 	{name: "chat-offline", seed: chatHistory, signedIn: true, prepare: offline, want: locales.ChatConnectionLost},
+	{name: "chat-offline-retrying", seed: chatHistory, signedIn: true, prepare: retrying, shots: wideOnly, want: locales.ChatConnectionLostDescription},
+	{name: "chat-offline-retry-failed", seed: chatHistory, signedIn: true, prepare: retryFailed, shots: wideOnly, want: locales.ChatReconnectFailed},
 	{name: "chat-hint-prompt", seed: chatHistory, signedIn: true, prepare: openChat("ada"), hint: true, want: locales.NotificationsPromptTitle},
 	{name: "chat-hint-blocked", seed: chatHistory, signedIn: true, prepare: blockedHint, hint: true, shots: wideOnly,
 		want: locales.NotificationsBlockedDesktopTitle},
