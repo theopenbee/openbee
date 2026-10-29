@@ -480,6 +480,27 @@ func TestMarkReadOnIncomingWhenActive(t *testing.T) {
 	}
 }
 
+func TestMarkReadAfterResyncWhenActive(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	ch := ensured(t, st, fix, "worker:w1")
+	readPath := conversationPath("worker:w1", "read")
+	st.SetActive("worker:w1")
+	fix.Settle(t)
+	before := countCalls(fake, "POST", readPath)
+
+	dropStream(t, fake, fix, st)
+	fake.Reply("worker:w1", api.ChatMessage{ID: "m1", Content: "sent while offline"})
+	fix.Clock.Advance(2 * time.Second)
+	fix.Await(t, func() bool { return st.Online && hasMessage(ch, "m1") })
+	fix.Settle(t)
+	if n := countCalls(fake, "POST", readPath) - before; n != 1 {
+		t.Fatalf("read calls after the resync = %d, want 1", n)
+	}
+	if got := summaryOf(t, st, "worker:w1").Unread; got != 0 {
+		t.Fatalf("unread after the resync of the open chat = %d, want 0", got)
+	}
+}
+
 func TestClearConflictReturnsActiveTasks(t *testing.T) {
 	st, fake, fix := loaded(t, withActiveTask(withHistory("worker:w1", 3)))
 	ch := ensured(t, st, fix, "worker:w1")

@@ -214,6 +214,7 @@ func (ch *Chat) receive(cid string, m api.ChatMessage) {
 func (ch *Chat) resync() {
 	if ch.Loaded || ch.Loading || ch.Err != nil {
 		ch.Refresh()
+		ch.MarkRead(0)
 	}
 }
 
