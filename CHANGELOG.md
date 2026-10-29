@@ -23,6 +23,7 @@
 - Shrink conversation list previews to 12px.
 - Fold optional new worker fields under Advanced settings.
 - Split the repo into backend, web, docs and npm.
+- Desktop sidebar: drop logo, put search beside new worker.
 
 ### Removed
 - Remove user and role management; keep one admin account.

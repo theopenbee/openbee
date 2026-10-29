@@ -375,6 +375,30 @@ func TestPlusOpensNewWorkerPanel(t *testing.T) {
 	f.wantPath("/chat/bee")
 }
 
+func TestSearchAndPlusShareRowBelowWindowControls(t *testing.T) {
+	const controlsHeight, controlsLeft = 28, 70
+	f := newFixture(t, wideW, wideH, route.Chat("bee"), seed(team()))
+	f.T.SetTitleBar(ui.TitleBar{Height: controlsHeight, Left: controlsLeft})
+	f.Settle()
+	search, ok := f.T.Find(locales.ChatSearch())
+	if !ok {
+		t.Fatalf("no search field; texts %q", f.T.Texts())
+	}
+	plus, ok := f.T.Find(locales.ChatNewWorker())
+	if !ok {
+		t.Fatalf("no new worker button; texts %q", f.T.Texts())
+	}
+	if search.Y < controlsHeight {
+		t.Fatalf("search field at y=%v, want it below the %v px of window controls", search.Y, controlsHeight)
+	}
+	if got, want := plus.Y+plus.H/2, search.Y+search.H/2; got != want {
+		t.Fatalf("new worker button centered at y=%v, want the search field's %v", got, want)
+	}
+	if plus.X < search.X+search.W {
+		t.Fatalf("new worker button at x=%v, want it right of the search field ending at %v", plus.X, search.X+search.W)
+	}
+}
+
 func TestPanelDrawerBelowInlineBreakpoint(t *testing.T) {
 	f := newFixture(t, drawerW, wideH, route.ChatPanel("w1", route.PanelConstraints), seed(team()))
 	want := paneCall{cid: "worker:w1", panel: route.Panel{Mode: route.ModeWorker, Tab: route.PanelConstraints}}

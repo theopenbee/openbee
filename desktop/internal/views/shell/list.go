@@ -6,7 +6,6 @@ import (
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
-	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
@@ -14,27 +13,23 @@ import (
 )
 
 const (
-	clockInterval  = time.Minute
-	skeletonRows   = 4
-	logoHeight     = 28
-	logoAspect     = 1448.0 / 420.0
-	headerPadStart = 20
-	headerPadEnd   = 12
-	headerGap      = 8
-	listPadX       = 12
-	listPadBottom  = 12
-	rowGap         = 2
-	noteGap        = 12
-	notePadX       = 12
-	notePadY       = 16
-	bodySize       = 14
-	footerPad      = 12
-	footerGap      = 8
-	nameBarWidth   = 96
-	nameBarHeight  = 14
-	textBarWidth   = 160
-	textBarHeight  = 12
-	skeletonGap    = 8
+	clockInterval = time.Minute
+	skeletonRows  = 4
+	headerGap     = 8
+	listPadX      = 12
+	listPadBottom = 12
+	rowGap        = 2
+	noteGap       = 12
+	notePadX      = 12
+	notePadY      = 16
+	bodySize      = 14
+	footerPad     = 12
+	footerGap     = 8
+	nameBarWidth  = 96
+	nameBarHeight = 14
+	textBarWidth  = 160
+	textBarHeight = 12
+	skeletonGap   = 8
 )
 
 type hintKey struct{}
@@ -67,9 +62,6 @@ func (sh *Shell) listView(c *ui.Context, tk theme.Tokens, param, active string) 
 	sh.s.Workers.Ensure()
 	ui.Column(c).Grow(1).MinHeight(0).Background(tk.Background).Children(func() {
 		sh.listHeader(c, tk, param)
-		ui.Box(c).Shrink(0).Padding(0, listPadX, listPadX, listPadX).Children(func() {
-			kit.SearchField(c, tk, &sh.list.query, locales.ChatSearch(), locales.ChatSearch())
-		})
 		sh.listBody(c, tk, param, active)
 		ui.Row(c).Shrink(0).Justify(ui.SpaceBetween).Gap(footerGap).Padding(footerPad).
 			BorderWidth(1, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
@@ -81,11 +73,10 @@ func (sh *Shell) listView(c *ui.Context, tk theme.Tokens, param, active string) 
 }
 
 func (sh *Shell) listHeader(c *ui.Context, tk theme.Tokens, param string) {
-	bar := c.TitleBar()
-	ui.Row(c).Height(theme.HeaderHeight).Shrink(0).Justify(ui.SpaceBetween).Gap(headerGap).
-		PaddingStart(max(headerPadStart, bar.Left)).PaddingEnd(headerPadEnd).DragWindow().Children(func() {
-		ui.Image(c, icons.LogoFull(tk)).Size(logoHeight*logoAspect, logoHeight)
-		kit.IconButton(c, tk, "plus", locales.ChatNewWorker(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM}).
+	top := max(listPadX, c.TitleBar().Height+headerGap)
+	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(headerGap).Padding(top, listPadX, listPadX, listPadX).DragWindow().Children(func() {
+		kit.SearchField(c, tk, &sh.list.query, locales.ChatSearch(), locales.ChatSearch()).Grow(1).MinWidth(0)
+		kit.IconButton(c, tk, "plus", locales.ChatNewWorker(), kit.ButtonOpts{Variant: kit.Ghost}).
 			OnClick(func() { sh.openNewWorker(param) })
 	})
 }
