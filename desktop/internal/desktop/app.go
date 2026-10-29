@@ -61,7 +61,7 @@ func (a *App) Run() error {
 		return fmt.Errorf("cache directory: %w", err)
 	}
 	a.prefs = prefs.NewFileStore(filepath.Join(data, prefsFile))
-	a.tokens = prefs.NewSecretTokenStore(data)
+	a.tokens = prefs.NewFileTokenStore(data)
 	a.cache = cache
 	a.theme = themeSource(a.prefs.Load().Theme)
 	mygo.Theme.SetSource(a.theme)
