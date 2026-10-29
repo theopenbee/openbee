@@ -33,6 +33,7 @@ type Options struct {
 	Now            func() time.Time
 	Sleep          func(ctx context.Context, d time.Duration, wake <-chan struct{}) error
 	CacheDir       string
+	StreamIdle     time.Duration
 	SetLocale      func(lang string)
 	SetThemeSource func(pref string)
 }
@@ -81,6 +82,7 @@ type Store struct {
 	foreground bool
 	lastSeq    *uint64
 	wake       chan struct{}
+	restart    chan struct{}
 	stopGrace  context.CancelFunc
 	unread     int
 	onMessage  hooks[func(cid string, m api.ChatMessage)]
@@ -129,6 +131,7 @@ func New(o Options) *Store {
 	s.initData()
 	s.resets = append(s.resets, s.resetLive)
 	s.chats = map[string]*Chat{}
+	s.resets = append(s.resets, s.resetChats)
 	s.initMedia()
 	s.sess = s.open("", prefs.Tokens{}, 1)
 	return s

@@ -30,9 +30,9 @@ func call(t *testing.T, fix *storetest.Fixture, action func(done func(error))) e
 	return got
 }
 
-func started(t *testing.T, p prefs.Prefs, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Server, *storetest.Fixture) {
+func started(t *testing.T, p prefs.Prefs, seed func(st *fakeapi.State), opts ...func(o *store.Options)) (*store.Store, *fakeapi.Server, *storetest.Fixture) {
 	t.Helper()
-	st, fake, fix := storetest.New(t, seed)
+	st, fake, fix := storetest.New(t, seed, opts...)
 	p.ServerURL = fake.URL
 	if err := fix.Prefs.Save(p); err != nil {
 		t.Fatalf("save prefs: %v", err)
@@ -42,9 +42,9 @@ func started(t *testing.T, p prefs.Prefs, seed func(st *fakeapi.State)) (*store.
 	return st, fake, fix
 }
 
-func signedIn(t *testing.T, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Server, *storetest.Fixture) {
+func signedIn(t *testing.T, seed func(st *fakeapi.State), opts ...func(o *store.Options)) (*store.Store, *fakeapi.Server, *storetest.Fixture) {
 	t.Helper()
-	st, fake, fix := started(t, prefs.Prefs{Language: "en"}, seed)
+	st, fake, fix := started(t, prefs.Prefs{Language: "en"}, seed, opts...)
 	if err := call(t, fix, func(done func(error)) { st.Login("admin", "secret", done) }); err != nil {
 		t.Fatalf("Login: %v", err)
 	}

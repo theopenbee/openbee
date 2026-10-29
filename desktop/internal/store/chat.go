@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"math"
 	"slices"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -27,8 +28,10 @@ type Chat struct {
 	Stopping     bool
 	Clearing     bool
 
-	s   *Store
-	seq uint64
+	s         *Store
+	seq       uint64
+	stale     bool
+	busySince int64
 }
 
 func (s *Store) Chat(cid string) *Chat {
@@ -37,14 +40,17 @@ func (s *Store) Chat(cid string) *Chat {
 	}
 	ch := &Chat{ID: cid, s: s}
 	s.chats[cid] = ch
-	s.resets = append(s.resets, ch.reset)
-	s.OnMessage(ch.receive)
-	s.OnResync(ch.resync)
 	return ch
 }
 
+func (s *Store) resetChats() {
+	for _, ch := range s.chats {
+		ch.reset()
+	}
+}
+
 func (ch *Chat) Ensure() {
-	if ch.Loaded || ch.Loading || ch.Err != nil {
+	if ch.Loading || (ch.Loaded || ch.Err != nil) && !ch.stale {
 		return
 	}
 	ch.Refresh()
@@ -54,6 +60,7 @@ func (ch *Chat) Refresh() {
 	ch.seq++
 	seq := ch.seq
 	ch.Loading = true
+	ch.stale = false
 	cid := ch.ID
 	ch.s.async(func(ctx context.Context, c *api.Client) func() {
 		page, err := c.Messages(ctx, cid, 0, messagesPageSize)
@@ -68,9 +75,20 @@ func (ch *Chat) Refresh() {
 				ch.List = ch.List.Latest(page)
 				ch.Loaded = true
 				ch.Err = nil
+				ch.settleBusy(page.Messages)
 			}
 		}
 	}, nil)
+}
+
+func (ch *Chat) settleBusy(msgs []api.ChatMessage) {
+	if ch.BeeBusy && slices.ContainsFunc(msgs, func(m api.ChatMessage) bool { return isReply(m) && m.TS >= ch.busySince }) {
+		ch.BeeBusy = false
+	}
+}
+
+func isReply(m api.ChatMessage) bool {
+	return m.Sender.Type != senderUser && m.Kind != kindReset
 }
 
 func (ch *Chat) LoadOlder() {
@@ -124,6 +142,7 @@ func (ch *Chat) Send(text string, media []string, done func(error)) {
 	bee := ch.isBee()
 	if bee {
 		ch.BeeBusy = true
+		ch.busySince = math.MaxInt64
 	}
 	cid := ch.ID
 	ch.s.async(func(ctx context.Context, c *api.Client) func() {
@@ -138,6 +157,9 @@ func (ch *Chat) Send(text string, media []string, done func(error)) {
 				return
 			}
 			ch.List = ch.List.Sent(id, sent.TS)
+			if bee {
+				ch.busySince = sent.TS
+			}
 			ch.s.Conversations.Invalidate()
 			done(nil)
 		}
@@ -197,12 +219,9 @@ func (ch *Chat) Stop(done func(error)) {
 	}, canceledBy(done))
 }
 
-func (ch *Chat) receive(cid string, m api.ChatMessage) {
-	if cid != ch.ID {
-		return
-	}
+func (ch *Chat) receive(m api.ChatMessage) {
 	ch.List = ch.List.Add(model.Message{ChatMessage: m, Pending: true})
-	if m.Sender.Type == senderUser || m.Kind == kindReset {
+	if !isReply(m) {
 		return
 	}
 	if ch.isBee() {
@@ -212,9 +231,13 @@ func (ch *Chat) receive(cid string, m api.ChatMessage) {
 }
 
 func (ch *Chat) resync() {
-	if ch.Loaded || ch.Loading || ch.Err != nil {
+	switch {
+	case !ch.Loaded && !ch.Loading && ch.Err == nil:
+	case ch.ID == ch.s.active:
 		ch.Refresh()
 		ch.MarkRead(0)
+	default:
+		ch.stale = true
 	}
 }
 
@@ -224,6 +247,8 @@ func (ch *Chat) isBee() bool {
 
 func (ch *Chat) reset() {
 	ch.seq++
+	ch.stale = false
+	ch.busySince = 0
 	ch.List = model.List{}
 	ch.Loaded = false
 	ch.Loading = false

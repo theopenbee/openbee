@@ -63,6 +63,7 @@ func (r *Root) View(c *ui.Context) {
 		r.settings.Close()
 		r.account.Close()
 	}
+	r.s.PruneToasts()
 	kit.ShowToasts(c, tk, &r.s.Toasts)
 }
 
@@ -74,6 +75,7 @@ func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {
 		r.auth.Setup(c, tk, rt.Page())
 	case rt.Match(route.LoginPath):
 		r.auth.Login(c, tk, rt.Page())
+	case r.s.Phase != store.PhaseReady:
 	case rt.Match(route.ChatPath):
 		r.shell.View(c, "")
 	case rt.Match(route.ChatPath + "/{conversation}"):

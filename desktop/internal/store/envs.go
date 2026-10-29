@@ -6,6 +6,8 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 )
 
+const envScopeWorker = "worker"
+
 type envScope struct{ scope, scopeID string }
 
 func (s *Store) Envs(scope, scopeID string) *Resource[[]api.EnvConfig] {

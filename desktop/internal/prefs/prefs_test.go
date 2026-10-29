@@ -411,3 +411,95 @@ func TestNewSecretTokenStoreDoesNotTouchKeychain(t *testing.T) {
 		t.Fatal("NewSecretTokenStore returned nil")
 	}
 }
+
+func fallbackEntries(t *testing.T, dir string) map[string]tokenRecord {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, "tokens.json"))
+	if err != nil {
+		t.Fatalf("read tokens.json: %v", err)
+	}
+	var entries map[string]tokenRecord
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatalf("tokens.json is not a JSON map: %v (%s)", err, raw)
+	}
+	return entries
+}
+
+func TestSecretStoreClearRemovesFallbackOnceKeychainWorks(t *testing.T) {
+	dir := t.TempDir()
+	backend := newFakeSecrets()
+	backend.err = errors.ErrUnsupported
+	s := newSecretTokenStore(backend, dir)
+	server, other := "https://bee.example.com", "https://other.example.com"
+	if err := s.Save(server, Tokens{Access: "a", Refresh: "r"}); err != nil {
+		t.Fatalf("fallback Save: %v", err)
+	}
+	if err := s.Save(other, Tokens{Access: "oa", Refresh: "or"}); err != nil {
+		t.Fatalf("fallback Save: %v", err)
+	}
+
+	backend.err = nil
+	if err := s.Clear(server); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	entries := fallbackEntries(t, dir)
+	if _, ok := entries[server]; ok {
+		t.Fatalf("tokens.json still holds %s after Clear: %v", server, entries)
+	}
+	if entries[other] != (tokenRecord{Access: "oa", Refresh: "or"}) {
+		t.Fatalf("Clear of %s touched %s: %v", server, other, entries)
+	}
+}
+
+func TestSecretStoreSaveDropsStaleFallback(t *testing.T) {
+	dir := t.TempDir()
+	backend := newFakeSecrets()
+	backend.err = errors.ErrUnsupported
+	s := newSecretTokenStore(backend, dir)
+	server := "https://bee.example.com"
+	if err := s.Save(server, Tokens{Access: "old", Refresh: "old-refresh"}); err != nil {
+		t.Fatalf("fallback Save: %v", err)
+	}
+
+	backend.err = nil
+	want := Tokens{Access: "new", Refresh: "new-refresh"}
+	if err := s.Save(server, want); err != nil {
+		t.Fatalf("keychain Save: %v", err)
+	}
+	if _, ok := fallbackEntries(t, dir)[server]; ok {
+		t.Fatal("tokens.json still holds the server after a keychain save")
+	}
+	if got, err := s.Load(server); err != nil || got != want {
+		t.Fatalf("Load = %+v, %v; want %+v", got, err, want)
+	}
+}
+
+func TestSecretStoreRewritesCorruptFallback(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "tokens.json")
+	if err := os.WriteFile(file, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := newFakeSecrets()
+	backend.err = errors.ErrUnsupported
+	s := newSecretTokenStore(backend, dir)
+	server := "https://bee.example.com"
+
+	want := Tokens{Access: "a", Refresh: "r"}
+	if err := s.Save(server, want); err != nil {
+		t.Fatalf("Save over a corrupt tokens.json: %v", err)
+	}
+	if got, err := s.Load(server); err != nil || got != want {
+		t.Fatalf("Load = %+v, %v; want %+v", got, err, want)
+	}
+
+	if err := os.WriteFile(file, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Clear(server); err != nil {
+		t.Fatalf("Clear over a corrupt tokens.json: %v", err)
+	}
+	if entries := fallbackEntries(t, dir); len(entries) != 0 {
+		t.Fatalf("tokens.json after Clear = %v, want empty", entries)
+	}
+}

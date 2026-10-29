@@ -279,7 +279,7 @@ func (p *PluginsState) refetchPlugins(then func()) {
 			left++
 			r.reload(landed)
 		} else {
-			r.Invalidate()
+			r.markStale()
 		}
 	}
 	p.List.reload(landed)
@@ -293,8 +293,12 @@ func (p *PluginsState) track(op api.PluginOperation) {
 
 func (p *PluginsState) invalidatePlugins() {
 	p.List.Invalidate()
-	for _, r := range p.Details {
-		r.Invalidate()
+	for id, r := range p.Details {
+		if id == p.watched {
+			r.Invalidate()
+		} else {
+			r.markStale()
+		}
 	}
 }
 

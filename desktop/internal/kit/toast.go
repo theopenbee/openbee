@@ -12,10 +12,12 @@ import (
 type Toast struct {
 	Tone               Tone
 	Title, Description string
+	At                 time.Time
 }
 
+const ToastTimeout = 4500 * time.Millisecond
+
 const (
-	toastTimeout      = 4500 * time.Millisecond
 	toastEdge         = 24
 	toastStackGap     = 8
 	toastWidth        = 416
@@ -71,7 +73,7 @@ func (t Tone) toastIcon() string {
 
 func ShowToasts(c *ui.Context, tk theme.Tokens, queue *[]Toast) {
 	for _, t := range *queue {
-		c.AddToast(ui.Toast{Title: t.Title, Description: t.Description, Type: t.Tone.kind(), Timeout: toastTimeout, Data: t.Tone})
+		c.AddToast(ui.Toast{Title: t.Title, Description: t.Description, Type: t.Tone.kind(), Timeout: ToastTimeout, Data: t.Tone})
 	}
 	*queue = nil
 	w, _ := c.Size()

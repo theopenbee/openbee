@@ -106,6 +106,7 @@ func TestWorkersAndConversationsLoad(t *testing.T) {
 
 func TestFocusRefetchWhenStale(t *testing.T) {
 	st, fake, fix := loaded(t, team)
+	st.SetActive("worker:w1")
 	detail := st.WorkerDetail("w1")
 	detail.Ensure()
 	fix.Settle(t)

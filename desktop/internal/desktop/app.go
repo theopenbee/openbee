@@ -77,6 +77,12 @@ func (a *App) Run() error {
 			mygo.App.Quit()
 		}
 	})
+	mygo.Power.OnResume(func() { a.post(a.reconnect) })
+	mygo.Network.OnChanged(func(status mygo.NetworkStatus) {
+		if status.Online {
+			a.post(a.reconnect)
+		}
+	})
 	mygo.App.OnDidBecomeActive(a.syncForeground)
 	mygo.App.OnDidResignActive(a.syncForeground)
 	mygo.App.OnLocaleChanged(func(string) { a.setMenu() })
@@ -207,6 +213,12 @@ func (a *App) syncForeground() {
 	}
 	if fg := a.notifier.Foreground(); fg != a.st.Foreground() {
 		a.st.SetForeground(fg)
+	}
+}
+
+func (a *App) reconnect() {
+	if a.st != nil {
+		a.st.Reconnect()
 	}
 }
 

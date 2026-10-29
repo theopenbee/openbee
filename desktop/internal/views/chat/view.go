@@ -49,7 +49,6 @@ type View struct {
 	openPath    func(path string) error
 	reveal      func(path string) error
 	convs       map[string]*convState
-	foreground  bool
 	save        func(name string, data []byte) (string, error)
 	pick        func() ([]string, error)
 }
@@ -66,7 +65,7 @@ type convState struct {
 }
 
 func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
-	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, foreground: true, save: saveWithDialog,
+	v := &View{s: s, nav: nav, togglePanel: togglePanel, convs: map[string]*convState{}, save: saveWithDialog,
 		openPath: mygo.Shell.OpenPath, reveal: revealInFolder, pick: pickWithDialog}
 	v.resetMedia()
 	s.OnSessionReset(func() {
@@ -140,7 +139,6 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		ch.MarkRead(0)
 		return true
 	})
-	v.followForeground(ch)
 	shown := root.Keyframes("mount", []ui.Keyframe{{At: 0, Value: 0}, {At: mountDuration, Value: 1, Ease: easeEnter}})
 	root.Opacity(shown).Translate(0, mountRise*(1-shown)).Children(func() {
 		p := pane{cid: cid, worker: w, ch: ch, cs: cs}
@@ -187,14 +185,6 @@ func (v *View) resolve(cid string, cs *convState) (*api.Worker, bool) {
 		v.nav.Replace(route.Chat(api.BeeConversation))
 	}
 	return nil, false
-}
-
-func (v *View) followForeground(ch *store.Chat) {
-	fg := v.s.Foreground()
-	if fg && !v.foreground {
-		ch.MarkRead(0)
-	}
-	v.foreground = fg
 }
 
 func (v *View) activity(cid string) api.ConversationActivity {

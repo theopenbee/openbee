@@ -435,3 +435,36 @@ func TestSetActiveClosesNotifications(t *testing.T) {
 		t.Fatalf("closed = %v, want the active conversation closed on foreground", fix.Notifier.Closed)
 	}
 }
+
+func TestSilentStreamReconnects(t *testing.T) {
+	st, fake, fix := signedIn(t, team, func(o *store.Options) { o.StreamIdle = 150 * time.Millisecond })
+	resyncs := 0
+	off := st.OnResync(func() { resyncs++ })
+	defer off()
+
+	fix.Await(t, func() bool { return !st.Online })
+	fix.Clock.AwaitSleepers(t, 2)
+	fix.Await(t, func() bool { return fake.Streams() == 0 })
+	fix.Clock.Advance(2 * time.Second)
+	fix.Await(t, func() bool { return resyncs == 1 })
+	if n := countCalls(fake, "GET", streamPath); n != 2 {
+		t.Fatalf("stream requests = %d, want a reconnect after the silent stream", n)
+	}
+}
+
+func TestReconnectRestartsLiveStream(t *testing.T) {
+	st, fake, fix := loaded(t, team)
+	resyncs := 0
+	off := st.OnResync(func() { resyncs++ })
+	defer off()
+
+	st.Reconnect()
+	fix.Await(t, func() bool { return resyncs == 1 && st.Online })
+	if n := countCalls(fake, "GET", streamPath); n != 2 {
+		t.Fatalf("stream requests = %d, want a new connection", n)
+	}
+	fix.Await(t, func() bool { return fake.Streams() == 1 })
+	if st.Offline {
+		t.Fatal("Offline after a forced reconnect")
+	}
+}

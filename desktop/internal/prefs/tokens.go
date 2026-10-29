@@ -3,6 +3,7 @@ package prefs
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,6 +15,8 @@ const (
 	secretKeyPrefix    = "tokens:"
 	fallbackTokensFile = "tokens.json"
 )
+
+var errCorruptFallback = errors.New("token fallback file is not valid JSON")
 
 type Tokens struct{ Access, Refresh string }
 
@@ -88,10 +91,13 @@ func (s *secretTokenStore) Save(server string, t Tokens) error {
 		return err
 	}
 	err = s.backend.Set(secretKeyPrefix+server, raw)
-	if !errors.Is(err, errors.ErrUnsupported) {
+	switch {
+	case err == nil:
+		return s.removeFallback(server)
+	case !errors.Is(err, errors.ErrUnsupported):
 		return err
 	}
-	entries, err := s.readFallback()
+	entries, err := s.fallbackForWrite()
 	if err != nil {
 		return err
 	}
@@ -103,22 +109,33 @@ func (s *secretTokenStore) Clear(server string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	err := s.backend.Delete(secretKeyPrefix + server)
+	if errors.Is(err, mygo.ErrSecretNotFound) || errors.Is(err, errors.ErrUnsupported) {
+		err = nil
+	}
+	return errors.Join(err, s.removeFallback(server))
+}
+
+func (s *secretTokenStore) removeFallback(server string) error {
+	entries, err := s.readFallback()
 	switch {
-	case err == nil, errors.Is(err, mygo.ErrSecretNotFound):
-		return nil
-	case errors.Is(err, errors.ErrUnsupported):
-		entries, err := s.readFallback()
-		if err != nil {
-			return err
-		}
-		if _, ok := entries[server]; !ok {
-			return nil
-		}
-		delete(entries, server)
-		return s.writeFallback(entries)
-	default:
+	case errors.Is(err, errCorruptFallback):
+		return s.writeFallback(map[string]tokenRecord{})
+	case err != nil:
 		return err
 	}
+	if _, ok := entries[server]; !ok {
+		return nil
+	}
+	delete(entries, server)
+	return s.writeFallback(entries)
+}
+
+func (s *secretTokenStore) fallbackForWrite() (map[string]tokenRecord, error) {
+	entries, err := s.readFallback()
+	if errors.Is(err, errCorruptFallback) {
+		return map[string]tokenRecord{}, nil
+	}
+	return entries, err
 }
 
 func (s *secretTokenStore) readFallback() (map[string]tokenRecord, error) {
@@ -131,7 +148,7 @@ func (s *secretTokenStore) readFallback() (map[string]tokenRecord, error) {
 		return nil, err
 	}
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errCorruptFallback, err)
 	}
 	if entries == nil {
 		entries = map[string]tokenRecord{}

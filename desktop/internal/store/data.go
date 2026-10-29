@@ -78,9 +78,19 @@ func (s *Store) summaries() []api.ConversationSummary {
 
 func (s *Store) invalidateWorkers() {
 	s.Workers.Invalidate()
-	for _, r := range s.details {
-		r.Invalidate()
+	open := s.openWorker()
+	for id, r := range s.details {
+		if id == open {
+			r.Invalidate()
+		} else {
+			r.markStale()
+		}
 	}
+}
+
+func (s *Store) openWorker() string {
+	id, _ := api.ConversationWorkerID(s.active)
+	return id
 }
 
 func (s *Store) patchWorkerStatus(id, status string) {
@@ -89,6 +99,10 @@ func (s *Store) patchWorkerStatus(id, status string) {
 		workers[i].Status = status
 		s.Workers.patch(workers)
 	}
+	s.patchDetailStatus(id, status)
+}
+
+func (s *Store) patchDetailStatus(id, status string) {
 	if r, ok := s.details[id]; ok && r.Loaded && r.Data.Status != status {
 		w := r.Data
 		w.Status = status
@@ -98,8 +112,14 @@ func (s *Store) patchWorkerStatus(id, status string) {
 
 func (s *Store) refetchStale() {
 	refetchIfStale(s.Workers)
-	for _, r := range s.details {
-		refetchIfStale(r)
+	open := s.openWorker()
+	for id, r := range s.details {
+		switch {
+		case id == open:
+			refetchIfStale(r)
+		case r.Stale(staleAfter):
+			r.markStale()
+		}
 	}
 	refetchIfStale(s.Conversations)
 }

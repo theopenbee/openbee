@@ -233,8 +233,13 @@ func TestDeleteWorkerDropsDetailAndRefetches(t *testing.T) {
 	if n := countCalls(fake, http.MethodGet, "/api/workers/w1"); n != deletedDetailCalls {
 		t.Fatalf("deleted worker detail calls = %d, want %d (dropped, not refetched)", n, deletedDetailCalls)
 	}
+	if n := countCalls(fake, http.MethodGet, "/api/workers/w2"); n != keptDetailCalls {
+		t.Fatalf("other worker detail calls = %d, want %d (marked stale, not refetched)", n, keptDetailCalls)
+	}
+	st.WorkerDetail("w2").Ensure()
+	fix.Settle(t)
 	if n := countCalls(fake, http.MethodGet, "/api/workers/w2"); n != keptDetailCalls+1 {
-		t.Fatalf("other worker detail calls = %d, want %d (refetched)", n, keptDetailCalls+1)
+		t.Fatalf("other worker detail calls after Ensure = %d, want %d (refetched)", n, keptDetailCalls+1)
 	}
 	if detail := st.WorkerDetail("w1"); detail.Loaded {
 		t.Fatal("the deleted worker detail is still loaded")

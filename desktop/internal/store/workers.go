@@ -59,6 +59,8 @@ func (s *Store) DeleteWorker(id string, deleteWorkDir bool, done func(error)) {
 		return func() {
 			if err == nil {
 				delete(s.details, id)
+				delete(s.chats, api.WorkerConversation(id))
+				delete(s.envs, envScope{scope: envScopeWorker, scopeID: id})
 				s.invalidateWorkers()
 				s.Conversations.Invalidate()
 			}

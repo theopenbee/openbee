@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-var ErrGaveUp = errors.New("sse: gave up")
+var (
+	ErrGaveUp    = errors.New("sse: gave up")
+	ErrIdle      = errors.New("sse: stream went silent")
+	ErrRestarted = errors.New("sse: stream restarted")
+)
 
 type Backoff struct{ Base, Max time.Duration }
 
@@ -35,7 +39,9 @@ type Options struct {
 	OnDrop      func(err error, attempt int)
 	Backoff     Backoff
 	MaxAttempts int
+	IdleTimeout time.Duration
 	Wake        <-chan struct{}
+	Restart     <-chan struct{}
 	Sleep       func(ctx context.Context, d time.Duration, wake <-chan struct{}) error
 }
 
@@ -60,6 +66,9 @@ func Run(ctx context.Context, o Options) error {
 		if o.MaxAttempts > 0 && attempt >= o.MaxAttempts {
 			return ErrGaveUp
 		}
+		if errors.Is(dropErr, ErrRestarted) {
+			continue
+		}
 		if err := sleep(ctx, o.Backoff.Delay(attempt), o.Wake); err != nil {
 			return err
 		}
@@ -71,28 +80,84 @@ func stream(ctx context.Context, o *Options, attempt *int) error {
 	if err != nil {
 		return err
 	}
-	var once sync.Once
-	closeBody := func() { once.Do(func() { body.Close() }) }
-	stop := context.AfterFunc(ctx, closeBody)
+	e := &ending{body: body}
+	stop := context.AfterFunc(ctx, func() { e.end(ctx.Err()) })
+	done := make(chan struct{})
 	defer func() {
+		close(done)
 		stop()
-		closeBody()
+		e.end(nil)
 	}()
 	*attempt = 0
+	if o.Restart != nil {
+		drain(o.Restart)
+		go func() {
+			select {
+			case <-o.Restart:
+				e.end(ErrRestarted)
+			case <-done:
+			}
+		}()
+	}
+	var r io.Reader = body
+	if o.IdleTimeout > 0 {
+		idle := time.AfterFunc(o.IdleTimeout, func() { e.end(ErrIdle) })
+		defer idle.Stop()
+		r = &watchedReader{r: body, idle: idle, timeout: o.IdleTimeout}
+	}
 	if o.OnOpen != nil {
 		o.OnOpen()
 	}
-	err = Read(body, func(e Event) error {
+	err = Read(r, func(ev Event) error {
 		if o.OnEvent != nil {
-			o.OnEvent(e)
+			o.OnEvent(ev)
 		}
 		return nil
 	})
 	drain(o.Wake)
+	if cause := e.cause(); cause != nil {
+		return cause
+	}
 	if err == nil {
 		return io.EOF
 	}
 	return err
+}
+
+type ending struct {
+	body io.Closer
+	once sync.Once
+	mu   sync.Mutex
+	why  error
+}
+
+func (e *ending) end(why error) {
+	e.once.Do(func() {
+		e.mu.Lock()
+		e.why = why
+		e.mu.Unlock()
+		e.body.Close()
+	})
+}
+
+func (e *ending) cause() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.why
+}
+
+type watchedReader struct {
+	r       io.Reader
+	idle    *time.Timer
+	timeout time.Duration
+}
+
+func (w *watchedReader) Read(p []byte) (int, error) {
+	n, err := w.r.Read(p)
+	if n > 0 {
+		w.idle.Reset(w.timeout)
+	}
+	return n, err
 }
 
 func drain(wake <-chan struct{}) {

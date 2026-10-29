@@ -160,14 +160,14 @@ func (q *queue) take() []func() {
 	return items
 }
 
-func New(t testing.TB, seed func(st *fakeapi.State)) (*store.Store, *fakeapi.Server, *Fixture) {
+func New(t testing.TB, seed func(st *fakeapi.State), opts ...func(o *store.Options)) (*store.Store, *fakeapi.Server, *Fixture) {
 	t.Helper()
 	fake := fakeapi.New(t)
 	if seed != nil {
 		fake.Update(seed)
 	}
 	clock := NewClock(time.Now())
-	fix := build(t, settleTimeout, clock.Now, clock.Sleep)
+	fix := build(t, settleTimeout, clock.Now, clock.Sleep, opts...)
 	fix.Clock = clock
 	return fix.store, fake, fix
 }
@@ -178,7 +178,7 @@ func Live(t testing.TB) (*store.Store, *Fixture) {
 	return fix.store, fix
 }
 
-func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func(context.Context, time.Duration, <-chan struct{}) error) *Fixture {
+func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func(context.Context, time.Duration, <-chan struct{}) error, opts ...func(o *store.Options)) *Fixture {
 	t.Helper()
 	fix := &Fixture{
 		Notifier: &FakeNotifier{},
@@ -187,7 +187,7 @@ func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func
 		queue:    &queue{wake: make(chan struct{}, 1)},
 		timeout:  timeout,
 	}
-	fix.store = store.New(store.Options{
+	o := store.Options{
 		Post:           fix.queue.push,
 		Prefs:          fix.Prefs,
 		Tokens:         fix.Tokens,
@@ -197,7 +197,11 @@ func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func
 		CacheDir:       t.TempDir(),
 		SetLocale:      fix.setLocale,
 		SetThemeSource: func(pref string) { fix.Themes = append(fix.Themes, pref) },
-	})
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	fix.store = store.New(o)
 	return fix
 }
 

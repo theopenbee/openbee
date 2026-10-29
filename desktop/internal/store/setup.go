@@ -16,6 +16,7 @@ const (
 	setupBackoffBase = time.Second
 	setupBackoffMax  = 10 * time.Second
 	setupAttempts    = 6
+	setupIdle        = 45 * time.Second
 	setupEventLine   = "line"
 	setupEventDone   = "done"
 )
@@ -170,6 +171,7 @@ func (p *PluginsState) streamSetup(s *SetupSession) {
 			},
 			Backoff:     sse.Backoff{Base: setupBackoffBase, Max: setupBackoffMax},
 			MaxAttempts: setupAttempts,
+			IdleTimeout: p.s.idleTimeout(setupIdle),
 			Sleep: func(ctx context.Context, d time.Duration, wake <-chan struct{}) error {
 				err := p.s.o.Sleep(ctx, d, wake)
 				if err == nil {

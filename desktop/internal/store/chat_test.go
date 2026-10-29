@@ -405,6 +405,7 @@ func TestBeeBusyUntilReply(t *testing.T) {
 func TestIncomingMessageDeduped(t *testing.T) {
 	st, fake, fix := loaded(t, team)
 	ch := ensured(t, st, fix, "worker:w1")
+	st.SetActive("worker:w1")
 	path := conversationPath("worker:w1", "messages")
 
 	fake.Reply("worker:w1", api.ChatMessage{ID: "m1", Content: "hi"})

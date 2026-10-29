@@ -360,6 +360,7 @@ func TestSaveSettingsRefetches(t *testing.T) {
 	})
 	d := p.Detail("telegram")
 	d.Ensure()
+	p.Watch("telegram")
 	fix.Settle(t)
 	lists, details := countCalls(fake, http.MethodGet, pluginsPath), countCalls(fake, http.MethodGet, pluginsPath+"/telegram")
 	name := "openbee_bot"

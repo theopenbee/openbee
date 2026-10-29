@@ -19,6 +19,7 @@ type Resource[T any] struct {
 	settled func()
 	waiters []func()
 	again   bool
+	stale   bool
 	seq     uint64
 }
 
@@ -29,10 +30,16 @@ func NewResource[T any](s *Store, fetch func(ctx context.Context, c *api.Client)
 }
 
 func (r *Resource[T]) Ensure() {
-	if r.Loaded || r.Loading || r.Err != nil {
+	if r.Loading || (r.Loaded || r.Err != nil) && !r.stale {
 		return
 	}
 	r.load()
+}
+
+func (r *Resource[T]) markStale() {
+	if r.Loaded || r.Loading || r.Err != nil {
+		r.stale = true
+	}
 }
 
 func (r *Resource[T]) Invalidate() {
@@ -52,6 +59,7 @@ func (r *Resource[T]) Set(v T) {
 	r.Err = nil
 	r.FetchedAt = r.s.o.Now()
 	r.again = false
+	r.stale = false
 	r.flushWaiters()
 }
 
@@ -64,6 +72,7 @@ func (r *Resource[T]) Reset() {
 	r.Err = nil
 	r.FetchedAt = time.Time{}
 	r.again = false
+	r.stale = false
 	r.waiters = nil
 }
 
@@ -101,6 +110,7 @@ func (r *Resource[T]) load() {
 	seq := r.seq
 	r.Loading = true
 	r.again = false
+	r.stale = false
 	fetch := r.fetch
 	r.s.async(func(ctx context.Context, c *api.Client) func() {
 		v, err := fetch(ctx, c)

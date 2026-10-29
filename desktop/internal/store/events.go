@@ -22,6 +22,7 @@ const (
 	offlineGrace    = 4 * time.Second
 	reconnectBase   = 2 * time.Second
 	reconnectMax    = 30 * time.Second
+	chatIdle        = 75 * time.Second
 )
 
 var errStreamResponse = errors.New("unexpected event stream response")
@@ -69,6 +70,9 @@ func (s *Store) SetForeground(visible bool) {
 		return
 	}
 	s.closeActive()
+	if ch, ok := s.chats[s.active]; ok && ch.Loaded {
+		ch.MarkRead(0)
+	}
 	s.refetchStale()
 	s.ReconnectNow()
 }
@@ -81,21 +85,40 @@ func (s *Store) ReconnectNow() {
 	if s.Online || s.wake == nil {
 		return
 	}
+	signal(s.wake)
+}
+
+func (s *Store) Reconnect() {
+	if s.wake == nil {
+		return
+	}
+	signal(s.restart)
+	signal(s.wake)
+}
+
+func signal(ch chan struct{}) {
 	select {
-	case s.wake <- struct{}{}:
+	case ch <- struct{}{}:
 	default:
 	}
 }
 
-func (s *Store) startStream() {
-	sess := s.sess
-	wake := make(chan struct{}, 1)
-	s.wake = wake
-	s.busy.Add(1)
-	go s.runStream(sess, wake)
+func (s *Store) idleTimeout(fallback time.Duration) time.Duration {
+	if s.o.StreamIdle > 0 {
+		return s.o.StreamIdle
+	}
+	return fallback
 }
 
-func (s *Store) runStream(sess *session, wake chan struct{}) {
+func (s *Store) startStream() {
+	sess := s.sess
+	wake, restart := make(chan struct{}, 1), make(chan struct{}, 1)
+	s.wake, s.restart = wake, restart
+	s.busy.Add(1)
+	go s.runStream(sess, wake, restart)
+}
+
+func (s *Store) runStream(sess *session, wake, restart chan struct{}) {
 	connecting := true
 	settle := func() {
 		if connecting {
@@ -128,8 +151,10 @@ func (s *Store) runStream(sess *session, wake chan struct{}) {
 			post(s.streamDropped)
 			settle()
 		},
-		Backoff: sse.Backoff{Base: reconnectBase, Max: reconnectMax},
-		Wake:    wake,
+		Backoff:     sse.Backoff{Base: reconnectBase, Max: reconnectMax},
+		IdleTimeout: s.idleTimeout(chatIdle),
+		Wake:        wake,
+		Restart:     restart,
 		Sleep: func(ctx context.Context, d time.Duration, wake <-chan struct{}) error {
 			err := s.o.Sleep(ctx, d, wake)
 			if err == nil {
@@ -215,6 +240,9 @@ func (s *Store) resync() {
 	s.lastSeq = nil
 	s.invalidateWorkers()
 	s.Conversations.Invalidate()
+	for _, ch := range s.chats {
+		ch.resync()
+	}
 	s.onResync.each(func(fn func()) { fn() })
 }
 
@@ -227,10 +255,16 @@ func (s *Store) handleEvent(ev api.ChatEvent) {
 	}
 	seq := ev.Seq
 	s.lastSeq = &seq
+	if ev.Type == "worker_status" {
+		s.patchDetailStatus(ev.WorkerID, ev.Status)
+	}
 	if ev.Type != "message" || ev.Message == nil {
 		return
 	}
 	m := *ev.Message
+	if ch, ok := s.chats[ev.ConversationID]; ok {
+		ch.receive(m)
+	}
 	s.onMessage.each(func(fn func(string, api.ChatMessage)) { fn(ev.ConversationID, m) })
 	s.attend(ev, eff.RefetchWorkers)
 }
@@ -255,7 +289,7 @@ func (s *Store) resetLive() {
 	s.Online = false
 	s.Offline = false
 	s.lastSeq = nil
-	s.wake = nil
+	s.wake, s.restart = nil, nil
 	s.active = ""
 	s.endGrace()
 	s.setUnread(0)

@@ -583,3 +583,141 @@ func TestRunNilCallbacks(t *testing.T) {
 		t.Fatalf("Run = %v", err)
 	}
 }
+
+func TestRunIdleTimeoutDrops(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	body := newBlockingBody()
+	go func() { _, _ = io.WriteString(body.w, ": ok\n\n") }()
+	rec := &recorder{}
+	step := 0
+	err := sse.Run(ctx, sse.Options{
+		Open: func(context.Context) (io.ReadCloser, error) {
+			step++
+			if step == 1 {
+				return body, nil
+			}
+			cancel()
+			return nil, ctx.Err()
+		},
+		OnDrop:      rec.onDrop,
+		Backoff:     chatBackoff,
+		IdleTimeout: 50 * time.Millisecond,
+		Sleep:       rec.sleep,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	if len(rec.errs) != 1 || !errors.Is(rec.errs[0], sse.ErrIdle) {
+		t.Fatalf("drop errors = %v, want one ErrIdle", rec.errs)
+	}
+	if body.closeCount() == 0 {
+		t.Fatal("the silent stream was not closed")
+	}
+	if len(rec.sleeps) != 1 || rec.sleeps[0].d != chatBackoff.Base {
+		t.Fatalf("sleeps = %+v, want the usual backoff after an idle drop", rec.sleeps)
+	}
+}
+
+func TestRunIdleTimerResetsOnRead(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	const idle, beat, beats = 120 * time.Millisecond, 20 * time.Millisecond, 15
+	body := newBlockingBody()
+	go func() {
+		for range beats {
+			if _, err := io.WriteString(body.w, ": ping\n\n"); err != nil {
+				return
+			}
+			time.Sleep(beat)
+		}
+		_, _ = io.WriteString(body.w, "data: done\n\n")
+	}()
+	rec := &recorder{}
+	err := sse.Run(ctx, sse.Options{
+		Open: func(context.Context) (io.ReadCloser, error) { return body, nil },
+		OnEvent: func(e sse.Event) {
+			rec.onEvent(e)
+			cancel()
+		},
+		OnDrop:      rec.onDrop,
+		Backoff:     chatBackoff,
+		IdleTimeout: idle,
+		Sleep:       rec.sleep,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	if len(rec.drops) != 0 {
+		t.Fatalf("drops = %v (%v) while pings kept coming every %v, want none", rec.drops, rec.errs, beat)
+	}
+	if !reflect.DeepEqual(rec.events, []string{"done"}) {
+		t.Fatalf("events = %q, want the event after %v of pings", rec.events, beats*beat)
+	}
+}
+
+func TestRunRestartReconnectsAtOnce(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	restart := make(chan struct{}, 1)
+	first := newBlockingBody()
+	rec := &recorder{}
+	opens := 0
+	err := sse.Run(ctx, sse.Options{
+		Open: func(context.Context) (io.ReadCloser, error) {
+			opens++
+			if opens == 1 {
+				return first, nil
+			}
+			cancel()
+			return nil, ctx.Err()
+		},
+		OnOpen:  func() { restart <- struct{}{} },
+		OnDrop:  rec.onDrop,
+		Backoff: chatBackoff,
+		Restart: restart,
+		Sleep:   rec.sleep,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	if opens != 2 {
+		t.Fatalf("opens = %d, want a second connection after the restart", opens)
+	}
+	if len(rec.errs) != 1 || !errors.Is(rec.errs[0], sse.ErrRestarted) {
+		t.Fatalf("drop errors = %v, want one ErrRestarted", rec.errs)
+	}
+	if len(rec.sleeps) != 0 {
+		t.Fatalf("sleeps = %+v, want an immediate reconnect", rec.sleeps)
+	}
+	if first.closeCount() == 0 {
+		t.Fatal("the restarted stream was not closed")
+	}
+}
+
+func TestRunIgnoresRestartBeforeOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	restart := make(chan struct{}, 1)
+	restart <- struct{}{}
+	body := newBlockingBody()
+	go func() { _, _ = io.WriteString(body.w, "data: hello\n\n") }()
+	rec := &recorder{}
+	err := sse.Run(ctx, sse.Options{
+		Open: func(context.Context) (io.ReadCloser, error) { return body, nil },
+		OnEvent: func(e sse.Event) {
+			rec.onEvent(e)
+			cancel()
+		},
+		OnDrop:  rec.onDrop,
+		Backoff: chatBackoff,
+		Restart: restart,
+		Sleep:   rec.sleep,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	if len(rec.drops) != 0 || !reflect.DeepEqual(rec.events, []string{"hello"}) {
+		t.Fatalf("drops = %v events = %q, want a restart from before the connection ignored", rec.errs, rec.events)
+	}
+}
