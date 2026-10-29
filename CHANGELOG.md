@@ -9,7 +9,7 @@
 - Switch the web console language from the account menu.
 - Show desktop notifications and tab unread counts for web chats.
 - Mark where a web chat started a new conversation.
-- Native desktop app built with MyGo.
+- Add a native desktop app for macOS, Windows and Linux.
 
 ### Changed
 - Redesign the web console on the Arc UI library.

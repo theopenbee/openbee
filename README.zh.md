@@ -117,7 +117,7 @@ openbee plugin list                # 查看所有插件及其运行状态
 - **macOS：** 右键点击应用并选择“打开”（macOS 15 及以上请在“系统设置 > 隐私与安全性”中点击“仍要打开”），或运行 `xattr -dr com.apple.quarantine /Applications/OpenBee.app`。
 - **Windows：** SmartScreen 提示“Windows 已保护你的电脑”时，点击“更多信息”，再点击“仍要运行”。
 
-从源码构建（会自动下载 Go 1.27）：
+从源码构建需要先安装 `jq`（会自动下载 Go 1.27）：
 
 ```bash
 make desktop       # 当前平台，产物在 desktop/build/

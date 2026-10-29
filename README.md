@@ -117,7 +117,7 @@ Release builds are not code signed yet, so the first launch needs a manual appro
 - **macOS:** right-click the app and choose Open (on macOS 15 and later, use Open Anyway in System Settings > Privacy & Security), or run `xattr -dr com.apple.quarantine /Applications/OpenBee.app`.
 - **Windows:** when SmartScreen shows "Windows protected your PC", click More info, then Run anyway.
 
-To build it from source (Go 1.27 is downloaded automatically):
+To build it from source, install `jq` first (Go 1.27 is downloaded automatically):
 
 ```bash
 make desktop       # current platform, output in desktop/build/
