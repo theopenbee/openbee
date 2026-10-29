@@ -25,8 +25,9 @@ func (v *View) List(cid string) *ui.ListState {
 }
 
 var (
-	HardBreaks  = hardBreaks
-	SnippetName = snippetName
+	HardBreaks      = hardBreaks
+	SnippetName     = snippetName
+	CollapsedPrefix = collapsedPrefix
 )
 
 func (v *View) SetSaver(save func(name string, data []byte) (string, error)) {
@@ -91,16 +92,28 @@ func (v *View) CachedImageBytes() int64 {
 }
 
 func (ic *imageCache) LoadPhoto(name string) (ui.ImageSource, error) {
-	return ic.loadPhoto(name)
+	return ic.loadPhoto(name, fullSize)
+}
+
+func (ic *imageCache) LoadThumbnail(name string) (ui.ImageSource, error) {
+	return ic.loadPhoto(name, thumbSize)
 }
 
 func ScaledPhoto(data []byte) (*image.RGBA, error) {
-	return scalePhoto(data)
+	return scaleImage(data, photoEdge)
 }
 
-func (ic *imageCache) SetPhotoDecoder(decode func(data []byte, svg bool) (ui.ImageSource, int64, error)) {
+func (ic *imageCache) SetDecoder(decode func(data []byte, svg bool, edge int) (ui.ImageSource, int64, error)) {
 	ic.decode = decode
 }
+
+const (
+	ThumbEdge    = thumbEdge
+	InlineEdge   = inlineEdge
+	MaxMediaFile = maxMediaFile
+)
+
+var ReadMediaFile = readMediaFile
 
 var (
 	MentionQuery      = mentionQuery
@@ -129,3 +142,9 @@ const (
 )
 
 var HintState = hintState
+
+func (v *View) SetImageBudget(bytes int64) {
+	v.images.mu.Lock()
+	defer v.images.mu.Unlock()
+	v.images.limit = bytes
+}

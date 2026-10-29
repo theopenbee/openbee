@@ -63,7 +63,8 @@ var noLigatures = []string{"liga=0", "calt=0"}
 type bodyKey struct{}
 
 type bodySource struct {
-	content, markdown string
+	content, markdown, preview string
+	cut                        bool
 }
 
 func newMarkdown(v *View, loads *imageLoads) *markdown.Options {
@@ -145,13 +146,24 @@ func (v *View) markdownTheme(tk theme.Tokens) *markdown.Theme {
 	return v.themes[k]
 }
 
-func (v *View) renderBody(c *ui.Context, m model.Message) {
+func (v *View) renderBody(c *ui.Context, m model.Message, collapsed bool) bool {
 	box := ui.Column(c).MinWidth(0)
 	src := ui.Local(box, bodyKey{}, func() bodySource { return bodySource{} })
 	if src.content != m.Content {
-		src.content, src.markdown = m.Content, hardBreaks(m.Content)
+		md := hardBreaks(m.Content)
+		preview, cut := collapsedPrefix(md)
+		*src = bodySource{content: m.Content, markdown: md, preview: preview, cut: cut}
 	}
-	box.Children(func() { markdown.View(c, src.markdown, v.md) })
+	text, rows := src.markdown, 0
+	if collapsed {
+		text, rows = src.preview, collapsedTableRows
+	}
+	box.Children(func() {
+		v.rowLimit = rows
+		markdown.View(c, text, v.md)
+		v.rowLimit = 0
+	})
+	return collapsed && src.cut
 }
 
 func hardBreaks(src string) string {

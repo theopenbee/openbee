@@ -77,7 +77,7 @@ func (v *View) lightboxStage(c *ui.Context, tk theme.Tokens, name string, w, h f
 		pad = lightboxPadWide
 	}
 	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(0, pad, lightboxBottom, pad).Children(func() {
-		src, ok := v.photo(c, name)
+		src, ok := v.photo(c, name, fullSize)
 		if !ok {
 			v.lightboxPending(c, tk, name)
 			return
@@ -99,7 +99,7 @@ func keepOpen(e ui.Element) ui.Element {
 }
 
 func (v *View) lightboxPending(c *ui.Context, tk theme.Tokens, name string) {
-	if v.photos.hasFailed(name) {
+	if v.photos.hasFailed(fullSize.key(name)) {
 		ui.Text(c, locales.FileOpenFailed()).TextColor(tk.TextSecondary)
 		return
 	}

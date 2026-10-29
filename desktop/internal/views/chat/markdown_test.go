@@ -16,6 +16,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -549,5 +550,113 @@ func TestImageCacheRefusesHugeDimensions(t *testing.T) {
 	}
 	if n := ic.Len(); n != 0 {
 		t.Fatalf("%d images cached, want none", n)
+	}
+}
+
+func TestMarkdownImagesDecodeDownscaled(t *testing.T) {
+	const wideImage, shortImage = 4000, 1000
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, wideImage, shortImage), nil })
+	src, err := ic.Load("/api/local/media/panorama.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, h := src.(*ui.Bitmap).Size()
+	if w != chat.InlineEdge || h != chat.InlineEdge*shortImage/wideImage {
+		t.Fatalf("inline image is %d×%d, want %d wide", w, h, chat.InlineEdge)
+	}
+	if got := ic.Bytes(); got != int64(w*h*4) {
+		t.Fatalf("cache counts %d bytes, want %d", got, w*h*4)
+	}
+}
+
+func TestMarkdownImageDecodesShareTheSlots(t *testing.T) {
+	const loads, slots = 5, 2
+	var mu sync.Mutex
+	var active, peak int
+	var edges []int
+	release := make(chan struct{})
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return pngImage(t, 4, 4), nil })
+	ic.SetDecoder(func(_ []byte, _ bool, edge int) (ui.ImageSource, int64, error) {
+		mu.Lock()
+		active++
+		peak = max(peak, active)
+		edges = append(edges, edge)
+		mu.Unlock()
+		<-release
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 1, 1))), 4, nil
+	})
+	var wg sync.WaitGroup
+	for i := range loads {
+		wg.Go(func() {
+			if _, err := ic.Load(fmt.Sprintf("/api/local/media/chart-%d.png", i)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	deadline := time.Now().Add(imageTimeout)
+	for {
+		mu.Lock()
+		busy := active
+		mu.Unlock()
+		if busy == slots {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d decodes running, want %d", busy, slots)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	if peak != slots {
+		t.Fatalf("peak of %d concurrent inline decodes, want %d", peak, slots)
+	}
+	for _, edge := range edges {
+		if edge != chat.InlineEdge {
+			t.Fatalf("inline images decoded with edges %v, want %d", edges, chat.InlineEdge)
+		}
+	}
+}
+
+func TestCollapsedPrefix(t *testing.T) {
+	lines := func(n int, format string) string {
+		out := make([]string, n)
+		for i := range out {
+			out[i] = fmt.Sprintf(format, i)
+		}
+		return strings.Join(out, "\n")
+	}
+	table := "| a | b |\n|---|---|\n" + lines(200, "| row %d | x |") + "\n"
+	code := "```go\n" + lines(200, "fmt.Println(%d)") + "\n```\n"
+	for _, tc := range []struct {
+		name, src  string
+		cut        bool
+		has, lacks string
+	}{
+		{"short", "Just a reply.\n\nWith two paragraphs.", false, "two paragraphs", ""},
+		{"long paragraph", lines(3000, "line %d"), true, "line 63", "line 64"},
+		{"many paragraphs", lines(400, "paragraph %d\n"), true, "paragraph 63", "paragraph 64"},
+		{"table kept whole", "Intro\n\n" + table + "\nAfter the table.", true, "row 199", "After the table"},
+		{"code kept whole", "Intro\n\n" + code + "\nAfter the code.", true, "fmt.Println(199)", "After the code"},
+		{"long line", strings.Repeat("蜂", 20<<10), true, "蜂", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, cut := chat.CollapsedPrefix(tc.src)
+			if cut != tc.cut || !strings.HasPrefix(tc.src, got) || !utf8.ValidString(got) {
+				t.Fatalf("cut=%v (want %v), %d of %d bytes, valid UTF-8 %v", cut, tc.cut, len(got), len(tc.src), utf8.ValidString(got))
+			}
+			if !strings.Contains(got, tc.has) || tc.lacks != "" && strings.Contains(got, tc.lacks) {
+				t.Fatalf("prefix of %d bytes: has %q=%v, lacks %q=%v", len(got), tc.has, strings.Contains(got, tc.has), tc.lacks, !strings.Contains(got, tc.lacks))
+			}
+			if tc.cut && len(got) > 20<<10 && !strings.Contains(got, "|") && !strings.Contains(got, "```") {
+				t.Fatalf("prefix is %d bytes, want at most the byte budget", len(got))
+			}
+		})
 	}
 }

@@ -87,6 +87,7 @@ func (v *View) block(c *ui.Context, d *parser.Document, i int) bool {
 		return false
 	}
 	tk := v.tk
+	limit := v.rowLimit
 	src := d.Source()[b.Start:b.End]
 	data := tableOf(d, i, false)
 	box := ui.Column(c).AlignSelf(ui.Stretch).MinWidth(0).Border(tableBorder, tk.Border).Radius(theme.RadiusInset).
@@ -113,7 +114,7 @@ func (v *View) block(c *ui.Context, d *parser.Document, i int) bool {
 				v.table = tableModal{open: true, data: tableOf(d, i, true)}
 			}
 		})
-		ui.ScrollHorizontal(c).AlignSelf(ui.Stretch).Children(func() { v.tableGrid(c, tk, data, fitted) })
+		ui.ScrollHorizontal(c).AlignSelf(ui.Stretch).Children(func() { v.tableGrid(c, tk, data, fitted, limit) })
 	})
 	return true
 }
@@ -135,10 +136,14 @@ func (v *View) tableTools(c *ui.Context, tk theme.Tokens, data func() tableData)
 	})
 }
 
-func (v *View) tableGrid(c *ui.Context, tk theme.Tokens, t tableData, widths []float32) ui.Element {
+func (v *View) tableGrid(c *ui.Context, tk theme.Tokens, t tableData, widths []float32, limit int) ui.Element {
+	rows := t.rows
+	if limit > 0 && len(rows) > limit+1 {
+		rows = rows[:limit+1]
+	}
 	grid := ui.Column(c).Shrink(0).Role(ui.RoleTable)
 	return grid.Children(func() {
-		for r, row := range t.rows {
+		for r, row := range rows {
 			header := r == 0
 			rowEl := ui.Row(c).Shrink(0).AlignItems(ui.Stretch).Role(ui.RoleRow)
 			if header {
@@ -507,7 +512,7 @@ func (v *View) tableDialog(c *ui.Context, tk theme.Tokens) {
 		})
 		widths := measureColumns(c, tk, tm.data).fit(w - 2*fullscreenPadding - 2*tableBorder)
 		ui.ScrollBoth(c).Grow(1).MinHeight(0).Padding(0, fullscreenPadding, fullscreenPadding, fullscreenPadding).Children(func() {
-			v.tableGrid(c, tk, tm.data, widths).Border(tableBorder, tk.Border).Selectable()
+			v.tableGrid(c, tk, tm.data, widths, 0).Border(tableBorder, tk.Border).Selectable()
 		})
 	})
 }

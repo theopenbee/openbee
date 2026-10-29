@@ -608,6 +608,9 @@ func TestNarrowBackButton(t *testing.T) {
 }
 
 func TestLongHistoryStaysFast(t *testing.T) {
+	if raceEnabled {
+		t.Skip("frame times under the race detector say nothing about the app")
+	}
 	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID))
 	msgs := make([]model.Message, historySize)
 	start := time.Now().Add(-30 * 24 * time.Hour)
@@ -642,4 +645,74 @@ func TestLongHistoryStaysFast(t *testing.T) {
 	if list := f.view.List(workerCID); list.AtEnd() {
 		t.Fatal("scrolling did not move the log")
 	}
+}
+
+func (f *fixture) visit(param string) {
+	f.t.Helper()
+	f.router.Push(route.Chat(param))
+	f.settleMotion()
+}
+
+func TestOverlaysCloseWhenTheConversationChanges(t *testing.T) {
+	f := photoChat(t)
+	f.click(locales.ChatViewImage(photoName))
+	f.wantShown(locales.ChatCloseImage())
+	f.visit("w2")
+	f.wantHidden(locales.ChatCloseImage())
+	f.visit("w1")
+	f.wantHidden(locales.ChatCloseImage())
+
+	url := "https://example.com/guide"
+	g := newFixture(t, wideW, wideH, "w1", workerSays("Read [the guide]("+url+") first."))
+	g.click("the guide")
+	g.wantShown(locales.LinkDialogTitle())
+	g.visit("w2")
+	g.wantHidden(locales.LinkDialogTitle())
+	g.visit("w1")
+	g.wantHidden(locales.LinkDialogTitle())
+}
+
+func tableHeavyReply(sections, rows int) string {
+	var b strings.Builder
+	for s := range sections {
+		fmt.Fprintf(&b, "## Section %d\n\nThe numbers for section %d follow.\n\n", s, s)
+		b.WriteString("| Package | Owner | Status | Coverage | Duration | Notes |\n|---|---|---|---:|---:|---|\n")
+		for r := range rows {
+			fmt.Fprintf(&b, "| pkg/module-%03d | team-%02d | passing | %d.%d%% | %d ms | `go test` run %d |\n", r, r%17, 60+r%40, r%10, 100+r*7%900, r)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func TestCollapsedTableReplyStaysFast(t *testing.T) {
+	if raceEnabled {
+		t.Skip("frame times under the race detector say nothing about the app")
+	}
+	const idleBudget, tallH = 8 * time.Millisecond, 1400
+	content := tableHeavyReply(6, 160)
+	if len(content) < 60<<10 {
+		t.Fatalf("reply is %d bytes, want at least 60 KB", len(content))
+	}
+	f := newFixture(t, wideW, tallH, "w1", workerSays(content))
+	f.wantShown(locales.CommonShowMore())
+	times := make([]time.Duration, scrollFrames)
+	for i := range times {
+		began := time.Now()
+		f.T.Frame()
+		times[i] = time.Since(began)
+	}
+	slices.Sort(times)
+	median := times[len(times)/2]
+	t.Logf("idle frames: median %v, fastest %v, slowest %v", median, times[0], times[len(times)-1])
+	if median >= idleBudget {
+		t.Fatalf("median idle frame %v with a collapsed 60 KB table reply, want under %v", median, idleBudget)
+	}
+	f.wantHidden("pkg/module-159")
+	f.chooseMenu(locales.TableCopy(), locales.TableCopyCsv())
+	if csv := f.T.Clipboard(); !strings.Contains(csv, "pkg/module-159") {
+		t.Fatalf("CSV copied from the collapsed table ends %q, want every row", csv[max(0, len(csv)-80):])
+	}
+	f.click(locales.CommonShowMore())
+	f.wantShown(locales.CommonShowLess(), "pkg/module-159")
 }

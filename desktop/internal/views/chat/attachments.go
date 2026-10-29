@@ -65,6 +65,8 @@ var openableCategories = map[string]bool{
 	categoryArchive:  true,
 }
 
+var revealOnly = map[string]bool{"svg": true}
+
 var extensionCategories = func() map[string]string {
 	m := map[string]string{}
 	for _, c := range categoryExtensions {
@@ -76,15 +78,19 @@ var extensionCategories = func() map[string]string {
 }()
 
 func fileCategory(name string) string {
-	ext := strings.ToLower(strings.TrimPrefix(path.Ext(mediaBase(name)), "."))
-	if category, ok := extensionCategories[ext]; ok {
+	if category, ok := extensionCategories[extension(name)]; ok {
 		return category
 	}
 	return categoryOther
 }
 
+func extension(name string) string {
+	return strings.ToLower(strings.TrimPrefix(path.Ext(mediaBase(name)), "."))
+}
+
 func safeToOpen(name string) bool {
-	return openableCategories[fileCategory(strings.TrimRight(mediaBase(name), ". "))]
+	base := strings.TrimRight(mediaBase(name), ". ")
+	return openableCategories[fileCategory(base)] && !revealOnly[extension(base)]
 }
 
 func isImage(name string) bool {
@@ -108,30 +114,30 @@ func newPhotoLoads() *photoLoads {
 	return &photoLoads{loading: map[string]bool{}, failed: map[string]bool{}}
 }
 
-func (l *photoLoads) begin(name string) bool {
+func (l *photoLoads) begin(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.loading[name] || l.failed[name] {
+	if l.loading[key] || l.failed[key] {
 		return false
 	}
-	l.loading[name] = true
+	l.loading[key] = true
 	return true
 }
 
-func (l *photoLoads) finish(name string, err error) {
+func (l *photoLoads) finish(key string, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	delete(l.loading, name)
+	delete(l.loading, key)
 	if err != nil {
-		l.failed[name] = true
-		log.Printf("chat: load attachment %s: %v", name, err)
+		l.failed[key] = true
+		log.Printf("chat: load attachment %s: %v", key, err)
 	}
 }
 
-func (l *photoLoads) hasFailed(name string) bool {
+func (l *photoLoads) hasFailed(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.failed[name]
+	return l.failed[key]
 }
 
 func (l *photoLoads) retryFailed() {
@@ -140,15 +146,16 @@ func (l *photoLoads) retryFailed() {
 	clear(l.failed)
 }
 
-func (v *View) photo(c *ui.Context, name string) (ui.ImageSource, bool) {
-	if src, _, ok := v.images.get(photoKey(name)); ok {
+func (v *View) photo(c *ui.Context, name string, size photoSize) (ui.ImageSource, bool) {
+	key := size.key(name)
+	if src, _, ok := v.images.get(key); ok {
 		return src, true
 	}
-	if v.photos.begin(name) {
+	if v.photos.begin(key) {
 		images, loads, services := v.images, v.photos, c.Services()
 		go func() {
-			_, err := images.loadPhoto(name)
-			loads.finish(name, err)
+			_, err := images.loadPhoto(name, size)
+			loads.finish(key, err)
 			services.Invalidate()
 		}()
 	}
@@ -207,11 +214,11 @@ func attachmentNames(mediaPaths []string) []string {
 }
 
 func (v *View) attachment(c *ui.Context, tk theme.Tokens, name string) {
-	if !isImage(name) || v.photos.hasFailed(name) {
+	if !isImage(name) || v.photos.hasFailed(thumbSize.key(name)) {
 		v.fileChip(c, tk, name)
 		return
 	}
-	src, ok := v.photo(c, name)
+	src, ok := v.photo(c, name, thumbSize)
 	if !ok {
 		kit.SkeletonBar(c, tk, thumbPlaceW, thumbPlaceH).Radius(theme.RadiusInset)
 		return

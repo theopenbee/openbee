@@ -554,6 +554,8 @@ func TestSafeToOpen(t *testing.T) {
 		"script.sh":      false,
 		"tool.py":        false,
 		"index.html":     false,
+		"vector.svg":     false,
+		"Logo.SVG. ":     false,
 		"readme":         false,
 		"x.lnk":          false,
 		"":               false,
@@ -616,7 +618,7 @@ func TestPhotoDecodesAreBounded(t *testing.T) {
 		fetched++
 		return data, nil
 	})
-	ic.SetPhotoDecoder(func([]byte, bool) (ui.ImageSource, int64, error) {
+	ic.SetDecoder(func([]byte, bool, int) (ui.ImageSource, int64, error) {
 		mu.Lock()
 		active++
 		peak = max(peak, active)
@@ -662,5 +664,116 @@ func TestPhotoDecodesAreBounded(t *testing.T) {
 	}
 	if ic.Len() != loads {
 		t.Fatalf("%d photos cached, want %d", ic.Len(), loads)
+	}
+}
+
+func TestPhotosLargerThanTheCacheStayLoaded(t *testing.T) {
+	const photos, albumH, budget, settleFrames = 10, 3200, 4 << 20, 40
+	data := grayPNG(t, 3000, 2000)
+	media := map[string][]byte{}
+	names := make([]string, photos)
+	for i := range names {
+		names[i] = fmt.Sprintf("album-%02d.png", i)
+		media[names[i]] = data
+	}
+	f := newFixture(t, wideW, albumH, "w1", attached(media))
+	f.view.SetImageBudget(budget)
+	var mu sync.Mutex
+	loads := map[string]int{}
+	f.view.OnMediaLoad(func(name string) {
+		mu.Lock()
+		defer mu.Unlock()
+		loads[name]++
+	})
+	f.Fake.Reply(workerCID, withAttachments(api.ChatMessage{ID: "album", Content: "The album."}, names...))
+	shown := func() int {
+		n := 0
+		for _, name := range names {
+			if _, ok := f.T.Find(locales.ChatViewImage(name)); ok {
+				n++
+			}
+		}
+		return n
+	}
+	deadline := time.Now().Add(bigPhotoTimeout)
+	for shown() < photos {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d of %d photos shown after %v", shown(), photos, bigPhotoTimeout)
+		}
+		f.Settle()
+		f.T.Frame()
+		time.Sleep(5 * time.Millisecond)
+	}
+	for range settleFrames {
+		f.Settle()
+		f.T.Frame()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := shown(); n != photos {
+		t.Fatalf("%d of %d photos shown after %d more frames", n, photos, settleFrames)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, name := range names {
+		if loads[name] != 1 {
+			t.Fatalf("loads = %v, want each photo loaded once", loads)
+		}
+	}
+}
+
+func TestThumbnailsDecodeSmallerThanTheLightbox(t *testing.T) {
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, landscapeW, landscapeH), nil })
+	thumb, err := ic.LoadThumbnail("landscape.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := thumb.(*ui.Bitmap).Size(); w != chat.ThumbEdge || h != chat.ThumbEdge*landscapeH/landscapeW {
+		t.Fatalf("thumbnail is %d×%d, want %d wide", w, h, chat.ThumbEdge)
+	}
+	full, err := ic.LoadPhoto("landscape.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, _ := full.(*ui.Bitmap).Size(); w != photoEdge {
+		t.Fatalf("lightbox photo is %d wide, want %d", w, photoEdge)
+	}
+	if ic.Len() != 2 {
+		t.Fatalf("%d images cached, want the thumbnail and the photo apart", ic.Len())
+	}
+}
+
+func TestMediaFilesOverTheCapAreNotRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "huge.png")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(path, chat.MaxMediaFile+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chat.ReadMediaFile(path); !errors.Is(err, chat.ErrImageTooLarge) {
+		t.Fatalf("read of a %d byte file: err = %v, want ErrImageTooLarge", chat.MaxMediaFile+1, err)
+	}
+	if err := os.Truncate(path, 16); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := chat.ReadMediaFile(path); err != nil || len(data) != 16 {
+		t.Fatalf("read of a small file = %d bytes, %v", len(data), err)
+	}
+}
+
+func TestSVGAttachmentIsRevealedNotOpened(t *testing.T) {
+	const name = "diagram.svg"
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#36c"/></svg>`)
+	m := withAttachments(message("m1", "worker", "w1", "A drawing.", time.Now().Add(-time.Hour)), name)
+	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{name: svg}, m))
+	f.awaitThumb(name, photoW*thumbHeight/photoH)
+	opened, revealed := &opener{}, &opener{}
+	f.view.SetOpener(opened.open)
+	f.view.SetRevealer(revealed.open)
+	f.click(locales.ChatViewImage(name))
+	f.click(locales.ChatOpenOriginal())
+	f.Fix.Await(t, func() bool { return len(revealed.paths()) == 1 })
+	if got := opened.paths(); len(got) != 0 {
+		t.Fatalf("opened %q, want the SVG revealed in its folder", got)
 	}
 }

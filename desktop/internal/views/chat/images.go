@@ -29,11 +29,15 @@ const (
 	externalImageTimeout = 30 * time.Second
 	bytesPerPixel        = 4
 	svgSniffBytes        = 512
+	maxMediaFile         = 64 << 20
 	mediaPathPrefix      = "/api/local/media/"
 	mediaKeyPrefix       = "media:"
 	photoKeyPrefix       = "photo:"
+	thumbKeyPrefix       = "thumb:"
 	svgExtension         = ".svg"
 	photoEdge            = 2560
+	thumbEdge            = 640
+	inlineEdge           = 2048
 	photoDecodeSlots     = 2
 	maxPhotoPixels       = 100_000_000
 	jpegPrefix           = 0xff
@@ -66,18 +70,35 @@ type cachedImage struct {
 	key  string
 	src  ui.ImageSource
 	size int64
+	used uint64
+}
+
+type photoSize struct {
+	prefix string
+	edge   int
+}
+
+var (
+	thumbSize = photoSize{prefix: thumbKeyPrefix, edge: thumbEdge}
+	fullSize  = photoSize{prefix: photoKeyPrefix, edge: photoEdge}
+)
+
+func (p photoSize) key(name string) string {
+	return p.prefix + name
 }
 
 type imageCache struct {
 	media  func(name string) ([]byte, error)
 	web    func(url string) ([]byte, error)
-	decode func(data []byte, svg bool) (ui.ImageSource, int64, error)
+	decode func(data []byte, svg bool, edge int) (ui.ImageSource, int64, error)
 	slots  chan struct{}
 
 	mu    sync.Mutex
 	items map[string]*list.Element
 	order list.List
 	size  int64
+	limit int64
+	frame uint64
 }
 
 type mediaResult struct {
@@ -132,7 +153,8 @@ func (l *imageLoads) due(retryFailed bool) bool {
 }
 
 func newImageCache(media, web func(string) ([]byte, error)) *imageCache {
-	return &imageCache{media: media, web: web, decode: decodePhoto, slots: make(chan struct{}, photoDecodeSlots), items: map[string]*list.Element{}}
+	return &imageCache{media: media, web: web, decode: decodeScaled, slots: make(chan struct{}, photoDecodeSlots), items: map[string]*list.Element{},
+		limit: maxCachedImageBytes}
 }
 
 func (ic *imageCache) Load(address string) (ui.ImageSource, error) {
@@ -159,7 +181,7 @@ func (ic *imageCache) load(address string) (ui.ImageSource, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	src, size, err := decodeImage(data, ref.svg)
+	src, size, err := ic.decodeBounded(data, ref.svg, inlineEdge)
 	if err != nil {
 		return nil, 0, fmt.Errorf("%w %q: %w", errImageDecode, address, err)
 	}
@@ -167,8 +189,8 @@ func (ic *imageCache) load(address string) (ui.ImageSource, int64, error) {
 	return src, size, nil
 }
 
-func (ic *imageCache) loadPhoto(name string) (ui.ImageSource, error) {
-	key := photoKey(name)
+func (ic *imageCache) loadPhoto(name string, p photoSize) (ui.ImageSource, error) {
+	key := p.key(name)
 	if src, _, ok := ic.get(key); ok {
 		return src, nil
 	}
@@ -179,7 +201,7 @@ func (ic *imageCache) loadPhoto(name string) (ui.ImageSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	src, size, err := ic.decodeBounded(data, hasSVGExtension(name))
+	src, size, err := ic.decodeBounded(data, hasSVGExtension(name), p.edge)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", errImageDecode, name, err)
 	}
@@ -187,14 +209,16 @@ func (ic *imageCache) loadPhoto(name string) (ui.ImageSource, error) {
 	return src, nil
 }
 
-func (ic *imageCache) decodeBounded(data []byte, svg bool) (ui.ImageSource, int64, error) {
+func (ic *imageCache) decodeBounded(data []byte, svg bool, edge int) (ui.ImageSource, int64, error) {
 	ic.slots <- struct{}{}
 	defer func() { <-ic.slots }()
-	return ic.decode(data, svg)
+	return ic.decode(data, svg, edge)
 }
 
-func photoKey(name string) string {
-	return photoKeyPrefix + name
+func (ic *imageCache) nextFrame() {
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
+	ic.frame++
 }
 
 func (ic *imageCache) get(key string) (ui.ImageSource, int64, bool) {
@@ -206,6 +230,7 @@ func (ic *imageCache) get(key string) (ui.ImageSource, int64, bool) {
 	}
 	ic.order.MoveToFront(e)
 	img := e.Value.(*cachedImage)
+	img.used = ic.frame
 	return img.src, img.size, true
 }
 
@@ -215,17 +240,29 @@ func (ic *imageCache) put(key string, src ui.ImageSource, size int64) {
 	if e, ok := ic.items[key]; ok {
 		img := e.Value.(*cachedImage)
 		ic.size += size - img.size
-		img.src, img.size = src, size
+		img.src, img.size, img.used = src, size, ic.frame
 		ic.order.MoveToFront(e)
 	} else {
-		ic.items[key] = ic.order.PushFront(&cachedImage{key: key, src: src, size: size})
+		ic.items[key] = ic.order.PushFront(&cachedImage{key: key, src: src, size: size, used: ic.frame})
 		ic.size += size
 	}
-	for ic.order.Len() > 1 && (ic.order.Len() > maxCachedImages || ic.size > maxCachedImageBytes) {
-		img := ic.order.Remove(ic.order.Back()).(*cachedImage)
-		delete(ic.items, img.key)
-		ic.size -= img.size
+	for e := ic.order.Back(); e != nil && ic.order.Len() > 1 && ic.over(); {
+		prev := e.Prev()
+		if img := e.Value.(*cachedImage); !ic.pinned(img) {
+			ic.order.Remove(e)
+			delete(ic.items, img.key)
+			ic.size -= img.size
+		}
+		e = prev
 	}
+}
+
+func (ic *imageCache) over() bool {
+	return ic.order.Len() > maxCachedImages || ic.size > ic.limit
+}
+
+func (ic *imageCache) pinned(img *cachedImage) bool {
+	return ic.frame > 0 && img.used+1 >= ic.frame
 }
 
 func imageRefOf(address string) (imageRef, bool) {
@@ -273,7 +310,7 @@ func decodeImage(data []byte, svg bool) (ui.ImageSource, int64, error) {
 	return b, int64(w) * int64(h) * bytesPerPixel, nil
 }
 
-func decodePhoto(data []byte, svg bool) (ui.ImageSource, int64, error) {
+func decodeScaled(data []byte, svg bool, edge int) (ui.ImageSource, int64, error) {
 	if svg || looksLikeSVG(data) {
 		return decodeImage(data, true)
 	}
@@ -284,30 +321,30 @@ func decodePhoto(data []byte, svg bool) (ui.ImageSource, int64, error) {
 	switch {
 	case int64(cfg.Width)*int64(cfg.Height) > maxPhotoPixels:
 		return nil, 0, fmt.Errorf("%w: %dx%d pixels", errImageTooLarge, cfg.Width, cfg.Height)
-	case max(cfg.Width, cfg.Height) <= photoEdge:
+	case max(cfg.Width, cfg.Height) <= edge:
 		return decodeImage(data, false)
 	}
-	img, err := scalePhoto(data)
+	img, err := scaleImage(data, edge)
 	if err != nil {
 		return nil, 0, err
 	}
 	return ui.NewBitmap(img), int64(img.Rect.Dx()) * int64(img.Rect.Dy()) * bytesPerPixel, nil
 }
 
-func scalePhoto(data []byte) (*image.RGBA, error) {
+func scaleImage(data []byte, edge int) (*image.RGBA, error) {
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	for {
 		b := src.Bounds()
-		if max(b.Dx(), b.Dy()) <= 2*photoEdge {
+		if max(b.Dx(), b.Dy()) <= 2*edge {
 			break
 		}
 		src = resample(src, max(1, b.Dx()/2), max(1, b.Dy()/2))
 	}
 	b := src.Bounds()
-	k := float64(photoEdge) / float64(max(b.Dx(), b.Dy()))
+	k := float64(edge) / float64(max(b.Dx(), b.Dy()))
 	scaled := resample(src, max(1, int(float64(b.Dx())*k+0.5)), max(1, int(float64(b.Dy())*k+0.5)))
 	return orientPhoto(scaled, exifOrientation(data)), nil
 }
@@ -440,6 +477,17 @@ func (v *View) mediaImages(gen uint64) func(name string) ([]byte, error) {
 		if r.err != nil {
 			return nil, r.err
 		}
-		return os.ReadFile(r.path)
+		return readMediaFile(r.path)
 	}
+}
+
+func readMediaFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxMediaFile {
+		return nil, fmt.Errorf("%w: %s is %d bytes", errImageTooLarge, path, info.Size())
+	}
+	return os.ReadFile(path)
 }

@@ -3,8 +3,10 @@ package chat
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/markdown/parser"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
@@ -14,32 +16,35 @@ import (
 )
 
 const (
-	metaSize        = 12
-	metaGapX        = 8
-	metaGapY        = 4
-	userMetaBelow   = 8
-	senderMetaBelow = 6
-	avatarColumn    = 28
-	avatarGap       = 12
-	systemGlyph     = 14
-	bubblePadX      = 16
-	bubblePadY      = 10
-	bodyLineHeight  = 1.65
-	userBubbleShare = 85
-	userBubbleMax   = 576
-	userCopyGap     = 4
-	senderCopyGap   = 2
-	copyTop         = 4
-	collapseHeight  = 640
-	collapseFade    = 64
-	toggleTop       = 4
-	togglePadY      = 4
-	senderUser      = "user"
-	senderBee       = "bee"
-	senderWorker    = "worker"
-	senderSystem    = "system"
-	kindReset       = "reset"
-	kindHandoff     = "handoff"
+	metaSize           = 12
+	metaGapX           = 8
+	metaGapY           = 4
+	userMetaBelow      = 8
+	senderMetaBelow    = 6
+	avatarColumn       = 28
+	avatarGap          = 12
+	systemGlyph        = 14
+	bubblePadX         = 16
+	bubblePadY         = 10
+	bodyLineHeight     = 1.65
+	userBubbleShare    = 85
+	userBubbleMax      = 576
+	userCopyGap        = 4
+	senderCopyGap      = 2
+	copyTop            = 4
+	collapseHeight     = 640
+	collapseFade       = 64
+	collapsedLines     = 64
+	collapsedBytes     = 16 << 10
+	collapsedTableRows = 24
+	toggleTop          = 4
+	togglePadY         = 4
+	senderUser         = "user"
+	senderBee          = "bee"
+	senderWorker       = "worker"
+	senderSystem       = "system"
+	kindReset          = "reset"
+	kindHandoff        = "handoff"
 )
 
 type rowContext struct {
@@ -186,7 +191,11 @@ func (v *View) expandable(c *ui.Context, rc rowContext, m model.Message) {
 	clip.Children(func() {
 		inner := ui.Column(c).Shrink(0).MinWidth(0)
 		overflows = measuredOverflow(c, inner)
-		inner.Children(func() { v.renderBody(c, m) })
+		inner.Children(func() {
+			if v.renderBody(c, m, !expanded) {
+				overflows = true
+			}
+		})
 		if overflows && !expanded {
 			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(collapseFade).
 				Gradient(tk.SurfaceMuted.Alpha(0), tk.SurfaceMuted, 180)
@@ -229,4 +238,50 @@ func measuredOverflow(c *ui.Context, inner ui.Element) bool {
 
 func hasText(s string) bool {
 	return strings.TrimSpace(s) != ""
+}
+
+func collapsedPrefix(src string) (string, bool) {
+	if len(src) <= collapsedBytes && strings.Count(src, "\n") < collapsedLines {
+		return src, false
+	}
+	d := parser.New(parser.GFM | parser.ExtFootnotes)
+	d.Set(src)
+	lines, end := 0, 0
+	for j := 1; j < d.Block(0).Next; j = d.Block(j).Next {
+		b := d.Block(j)
+		if lines >= collapsedLines || b.Start >= collapsedBytes {
+			break
+		}
+		span := strings.Count(src[b.Start:b.End], "\n") + 1
+		if lines+span <= collapsedLines && b.End <= collapsedBytes {
+			lines, end = lines+span, b.End
+			continue
+		}
+		end = b.End
+		if b.Kind != parser.Table && b.Kind != parser.CodeBlock {
+			end = cutAt(src, b.Start, b.End, collapsedLines-lines)
+		}
+		break
+	}
+	return src[:end], end < len(src)
+}
+
+func cutAt(src string, start, end, lines int) int {
+	limit := min(end, collapsedBytes)
+	at := start
+	for range lines {
+		i := strings.IndexByte(src[at:limit], '\n')
+		if i < 0 {
+			break
+		}
+		at += i + 1
+	}
+	if at > start {
+		return at
+	}
+	at = limit
+	for at > start && at < len(src) && !utf8.RuneStart(src[at]) {
+		at--
+	}
+	return at
 }

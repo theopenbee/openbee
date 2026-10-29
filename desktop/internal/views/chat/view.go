@@ -49,6 +49,8 @@ type View struct {
 	openPath    func(path string) error
 	reveal      func(path string) error
 	convs       map[string]*convState
+	shown       string
+	rowLimit    int
 	save        func(name string, data []byte) (string, error)
 	pick        func() ([]string, error)
 }
@@ -70,7 +72,7 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 	v.resetMedia()
 	s.OnSessionReset(func() {
 		v.convs = map[string]*convState{}
-		v.link, v.table, v.light = linkState{}, tableModal{}, lightboxState{}
+		v.closeOverlays()
 		v.resetMedia()
 	})
 	s.OnResync(func() {
@@ -78,6 +80,10 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 		v.photos.retryFailed()
 	})
 	return v
+}
+
+func (v *View) closeOverlays() {
+	v.link, v.table, v.light = linkState{}, tableModal{}, lightboxState{}
 }
 
 func revealInFolder(path string) error {
@@ -119,6 +125,11 @@ func (v *View) state(cid string) *convState {
 }
 
 func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
+	v.images.nextFrame()
+	if cid != v.shown {
+		v.shown = cid
+		v.closeOverlays()
+	}
 	v.recycleMarkdown(false)
 	tk := theme.Apply(c)
 	v.tk = tk

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -132,6 +133,9 @@ func cacheMedia(ctx context.Context, c *api.Client, dir, name string) (string, e
 		err = closeErr
 	}
 	if err == nil {
+		if tagErr := markDownloaded(tmp.Name()); tagErr != nil {
+			log.Printf("store: mark %s as downloaded: %v", name, tagErr)
+		}
 		err = wrap("write media cache", os.Rename(tmp.Name(), localPath))
 	}
 	if err != nil {
