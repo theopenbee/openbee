@@ -41,7 +41,7 @@ func currentLanguage() language {
 
 func (a *Screens) languageMenu(c *ui.Context, tk theme.Tokens) {
 	current := currentLanguage()
-	trigger := ui.ButtonBase(c).Label(locales.ArcUserMenuLanguage()).Role(ui.RoleMenuButton).
+	trigger := ui.ButtonBase(c).Label(locales.ArcUserMenuLanguage()).Role(ui.RoleMenuButton).Expanded(a.langOpen).
 		MinHeight(theme.ControlSM).PaddingX(triggerPadX).Gap(triggerGap).Radius(theme.RadiusControl).
 		FontSize(bodySize).FontWeight(triggerWeight).TextColor(tk.Foreground)
 	active := a.langOpen || trigger.Hovered() || trigger.Pressed()
@@ -78,7 +78,7 @@ func (a *Screens) languageMenu(c *ui.Context, tk theme.Tokens) {
 
 func (a *Screens) languageItem(c *ui.Context, tk theme.Tokens, l language, selected bool) {
 	name := i18n.Autonym(l.tag)
-	item := ui.ButtonBase(c).Label(name).Role(ui.RoleMenuItemRadio).
+	item := ui.ButtonBase(c).Label(name).Role(ui.RoleMenuItemRadio).Checked(selected).
 		MinHeight(itemHeight).PaddingX(itemPadX).Gap(itemGap).Justify(ui.Start).
 		Radius(theme.Concentric(theme.RadiusPanel, menuInset)).FontSize(bodySize).TextColor(tk.Foreground)
 	highlight := tk.SurfaceMuted.Alpha(0)

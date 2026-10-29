@@ -342,3 +342,18 @@ func TestDragBandOnlyWithHiddenTitleBar(t *testing.T) {
 		}
 	}
 }
+
+func TestChangeServerOffersTheWayBack(t *testing.T) {
+	h := connected(t, nil)
+	wantNoText(t, h, locales.ConnectBackTo(h.Fake.URL))
+	click(t, h, locales.LoginChangeServer())
+	wantText(t, h, locales.ConnectTitle())
+	if got := value(t, h, locales.ConnectServerLabel()); got != h.Fake.URL {
+		t.Fatalf("server address = %q, want the previous server %q", got, h.Fake.URL)
+	}
+	click(t, h, locales.ConnectBackTo(h.Fake.URL))
+	if h.Store.Phase != store.PhaseLogin || h.Store.Server != h.Fake.URL {
+		t.Fatalf("Phase = %v on %q, want PhaseLogin on %q", h.Store.Phase, h.Store.Server, h.Fake.URL)
+	}
+	wantText(t, h, locales.LoginServer(h.Fake.URL))
+}

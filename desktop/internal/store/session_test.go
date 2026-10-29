@@ -424,3 +424,24 @@ func TestChangePassword(t *testing.T) {
 		t.Fatalf("ChangePassword: %v", err)
 	}
 }
+
+func TestChangeServerRemembersThePreviousServer(t *testing.T) {
+	st, fake, fix := signedIn(t, nil)
+	st.ChangeServer()
+	fix.Settle(t)
+	if got := fix.Prefs.Load().LastServer; got != fake.URL {
+		t.Fatalf("saved previous server = %q, want %q", got, fake.URL)
+	}
+	if st.Prefs.LastServer != fake.URL {
+		t.Fatalf("previous server = %q, want %q", st.Prefs.LastServer, fake.URL)
+	}
+	if err := call(t, fix, func(done func(error)) { st.Connect(st.Prefs.LastServer, done) }); err != nil {
+		t.Fatalf("Connect back: %v", err)
+	}
+	if st.Phase != store.PhaseLogin || st.Server != fake.URL {
+		t.Fatalf("Phase = %v, server %q after going back; want PhaseLogin on %q", st.Phase, st.Server, fake.URL)
+	}
+	if got := fix.Prefs.Load().LastServer; got != "" {
+		t.Fatalf("saved previous server after connecting = %q, want cleared", got)
+	}
+}

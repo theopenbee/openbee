@@ -7,6 +7,7 @@
   "connectErrorInvalid": "请输入 http:// 或 https:// 开头的地址。",
   "connectErrorUnreachable": "无法连接 {url}。",
   "connectErrorNotOpenBee": "{url} 不是 OpenBee 服务器。",
+  "connectBackTo": "返回 {url}",
   "loginServer": "服务器：{url}",
   "loginChangeServer": "更换服务器",
   "menuSettings": "设置…",

@@ -67,7 +67,8 @@ func (fs *formState) values() (model.FieldValues, map[string]bool) {
 
 func formIdentity(reset int, detail api.PluginDetail) string {
 	config, _ := json.Marshal(detail.Config)
-	return strconv.Itoa(reset) + ":" + string(config) + ":" + detail.BotName
+	fields, _ := json.Marshal(detail.Fields)
+	return strconv.Itoa(reset) + ":" + string(config) + ":" + string(fields) + ":" + detail.BotName
 }
 
 func (d *Dialog) settingsForm(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string) {

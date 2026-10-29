@@ -22,6 +22,8 @@ const (
 	wideW, wideH = 1440, 900
 	narrowW      = 700
 	drawerW      = 1000
+	listX        = 120
+	listScroll   = 3000
 )
 
 type paneCall struct {
@@ -414,5 +416,37 @@ func TestRevealsActiveRow(t *testing.T) {
 	}
 	if r.Y < 0 || r.Y+r.H > wideH {
 		t.Fatalf("active row at %+v is outside the window", r)
+	}
+}
+
+func TestSessionResetClearsSearchAndScroll(t *testing.T) {
+	workers := make([]api.Worker, 0, 40)
+	for i := range 40 {
+		workers = append(workers, worker(fmt.Sprintf("w%02d", i), fmt.Sprintf("Worker %02d", i), ""))
+	}
+	f := newFixture(t, wideW, wideH, route.Chat("bee"), seed(workers))
+	f.search("Worker")
+	f.T.Scroll(listX, wideH/2, 0, listScroll)
+	f.Settle()
+	f.wantHidden("Worker 00")
+
+	f.Store.Logout()
+	f.Settle()
+	snap := f.Fake.Snapshot()
+	var err error
+	f.Store.Login(snap.Username, snap.Password, func(e error) { err = e })
+	f.Settle()
+	if err != nil {
+		t.Fatalf("sign in again: %v", err)
+	}
+	f.wantShown(locales.ChatBeeLabel(), "Worker 00")
+	if err := f.T.Click(locales.ChatSearch()); err != nil {
+		t.Fatal(err)
+	}
+	f.T.SetClipboard("")
+	f.T.Command("selectAll")
+	f.T.Command("copy")
+	if got := f.T.Clipboard(); got != "" {
+		t.Fatalf("search after signing in again = %q, want empty", got)
 	}
 }

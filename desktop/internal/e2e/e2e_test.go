@@ -333,10 +333,7 @@ func TestLiveSystemSettings(t *testing.T) {
 	if len(engines) == 0 {
 		t.Fatal("the server has no enabled engine")
 	}
-	engine := saved[keyEngine]
-	if engine == "" {
-		engine = engines[0]
-	}
+	engine := model.DefaultEngine(saved[keyEngine], engines)
 	field := beeArgsField(engines, engine)
 	f.reveal(field, settingsPane)
 	f.Fill(field, badArgs)

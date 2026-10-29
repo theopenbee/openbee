@@ -240,6 +240,8 @@
   "commonRetry": "Retry",
   "commonShowLess": "Show less",
   "commonShowMore": "Show more",
+  "connectBackTo": "Back to {url}",
+  "@connectBackTo": { "placeholders": { "url": { "type": "String" } } },
   "connectDescription": "Enter the address of your OpenBee server.",
   "connectErrorInvalid": "Enter an http:// or https:// address.",
   "connectErrorNotOpenBee": "{url} is not an OpenBee server.",

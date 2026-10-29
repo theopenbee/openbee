@@ -252,24 +252,26 @@ func (d *Dialog) rowMenu(c *ui.Context, tk theme.Tokens, st *installedState, plu
 	})
 	p := d.s.Plugins()
 	kit.Popover(c, tk, b, open, rowMenuWidth, func() {
-		menuItem(c, tk, "rotate-cw", locales.PluginsActionRestart(), false, !plugin.Enabled || acting, func() {
-			*open = false
-			p.Restart(plugin.ID, nil)
-		})
-		ui.Box(c).Height(cardBorder).Margin(menuSeparatorY, -menuSeparatorY).Background(tk.BorderSubtle)
-		menuItem(c, tk, "trash-2", locales.PluginsActionUninstall(), true, false, func() {
-			*open = false
-			st.remove.show(plugin.ID, name)
+		ui.Column(c).FocusGroup(ui.Vertical).Role(ui.RoleMenu).Children(func() {
+			menuItem(c, tk, "rotate-cw", locales.PluginsActionRestart(), false, !plugin.Enabled || acting, func() {
+				*open = false
+				p.Restart(plugin.ID, nil)
+			})
+			ui.Box(c).Height(cardBorder).Margin(menuSeparatorY, -menuSeparatorY).Background(tk.BorderSubtle)
+			menuItem(c, tk, "trash-2", locales.PluginsActionUninstall(), true, false, func() {
+				*open = false
+				st.remove.show(plugin.ID, name)
+			})
 		})
 	})
 }
 
 func menuItem(c *ui.Context, tk theme.Tokens, icon, text string, danger, disabled bool, onClick func()) {
-	item := ui.ButtonBase(c).Label(text).Disabled(disabled).MinHeight(menuItemHeight).PaddingX(menuItemPadX).Gap(menuItemGap).
-		AlignItems(ui.Center).Justify(ui.Start).Radius(theme.Concentric(theme.RadiusPanel, menuItemInset)).FontSize(textSize)
+	item := ui.ButtonBase(c).Label(text).Role(ui.RoleMenuItem).Disabled(disabled).MinHeight(menuItemHeight).PaddingX(menuItemPadX).
+		Gap(menuItemGap).AlignItems(ui.Center).Justify(ui.Start).Radius(theme.Concentric(theme.RadiusPanel, menuItemInset)).FontSize(textSize)
 	fg, glyph, tint := tk.Foreground, tk.TextSecondary, tk.SurfaceMuted
 	if danger {
-		fg, glyph, tint = tk.Danger, tk.Danger, tk.Surface.Mix(tk.Danger, menuDangerTint)
+		fg, glyph, tint = tk.Danger, tk.Danger, tk.SurfaceRaised.Mix(tk.Danger, menuDangerTint)
 	}
 	bg := tint.Alpha(0)
 	if !disabled && (item.Hovered() || item.Pressed() || item.FocusVisible()) {
@@ -278,7 +280,7 @@ func menuItem(c *ui.Context, tk theme.Tokens, icon, text string, danger, disable
 	if disabled {
 		item.Opacity(menuDisabled)
 	}
-	item.Background(item.AnimateColor("bg", bg, navFade)).TextColor(fg).OnClick(onClick).Children(func() {
+	item.Background(item.AnimateColor("bg", bg, navFade)).TextColor(fg).FocusRing(false).OnClick(onClick).Children(func() {
 		ui.Icon(c, icons.Get(icon)).Size(rowMenuGlyph, rowMenuGlyph).Shrink(0).TextColor(glyph)
 		ui.Text(c, text).SingleLine()
 	})

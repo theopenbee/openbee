@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -25,8 +26,13 @@ type connectForm struct {
 type connectKey struct{}
 
 func (a *Screens) Connect(c *ui.Context, tk theme.Tokens, page ui.Element) {
-	f := ui.Local(page, connectKey{}, func() connectForm { return connectForm{address: defaultServer} })
+	previous := a.s.Prefs.LastServer
+	f := ui.Local(page, connectKey{}, func() connectForm { return connectForm{address: cmp.Or(previous, defaultServer)} })
 	submit := func() { a.connect(f) }
+	back := func() {
+		f.address = previous
+		a.connect(f)
+	}
 	a.layout(c, tk, locales.ConnectTitle(), locales.ConnectDescription(), func() {
 		ui.Column(c).Gap(formGap).Children(func() {
 			errText := connectError(f)
@@ -40,6 +46,10 @@ func (a *Screens) Connect(c *ui.Context, tk theme.Tokens, page ui.Element) {
 			})
 			kit.Button(c, tk, locales.ConnectSubmit(), kit.ButtonOpts{Loading: f.loading}).
 				AlignSelf(ui.Stretch).Margin(submitGap, 0, 0, 0).OnClick(submit)
+			if previous != "" {
+				kit.Button(c, tk, locales.ConnectBackTo(previous), kit.ButtonOpts{Variant: kit.Ghost, Disabled: f.loading}).
+					AlignSelf(ui.Stretch).OnClick(back)
+			}
 		})
 	})
 }

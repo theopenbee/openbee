@@ -379,3 +379,25 @@ func TestPluginDetailWatchedOnlyWhileOpen(t *testing.T) {
 		t.Fatalf("detail reads went from %d to %d after closing on the detail, want no poll", n, got)
 	}
 }
+
+func TestPluginRowMenuMovesWithArrows(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withPlugins)
+	f.installedTab()
+	f.click(locales.PluginsActionMoreFor("Telegram"))
+	f.wantShown(locales.PluginsActionRestart(), locales.PluginsActionUninstall())
+	f.T.Key(0, ui.KeyTab)
+	f.settle()
+	if !f.T.Focused(locales.PluginsActionRestart()) {
+		t.Fatal("Tab did not move into the plugin menu")
+	}
+	f.T.Key(0, ui.KeyDown)
+	f.settle()
+	if !f.T.Focused(locales.PluginsActionUninstall()) {
+		t.Fatal("the down arrow did not move to the next menu item")
+	}
+	f.T.Key(0, ui.KeyDown)
+	f.settle()
+	if !f.T.Focused(locales.PluginsActionRestart()) {
+		t.Fatal("the down arrow did not wrap to the first menu item")
+	}
+}

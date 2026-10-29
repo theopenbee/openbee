@@ -7,6 +7,7 @@
   "connectErrorInvalid": "Enter an http:// or https:// address.",
   "connectErrorUnreachable": "Couldn't reach {url}.",
   "connectErrorNotOpenBee": "{url} is not an OpenBee server.",
+  "connectBackTo": "Back to {url}",
   "loginServer": "Server: {url}",
   "loginChangeServer": "Change server",
   "menuSettings": "Settings…",

@@ -53,6 +53,7 @@ type Shell struct {
 func New(s *store.Store, nav route.Nav, chat ChatPane, panel PanelPane, account AccountTrigger, openSettings func(section string)) *Shell {
 	sh := &Shell{s: s, nav: nav, chat: chat, panel: panel, account: account, openSettings: openSettings}
 	sh.list.init()
+	s.OnSessionReset(sh.list.reset)
 	return sh
 }
 

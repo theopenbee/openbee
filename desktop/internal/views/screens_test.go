@@ -90,8 +90,15 @@ func failedLogin(t *testing.T, h *testkit.Harness) {
 	h.Settle()
 }
 
+func changedServer(_ *testing.T, h *testkit.Harness) {
+	h.Connect()
+	h.Store.ChangeServer()
+	h.Settle()
+}
+
 var authScreens = []screen{
 	{name: "connect", want: locales.ConnectTitle},
+	{name: "connect-back", prepare: changedServer, want: locales.ConnectTitle},
 	{name: "login", prepare: connect, want: locales.LoginDescription},
 	{name: "login-error", prepare: failedLogin, want: locales.LoginError401},
 	{name: "setup", seed: uninitialized, prepare: connect, want: locales.SetupTitle},

@@ -367,3 +367,17 @@ func TestSetupCloseCancels(t *testing.T) {
 		t.Fatalf("%d setup streams still open after closing", n)
 	}
 }
+
+func TestFormFollowsNewFields(t *testing.T) {
+	f := openDetail(t, withSettings)
+	f.wantHidden("Region")
+	f.Fake.Update(func(st *fakeapi.State) {
+		st.Plugins[0].Fields = append(st.Plugins[0].Fields, api.PluginConfigField{Key: "region", Type: "string", Label: text("Region", "区域")})
+	})
+	f.Store.Plugins().Detail("telegram").Invalidate()
+	f.settle()
+	f.wantShown("Region")
+	f.typeInto("Region", "eu-west")
+	f.clickIn(locales.PluginsDetailSave())
+	wantConfig(t, f.lastPut(1), map[string]any{"region": "eu-west"})
+}

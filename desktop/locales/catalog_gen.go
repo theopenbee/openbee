@@ -2042,6 +2042,16 @@ func (msgs Messages) CommonShowMore() string {
 	return Catalog.Format(msgs.locale, "commonShowMore", nil)
 }
 
+// ConnectBackTo says "Back to {url}"
+// in the language the app shows.
+func ConnectBackTo(url string) string { return In(i18n.Locale()).ConnectBackTo(url) }
+
+// ConnectBackTo says "Back to {url}"
+// in the language of msgs.
+func (msgs Messages) ConnectBackTo(url string) string {
+	return Catalog.Format(msgs.locale, "connectBackTo", map[string]any{"url": url})
+}
+
 // ConnectDescription says "Enter the address of your OpenBee server."
 // in the language the app shows.
 func ConnectDescription() string { return In(i18n.Locale()).ConnectDescription() }

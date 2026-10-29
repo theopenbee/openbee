@@ -157,6 +157,7 @@ func (s *Store) Connect(rawURL string, done func(error)) {
 			}
 			previous := s.Server
 			s.Prefs.ServerURL = base
+			s.Prefs.LastServer = ""
 			s.savePrefs()
 			s.switchSession(base, prefs.Tokens{})
 			if previous != "" {
@@ -227,6 +228,9 @@ func (s *Store) Logout() {
 }
 
 func (s *Store) ChangeServer() {
+	if s.Server != "" {
+		s.Prefs.LastServer = s.Server
+	}
 	s.Prefs.ServerURL = ""
 	s.savePrefs()
 	s.signOut("")

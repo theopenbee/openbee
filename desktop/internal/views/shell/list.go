@@ -46,6 +46,12 @@ type list struct {
 	revealed string
 }
 
+func (l *list) reset() {
+	l.query = ""
+	l.revealed = ""
+	l.state.ScrollTo(0, ui.Start)
+}
+
 func (l *list) init() {
 	l.state.KeepOffset = true
 	l.state.Key = func(i int) any {

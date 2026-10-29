@@ -85,19 +85,22 @@ func (p *Panel) moreMenu(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 		ui.Icon(c, icons.Get("ellipsis")).Size(menuGlyph, menuGlyph)
 	})
 	kit.Popover(c, tk, b, &st.menuOpen, menuWidth, func() {
-		item := ui.ButtonBase(c).Label(locales.WorkersDeleteWorker()).MinHeight(menuItemHeight).PaddingX(menuItemPadX).
-			Gap(menuItemGap).AlignItems(ui.Center).Justify(ui.Start).Radius(theme.Concentric(theme.RadiusPanel, menuItemInset)).TextColor(tk.Danger)
-		tint := tk.Surface.Mix(tk.Danger, dangerTint)
-		bg := tint.Alpha(0)
-		if item.Hovered() || item.Pressed() || item.FocusVisible() {
-			bg = tint
-		}
-		item.Background(item.AnimateColor("bg", bg, fast)).OnClick(func() {
-			st.menuOpen = false
-			st.del.show(w)
-		}).Children(func() {
-			ui.Icon(c, icons.Get("trash-2")).Size(menuGlyph, menuGlyph).Shrink(0)
-			ui.Text(c, locales.WorkersDeleteWorker()).SingleLine()
+		ui.Column(c).FocusGroup(ui.Vertical).Role(ui.RoleMenu).Children(func() {
+			item := ui.ButtonBase(c).Label(locales.WorkersDeleteWorker()).Role(ui.RoleMenuItem).MinHeight(menuItemHeight).
+				PaddingX(menuItemPadX).Gap(menuItemGap).AlignItems(ui.Center).Justify(ui.Start).
+				Radius(theme.Concentric(theme.RadiusPanel, menuItemInset)).TextColor(tk.Danger)
+			tint := tk.SurfaceRaised.Mix(tk.Danger, dangerTint)
+			bg := tint.Alpha(0)
+			if item.Hovered() || item.Pressed() || item.FocusVisible() {
+				bg = tint
+			}
+			item.Background(item.AnimateColor("bg", bg, fast)).FocusRing(false).OnClick(func() {
+				st.menuOpen = false
+				st.del.show(w)
+			}).Children(func() {
+				ui.Icon(c, icons.Get("trash-2")).Size(menuGlyph, menuGlyph).Shrink(0)
+				ui.Text(c, locales.WorkersDeleteWorker()).SingleLine()
+			})
 		})
 	})
 }

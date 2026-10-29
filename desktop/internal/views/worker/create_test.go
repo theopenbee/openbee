@@ -546,3 +546,21 @@ func TestDeleteLockedWhilePending(t *testing.T) {
 		t.Fatalf("sent %d deletes, want 1", n)
 	}
 }
+
+func TestMoreMenuWorksFromTheKeyboard(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), crew)
+	f.click(locales.WorkersRowActions("Alice"))
+	f.T.Key(0, ui.KeyTab)
+	f.settle()
+	if !f.T.Focused(locales.WorkersDeleteWorker()) {
+		t.Fatal("Tab did not move into the worker menu")
+	}
+	f.T.Key(0, ui.KeyDown)
+	f.settle()
+	if !f.T.Focused(locales.WorkersDeleteWorker()) {
+		t.Fatal("the down arrow left the only menu item")
+	}
+	f.T.Key(0, ui.KeyEnter)
+	f.settle()
+	f.wantShown(locales.WorkersDeleteDialogTitle("Alice"))
+}

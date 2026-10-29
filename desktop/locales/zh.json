@@ -240,6 +240,8 @@
   "commonRetry": "重试",
   "commonShowLess": "收起",
   "commonShowMore": "展开全部",
+  "connectBackTo": "返回 {url}",
+  "@connectBackTo": { "placeholders": { "url": { "type": "String" } } },
   "connectDescription": "输入你的 OpenBee 服务器地址。",
   "connectErrorInvalid": "请输入 http:// 或 https:// 开头的地址。",
   "connectErrorNotOpenBee": "{url} 不是 OpenBee 服务器。",

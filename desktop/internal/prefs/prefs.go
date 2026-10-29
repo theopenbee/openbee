@@ -14,6 +14,7 @@ const (
 
 type Prefs struct {
 	ServerURL                  string `json:"server_url"`
+	LastServer                 string `json:"last_server"`
 	Username                   string `json:"username"`
 	Theme                      string `json:"theme"`
 	Language                   string `json:"language"`
