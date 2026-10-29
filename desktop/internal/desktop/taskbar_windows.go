@@ -26,12 +26,14 @@ var (
 	clsidTaskbarList             = winapi.GUID{Data1: 0x56fdf344, Data2: 0xfd6d, Data3: 0x11d0, Data4: [8]byte{0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}}
 	iidTaskbarList3              = winapi.GUID{Data1: 0xea1afb91, Data2: 0x9e28, Data3: 0x4b86, Data4: [8]byte{0x90, 0xe9, 0x9e, 0x9f, 0x8a, 0x5e, 0xef, 0xaf}}
 	taskbarList                  uintptr
+	taskbarFailed                bool
 )
 
 func native(addr uintptr) unsafe.Pointer {
 	return *(*unsafe.Pointer)(unsafe.Pointer(&addr))
 }
 
+//go:uintptrescapes
 func comCall(obj uintptr, index int, args ...uintptr) uintptr {
 	vtable := *(*uintptr)(native(obj))
 	method := *(*uintptr)(unsafe.Add(native(vtable), index*int(unsafe.Sizeof(uintptr(0)))))
@@ -44,17 +46,19 @@ func failed(hr uintptr) bool {
 }
 
 func taskbar() (uintptr, error) {
-	if taskbarList != 0 {
+	if taskbarList != 0 || taskbarFailed {
 		return taskbarList, nil
 	}
 	var tl uintptr
 	hr, _, _ := procCoCreateInstance.Call(uintptr(unsafe.Pointer(&clsidTaskbarList)), 0, clsctxInprocServer,
 		uintptr(unsafe.Pointer(&iidTaskbarList3)), uintptr(unsafe.Pointer(&tl)))
 	if failed(hr) || tl == 0 {
+		taskbarFailed = true
 		return 0, fmt.Errorf("taskbar overlay: %#x", hr)
 	}
 	if hr := comCall(tl, taskbarHrInit); failed(hr) {
 		comCall(tl, taskbarRelease)
+		taskbarFailed = true
 		return 0, fmt.Errorf("taskbar overlay: %#x", hr)
 	}
 	taskbarList = tl
@@ -66,7 +70,7 @@ func setOverlay(hwnd uintptr, png []byte, description string) error {
 		return nil
 	}
 	tl, err := taskbar()
-	if err != nil {
+	if err != nil || tl == 0 {
 		return err
 	}
 	var icon uintptr

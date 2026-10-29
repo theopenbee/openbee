@@ -105,7 +105,11 @@ func (a *App) Run() error {
 			a.tray.Destroy()
 		}
 	})
-	mygo.App.OnQuit(a.flush)
+	mygo.App.OnQuit(func() {
+		if !a.quitting {
+			a.flush()
+		}
+	})
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
 }
@@ -176,6 +180,7 @@ func (a *App) openWindow() *mygo.Window {
 	})
 	w.OnClosed(a.syncForeground)
 	if runtime.GOOS == windows {
+		w.OnFocus(a.applyOverlay)
 		w.OnShow(func() { time.AfterFunc(overlayDelay, func() { a.post(a.applyOverlay) }) })
 	}
 	a.attach(w)

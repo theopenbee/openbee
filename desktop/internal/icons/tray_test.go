@@ -110,5 +110,12 @@ func TestCountBadge(t *testing.T) {
 		if white == 0 {
 			t.Errorf("%q: no white pixels, want the count drawn", badge)
 		}
+		for _, x := range []int{0, 15} {
+			for y := 0; y < 16; y++ {
+				if r, g, b, a := img.At(x, y).RGBA(); a > 0x8000 && r > 0xc000 && g > 0xc000 && b > 0xc000 {
+					t.Errorf("%q: white pixel at the edge (%d,%d), want the count inside the badge", badge, x, y)
+				}
+			}
+		}
 	}
 }
