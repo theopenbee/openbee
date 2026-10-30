@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -244,7 +245,7 @@ func TestStop_WorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
 		ExecStopper:  fx.stopper,
 		Dispatcher:   fx.disp,
 		RunningExecs: execs,
-		EngineCfg:    enginecfg.NewStore("claude"),
+		EngineCfg:    enginecfg.NewStore("claude", "", aitest.IDs("claude")),
 	})
 	sender := &fakeStopSender{}
 	h := newStopWorkerHandler(workerLookup("alice", model.Worker{ID: "w-1", Name: "alice"}), svc, sender)

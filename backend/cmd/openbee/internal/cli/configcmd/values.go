@@ -19,12 +19,6 @@ type configValues struct {
 	EngineDefault       string
 	EngineTimeoutBee    string
 	EngineTimeoutWorker string
-	ClaudeEnabled       bool
-	CodexEnabled        bool
-	PiEnabled           bool
-	ClaudePath          string
-	CodexPath           string
-	PiPath              string
 
 	FeederMaxConcurrentBee int
 	MessageDebounce        string
@@ -53,12 +47,6 @@ func loadExistingConfig(path string) *configValues {
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),
 		EngineTimeoutWorker:    cfg.Bee.Engine.Timeout.Worker.String(),
-		ClaudeEnabled:          cfg.Bee.Engines.Claude.Enabled,
-		CodexEnabled:           cfg.Bee.Engines.Codex.Enabled,
-		PiEnabled:              cfg.Bee.Engines.Pi.Enabled,
-		ClaudePath:             cfg.Bee.Engines.Claude.Path,
-		CodexPath:              cfg.Bee.Engines.Codex.Path,
-		PiPath:                 cfg.Bee.Engines.Pi.Path,
 		FeederMaxConcurrentBee: cfg.Bee.Feeder.MaxConcurrentBee,
 		MessageDebounce:        cfg.Bee.MessageDebounce.String(),
 		AuthJWTSecret:          cfg.Server.Auth.JWTSecret,

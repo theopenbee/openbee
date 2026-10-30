@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -188,14 +187,6 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		EngineArgs:       engineArgs,
 		PermissionScopes: p.PermissionScopes,
 	}
-	_, engine, err := m.resolveEngineSelection(workerModel)
-	if err != nil {
-		return model.Worker{}, err
-	}
-	if err := engine.Prepare(p.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		return model.Worker{}, fmt.Errorf("prepare worker workspace: %w", err)
-	}
-
 	return m.workerStore.Create(workerModel)
 }
 

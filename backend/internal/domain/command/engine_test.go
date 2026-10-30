@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -107,7 +107,9 @@ func (f *fakeWorkerBusyChecker) HasActiveImmediateTasksByWorkerID(_ context.Cont
 	return f.activeTasks, f.err
 }
 
-var defaultValidator = &fakeValidator{engines: ai.AllEngines()}
+var allEngines = []string{"claude", "codex", "pi"}
+
+var defaultValidator = &fakeValidator{engines: allEngines}
 var notBeeBusy = &fakeBeeBusyChecker{}
 var notWorkerBusy = &fakeWorkerBusyChecker{}
 
@@ -125,7 +127,7 @@ func makeHandler(workers map[string]model.Worker) (*command.EngineCommandHandler
 	senders := platform.SenderMap{"beta": sender}
 	beeBusy := command.NewBeeBusyChecker(notBeeBusy, notBeeBusy)
 	workerBusy := command.NewWorkerBusyChecker(notWorkerBusy, notWorkerBusy)
-	engineCfg := enginecfg.NewStore("")
+	engineCfg := enginecfg.NewStore("", "", aitest.IDs(allEngines...))
 	h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, beeBusy, workerBusy, engineCfg)
 	return h, sender, cfg, engineCfg
 }
@@ -259,7 +261,7 @@ func TestEngineCommand_Busy(t *testing.T) {
 			cfg := &fakeSysConfig{vals: make(map[string]string)}
 			repo := &fakeWorkerRepo{workers: tc.workers, updateErr: tc.updateErr}
 			senders := platform.SenderMap{"beta": sender}
-			h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, tc.beeBusy, tc.workerBusy, enginecfg.NewStore(""))
+			h := command.NewEngineCommandHandler(repo, cfg, senders, defaultValidator, tc.beeBusy, tc.workerBusy, enginecfg.NewStore("", "", aitest.IDs(allEngines...)))
 
 			handled := h.HandleCommand(context.Background(), tc.cmd, makeReplyTo())
 			require.True(t, handled, "expected handled=true")
@@ -269,7 +271,7 @@ func TestEngineCommand_Busy(t *testing.T) {
 }
 
 func TestEngineCommand_SwitchBeeEngine_DBError(t *testing.T) {
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs(allEngines...))
 	sender := &fakeSender{}
 	cfg := &fakeSysConfig{vals: make(map[string]string), setErr: errors.New("db error")}
 	repo := &fakeWorkerRepo{workers: map[string]model.Worker{}}

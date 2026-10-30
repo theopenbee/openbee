@@ -493,8 +493,8 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		SessionID:    sessionID,
 		Resume:       true,
 	})
-	if err == nil {
-		return exec, nil
+	if err == nil || ai.IsEngineMissing(err) {
+		return exec, err
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
 	if task.SessionKey != "" && task.WorkerID != "" {

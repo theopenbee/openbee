@@ -1,36 +1,48 @@
-// Package enginecfg holds the active default engine name.
-// A Store instance is created at startup (seeded from config/DB) and injected
-// into every subsystem that needs to observe or mutate the default engine.
 package enginecfg
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
-// Store holds the current default engine name. Safe for concurrent use.
 type Store struct {
-	mu  sync.RWMutex
-	val string
+	mu            sync.RWMutex
+	selected      string
+	configDefault string
+	enabled       func() []string
 }
 
-// NewStore returns a Store seeded with the given engine name.
-func NewStore(initial string) *Store {
-	return &Store{val: initial}
+func NewStore(selected, configDefault string, enabled func() []string) *Store {
+	return &Store{selected: selected, configDefault: configDefault, enabled: enabled}
 }
 
-// Get returns the current default engine name.
 func (s *Store) Get() string {
+	ids := s.enabled()
+	if len(ids) == 0 {
+		return ""
+	}
+	selected := s.Selected()
+	if slices.Contains(ids, selected) {
+		return selected
+	}
+	if slices.Contains(ids, s.configDefault) {
+		return s.configDefault
+	}
+	return slices.Min(ids)
+}
+
+func (s *Store) Selected() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.val
+	return s.selected
 }
 
-// Set updates the default engine name.
 func (s *Store) Set(engine string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.val = engine
+	s.selected = engine
 }
 
-// Resolve returns workerEngine if non-empty, otherwise the current default.
 func (s *Store) Resolve(workerEngine string) string {
 	if workerEngine != "" {
 		return workerEngine

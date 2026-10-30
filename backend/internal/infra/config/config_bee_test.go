@@ -23,25 +23,9 @@ func TestBeeConfig_Defaults(t *testing.T) {
 server:
   host: "localhost"
   port: 8080
-bee:
-  engines:
-    claude:
-      path: "claude-custom"
 `,
 			check: func(t *testing.T, cfg BeeConfig) {
 				assert.Equal(t, "http://localhost:8080", cfg.RPCBaseURL)
-				assert.Equal(t, "claude-custom", cfg.Engines.Claude.Path)
-			},
-		},
-		{
-			name: "BinaryDefault",
-			yaml: `
-server:
-  host: "localhost"
-  port: 8080
-`,
-			check: func(t *testing.T, cfg BeeConfig) {
-				assert.Equal(t, "claude", cfg.Engines.Claude.Path)
 			},
 		},
 		{
@@ -118,69 +102,48 @@ bee:
 	assert.Equal(t, 4*time.Hour, cfg.Bee.RPC.TokenTTL)
 }
 
-func TestEngineItemConfig_EnvField(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`
-server:
-  port: 8080
+func TestLoad_LegacyEnginesWarnsOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
 bee:
+  engine:
+    default: pi
+    timeout:
+      bee: 2m
   engines:
     claude:
-      path: claude
+      enabled: true
+      path: /usr/local/bin/claude
       env:
         ANTHROPIC_BASE_URL: https://proxy.example.com
-        CUSTOM_KEY: "value with spaces"
     pi:
+      enabled: true
       path: pi
-      env:
-        PI_VAR: pi_value
-    codex:
-      path: codex
-`)
-	f.Close()
-	defer os.Remove(f.Name())
-
-	cfg, err := Load(f.Name())
+`), 0o644))
+	cfg, err := Load(path)
 	require.NoError(t, err)
-
-	assert.Equal(t, "https://proxy.example.com", cfg.Bee.Engines.Claude.Env["ANTHROPIC_BASE_URL"])
-	assert.Equal(t, "value with spaces", cfg.Bee.Engines.Claude.Env["CUSTOM_KEY"])
-	assert.Equal(t, "pi_value", cfg.Bee.Engines.Pi.Env["PI_VAR"])
-	assert.Nil(t, cfg.Bee.Engines.Codex.Env)
+	assert.Equal(t, "pi", cfg.Bee.Engine.Default)
+	assert.Equal(t, 2*time.Minute, cfg.Bee.Engine.Timeout.Bee)
+	assert.Contains(t, cfg.Bee.LegacyEngines, "claude")
+	warnings := cfg.Bee.LegacyWarnings()
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "bee.engines")
 }
 
-func TestEngineConfigRawFor_IncludesEnv(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`
-server:
-  port: 8080
-bee:
-  engines:
-    claude:
-      path: my-claude
-      env:
-        MY_KEY: my_value
-    codex:
-      path: codex
-`)
-	f.Close()
-	defer os.Remove(f.Name())
-
-	cfg, err := Load(f.Name())
+func TestLoad_NoLegacyWarnings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("bee:\n  engines: {}\n  platforms: {}\n"), 0o644))
+	cfg, err := Load(path)
 	require.NoError(t, err)
+	assert.Empty(t, cfg.Bee.LegacyWarnings())
+}
 
-	raw := cfg.Bee.EngineConfigRawFor("claude")
-	require.NotNil(t, raw)
-	got, _ := raw["path"].(string)
-	assert.Equal(t, "my-claude", got)
-	env, _ := raw["env"].(map[string]string)
-	assert.Equal(t, "my_value", env["MY_KEY"])
-
-	// Engine with no env — raw["env"] must still be present (nil is fine for type assertion)
-	rawCodex := cfg.Bee.EngineConfigRawFor("codex")
-	require.NotNil(t, rawCodex)
-	envCodex, _ := rawCodex["env"].(map[string]string)
-	assert.Empty(t, envCodex)
+func TestTemplate_NoEnginesSection(t *testing.T) {
+	assert.NotContains(t, ConfigTemplate, "engines:")
+	assert.NotContains(t, ConfigTemplate, "Enabled}}")
+	assert.Contains(t, ConfigTemplate, "default: \"{{.EngineDefault}}\"")
+	assert.Contains(t, ConfigTemplate, "bee: {{.EngineTimeoutBee}}")
+	assert.Contains(t, ConfigTemplate, "worker: {{.EngineTimeoutWorker}}")
 }
 
 func TestLoad_LegacyPlatformsIgnored(t *testing.T) {
@@ -199,6 +162,7 @@ bee:
 	require.NoError(t, err)
 	assert.Equal(t, 3, cfg.Bee.Feeder.MaxConcurrentBee)
 	assert.Contains(t, cfg.Bee.LegacyPlatforms, "telegram")
+	assert.Len(t, cfg.Bee.LegacyWarnings(), 1)
 }
 
 func TestLoad_NoLegacyPlatforms(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -64,10 +65,6 @@ type beeCall struct {
 	logPath string
 }
 
-func (m *mockBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
 func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, beeCall{prompt: prompt, opts: opts, logPath: logPath})
@@ -89,8 +86,8 @@ func (m *mockBeeRunner) Run(_ context.Context, _, prompt string, opts ai.RunOpti
 	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
-func (m *mockBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (m *mockBeeRunner) CollectTokenUsage(_ context.Context, _ []string) (map[string][]ai.TokenUsage, error) {
+	return nil, nil
 }
 
 func (m *mockBeeRunner) getCalls() []beeCall {
@@ -107,7 +104,7 @@ func newFeederWithEngine(ms *store.MessageStore, ts *store.TaskStore, ss *store.
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(engine))
+	return bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(engine, "", aitest.IDs(engine)))
 }
 
 func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
@@ -127,6 +124,7 @@ func TestFeeder_FirstTick_UsesNewSessionID(t *testing.T) {
 	call := calls[0]
 	assert.NotEmpty(t, call.opts.SessionID, "expected non-empty sessionID on first call")
 	assert.False(t, call.opts.Resume, "expected resume=false on first call")
+	assert.Equal(t, ai.RoleBee, call.opts.Role)
 
 	// logPath should already be prepared (PrepareLogPath) before the process runs.
 	assert.NotEmpty(t, call.logPath, "logPath passed to runner must be non-empty")
@@ -347,7 +345,7 @@ func TestFeeder_ImmediateFailure_MarksFailedAndNotifies(t *testing.T) {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""), bee.WithFailureNotifier(notifier))
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()), bee.WithFailureNotifier(notifier))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -391,7 +389,7 @@ func TestFeeder_MultipleSessionKeys_ProcessedConcurrently(t *testing.T) {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore(""))
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -452,7 +450,7 @@ func TestFeeder_SemaphoreLimit_CapsActiveBee(t *testing.T) {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 3 // deliberately small
-	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore(""))
+	f := bee.NewFeeder(ms, ts, ss, es, slowRunner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -476,12 +474,8 @@ type callbackBeeRunner struct {
 	done chan struct{}
 }
 
-func (r *callbackBeeRunner) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
-func (r *callbackBeeRunner) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (r *callbackBeeRunner) CollectTokenUsage(_ context.Context, _ []string) (map[string][]ai.TokenUsage, error) {
+	return nil, nil
 }
 
 func (r *callbackBeeRunner) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
@@ -507,7 +501,7 @@ func TestFeeder_DirectDispatch_NoPrefix_FallsBackToBee(t *testing.T) {
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", config.BeeConfig{
 		Engine: config.EngineDefaultConfig{Timeout: config.EngineTimeoutConfig{Bee: 5 * time.Second}},
 		Feeder: config.FeederConfig{MaxConcurrentBee: 5},
-	}, enginecfg.NewStore(""), bee.WithWorkerDispatch(ws))
+	}, enginecfg.NewStore("", "", aitest.IDs()), bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -528,7 +522,7 @@ func TestFeeder_DirectDispatch_WorkerNotFound_FallsBackToBee(t *testing.T) {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()),
 		bee.WithWorkerDispatch(ws))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -594,7 +588,7 @@ func TestFeeder_DirectDispatch_SkipsBee(t *testing.T) {
 			cfg := config.BeeConfig{}
 			cfg.Engine.Timeout.Bee = 5 * time.Second
 			cfg.Feeder.MaxConcurrentBee = 5
-			f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+			f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()),
 				bee.WithWorkerDispatch(ws))
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -645,7 +639,7 @@ func startWorkerChatFeeder(t *testing.T, opts ...bee.Option) *workerChatEnv {
 		bee.WithFailureNotifier(env.notifier),
 		bee.WithLocalMediaRoot(env.root),
 	}, opts...)
-	f := bee.NewFeeder(ms, ts, ss, es, env.runner, "/tmp", cfg, enginecfg.NewStore(""), all...)
+	f := bee.NewFeeder(ms, ts, ss, es, env.runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()), all...)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go f.Run(ctx)
@@ -825,7 +819,7 @@ func TestFeederWorkerChatWithoutWorkerLookupFails(t *testing.T) {
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""), bee.WithFailureNotifier(notifier))
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()), bee.WithFailureNotifier(notifier))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go f.Run(ctx)
@@ -921,7 +915,7 @@ func startHandoffFeeder(t *testing.T, db *sql.DB, ms *store.MessageStore, ts *st
 	cfg := config.BeeConfig{}
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
-	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore(""),
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()),
 		bee.WithWorkerDispatch(ws), bee.WithHandoff(handoff))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

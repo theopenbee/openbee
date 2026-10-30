@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
@@ -66,9 +67,9 @@ func (f *fakeEngineValidatorForSys) ValidateEngineArgs(raw map[string]string) er
 	return nil
 }
 
-func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys) (*gin.Engine, *enginecfg.Store) {
+func newSysConfigRouter(store sysConfigStore, validator engineValidatorForSys, enabled ...string) (*gin.Engine, *enginecfg.Store) {
 	gin.SetMode(gin.TestMode)
-	cfg := enginecfg.NewStore("")
+	cfg := enginecfg.NewStore("", "", aitest.IDs(enabled...))
 	h := NewSystemConfigHandler(store, validator, cfg)
 	r := gin.New()
 	api := r.Group("/api")
@@ -96,7 +97,7 @@ func TestSystemConfigHandler_Get_WithValue(t *testing.T) {
 		model.SystemConfigKeyDefaultEngine:    "claude",
 		model.SystemConfigKeyEngineArgsGlobal: `{"pi":"--verbose"}`,
 	}}
-	router, cfg := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+	router, cfg := newSysConfigRouter(store, &fakeEngineValidatorForSys{}, "claude")
 	cfg.Set("claude")
 
 	w := httptest.NewRecorder()
@@ -115,8 +116,8 @@ func TestSystemConfigHandler_Get_ReturnsEffectiveDefaultEngine(t *testing.T) {
 		"disabled row": {model.SystemConfigKeyDefaultEngine: "claude"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			router, cfg := newSysConfigRouter(&fakeSysConfigStore{vals: vals}, &fakeEngineValidatorForSys{})
-			cfg.Set("pi")
+			router, cfg := newSysConfigRouter(&fakeSysConfigStore{vals: vals}, &fakeEngineValidatorForSys{}, "pi")
+			cfg.Set(vals[model.SystemConfigKeyDefaultEngine])
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/system-configs", nil))
@@ -131,7 +132,7 @@ func TestSystemConfigHandler_Get_ReturnsEffectiveDefaultEngine(t *testing.T) {
 func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	store := &fakeSysConfigStore{vals: map[string]string{}}
 	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"claude": true}}
-	router, cfg := newSysConfigRouter(store, validator)
+	router, cfg := newSysConfigRouter(store, validator, "claude")
 
 	body, _ := json.Marshal(map[string]string{"value": "claude"})
 	w := httptest.NewRecorder()
@@ -140,7 +141,7 @@ func TestSystemConfigHandler_Set_ValidEngine(t *testing.T) {
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, "claude", store.vals[model.SystemConfigKeyDefaultEngine])
-	assert.Equal(t, "claude", cfg.Get(), "engineCfg not updated")
+	assert.Equal(t, "claude", cfg.Selected(), "engineCfg not updated")
 }
 
 func TestSystemConfigHandler_Set_ClearToDefault(t *testing.T) {

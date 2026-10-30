@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -21,10 +22,6 @@ import (
 
 type mockEngine struct{}
 
-func (e *mockEngine) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-
 func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output, 1)
 	ch <- ai.Output{Type: ai.OutputDone}
@@ -32,8 +29,8 @@ func (e *mockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ stri
 	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
-func (m *mockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (m *mockEngine) CollectTokenUsage(_ context.Context, _ []string) (map[string][]ai.TokenUsage, error) {
+	return nil, nil
 }
 
 type mockProcess struct{}
@@ -45,23 +42,25 @@ func (p *mockProcess) Stop() error { return nil }
 // emitting a terminal Done/Error signal — the abandoned-process scenario.
 type silentMockEngine struct{}
 
-func (e *silentMockEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
-
 func (e *silentMockEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	ch := make(chan ai.Output)
 	close(ch)
 	return ai.RunResult{Process: &mockProcess{}, Output: ch, ExtractResult: func(string) string { return "" }}, nil
 }
 
-func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (e *silentMockEngine) CollectTokenUsage(_ context.Context, _ []string) (map[string][]ai.TokenUsage, error) {
+	return nil, nil
 }
 
 func newTestManager(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string) *Manager {
-	return newTestManagerWithBotNames(t, engines, defaultEngine, nil)
+	return newTestManagerWithSource(t, aitest.NewSource(engines), defaultEngine, nil)
 }
 
 func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapter, defaultEngine string, botNames []string) *Manager {
+	return newTestManagerWithSource(t, aitest.NewSource(engines), defaultEngine, botNames)
+}
+
+func newTestManagerWithSource(t *testing.T, src *aitest.Source, defaultEngine string, botNames []string) *Manager {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := store.InitDB(filepath.Join(dir, "test.db"))
@@ -81,8 +80,8 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 		workerTimeout:   30 * time.Minute,
 		workerStore:     ws,
 		executionStore:  es,
-		engines:         engines,
-		engineCfg:       enginecfg.NewStore(defaultEngine),
+		engines:         src,
+		engineCfg:       enginecfg.NewStore(defaultEngine, "", src.IDs),
 		envService:      envSvc,
 		botNames:        func() []string { return botNames },
 		activeProcesses: make(map[string]ai.Process),
@@ -91,81 +90,104 @@ func newTestManagerWithBotNames(t *testing.T, engines map[string]ai.EngineAdapte
 	return m
 }
 
-// TestManager_ResolveEngine merges the engine-resolution scenarios that cover
-// both resolveEngine and resolveEngineSelection. Each case builds its own
-// manager and engine map.
 func TestManager_ResolveEngine(t *testing.T) {
-	cases := []struct {
-		name string
-		run  func(t *testing.T) (gotName string, gotEngine ai.EngineAdapter, err error, wantName string, wantEngine ai.EngineAdapter)
-	}{
-		{
-			name: "KnownEngine",
-			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
-				claude := &mockEngine{}
-				codex := &mockEngine{}
-				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude, "codex": codex}, "claude")
-				name, got := mgr.resolveEngine(model.Worker{Engine: "codex"})
-				return name, got, nil, "codex", codex
-			},
-		},
-		{
-			name: "EmptyEngine_FallsBackToDefault",
-			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
-				claude := &mockEngine{}
-				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude}, "claude")
-				name, got := mgr.resolveEngine(model.Worker{Engine: ""})
-				return name, got, nil, "claude", claude
-			},
-		},
-		{
-			name: "UnknownEngineUsesFallbackName",
-			run: func(t *testing.T) (string, ai.EngineAdapter, error, string, ai.EngineAdapter) {
-				claude := &mockEngine{}
-				mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude}, "claude")
-				name, got, err := mgr.resolveEngineSelection(model.Worker{Engine: "unknown-engine"})
-				return name, got, err, "claude", claude
-			},
-		},
-	}
+	claude := &aitest.Engine{}
+	codex := &aitest.Engine{}
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": claude, "codex": codex}, "claude")
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			gotName, gotEngine, err, wantName, wantEngine := tc.run(t)
-			require.NoError(t, err)
-			require.Equal(t, wantName, gotName)
-			assert.Same(t, wantEngine, gotEngine)
-		})
-	}
-}
+	name, got, err := mgr.resolveEngine(model.Worker{Engine: "codex"})
+	require.NoError(t, err)
+	assert.Equal(t, "codex", name)
+	assert.Same(t, codex, got)
 
-func TestManager_ResolveEngine_UnknownEngine_FallsBackToDefault(t *testing.T) {
-	claude := &mockEngine{}
-	engines := map[string]ai.EngineAdapter{"claude": claude}
-	mgr := newTestManager(t, engines, "claude")
-
-	w := model.Worker{Engine: "unknown-engine"}
-	name, got := mgr.resolveEngine(w)
-	require.Equal(t, "claude", name)
+	name, got, err = mgr.resolveEngine(model.Worker{})
+	require.NoError(t, err)
+	assert.Equal(t, "claude", name)
 	assert.Same(t, claude, got)
 }
 
+func TestResolveEngine_WorkerEngineGone(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	codex := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi, "codex": codex})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+
+	coder, err := mgr.CreateWorker(CreateWorkerParams{Name: "coder", Engine: "codex"})
+	require.NoError(t, err)
+	helper, err := mgr.CreateWorker(CreateWorkerParams{Name: "helper"})
+	require.NoError(t, err)
+
+	src.Remove("codex")
+
+	name, got, err := mgr.resolveEngine(coder)
+	require.EqualError(t, err, `engine "codex" is not installed or enabled`)
+	assert.Equal(t, "codex", name)
+	assert.Nil(t, got)
+
+	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: coder.ID, TriggerInput: "hi", SessionID: "s1"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `engine "codex" is not installed or enabled`)
+	stored, err := mgr.executionStore.GetByID(exec.ID)
+	require.NoError(t, err)
+	assert.Equal(t, model.ExecStatusFailed, stored.Status)
+	assert.Equal(t, `engine "codex" is not installed or enabled`, stored.Result)
+	assert.Equal(t, "codex", stored.Engine)
+	assert.Empty(t, pi.Runs())
+	assert.Empty(t, codex.Runs())
+
+	_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: helper.ID, TriggerInput: "hi", SessionID: "s2"})
+	require.NoError(t, err)
+	require.Len(t, pi.Runs(), 1)
+	assert.Equal(t, ai.RoleWorker, pi.Runs()[0].Role)
+}
+
+func TestResolveEngine_NoEngine(t *testing.T) {
+	mgr := newTestManager(t, nil, "claude")
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "idle"})
+	require.NoError(t, err)
+
+	_, _, err = mgr.resolveEngine(w)
+	require.ErrorIs(t, err, ai.ErrNoEngine)
+
+	_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s1"})
+	require.ErrorIs(t, err, ai.ErrNoEngine)
+}
+
+func TestValidateEngine_UsesSource(t *testing.T) {
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": &aitest.Engine{}})
+	mgr := newTestManagerWithSource(t, src, "", nil)
+
+	require.NoError(t, mgr.ValidateEngine(""))
+	require.NoError(t, mgr.ValidateEngine("pi"))
+	require.EqualError(t, mgr.ValidateEngine("codex"), `engine "codex" is not installed or enabled`)
+	assert.Equal(t, []string{"pi"}, mgr.EnabledEngines())
+
+	src.Add("codex", map[string]string{"en": "Codex"}, &aitest.Engine{})
+	require.NoError(t, mgr.ValidateEngine("codex"))
+	assert.Equal(t, []string{"codex", "pi"}, mgr.EnabledEngines())
+
+	src.Remove("pi")
+	require.Error(t, mgr.ValidateEngine("pi"))
+	require.Error(t, mgr.ValidateEngineArgs(map[string]string{"pi": "--model x"}))
+	assert.Equal(t, []string{"codex"}, mgr.EnabledEngines())
+}
+
 func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": &mockEngine{}}, "claude")
 	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})
 	require.Error(t, err)
 }
 
 func TestManager_ValidateEngineArgs_RejectsInvalidArgs(t *testing.T) {
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": &mockEngine{}}, "claude")
 	err := mgr.ValidateEngineArgs(map[string]string{"claude": `--model "unterminated`})
 	require.Error(t, err)
 }
 
 func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 	// This test verifies CancelExecution returns a sensible error for an unknown execution ID.
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	err := mgr.CancelExecution(context.Background(), "nonexistent-exec-id")
 	assert.Error(t, err)
@@ -175,8 +197,8 @@ func TestManager_CancelExecution_StopsActiveProcess(t *testing.T) {
 // crashed, signal-terminated), monitorExecution must finalize the execution
 // row instead of leaving it stuck in `running` forever.
 func TestManager_MonitorExecution_SilentClose_FinalizesExecution(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &silentMockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &silentMockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
@@ -222,12 +244,12 @@ func TestManager_ValidateWorkerName_Rejects(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
+			engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
 			var mgr *Manager
 			if len(tc.botNames) > 0 {
-				mgr = newTestManagerWithBotNames(t, engines, ai.EngineClaude, tc.botNames)
+				mgr = newTestManagerWithBotNames(t, engines, "claude", tc.botNames)
 			} else {
-				mgr = newTestManager(t, engines, ai.EngineClaude)
+				mgr = newTestManager(t, engines, "claude")
 			}
 			ids := make([]string, len(tc.existingNames))
 			for i, n := range tc.existingNames {
@@ -251,8 +273,8 @@ func TestManager_ValidateWorkerName_Rejects(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
@@ -263,8 +285,8 @@ func TestManager_UpdateWorker_RenameToSameName_Succeeds(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}, ai.EngineCodex: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}, "codex": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{
 		Name:       "alice",
@@ -280,8 +302,8 @@ func TestManager_UpdateWorker_EmptyEngineArgsClearsAll(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
@@ -292,8 +314,8 @@ func TestManager_UpdateWorker_RenameToCaseVariant_Succeeds(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"beta"})
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManagerWithBotNames(t, engines, "claude", []string{"beta"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
@@ -305,8 +327,8 @@ func TestManager_UpdateWorker_RenameToBotName_Rejected(t *testing.T) {
 }
 
 func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManagerWithBotNames(t, engines, ai.EngineClaude, []string{"beta"})
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManagerWithBotNames(t, engines, "claude", []string{"beta"})
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice"})
 	require.NoError(t, err)
@@ -318,8 +340,8 @@ func TestManager_UpdateWorker_RenameToBotNameCaseVariant_Rejected(t *testing.T) 
 }
 
 func TestManager_UpdateWorker_NoNameChange_Succeeds(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "alice", Description: "original"})
 	require.NoError(t, err)
@@ -384,9 +406,9 @@ func TestUpdateWorker_WorkDir(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-			m := newTestManager(t, engines, ai.EngineClaude)
-			w, err := m.CreateWorker(CreateWorkerParams{Name: tc.workerName, Engine: ai.EngineClaude})
+			engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+			m := newTestManager(t, engines, "claude")
+			w, err := m.CreateWorker(CreateWorkerParams{Name: tc.workerName, Engine: "claude"})
 			require.NoError(t, err)
 
 			r := tc.build(t, w)
@@ -404,10 +426,10 @@ func TestUpdateWorker_WorkDir(t *testing.T) {
 }
 
 func TestUpdateWorker_WorkDir_EmptyAfterTrim(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	m := newTestManager(t, engines, "claude")
 
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-empty", Engine: ai.EngineClaude})
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-empty", Engine: "claude"})
 	require.NoError(t, err)
 
 	blank := "   "
@@ -417,8 +439,8 @@ func TestUpdateWorker_WorkDir_EmptyAfterTrim(t *testing.T) {
 }
 
 func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	m := newTestManager(t, engines, "claude")
 
 	w, err := m.CreateWorker(CreateWorkerParams{Name: "wd-exec-mkdir"})
 	require.NoError(t, err)
@@ -441,29 +463,29 @@ func TestManager_Execute_CreatesNewWorkDirIfMissing(t *testing.T) {
 }
 
 func TestCreateWorker_WorkDir_TrimWhitespace(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	m := newTestManager(t, engines, "claude")
 
 	want := filepath.Join(t.TempDir(), "trimmed")
 	padded := "   " + want + "   "
 
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-trim", WorkDir: padded, Engine: ai.EngineClaude})
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-trim", WorkDir: padded, Engine: "claude"})
 	require.NoError(t, err)
 	require.Equal(t, want, w.WorkDir)
 }
 
 func TestCreateWorker_WorkDir_BlankFallsBackToDefault(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	m := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	m := newTestManager(t, engines, "claude")
 
-	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-blank", WorkDir: "   ", Engine: ai.EngineClaude})
+	w, err := m.CreateWorker(CreateWorkerParams{Name: "create-wd-blank", WorkDir: "   ", Engine: "claude"})
 	require.NoError(t, err)
 	require.Equal(t, m.workerBaseDir, filepath.Dir(w.WorkDir))
 }
 
 func TestManager_ValidateWorkerNameUsesBotNameSource(t *testing.T) {
-	engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-	mgr := newTestManager(t, engines, ai.EngineClaude)
+	engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+	mgr := newTestManager(t, engines, "claude")
 	_, err := mgr.CreateWorker(CreateWorkerParams{Name: "gamma"})
 	require.NoError(t, err)
 
@@ -479,8 +501,8 @@ func TestManager_ValidateWorkerNameUsesBotNameSource(t *testing.T) {
 
 func TestManagerStatusObserver(t *testing.T) {
 	t.Run("ReportsExecutionStatuses", func(t *testing.T) {
-		engines := map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}
-		mgr := newTestManager(t, engines, ai.EngineClaude)
+		engines := map[string]ai.EngineAdapter{"claude": &mockEngine{}}
+		mgr := newTestManager(t, engines, "claude")
 		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "observed"})
 		require.NoError(t, err)
 
@@ -511,7 +533,7 @@ func TestManagerStatusObserver(t *testing.T) {
 	})
 
 	t.Run("SkipsFailedUpdate", func(t *testing.T) {
-		mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: &mockEngine{}}, ai.EngineClaude)
+		mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": &mockEngine{}}, "claude")
 		db, err := store.InitDB(filepath.Join(t.TempDir(), "closed.db"))
 		require.NoError(t, err)
 		require.NoError(t, db.Close())
@@ -529,14 +551,12 @@ type heldEngine struct {
 	out chan ai.Output
 }
 
-func (e *heldEngine) Prepare(_ string, _ ai.PrepareOptions) error { return nil }
-
 func (e *heldEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
 	return ai.RunResult{Process: &mockProcess{}, Output: e.out, ExtractResult: func(string) string { return "" }}, nil
 }
 
-func (e *heldEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
+func (e *heldEngine) CollectTokenUsage(_ context.Context, _ []string) (map[string][]ai.TokenUsage, error) {
+	return nil, nil
 }
 
 type statusLog struct {
@@ -567,7 +587,7 @@ type stoppedRun struct {
 func startStoppedRun(t *testing.T) *stoppedRun {
 	t.Helper()
 	engine := &heldEngine{out: make(chan ai.Output, 1)}
-	mgr := newTestManager(t, map[string]ai.EngineAdapter{ai.EngineClaude: engine}, ai.EngineClaude)
+	mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": engine}, "claude")
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "stopped"})
 	require.NoError(t, err)
 	log := &statusLog{}

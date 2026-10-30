@@ -90,7 +90,7 @@ func NewFeeder(ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionSto
 		cfg:          cfg,
 		engineCfg:    engineCfg,
 		sem:          make(chan struct{}, cfg.Feeder.MaxConcurrentBee),
-		running: make(map[string]context.CancelFunc),
+		running:      make(map[string]context.CancelFunc),
 	}
 	for _, o := range opts {
 		o(f)
@@ -129,9 +129,6 @@ func (f *Feeder) RecoverFeeding(ctx context.Context) {
 func (f *Feeder) Run(ctx context.Context) {
 	if err := os.MkdirAll(f.workDir, 0o755); err != nil {
 		log.Error("create bee workspace", zap.Error(err))
-	}
-	if err := f.runner.Prepare(f.workDir, ai.PrepareOptions{Role: ai.RoleBee}); err != nil {
-		log.Error("setup bee workspace", zap.Error(err))
 	}
 	ticker := time.NewTicker(PollInterval)
 	defer ticker.Stop()
@@ -257,7 +254,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.runningMu.Unlock()
 	}()
 
-	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume}, logPath)
+	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume, Role: ai.RoleBee}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)

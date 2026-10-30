@@ -30,7 +30,7 @@ type Manager struct {
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
-	engines        map[string]ai.EngineAdapter
+	engines        ai.EngineSource
 	engineCfg      *enginecfg.Store
 	envService     *env.Service
 	sysConfigStore systemConfigReader
@@ -47,7 +47,7 @@ func NewManager(
 	bc config.BeeConfig,
 	ws *store.WorkerStore,
 	es *store.ExecutionStore,
-	engines map[string]ai.EngineAdapter,
+	engines ai.EngineSource,
 	engineCfg *enginecfg.Store,
 	envService *env.Service,
 	sysConfigStore systemConfigReader,
@@ -68,36 +68,20 @@ func NewManager(
 	}
 }
 
-// resolveEngineSelection returns the engine name/adapter pair for w, falling
-// back to the configured default if w.Engine is empty or unknown.
-func (m *Manager) resolveEngineSelection(w model.Worker) (string, ai.EngineAdapter, error) {
-	if w.Engine != "" {
-		if e, ok := m.engines[w.Engine]; ok {
-			return w.Engine, e, nil
-		}
-		log.Error("unknown engine on worker, falling back to default",
-			zap.String("worker_id", w.ID), zap.String("engine", w.Engine))
+func (m *Manager) resolveEngine(w model.Worker) (string, ai.EngineAdapter, error) {
+	name := m.engineCfg.Resolve(w.Engine)
+	if name == "" {
+		return "", nil, ai.ErrNoEngine
 	}
-	defaultEngine := m.engineCfg.Get()
-	if e, ok := m.engines[defaultEngine]; ok {
-		return defaultEngine, e, nil
+	e, ok := m.engines.Engine(name)
+	if !ok {
+		return name, nil, ai.ErrEngineUnavailable(name)
 	}
-	return "", nil, fmt.Errorf("no engine adapter found (worker engine %q, default %q)", w.Engine, defaultEngine)
-}
-
-func (m *Manager) resolveEngine(w model.Worker) (string, ai.EngineAdapter) {
-	name, engine, _ := m.resolveEngineSelection(w)
-	return name, engine
+	return name, e, nil
 }
 
 func (m *Manager) EnabledEngines() []string {
-	enabled := make([]string, 0, len(m.engines))
-	for _, name := range ai.AllEngines() {
-		if _, ok := m.engines[name]; ok {
-			enabled = append(enabled, name)
-		}
-	}
-	return enabled
+	return ai.EngineIDs(m.engines)
 }
 
 func (m *Manager) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
@@ -141,8 +125,8 @@ func (m *Manager) ValidateEngine(name string) error {
 	if name == "" {
 		return nil
 	}
-	if _, ok := m.engines[name]; !ok {
-		return fmt.Errorf("engine %q is not enabled", name)
+	if _, ok := m.engines.Engine(name); !ok {
+		return ai.ErrEngineUnavailable(name)
 	}
 	return nil
 }

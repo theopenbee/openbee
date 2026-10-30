@@ -8,7 +8,6 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/config"
 
 	"github.com/spf13/cobra"
@@ -22,6 +21,11 @@ var errInterrupted = errors.New("interrupted")
 var configTemplate = config.ConfigTemplate
 
 var configOutputPath string
+
+var (
+	askOne        = survey.AskOne
+	installSkills = installBuiltinSkills
+)
 
 // NewCommand constructs the `config` cobra command.
 func NewCommand() *cobra.Command {
@@ -45,13 +49,8 @@ func defaultValues() configValues {
 		ServerPort:             "8080",
 		ServerHost:             "localhost",
 		DBPath:                 "./data/openbee.db",
-		EngineDefault:          "claude",
 		EngineTimeoutBee:       "5m",
 		EngineTimeoutWorker:    "30m",
-		ClaudeEnabled:          true,
-		ClaudePath:             "claude",
-		CodexPath:              "codex",
-		PiPath:                 "pi",
 		RPCTokenTTL:            "48h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
@@ -72,6 +71,24 @@ func renderConfig(vals configValues) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func runEngineStep(vals *configValues) error {
+	fmt.Println("\n=== Engine Configuration ===")
+	if err := askOne(&survey.Input{
+		Message: "Bee timeout:",
+		Default: vals.EngineTimeoutBee,
+	}, &vals.EngineTimeoutBee); err != nil {
+		return handleSurveyErr(err)
+	}
+	if err := askOne(&survey.Input{
+		Message: "Worker timeout:",
+		Default: vals.EngineTimeoutWorker,
+	}, &vals.EngineTimeoutWorker); err != nil {
+		return handleSurveyErr(err)
+	}
+	installSkills()
+	return nil
+}
+
 func runConfig() error {
 	vals := defaultValues()
 
@@ -86,115 +103,15 @@ func runConfig() error {
 	}
 	vals.Language = lang
 
-	// Step 1 — Engine config
-	fmt.Println("\n=== Engine Configuration ===")
-
-	enabledByName := map[string]bool{
-		ai.EngineClaude: vals.ClaudeEnabled,
-		ai.EngineCodex:  vals.CodexEnabled,
-		ai.EnginePi:     vals.PiEnabled,
+	if err := runEngineStep(&vals); err != nil {
+		return err
 	}
-	var defaultEngines []string
-	for _, name := range ai.AllEngines() {
-		if enabledByName[name] {
-			defaultEngines = append(defaultEngines, engineLabel(name))
-		}
-	}
-	if len(defaultEngines) == 0 {
-		defaultEngines = []string{engineLabel(ai.EngineClaude)}
-	}
-
-	mappings := engineMappings
-	allEngineLabels := make([]string, len(mappings))
-	for i, m := range mappings {
-		allEngineLabels[i] = m.label
-	}
-
-	var selectedEngines []string
-	if err := survey.AskOne(&survey.MultiSelect{
-		Message: "Select AI engine:",
-		Options: allEngineLabels,
-		Default: defaultEngines,
-	}, &selectedEngines, survey.WithValidator(func(ans any) error {
-		if v, ok := ans.([]survey.OptionAnswer); ok && len(v) == 0 {
-			return errors.New("select at least one engine")
-		}
-		return nil
-	})); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	vals.ClaudeEnabled = false
-	vals.CodexEnabled = false
-	vals.PiEnabled = false
-
-	for _, e := range selectedEngines {
-		switch engineName(e) {
-		case ai.EngineClaude:
-			vals.ClaudeEnabled = true
-			if err := configureClaudeExecutable(&vals); err != nil {
-				return err
-			}
-		case ai.EngineCodex:
-			vals.CodexEnabled = true
-			if err := configureCodexExecutable(&vals); err != nil {
-				return err
-			}
-		case ai.EnginePi:
-			vals.PiEnabled = true
-			if err := configurePiExecutable(&vals); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Select default engine from enabled ones.
-	// Find the label for the current default if it is still in the selection; otherwise fall back to first.
-	currentDefaultLabel := engineLabel(vals.EngineDefault)
-	defaultEngineOpt := selectedEngines[0]
-	for _, e := range selectedEngines {
-		if e == currentDefaultLabel {
-			defaultEngineOpt = e
-			break
-		}
-	}
-
-	var selectedDefault string
-	if len(selectedEngines) == 1 {
-		selectedDefault = selectedEngines[0]
-	} else {
-		if err := survey.AskOne(&survey.Select{
-			Message: "Default engine:",
-			Options: selectedEngines,
-			Default: defaultEngineOpt,
-		}, &selectedDefault); err != nil {
-			return handleSurveyErr(err)
-		}
-	}
-
-	vals.EngineDefault = engineName(selectedDefault)
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Bee timeout:",
-		Default: vals.EngineTimeoutBee,
-	}, &vals.EngineTimeoutBee); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	if err := survey.AskOne(&survey.Input{
-		Message: "Worker timeout:",
-		Default: vals.EngineTimeoutWorker,
-	}, &vals.EngineTimeoutWorker); err != nil {
-		return handleSurveyErr(err)
-	}
-
-	installBuiltinSkills()
 
 	// Step 2 — Advanced config
 	fmt.Println("\n=== Advanced Configuration ===")
 
 	var customAdvanced bool
-	if err := survey.AskOne(&survey.Confirm{
+	if err := askOne(&survey.Confirm{
 		Message: "Customize advanced settings?",
 		Default: false,
 	}, &customAdvanced); err != nil {
@@ -222,7 +139,7 @@ func runConfig() error {
 	fmt.Printf("Output file: %s\n", configOutputPath)
 
 	var confirmWrite bool
-	if err := survey.AskOne(&survey.Confirm{
+	if err := askOne(&survey.Confirm{
 		Message: "Confirm write config file?",
 		Default: true,
 	}, &confirmWrite); err != nil {

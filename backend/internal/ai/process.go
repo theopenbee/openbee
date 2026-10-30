@@ -1,8 +1,6 @@
 package ai
 
 import (
-	"bufio"
-	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -86,18 +84,6 @@ func effectiveEnv(env []string, key string) string {
 	return ""
 }
 
-// AppendExtraEnv appends non-empty entries from extraEnv to base and returns
-// the result re-clipped to its length, preventing concurrent Run() appends from
-// sharing the backing array with other goroutines.
-func AppendExtraEnv(base []string, extraEnv map[string]string) []string {
-	for k, v := range extraEnv {
-		if v != "" {
-			base = append(base, k+"="+v)
-		}
-	}
-	return base[:len(base):len(base)]
-}
-
 // BuildBaseEnv constructs the base environment for engine subprocesses.
 // It prepends the current executable's directory to PATH.
 // OPENBEE_URL is inherited from the server process environment (set via os.Setenv at startup).
@@ -117,17 +103,4 @@ func BuildBaseEnv() []string {
 	}
 	// Clip to length so concurrent append calls in Run() cannot share the backing array.
 	return env[:len(env):len(env)]
-}
-
-// ScanJSONLines reads r line by line and calls fn for each line that starts
-// with '{'. fn returns true to keep scanning or false to stop early.
-func ScanJSONLines(r io.Reader, fn func(line string) bool) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(nil, 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "{") && !fn(line) {
-			return
-		}
-	}
 }

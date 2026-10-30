@@ -3,79 +3,73 @@ package ai_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 )
 
-// stubEngine is a minimal EngineAdapter for testing.
-type stubEngine struct {
-	name     string
-	prepared []string // workDirs seen
+func TestDynamicAdapter_NoEngine(t *testing.T) {
+	src := aitest.NewSource(nil)
+	d := ai.NewDynamicAdapter(src, enginecfg.NewStore("claude", "pi", src.IDs))
+
+	_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
+	require.ErrorIs(t, err, ai.ErrNoEngine)
+	assert.EqualError(t, err, "no engine is installed or enabled")
 }
 
-func (s *stubEngine) Prepare(workDir string, _ ai.PrepareOptions) error {
-	s.prepared = append(s.prepared, workDir)
-	return nil
-}
-func (s *stubEngine) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	name := s.name
-	return ai.RunResult{
-		ExtractResult: func(string) string { return name + "-result" },
-	}, errors.New(s.name + " run called")
-}
-func (s *stubEngine) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
-}
+func TestDynamicAdapter_RoutesToEffectiveDefault(t *testing.T) {
+	pi := &aitest.Engine{}
+	codex := &aitest.Engine{}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi, "codex": codex})
+	cfg := enginecfg.NewStore("claude", "pi", src.IDs)
+	d := ai.NewDynamicAdapter(src, cfg)
+	run := func() {
+		t.Helper()
+		_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{Role: ai.RoleBee}, "/log")
+		require.NoError(t, err)
+	}
 
-func TestDynamicAdapter_PrepareCallsAll(t *testing.T) {
-	a := &stubEngine{name: "a"}
-	b := &stubEngine{name: "b"}
-	cfg := enginecfg.NewStore("a")
-	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
-	require.NoError(t, d.Prepare("/work", ai.PrepareOptions{}))
-	assert.Len(t, a.prepared, 1)
-	assert.Len(t, b.prepared, 1)
-}
+	run()
+	assert.Len(t, pi.Runs(), 1)
+	assert.Empty(t, codex.Runs())
+	assert.Equal(t, ai.RoleBee, pi.Runs()[0].Role)
 
-func TestDynamicAdapter_RunRoutesToCurrentEngine(t *testing.T) {
-	cfg := enginecfg.NewStore("a")
-	a := &stubEngine{name: "a"}
-	b := &stubEngine{name: "b"}
-	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
+	cfg.Set("codex")
+	run()
+	assert.Len(t, codex.Runs(), 1)
 
-	_, err := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
-	require.Error(t, err) // guard: err.Error() below would panic if err were nil
-	assert.Equal(t, "a run called", err.Error())
-
-	cfg.Set("b")
-	_, err = d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
-	require.Error(t, err) // guard: err.Error() below would panic if err were nil
-	assert.Equal(t, "b run called", err.Error())
+	src.Remove("codex")
+	run()
+	assert.Len(t, pi.Runs(), 2)
+	assert.Equal(t, "codex", cfg.Selected())
 }
 
 func TestDynamicAdapter_RunBindsExtractResultToEngine(t *testing.T) {
-	cfg := enginecfg.NewStore("a")
-	a := &stubEngine{name: "a"}
-	b := &stubEngine{name: "b"}
-	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": a, "b": b}, cfg)
+	engine := func(name string) *aitest.Engine {
+		return &aitest.Engine{RunFunc: func(context.Context, string, string, ai.RunOptions, string) (ai.RunResult, error) {
+			return ai.RunResult{ExtractResult: func(string) string { return name + "-result" }}, nil
+		}}
+	}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"a": engine("a"), "b": engine("b")})
+	cfg := enginecfg.NewStore("a", "", src.IDs)
+	d := ai.NewDynamicAdapter(src, cfg)
 
-	res, _ := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
-
-	// Simulate /engine switch mid-execution.
+	res, err := d.Run(context.Background(), "/w", "prompt", ai.RunOptions{}, "/log")
+	require.NoError(t, err)
 	cfg.Set("b")
 
-	got := res.ExtractResult("/log")
-	assert.Equal(t, "a-result", got)
+	assert.Equal(t, "a-result", res.ExtractResult("/log"))
 }
 
-func TestDynamicAdapter_RunUnknownEngine(t *testing.T) {
-	cfg := enginecfg.NewStore("missing")
-	d := ai.NewDynamicAdapter(map[string]ai.EngineAdapter{"a": &stubEngine{name: "a"}}, cfg)
-	_, err := d.Run(context.Background(), "/w", "p", ai.RunOptions{}, "/log")
-	assert.Error(t, err)
+func TestIsEngineMissing(t *testing.T) {
+	assert.EqualError(t, ai.ErrEngineUnavailable("codex"), `engine "codex" is not installed or enabled`)
+	assert.True(t, ai.IsEngineMissing(fmt.Errorf("start runtime: %w", ai.ErrEngineUnavailable("codex"))))
+	assert.True(t, ai.IsEngineMissing(fmt.Errorf("start runtime: %w", ai.ErrNoEngine)))
+	assert.False(t, ai.IsEngineMissing(errors.New("session broken")))
 }

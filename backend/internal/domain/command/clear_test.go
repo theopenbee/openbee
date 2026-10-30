@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -144,7 +145,7 @@ func makeClearFixture(
 	workers := &fakeClearWorkerLookup{fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: workersByID}}
 	stopper := &fakeClearExecStopper{}
 	disp := &fakeClearSessionDispatcher{}
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs("claude"))
 	runningExecs := cfg.runningExecs
 	if runningExecs == nil {
 		runningExecs = fakeRunningExecs{}
@@ -292,7 +293,7 @@ func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
 		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": worker}},
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs("claude"))
 	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{}
 	svc := session.NewClearService(session.ClearServiceDeps{
@@ -332,7 +333,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 		fakeWorkerByIDsLookup: &fakeWorkerByIDsLookup{byID: map[string]model.Worker{"w1": worker}},
 		byName:                map[string][]model.Worker{"徐晃": {worker}},
 	}
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs("claude"))
 	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1-task1"}
 	svc := session.NewClearService(session.ClearServiceDeps{
@@ -395,7 +396,7 @@ func TestClearCommand_Worker_OnlyAffectsTargetWorker(t *testing.T) {
 			"貂蝉": {diaochan},
 		},
 	}
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs("claude"))
 	senders := platform.SenderMap{"beta": fx.sender}
 	execs := fakeRunningExecs{"t1": "exec-w1", "t2": "exec-w2"}
 	svc := session.NewClearService(session.ClearServiceDeps{
@@ -455,7 +456,7 @@ func TestClearCommand_WorkerFromBeeChatTargetsWorkerChat(t *testing.T) {
 		ExecStopper:  fx.stopper,
 		Dispatcher:   fx.disp,
 		RunningExecs: execs,
-		EngineCfg:    enginecfg.NewStore("claude"),
+		EngineCfg:    enginecfg.NewStore("claude", "", aitest.IDs("claude")),
 	})
 	fx.handler = command.NewClearCommandHandler(workers, svc, platform.SenderMap{"beta": fx.sender}, execs)
 	command.SetClearClockForTest(fx.handler, fixedClock(clock))

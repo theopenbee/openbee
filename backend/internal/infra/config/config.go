@@ -35,16 +35,6 @@ func DefaultLogsDir() string {
 	return filepath.Join(home, ".openbee", "logs")
 }
 
-func DefaultCodexSessionsDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openbee", ".codex", "sessions")
-}
-
-func DefaultPiSessionsDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openbee", ".pi", "sessions")
-}
-
 type Config struct {
 	Language string         `yaml:"language"`
 	Server   ServerConfig   `yaml:"server"`
@@ -62,37 +52,11 @@ type EngineDefaultConfig struct {
 	Timeout EngineTimeoutConfig `yaml:"timeout"`
 }
 
-type EngineItemConfig struct {
-	Enabled bool              `yaml:"enabled"`
-	Path    string            `yaml:"path"`
-	Env     map[string]string `yaml:"env"`
-}
-
-type EnginesConfig struct {
-	Claude EngineItemConfig `yaml:"claude"`
-	Codex  EngineItemConfig `yaml:"codex"`
-	Pi     EngineItemConfig `yaml:"pi"`
-}
-
-func (e EnginesConfig) itemFor(name string) EngineItemConfig {
-	switch name {
-	case ai.EngineClaude:
-		return e.Claude
-	case ai.EngineCodex:
-		return e.Codex
-	case ai.EnginePi:
-		return e.Pi
-	}
-	return EngineItemConfig{}
-}
-
-func (e EnginesConfig) IsEnabled(name string) bool { return e.itemFor(name).Enabled }
-
 type BeeConfig struct {
 	MessageDebounce time.Duration       `yaml:"message_debounce"`
 	Engine          EngineDefaultConfig `yaml:"engine"`
-	Engines         EnginesConfig       `yaml:"engines"`
 	Feeder          FeederConfig        `yaml:"feeder"`
+	LegacyEngines   map[string]any      `yaml:"engines"`
 	LegacyPlatforms map[string]any      `yaml:"platforms"`
 	RPC             RPCConfig           `yaml:"rpc"`
 
@@ -103,26 +67,15 @@ func (b BeeConfig) WorkerTimeout() time.Duration {
 	return b.Engine.Timeout.Worker
 }
 
-func (b BeeConfig) EffectiveEngine() string {
-	if b.Engine.Default != "" {
-		return b.Engine.Default
+func (b BeeConfig) LegacyWarnings() []string {
+	var warnings []string
+	if len(b.LegacyPlatforms) > 0 {
+		warnings = append(warnings, "bee.platforms is no longer used; manage plugins with openbee plugin or the web UI")
 	}
-	return ai.EngineClaude
-}
-
-func (b BeeConfig) EngineConfigRaw() map[string]any {
-	return b.EngineConfigRawFor(b.EffectiveEngine())
-}
-
-func (b BeeConfig) EngineConfigRawFor(name string) map[string]any {
-	item := b.Engines.itemFor(name)
-	if item.Path == "" {
-		return nil
+	if len(b.LegacyEngines) > 0 {
+		warnings = append(warnings, "bee.engines is no longer used; install engine plugins with openbee plugin or the web UI")
 	}
-	return map[string]any{
-		"path": item.Path,
-		"env":  item.Env,
-	}
+	return warnings
 }
 
 type FeederConfig struct {
@@ -186,15 +139,6 @@ func applyDefaults(cfg *Config) error {
 	}
 	if cfg.Bee.Engine.Timeout.Worker == 0 {
 		cfg.Bee.Engine.Timeout.Worker = 30 * time.Minute
-	}
-	if cfg.Bee.Engines.Claude.Path == "" {
-		cfg.Bee.Engines.Claude.Path = "claude"
-	}
-	if cfg.Bee.Engines.Codex.Path == "" {
-		cfg.Bee.Engines.Codex.Path = "codex"
-	}
-	if cfg.Bee.Engines.Pi.Path == "" {
-		cfg.Bee.Engines.Pi.Path = "pi"
 	}
 	if cfg.Server.Auth.AccessTokenTTL == 0 {
 		cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/i18n"
@@ -78,7 +79,7 @@ func makeStatusHandler(
 	sessions := &fakeStatusSessionLister{agents: agents, err: cfg.sessionsErr}
 	taskList := &fakeStatusTaskLister{tasks: tasks, err: cfg.tasksErr}
 	wl := &fakeWorkerByIDsLookup{byID: workers}
-	engineCfg := enginecfg.NewStore("claude")
+	engineCfg := enginecfg.NewStore("claude", "", aitest.IDs("claude"))
 	runningExecs := cfg.runningExecs
 	if runningExecs == nil {
 		runningExecs = fakeRunningExecs{}

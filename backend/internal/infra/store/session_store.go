@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -19,7 +18,7 @@ const BeeAgentType = "bee"
 // WorkerAgentType is the AgentType value for worker agents in session contexts.
 const WorkerAgentType = "worker"
 
-const defaultSessionEngine = ai.EngineClaude
+const defaultSessionEngine = "claude"
 
 // SessionStore persists session context to the session_contexts table.
 type SessionStore struct {
@@ -332,4 +331,3 @@ func (s *SessionStore) ListActiveSessionContexts(ctx context.Context, sessionKey
 	defer rows.Close()
 	return scanSessionAgents(rows)
 }
-

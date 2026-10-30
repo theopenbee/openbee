@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -164,7 +165,7 @@ func newSvc(t *testing.T, sessions *fakeSessionStore, tasks *fakeTaskStore, stop
 		Dispatcher:    disp,
 		TaskCanceller: &fakeTaskCanceller{},
 		RunningExecs:  execs,
-		EngineCfg:     enginecfg.NewStore("claude"),
+		EngineCfg:     enginecfg.NewStore("claude", "", aitest.IDs("claude")),
 	})
 }
 
@@ -178,7 +179,7 @@ func newSvcWithCanceller(t *testing.T, sessions *fakeSessionStore, tasks *fakeTa
 		Dispatcher:    disp,
 		TaskCanceller: canceller,
 		RunningExecs:  execs,
-		EngineCfg:     enginecfg.NewStore("claude"),
+		EngineCfg:     enginecfg.NewStore("claude", "", aitest.IDs("claude")),
 	})
 }
 

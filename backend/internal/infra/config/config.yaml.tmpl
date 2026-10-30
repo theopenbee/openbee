@@ -15,20 +15,10 @@ database:
 
 bee:
   engine:
-    default: {{.EngineDefault}}
+    default: "{{.EngineDefault}}"
     timeout:
       bee: {{.EngineTimeoutBee}}
       worker: {{.EngineTimeoutWorker}}
-  engines:
-    claude:
-      enabled: {{.ClaudeEnabled}}
-      path: {{.ClaudePath}}
-    codex:
-      enabled: {{.CodexEnabled}}
-      path: {{.CodexPath}}
-    pi:
-      enabled: {{.PiEnabled}}
-      path: {{.PiPath}}
   rpc:
     token_secret: "{{.RPCTokenSecret}}"
     token_ttl: {{.RPCTokenTTL}}

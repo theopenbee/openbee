@@ -42,10 +42,6 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Se
 	}
 }
 
-func (p *BeeProcess) Prepare(workDir string, opts ai.PrepareOptions) error {
-	return p.engine.Prepare(workDir, opts)
-}
-
 // Run injects a bee auth token then delegates to the engine.
 func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
 	token, err := auth.GenerateBeeToken(p.tokenSecret, p.tokenTTL)
@@ -63,8 +59,8 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
 
-func (b *BeeProcess) CollectTokenUsage(ctx context.Context, sessionID string) ([]ai.TokenUsage, error) {
-	return b.engine.CollectTokenUsage(ctx, sessionID)
+func (b *BeeProcess) CollectTokenUsage(ctx context.Context, sessionIDs []string) (map[string][]ai.TokenUsage, error) {
+	return b.engine.CollectTokenUsage(ctx, sessionIDs)
 }
 
 func (p *BeeProcess) resolveEngineArgs(ctx context.Context) []string {

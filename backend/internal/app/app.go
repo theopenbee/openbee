@@ -20,9 +20,6 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
-	_ "github.com/theopenbee/openbee/internal/ai/claude"
-	_ "github.com/theopenbee/openbee/internal/ai/codex"
-	_ "github.com/theopenbee/openbee/internal/ai/pi"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -112,28 +109,14 @@ func BuildApp(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
-	engines, err := buildAllEngines(cfg.Bee)
-	if err != nil {
-		return nil, fmt.Errorf("init engines: %w", err)
-	}
-	defaultEngine := cfg.Bee.EffectiveEngine()
-	if engines[defaultEngine] == nil {
-		return nil, fmt.Errorf("default engine %q is not enabled; enable it under bee.engines in config", defaultEngine)
+	os.Setenv("OPENBEE_URL", cfg.Bee.RPCBaseURL) //nolint:errcheck
+	for _, msg := range cfg.Bee.LegacyWarnings() {
+		logger.Warn(msg)
 	}
 
-	// Initialize the default engine store from DB, falling back to config.
-	engineCfg := enginecfg.NewStore(defaultEngine)
-	dbCfg, found, dbErr := s.systemConfigStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
-	if dbErr != nil {
-		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(dbErr))
-	} else if found {
-		if engines[dbCfg.Value] != nil {
-			engineCfg.Set(dbCfg.Value)
-		} else {
-			logger.Warn("DB default engine is not enabled, falling back to config",
-				zap.String("db_value", dbCfg.Value))
-		}
-	}
+	var engines ai.EngineSource = noEngines{}
+	engineCfg := enginecfg.NewStore(selectedEngine(s.systemConfigStore, cfg.Bee.Engine.Default), cfg.Bee.Engine.Default,
+		func() []string { return ai.EngineIDs(engines) })
 
 	envSvc, err := env.NewService(s.envConfigStore, cfg.Server.EnvSecret)
 	if err != nil {
@@ -163,9 +146,6 @@ func BuildApp(cfg config.Config) (*App, error) {
 
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc, localMediaRoot, handoff)
 
-	if len(cfg.Bee.LegacyPlatforms) > 0 {
-		logger.Warn("bee.platforms is no longer used; manage plugins with openbee plugin or the web UI")
-	}
 	pluginMgr, err := buildPluginManager(cfg, s, sendersByPlatform)
 	if err != nil {
 		return nil, err
@@ -220,7 +200,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Info("reset orphaned executions", zap.Int64("count", n))
 	}
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines, ai.AllEngines())
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines)
 	reconciler := task.NewReconciler(s.taskStore, s.execStore, 0)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
@@ -252,7 +232,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		MediaRoot: localMediaRoot,
 	})
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engines, engineCfg, pluginMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -301,32 +281,30 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 	}, nil
 }
 
-// buildAllEngines initializes engine adapters shared safely across concurrent workers.
-func buildAllEngines(cfg config.BeeConfig) (map[string]ai.EngineAdapter, error) {
-	os.Setenv("OPENBEE_URL", cfg.RPCBaseURL) //nolint:errcheck
+type noEngines struct{}
 
-	result := make(map[string]ai.EngineAdapter)
-	for _, name := range ai.AllEngines() {
-		if !cfg.Engines.IsEnabled(name) {
-			continue
-		}
-		adapter, err := ai.New(name, ai.EngineConfig{
-			Raw: cfg.EngineConfigRawFor(name),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("init engine %q: %w", name, err)
-		}
-		result[name] = adapter
+func (noEngines) Engine(string) (ai.EngineAdapter, bool) { return nil, false }
+
+func (noEngines) Engines() []ai.EngineInfo { return nil }
+
+func selectedEngine(sysStore *store.SystemConfigStore, configDefault string) string {
+	row, found, err := sysStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
+	if err != nil {
+		logger.Warn("failed to load default engine from DB, falling back to config", zap.Error(err))
+		return configDefault
 	}
-	return result, nil
+	if !found {
+		return configDefault
+	}
+	return row.Value
 }
 
-func buildWorkerManager(bc config.BeeConfig, s appStores, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
+func buildWorkerManager(bc config.BeeConfig, s appStores, engines ai.EngineSource, engineCfg *enginecfg.Store, envSvc *env.Service) *worker.Manager {
 	return worker.NewManager(config.DefaultWorkerBaseDir(), bc, s.workerStore, s.execStore, engines, engineCfg, envSvc, s.systemConfigStore)
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines map[string]ai.EngineAdapter, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string, handoff *localchat.Handoff) (*bee.Feeder, *task.Scheduler) {
+	failureNotifier bee.FailureNotifier, engines ai.EngineSource, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string, handoff *localchat.Handoff) (*bee.Feeder, *task.Scheduler) {
 	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
@@ -362,7 +340,7 @@ func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, q
 	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead)
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engines ai.EngineSource, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -372,7 +350,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, mgr, workerChats, language),
-		Config:            api.NewConfigHandler(language, mgr.EnabledEngines()),
+		Config:            api.NewConfigHandler(language, engines),
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),

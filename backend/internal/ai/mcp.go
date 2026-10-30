@@ -8,7 +8,6 @@ import (
 const (
 	MCPPath       = "/mcp"
 	MCPServerName = "openbee"
-	MCPURLEnv     = "OPENBEE_MCP_URL"
 	APIKeyEnv     = "OPENBEE_API_KEY"
 )
 

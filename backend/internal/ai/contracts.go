@@ -3,13 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
-)
-
-const (
-	// SystemRulesFile is the legacy rules file that Claude's Prepare hook cleans up.
-	SystemRulesFile = ".openbee.md"
-	// ImportLine is the legacy reference line that Claude's Prepare hook removes from CLAUDE.md.
-	ImportLine = "@" + SystemRulesFile
+	"fmt"
 )
 
 // Role identifies the openbee agent role.
@@ -20,16 +14,11 @@ const (
 	RoleWorker Role = "worker"
 )
 
-// PrepareOptions carries parameters for the engine-specific Prepare hook.
-// Add future fields here without changing the Prepare method signature.
-type PrepareOptions struct {
-	Role Role
-}
-
 // RunOptions controls session behaviour for an engine invocation.
 type RunOptions struct {
 	SessionID string
 	Resume    bool
+	Role      Role
 	APIKey    string
 	ExtraEnv  []string // additional KEY=VALUE env vars to inject
 	ExtraArgs []string // additional CLI args to pass to the engine
@@ -42,22 +31,6 @@ const (
 	OutputDone  OutputType = "done"
 	OutputError OutputType = "error"
 )
-
-// Engine name constants used for registration and configuration.
-const (
-	EngineClaude = "claude"
-	EngineCodex  = "codex"
-	EnginePi     = "pi"
-)
-
-var allEngines = []string{EngineClaude, EngineCodex, EnginePi}
-
-// AllEngines returns a snapshot of the canonical engine name list in registration order.
-func AllEngines() []string {
-	cp := make([]string, len(allEngines))
-	copy(cp, allEngines)
-	return cp
-}
 
 // Output is a single lifecycle event.
 type Output struct {
@@ -92,21 +65,51 @@ func NewRunResult(proc Process, out <-chan Output, err error, extract func(logPa
 // EngineAdapter is the complete plugin contract for an AI engine.
 // Implementations must be safe for concurrent use.
 type EngineAdapter interface {
-	// Prepare is an engine-specific initialisation hook called before each Run.
-	// It must be idempotent. Claude uses it to clean up legacy config files;
-	// other engines return nil.
-	Prepare(workDir string, opts PrepareOptions) error
-
 	// Run executes a task and returns a RunResult carrying the process handle,
 	// event channel, and an engine-bound result extractor. The event channel
 	// is closed after the process exits.
 	Run(ctx context.Context, workDir, prompt string,
 		opts RunOptions, logPath string) (RunResult, error)
 
-	// CollectTokenUsage reads per-turn token usage for the given session from
-	// engine-specific storage. Returns ErrSessionDataNotFound when no data is
-	// available for the session.
-	CollectTokenUsage(ctx context.Context, sessionID string) ([]TokenUsage, error)
+	CollectTokenUsage(ctx context.Context, sessionIDs []string) (map[string][]TokenUsage, error)
+}
+
+type EngineInfo struct {
+	ID   string            `json:"id"`
+	Name map[string]string `json:"name"`
+}
+
+type EngineSource interface {
+	Engine(id string) (EngineAdapter, bool)
+	Engines() []EngineInfo
+}
+
+var ErrNoEngine = errors.New("no engine is installed or enabled")
+
+type EngineUnavailableError struct {
+	ID string
+}
+
+func (e *EngineUnavailableError) Error() string {
+	return fmt.Sprintf("engine %q is not installed or enabled", e.ID)
+}
+
+func ErrEngineUnavailable(id string) error {
+	return &EngineUnavailableError{ID: id}
+}
+
+func IsEngineMissing(err error) bool {
+	var unavailable *EngineUnavailableError
+	return errors.Is(err, ErrNoEngine) || errors.As(err, &unavailable)
+}
+
+func EngineIDs(src EngineSource) []string {
+	engines := src.Engines()
+	ids := make([]string, 0, len(engines))
+	for _, e := range engines {
+		ids = append(ids, e.ID)
+	}
+	return ids
 }
 
 // TokenUsage holds per-model token consumption for a single session turn.
@@ -116,16 +119,4 @@ type TokenUsage struct {
 	OutputTokens        int64
 	CacheCreationTokens int64
 	CacheReadTokens     int64
-}
-
-// ErrSessionDataNotFound is returned by CollectTokenUsage when no session data exists.
-var ErrSessionDataNotFound = errors.New("ai: session data not found")
-
-// DrainUsageMap converts a model→*TokenUsage aggregation map into a flat slice.
-func DrainUsageMap(agg map[string]*TokenUsage) []TokenUsage {
-	out := make([]TokenUsage, 0, len(agg))
-	for _, u := range agg {
-		out = append(out, *u)
-	}
-	return out
 }

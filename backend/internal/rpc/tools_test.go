@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/session"
@@ -27,19 +28,6 @@ import (
 	"github.com/theopenbee/openbee/internal/rpc"
 	_ "modernc.org/sqlite"
 )
-
-// stubEngineAdapter is a no-op EngineAdapter for tests that don't exercise the engine.
-type stubEngineAdapter struct{}
-
-func (s *stubEngineAdapter) Prepare(_ string, _ ai.PrepareOptions) error {
-	return nil
-}
-func (s *stubEngineAdapter) Run(_ context.Context, _, _ string, _ ai.RunOptions, _ string) (ai.RunResult, error) {
-	return ai.RunResult{ExtractResult: func(string) string { return "" }}, nil
-}
-func (s *stubEngineAdapter) CollectTokenUsage(_ context.Context, _ string) ([]ai.TokenUsage, error) {
-	return nil, ai.ErrSessionDataNotFound
-}
 
 type mockSender struct {
 	sent []platform.OutboundMessage
@@ -127,13 +115,9 @@ func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ss := store.NewSessionStore(db)
-	engineCfg := enginecfg.NewStore("claude")
-	mgr := worker.NewManager(
-		t.TempDir(),
-		config.BeeConfig{Engines: config.EnginesConfig{Claude: config.EngineItemConfig{Path: "claude"}}},
-		ws, es,
-		map[string]ai.EngineAdapter{"claude": &stubEngineAdapter{}}, engineCfg, nil, nil,
-	)
+	engines := aitest.NewSource(map[string]ai.EngineAdapter{"claude": &aitest.Engine{}})
+	engineCfg := enginecfg.NewStore("claude", "", engines.IDs)
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, nil, nil)
 	stopper := &mockExecStopper{}
 	disp := &mockClearDispatcher{}
 	clearSvc := session.NewClearService(session.ClearServiceDeps{

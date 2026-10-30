@@ -32,7 +32,7 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 		return model.WorkerExecution{}, fmt.Errorf("get worker: %w", err)
 	}
 
-	engineName, engine := m.resolveEngine(worker)
+	engineName, engine, engineErr := m.resolveEngine(worker)
 
 	exec, err := m.executionStore.Create(store.ExecutionCreate{
 		WorkerID:     req.WorkerID,
@@ -55,16 +55,14 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 		m.setStatus(worker.ID, model.WorkerStatusError)
 		return exec, fmt.Errorf("ensure worker workdir: %w", err)
 	}
-	// Prepare is best-effort; the runtime below surfaces the real error if it matters.
-	if err := engine.Prepare(worker.WorkDir, ai.PrepareOptions{Role: ai.RoleWorker}); err != nil {
-		log.Error("prepare worker workspace", zap.String("op", "execute"), zap.Error(err))
+	launchErr := engineErr
+	if launchErr == nil {
+		launchErr = m.launchRuntime(ctx, exec, worker, engine, engineName, m.workerTimeout, req.TriggerInput, req.Resume)
 	}
-	timeout := m.workerTimeout
-
-	if err := m.launchRuntime(ctx, exec, worker, engine, engineName, timeout, req.TriggerInput, req.Resume); err != nil {
-		m.executionStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
+	if launchErr != nil {
+		m.executionStore.UpdateResult(exec.ID, launchErr.Error(), model.ExecStatusFailed)
 		m.setStatus(worker.ID, model.WorkerStatusError)
-		return exec, fmt.Errorf("start runtime: %w", err)
+		return exec, fmt.Errorf("start runtime: %w", launchErr)
 	}
 
 	return exec, nil
@@ -102,6 +100,7 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 	runRes, err := engine.Run(execCtx, worker.WorkDir, prompt, ai.RunOptions{
 		SessionID: exec.SessionID,
 		Resume:    resume,
+		Role:      ai.RoleWorker,
 		APIKey:    token,
 		ExtraEnv:  extraEnv,
 		ExtraArgs: extraArgs,

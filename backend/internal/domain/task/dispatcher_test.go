@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/task"
@@ -165,7 +166,7 @@ type mockSessionRef struct {
 
 func normalizeMockEngine(engine string) string {
 	if engine == "" {
-		return ai.EngineClaude
+		return "claude"
 	}
 	return engine
 }
@@ -348,7 +349,7 @@ func newTaskDispatcher(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss t
 func newTaskDispatcherWithEngine(mgr task.ExecutionManager, eq task.ExecutionQuerier, ss task.SessionStore, engine string, opts ...task.Option) (*task.TaskDispatcher, chan task.DispatchTask, *mockTaskStore) {
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, ss, eq, in, enginecfg.NewStore(engine), opts...)
+	d := task.New(mgr, ts, ss, eq, in, enginecfg.NewStore(engine, "", aitest.IDs(engine)), opts...)
 	return d, in, ts
 }
 
@@ -445,7 +446,7 @@ func TestTaskDispatcher_ClearSession_ClearsQueueAndSessionContexts(t *testing.T)
 
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted, Result: "ok"}}
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -584,7 +585,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-fresh", SessionID: "new-session", Status: model.ExecStatusCompleted, Result: "fallback-ok"}}
 
 	in := make(chan task.DispatchTask, 4)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("codex"))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("codex", "", aitest.IDs("codex")))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -616,6 +617,36 @@ func TestTaskDispatcher_ImmediateTask_ResumeFails_FallsBackToFresh(t *testing.T)
 	assert.Empty(t, ss.cleared, "did not expect full session clear on resume failure")
 	assert.Equal(t, "claude-session-id", ss.sessionID("s1", "w1", "claude"), "expected claude session preserved")
 	assert.Equal(t, "new-session", ss.sessionID("s1", "w1", "codex"), "expected codex session refreshed after fallback")
+}
+
+func TestTaskDispatcher_ImmediateTask_ResumeEngineMissing_KeepsSession(t *testing.T) {
+	for name, engineErr := range map[string]error{
+		"Unavailable": ai.ErrEngineUnavailable("codex"),
+		"NoEngine":    ai.ErrNoEngine,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ss := newMockSessionStore()
+			_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "codex-session-id", "codex")
+			mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", engineErr)}
+			fn := &mockFailureNotifier{}
+			in := make(chan task.DispatchTask, 4)
+			d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore("codex", "", aitest.IDs("codex")), task.WithFailureNotifier(fn))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go d.Run(ctx)
+
+			in <- immediateTask("s1", "w1", "hello")
+
+			require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
+			fn.mu.Lock()
+			assert.Equal(t, fmt.Sprintf("start runtime: %v", engineErr), fn.calls[0].info.Reason)
+			fn.mu.Unlock()
+			assert.EqualValues(t, 1, mgr.executed.Load(), "expected no fresh retry")
+			assert.Zero(t, ss.deleteCount())
+			assert.Equal(t, "codex-session-id", ss.sessionID("s1", "w1", "codex"))
+		})
+	}
 }
 
 func TestTaskDispatcher_Serialized(t *testing.T) {
@@ -802,7 +833,7 @@ func TestTaskDispatcher_ClearSession_OnlyRemovesMatchingSession(t *testing.T) {
 	eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-x", Status: model.ExecStatusCompleted}}
 
 	in := make(chan task.DispatchTask, 8)
-	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, &mockTaskStore{}, ss, eq, in, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -876,7 +907,7 @@ func TestTaskDispatcher_CancelTask_RemovesPendingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -913,7 +944,7 @@ func TestTaskDispatcher_CancelTask_InterruptsExecutingTask(t *testing.T) {
 
 	in := make(chan task.DispatchTask, 4)
 	ts := &mockTaskStore{}
-	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, newMockSessionStore(), eq, in, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -946,7 +977,7 @@ func TestDispatcher_CompleteTask_OnSuccessfulExit(t *testing.T) {
 	ss := newMockSessionStore()
 
 	ch := make(chan task.DispatchTask, 1)
-	d := task.New(mgr, ts, ss, execStore, ch, enginecfg.NewStore(""))
+	d := task.New(mgr, ts, ss, execStore, ch, enginecfg.NewStore("", "", aitest.IDs()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -990,7 +1021,7 @@ func TestDispatcher_BuildInstruction_MessageIDWithoutTaskID(t *testing.T) {
 	taskStore := &mockTaskStore{}
 	sessionStore := newMockSessionStore()
 
-	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh, enginecfg.NewStore(""))
+	d := task.New(mgr, taskStore, sessionStore, querier, dispatchCh, enginecfg.NewStore("", "", aitest.IDs()))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go d.Run(ctx)

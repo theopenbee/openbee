@@ -13,8 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	ai "github.com/theopenbee/openbee/internal/ai"
 )
 
 func TestInitDB(t *testing.T) {
@@ -236,9 +234,9 @@ func TestMigration_UpgradesSessionContextsToPerEngineSchema(t *testing.T) {
 	var sessionID, engine string
 	require.NoError(t, db.QueryRow(`SELECT session_id, engine
 		FROM bee_session_contexts
-		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = ?`, ai.EngineClaude).Scan(&sessionID, &engine))
+		WHERE session_key = 'sk' AND agent_id = 'bee' AND engine = 'claude'`).Scan(&sessionID, &engine))
 	require.Equal(t, "legacy-sid", sessionID)
-	require.Equal(t, ai.EngineClaude, engine)
+	require.Equal(t, "claude", engine)
 
 	_, err = db.Exec(`INSERT INTO bee_session_contexts (session_key, agent_id, session_id, updated_at, engine)
 		VALUES ('sk', 'bee', 'codex-sid', 2, 'codex')`)
