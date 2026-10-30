@@ -30,6 +30,7 @@
 - Show reconnect progress and failure in the offline banner.
 - Windows desktop: closing the window hides it to the tray.
 - Workers can only send messages and read; writes are refused.
+- Engines are now plugins installed with openbee plugin install.
 
 ### Removed
 - Remove user and role management; keep one admin account.

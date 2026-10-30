@@ -72,7 +72,8 @@ openbee config
 ```
 
 向导将引导你完成以下配置：
-- agent 可执行文件路径
+- 语言
+- Bee 和 Worker 的超时时间
 - 高级选项（可跳过，使用默认值）
 
 配置文件默认写入当前目录的 `config.yaml`，如需指定路径，使用 `-o` 参数：
@@ -87,7 +88,18 @@ openbee config -o /path/to/config.yaml
 openbee server -d
 ```
 
-### 第四步：开始使用
+### 第四步：安装引擎
+
+OpenBee 不内置 AI 引擎。引擎是驱动编程 CLI 的插件，所以请先自行安装想用的 CLI（Claude Code、Codex 或 pi）并登录，再用命令行或 Web 控制台的插件页面安装对应的插件：
+
+```bash
+openbee plugin install claude   # 或 codex、pi
+openbee plugin list             # 找到 CLI 后，引擎状态显示为 ready
+```
+
+新装的引擎插件会立即启用，不需要重启 OpenBee。如果 CLI 不在 `PATH` 里，用 `openbee plugin configure claude --set path=/path/to/claude` 指定它的位置。详见[引擎插件协议](docs/engine-plugin-protocol.md)。
+
+### 第五步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
 - 在已配置的平台（微信、飞书、钉钉、企微、Telegram、Linear 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互

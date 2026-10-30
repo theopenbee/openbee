@@ -24,7 +24,8 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 
 | Field | Rules |
 |---|---|
-| `protocol_version` | Must be `1`. |
+| `protocol_version` | Must be `1`. Each plugin `type` has its own protocol version. |
+| `type` | Optional. `channel` (the default, so existing channel manifests need no change) or `engine`. An `engine` plugin follows the [engine plugin protocol](engine-plugin-protocol.md) instead of this one. Channel and engine plugins share one id space. |
 | `id` | Channel id and session key prefix. Matches `^[a-z][a-z0-9_-]{1,31}$`. Cannot be `local`. |
 | `name`, `description` | A string or an object keyed by language (`en`, `zh`). Lookups fall back to `en`. |
 | `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
@@ -79,7 +80,7 @@ openbee stores each plugin's settings in its database, encrypted with `server.en
 | `PUT /api/plugins/<id>/settings` `{"bot_name": "...", "config": {...}}` | Validates against `config[]` and saves. A `secret` field sent empty keeps its stored value. A `random_default` field that has no value gets a random one. Restarts only this plugin when it is enabled. |
 | `POST /api/plugins/<id>/enable`, `/disable`, `/restart` | Starts or stops only this plugin. |
 | `DELETE /api/plugins/<id>` | Stops the plugin, removes the package, and deletes its settings and `~/.openbee/plugins/data/<id>/`. |
-| `GET /api/plugins`, `GET /api/plugins/<id>` | Lists plugins with their state (`not_configured`, `disabled`, `starting`, `running`, `retrying`, `failed`) and last error. Secret values are masked. |
+| `GET /api/plugins`, `GET /api/plugins/<id>` | Lists plugins with their `type` (`channel` or `engine`), state (`not_configured`, `disabled`, `starting`, `running`, `retrying`, `failed`; engines have their own [states](engine-plugin-protocol.md#states)) and last error. Secret values are masked. |
 | `GET /api/plugins/catalog` | Reads the plugin catalog `@theopenbee/plugins` from npm (npmmirror as a fallback, cached for 10 minutes). `OPENBEE_PLUGIN_CATALOG` can point to a local `catalog.json` file or URL. |
 
 When openbee starts it starts every enabled plugin. Before it sends `initialize.config` it applies manifest defaults, checks required fields and types, and leaves out `bot_name`. A plugin that fails to start is marked `failed`; other channels are not affected. `bot_name` behaves as for built-in channels: an `@bot_name` mention is stripped from incoming text, and no worker may use that name.
