@@ -1334,6 +1334,50 @@ func TestPluginLifecycle(t *testing.T) {
 	}
 }
 
+func TestEnginePluginRules(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	s.fake.Update(func(st *fakeapi.State) {
+		st.Catalog.Plugins = []api.CatalogPlugin{{
+			Category: "engine", ID: "claude", Package: "@openbee/engine-claude", Version: "0.1.0",
+			Name: api.LocalizedText{"en": "Claude Code"}, Installable: true,
+		}}
+	})
+	op, err := s.client.InstallPlugin(c, "@openbee/engine-claude@0.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.fake.FinishOperation(op.ID, true, "")
+	claude, err := s.client.Plugin(c, "claude")
+	if err != nil || claude.Type != "engine" || !claude.Enabled || claude.State != "ready" {
+		t.Fatalf("installed engine = %+v, %v", claude.PluginStatus, err)
+	}
+
+	typed := "buddy"
+	if err := s.client.UpdatePluginSettings(c, "claude", api.PluginSettingsUpdate{BotName: &typed}); apiError(t, err).Code != "plugin_bot_name_not_supported" {
+		t.Fatalf("engine bot name: %v", err)
+	}
+	empty := ""
+	if err := s.client.UpdatePluginSettings(c, "claude", api.PluginSettingsUpdate{BotName: &empty}); err != nil {
+		t.Fatalf("clearing an engine bot name: %v", err)
+	}
+	if err := s.client.DisablePlugin(c, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.client.EnablePlugin(c, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if claude, _ = s.client.Plugin(c, "claude"); claude.State != "ready" {
+		t.Fatalf("re-enabled engine state = %q, want ready", claude.State)
+	}
+	if err := s.client.RestartPlugin(c, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if claude, _ = s.client.Plugin(c, "claude"); claude.State != "ready" {
+		t.Fatalf("restarted engine state = %q, want ready", claude.State)
+	}
+}
+
 func TestPluginsRejectAPIKeyHeader(t *testing.T) {
 	s := signedIn(t)
 	req, _ := http.NewRequestWithContext(ctx(t), http.MethodGet, s.fake.URL+"/api/plugins", nil)

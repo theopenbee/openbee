@@ -33,7 +33,6 @@ const (
 	progressGlyph = 16
 	noValue       = "–"
 	versionPrefix = "v"
-	stateRunning  = "running"
 	stateNoConfig = "not_configured"
 	opSucceeded   = "succeeded"
 	opFailed      = "failed"
@@ -82,6 +81,19 @@ func (d *Dialog) pluginsBar(c *ui.Context, tk theme.Tokens, st *pluginsState) {
 		kit.Button(c, tk, locales.PluginsInstallDialogOpen(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Icon: "package-plus"}).
 			OnClick(st.install.show)
 	})
+}
+
+func typeName(t string, categories []api.CatalogTag) string {
+	if name := model.CategoryName(categories, t, i18n.Locale()); name != "" {
+		return name
+	}
+	switch t {
+	case model.PluginChannel:
+		return locales.PluginsTypesChannel()
+	case model.PluginEngine:
+		return locales.PluginsTypesEngine()
+	}
+	return t
 }
 
 func (d *Dialog) showPlugins(tab int) {

@@ -25,6 +25,9 @@ const (
 	opSucceeded     = "succeeded"
 	opFailed        = "failed"
 	setupDone       = "done"
+	typeEngine      = "engine"
+	stateReady      = "ready"
+	stateRunning    = "running"
 )
 
 type setupSession struct {
@@ -242,9 +245,13 @@ func (s *Server) finishInstall(spec string) {
 	pkg := name
 	display := api.LocalizedText(nil)
 	var description api.LocalizedText
+	kind := ""
 	if entry >= 0 {
 		match := s.st.Catalog.Plugins[entry]
 		id, pkg, display, description = match.ID, match.Package, match.Name, match.Description
+		if match.Category == typeEngine {
+			kind = typeEngine
+		}
 		if version == "" {
 			version = match.Version
 		}
@@ -255,19 +262,24 @@ func (s *Server) finishInstall(spec string) {
 	if i := s.pluginIndex(id); i >= 0 {
 		s.st.Plugins[i].Version = version
 	} else {
+		status := api.PluginStatus{
+			ID:          id,
+			Type:        kind,
+			Package:     pkg,
+			Source:      source,
+			Version:     version,
+			Path:        "/tmp/openbee/plugins/" + id,
+			Name:        display,
+			Description: description,
+			State:       "not_configured",
+		}
+		if kind == typeEngine {
+			status.Enabled, status.State = true, stateReady
+		}
 		s.st.Plugins = append(s.st.Plugins, api.PluginDetail{
-			PluginStatus: api.PluginStatus{
-				ID:          id,
-				Package:     pkg,
-				Source:      source,
-				Version:     version,
-				Path:        "/tmp/openbee/plugins/" + id,
-				Name:        display,
-				Description: description,
-				State:       "not_configured",
-			},
-			Config: map[string]any{},
-			Fields: []api.PluginConfigField{},
+			PluginStatus: status,
+			Config:       map[string]any{},
+			Fields:       []api.PluginConfigField{},
 		})
 	}
 	s.markCatalogInstalled(id, true, version)
@@ -400,6 +412,10 @@ func (s *Server) updatePluginSettings(q *request) reply {
 	}
 	if req.BotName != nil {
 		name := strings.TrimSpace(*req.BotName)
+		if name != "" && p.Type == typeEngine {
+			return codedReply(http.StatusBadRequest, "plugin_bot_name_not_supported",
+				fmt.Sprintf("plugin %q is an engine and has no bot name", id), map[string]any{"id": id})
+		}
 		conflict := slices.ContainsFunc(s.st.Workers, func(w api.Worker) bool { return strings.EqualFold(w.Name, name) })
 		if name != "" && conflict {
 			return codedReply(http.StatusBadRequest, "plugin_bot_name_conflict",
@@ -410,6 +426,13 @@ func (s *Server) updatePluginSettings(q *request) reply {
 	p.Config = merged
 	s.st.Plugins[i] = p
 	return noContent()
+}
+
+func healthyState(p api.PluginDetail) string {
+	if p.Type == typeEngine {
+		return stateReady
+	}
+	return stateRunning
 }
 
 func (s *Server) enablePlugin(q *request) reply {
@@ -423,7 +446,7 @@ func (s *Server) enablePlugin(q *request) reply {
 		return notConfigured(id, reason)
 	}
 	p.Enabled = true
-	p.State = "running"
+	p.State = healthyState(p)
 	p.Error = ""
 	s.st.Plugins[i] = p
 	return noContent()
@@ -449,7 +472,7 @@ func (s *Server) restartPlugin(q *request) reply {
 	if !s.st.Plugins[i].Enabled {
 		return notConfigured(id, "plugin is disabled")
 	}
-	s.st.Plugins[i].State = "running"
+	s.st.Plugins[i].State = healthyState(s.st.Plugins[i])
 	s.st.Plugins[i].Error = ""
 	return noContent()
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -47,6 +48,7 @@ func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState)
 	if succeeded {
 		pluginID = p.OperationPluginID(op)
 	}
+	engine := d.installedEngine(pluginID)
 	submit := func() {
 		spec := strings.TrimSpace(st.spec)
 		if spec == "" || running || succeeded || st.sending {
@@ -76,7 +78,11 @@ func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState)
 			}
 			kit.Button(c, tk, dismiss, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).OnClick(func() { st.open = false })
 			if pluginID != "" {
-				kit.Button(c, tk, locales.PluginsInstallDialogConfigure(), kit.ButtonOpts{Variant: kit.Primary, Size: kit.SizeMD}).
+				open := locales.PluginsInstallDialogConfigure()
+				if engine {
+					open = locales.PluginsInstallDialogView()
+				}
+				kit.Button(c, tk, open, kit.ButtonOpts{Variant: kit.Primary, Size: kit.SizeMD}).
 					OnClick(func() {
 						st.open = false
 						d.Open(SectionPlugins, pluginID)
@@ -98,7 +104,11 @@ func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState)
 			case running:
 				operationProgress(c, tk, locales.PluginsInstallDialogInstalling(), op.CreatedAt)
 			case succeeded:
-				kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneSuccess, Title: locales.PluginsInstallDialogDone(), Body: locales.PluginsInstallDialogDoneHint()})
+				hint := locales.PluginsInstallDialogDoneHint()
+				if engine {
+					hint = locales.PluginsInstallDialogDoneHintEngine()
+				}
+				kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneSuccess, Title: locales.PluginsInstallDialogDone(), Body: hint})
 			}
 			if failed || st.err != nil {
 				text := op.Error
@@ -109,4 +119,16 @@ func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState)
 			}
 		})
 	})
+}
+
+func (d *Dialog) installedEngine(id string) bool {
+	if id == "" {
+		return false
+	}
+	p := d.s.Plugins()
+	if i := slices.IndexFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == id }); i >= 0 {
+		return model.IsEngine(p.List.Data[i].Type)
+	}
+	entry, listed := catalogEntry(p.Catalog.Data, id)
+	return listed && model.IsEngine(entry.Category)
 }

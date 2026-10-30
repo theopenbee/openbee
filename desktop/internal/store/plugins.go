@@ -107,6 +107,7 @@ func (p *PluginsState) SetActive(active bool) {
 	p.List.Invalidate()
 	p.Catalog.Invalidate()
 	p.Ops.Invalidate()
+	p.s.Config.Invalidate()
 	p.schedule()
 }
 
@@ -268,6 +269,7 @@ func (p *PluginsState) act(id, kind string, success func(locales.Messages, strin
 }
 
 func (p *PluginsState) refetchPlugins(then func()) {
+	p.s.Config.Invalidate()
 	left := 1
 	landed := func() {
 		if left--; left == 0 {
@@ -292,6 +294,7 @@ func (p *PluginsState) track(op api.PluginOperation) {
 }
 
 func (p *PluginsState) invalidatePlugins() {
+	p.s.Config.Invalidate()
 	p.List.Invalidate()
 	for id, r := range p.Details {
 		if id == p.watched {

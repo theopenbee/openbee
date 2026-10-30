@@ -8,6 +8,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -52,6 +53,8 @@ const (
 	skeletonCellH   = 16
 	skeletonGapX    = 32
 	skeletonFaceGap = 12
+	groupPadTop     = 16
+	groupPadBottom  = 8
 )
 
 type installedState struct {
@@ -64,6 +67,7 @@ type menuKey struct{}
 
 func (d *Dialog) installedTab(c *ui.Context, tk theme.Tokens) {
 	r := d.s.Plugins().List
+	d.s.Plugins().Catalog.Ensure()
 	root := ui.Column(c).MinWidth(0)
 	st := ui.Local(root, installedKey{}, func() installedState { return installedState{} })
 	root.Children(func() {
@@ -88,25 +92,24 @@ func (d *Dialog) installedTab(c *ui.Context, tk theme.Tokens) {
 }
 
 func (d *Dialog) installedPanel(c *ui.Context, tk theme.Tokens, st *installedState, list []api.PluginStatus) {
-	running := 0
-	for _, plugin := range list {
-		if plugin.State == stateRunning {
-			running++
-		}
-	}
+	categories := d.s.Plugins().Catalog.Data.Categories
 	wide := d.contentWidth() >= container3XL
 	insetCard(c, tk).Clip().Padding(0, 0, tableBottom, 0).Children(func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.Start).Justify(ui.SpaceBetween).Gap(tableHeadGap).
 			Padding(tableHeadTop, tablePadX, tableHeadBottom, tablePadX).Children(func() {
 			heading(c, locales.PluginsInstalledTitle()).SingleLine().MinWidth(0)
-			ui.Text(c, locales.PluginsInstalledSummary(len(list), strconv.Itoa(running))).FontSize(metaSize).FontFeatures("tnum").
+			ui.Text(c, locales.PluginsInstalledSummary(len(list), strconv.Itoa(model.CountActive(list)))).FontSize(metaSize).FontFeatures("tnum").
 				TextColor(tk.TextSecondary).SingleLine().Shrink(0)
 		})
 		if wide {
 			tableColumns(c, tk)
 		}
-		for _, plugin := range list {
-			d.installedRow(c, tk, st, plugin, wide)
+		for _, group := range model.GroupByType(list, func(p api.PluginStatus) string { return p.Type }) {
+			ui.Text(c, typeName(group.Type, categories)).Key("type-"+group.Type).FontSize(textSize).FontWeight(mediumWeight).
+				Role(ui.RoleHeading).Level(3).Padding(groupPadTop, tablePadX, groupPadBottom, tablePadX)
+			for _, plugin := range group.Items {
+				d.installedRow(c, tk, st, plugin, wide)
+			}
 		}
 	})
 }
@@ -260,7 +263,7 @@ func (d *Dialog) rowMenu(c *ui.Context, tk theme.Tokens, st *installedState, plu
 			ui.Box(c).Height(cardBorder).Margin(menuSeparatorY, -menuSeparatorY).Background(tk.BorderSubtle)
 			menuItem(c, tk, "trash-2", locales.PluginsActionUninstall(), true, false, func() {
 				*open = false
-				st.remove.show(plugin.ID, name)
+				st.remove.show(plugin.ID, name, plugin.Type)
 			})
 		})
 	})

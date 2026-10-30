@@ -25,6 +25,7 @@ type stateLook struct {
 
 var stateLooks = map[string]stateLook{
 	"running":        {kit.ToneSuccess, locales.PluginsStateRunning, func(tk theme.Tokens) ui.Color { return tk.Success }, false},
+	"ready":          {kit.ToneSuccess, locales.PluginsStateReady, func(tk theme.Tokens) ui.Color { return tk.Success }, false},
 	"starting":       {kit.ToneInfo, locales.PluginsStateStarting, func(tk theme.Tokens) ui.Color { return tk.Accent }, true},
 	"retrying":       {kit.ToneWarning, locales.PluginsStateRetrying, func(tk theme.Tokens) ui.Color { return tk.Warning }, true},
 	"failed":         {kit.ToneDanger, locales.PluginsStateFailed, func(tk theme.Tokens) ui.Color { return tk.Danger }, false},

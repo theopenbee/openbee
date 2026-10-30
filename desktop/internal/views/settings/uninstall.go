@@ -5,6 +5,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -15,14 +16,15 @@ type uninstallState struct {
 	err      error
 	pending  bool
 	leave    bool
+	engine   bool
 }
 
-func (u *uninstallState) show(id, name string) {
-	*u = uninstallState{open: true, id: id, name: name}
+func (u *uninstallState) show(id, name, kind string) {
+	*u = uninstallState{open: true, id: id, name: name, engine: model.IsEngine(kind)}
 }
 
-func (u *uninstallState) showLeaving(id, name string) {
-	*u = uninstallState{open: true, id: id, name: name, leave: true}
+func (u *uninstallState) showLeaving(id, name, kind string) {
+	*u = uninstallState{open: true, id: id, name: name, leave: true, engine: model.IsEngine(kind)}
 }
 
 func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState) {
@@ -53,9 +55,13 @@ func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallSta
 			kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: locales.PluginsUninstallDialogError(), Body: l10n.ErrorText(u.err)})
 		}
 	}
+	description := locales.PluginsUninstallDialogDescription()
+	if u.engine {
+		description = locales.PluginsUninstallDialogDescriptionEngine()
+	}
 	kit.Dialog(c, tk, &u.open, kit.DialogOpts{
 		Title:       locales.PluginsUninstallDialogTitle(u.name),
-		Description: locales.PluginsUninstallDialogDescription(),
+		Description: description,
 		Footer: func() {
 			kit.Button(c, tk, locales.CommonCancel(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).
 				OnClick(func() { u.open = false })

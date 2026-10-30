@@ -184,6 +184,7 @@ type PluginConfigField struct {
 
 type PluginStatus struct {
 	ID          string        `json:"id"`
+	Type        string        `json:"type,omitempty"`
 	Package     string        `json:"package,omitempty"`
 	Source      string        `json:"source"`
 	Version     string        `json:"version,omitempty"`

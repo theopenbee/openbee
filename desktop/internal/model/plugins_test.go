@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -724,5 +725,118 @@ func TestRandomHex16(t *testing.T) {
 	}
 	if first == second {
 		t.Fatalf("two calls returned the same value %q", first)
+	}
+}
+
+func TestPluginType(t *testing.T) {
+	tests := map[string]string{"": PluginChannel, "channel": PluginChannel, "engine": PluginEngine, "tool": "tool"}
+	for in, want := range tests {
+		if got := PluginType(in); got != want {
+			t.Fatalf("PluginType(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if IsEngine("") || IsEngine("channel") || !IsEngine("engine") {
+		t.Fatal("IsEngine must be true for engine only")
+	}
+}
+
+func TestIsActiveState(t *testing.T) {
+	active := []string{"running", "ready"}
+	idle := []string{"", "starting", "retrying", "failed", "not_configured", "disabled"}
+	for _, s := range active {
+		if !IsActiveState(s) {
+			t.Fatalf("%q must count as active", s)
+		}
+	}
+	for _, s := range idle {
+		if IsActiveState(s) {
+			t.Fatalf("%q must not count as active", s)
+		}
+	}
+}
+
+func TestCountActive(t *testing.T) {
+	list := []api.PluginStatus{
+		{ID: "telegram", State: "running"},
+		{ID: "claude", Type: "engine", State: "ready"},
+		{ID: "codex", Type: "engine", State: "failed"},
+		{ID: "discord", State: "disabled"},
+	}
+	if got := CountActive(list); got != 2 {
+		t.Fatalf("CountActive = %d, want 2", got)
+	}
+	if got := CountActive(nil); got != 0 {
+		t.Fatalf("CountActive(nil) = %d, want 0", got)
+	}
+}
+
+func TestGroupByType(t *testing.T) {
+	typeOf := func(s api.PluginStatus) string { return s.Type }
+	list := []api.PluginStatus{
+		{ID: "claude", Type: "engine"},
+		{ID: "telegram"},
+		{ID: "hook", Type: "tool"},
+		{ID: "discord", Type: "channel"},
+		{ID: "pi", Type: "engine"},
+	}
+	groups := GroupByType(list, typeOf)
+	var got []string
+	for _, g := range groups {
+		ids := make([]string, len(g.Items))
+		for i, item := range g.Items {
+			ids[i] = item.ID
+		}
+		got = append(got, g.Type+":"+strings.Join(ids, ","))
+	}
+	want := []string{"channel:telegram,discord", "engine:claude,pi", "tool:hook"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("groups = %v, want %v", got, want)
+	}
+	if groups := GroupByType([]api.PluginStatus{{ID: "pi", Type: "engine"}}, typeOf); len(groups) != 1 || groups[0].Type != "engine" {
+		t.Fatalf("a single engine must not invent an empty channel group: %+v", groups)
+	}
+	if groups := GroupByType(nil, typeOf); len(groups) != 0 {
+		t.Fatalf("no items must give no groups, got %+v", groups)
+	}
+}
+
+func TestCategoryName(t *testing.T) {
+	categories := []api.CatalogTag{
+		{ID: "channel", Name: api.LocalizedText{"en": "Channels", "zh": "渠道"}},
+		{ID: "engine", Name: api.LocalizedText{"en": "Engines"}},
+	}
+	tests := []struct{ typ, lang, want string }{
+		{"channel", "zh", "渠道"},
+		{"engine", "zh", "Engines"},
+		{"engine", "en", "Engines"},
+		{"tool", "en", ""},
+	}
+	for _, tc := range tests {
+		if got := CategoryName(categories, tc.typ, tc.lang); got != tc.want {
+			t.Fatalf("CategoryName(%q, %q) = %q, want %q", tc.typ, tc.lang, got, tc.want)
+		}
+	}
+	if got := CategoryName(nil, "engine", "en"); got != "" {
+		t.Fatalf("CategoryName without categories = %q, want empty", got)
+	}
+}
+
+func TestBuildSettingsPayloadEngineNeverSendsBotName(t *testing.T) {
+	d := detailOf([]api.PluginConfigField{{Key: "args", Type: "string"}}, map[string]any{}, "")
+	d.Type = "engine"
+	values, bools := InitialFieldValues(d, fixedRandom)
+	got, ok := BuildSettingsPayload(d, values, bools, "typed-by-mistake")
+	if ok || got.BotName != nil || len(got.Config) != 0 {
+		t.Fatalf("got (%#v, %v), want nothing to send for an engine", got, ok)
+	}
+	values["args"] = "--model opus"
+	got, ok = BuildSettingsPayload(d, values, bools, "typed-by-mistake")
+	if !ok || got.BotName != nil || got.Config["args"] != "--model opus" {
+		t.Fatalf("got (%#v, %v), want the config without a bot name", got, ok)
+	}
+	d.Type = "channel"
+	got, ok = BuildSettingsPayload(d, values, bools, "typed-by-mistake")
+	if !ok || got.BotName == nil || *got.BotName != "typed-by-mistake" {
+		t.Fatalf("got (%#v, %v), a channel keeps sending its bot name", got, ok)
 	}
 }

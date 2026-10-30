@@ -136,36 +136,48 @@ func (d *Dialog) detailPage(c *ui.Context, tk theme.Tokens, st *detailState, det
 	if setupLabel == "" {
 		setupLabel = locales.PluginsSetupDefaultLabel()
 	}
+	engine := model.IsEngine(detail.Type)
+	setup := detail.HasSetup && !engine
+	settingsShown := !engine || len(detail.Fields) > 0
+	hint := locales.PluginsDetailSettingsHint(name)
+	if engine {
+		hint = locales.PluginsDetailSettingsHintEngine()
+	}
 	d.backLink(c, tk)
 	d.detailHeader(c, tk, st, detail, name, entry.Official, removing)
 	if showsError(detail.PluginStatus) {
 		d.detailBanner(c, tk, detail)
 	}
-	wide := d.contentWidth() >= container3XL
+	hasMain := setup || settingsShown
+	wide := d.contentWidth() >= container3XL && hasMain
 	body := ui.Column(c)
 	if wide {
 		body.Row().AlignItems(ui.Start)
 	}
 	body.MinWidth(0).Gap(detailSectionGap).Children(func() {
-		main := ui.Column(c).MinWidth(0).Gap(detailSectionGap)
-		if wide {
-			main.Grow(1).Basis(0)
-		}
-		main.Children(func() {
-			if detail.HasSetup {
-				d.setupCard(c, tk, detail.ID, setupLabel)
+		if hasMain {
+			main := ui.Column(c).MinWidth(0).Gap(detailSectionGap)
+			if wide {
+				main.Grow(1).Basis(0)
 			}
-			kit.Panel(c, tk, locales.PluginsDetailSettings(), locales.PluginsDetailSettingsHint(name), nil, func() {
-				d.settingsForm(c, tk, st, detail, name)
-			}).Radius(theme.RadiusInset)
-		})
+			main.Children(func() {
+				if setup {
+					d.setupCard(c, tk, detail.ID, setupLabel)
+				}
+				if settingsShown {
+					kit.Panel(c, tk, locales.PluginsDetailSettings(), hint, nil, func() {
+						d.settingsForm(c, tk, st, detail, name)
+					}).Radius(theme.RadiusInset)
+				}
+			})
+		}
 		info := d.infoPanel(c, tk, detail, entry, listed)
 		if wide {
 			info.Width(detailInfoWidth).Shrink(0)
 		}
 	})
 	d.uninstallDialog(c, tk, &st.remove)
-	if detail.HasSetup {
+	if setup {
 		d.setupDialog(c, tk, setupLabel)
 	}
 }
@@ -218,7 +230,7 @@ func (d *Dialog) detailActions(c *ui.Context, tk theme.Tokens, st *detailState, 
 		restart.Icon = "rotate-cw"
 		kit.Button(c, tk, locales.PluginsActionRestart(), restart).OnClick(func() { p.Restart(id, nil) })
 		kit.Button(c, tk, locales.PluginsActionUninstall(), kit.ButtonOpts{Variant: kit.Danger, Size: kit.SizeSM, Icon: "trash-2", Disabled: removing}).
-			OnClick(func() { st.remove.showLeaving(id, name) })
+			OnClick(func() { st.remove.showLeaving(id, name, detail.Type) })
 	})
 }
 

@@ -3,6 +3,7 @@ package store_test
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -534,4 +535,139 @@ func TestReopenForgetsFinishedOperations(t *testing.T) {
 	if got := lastToast(t, st); got.Title != en.PluginsUninstallDone("Telegram") {
 		t.Fatalf("toast = %+v, want uninstall done for the op seen after reopening", got)
 	}
+}
+
+const configPath = "/api/config"
+
+func withEngineOps(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Operations = []api.PluginOperation{
+		{ID: "op-engine", Kind: "install", Spec: linearPackage + "@0.4.0", Status: "running", CreatedAt: time.Now()},
+	}
+}
+
+func engineIDs(st *store.Store) []string {
+	return model.EngineIDs(st.EnabledEngines())
+}
+
+func loadedEngines(t *testing.T, p seededPlugins) {
+	t.Helper()
+	p.st.Config.Ensure()
+	p.fix.Settle(t)
+	if got := engineIDs(p.st); !slices.Equal(got, []string{"pi", "claude"}) {
+		t.Fatalf("engines before the change = %v, want [pi claude]", got)
+	}
+}
+
+type seededPlugins struct {
+	*store.PluginsState
+	fake *fakeapi.Server
+	fix  *storetest.Fixture
+	st   *store.Store
+}
+
+func engineChange(t *testing.T, seed func(*fakeapi.State)) seededPlugins {
+	t.Helper()
+	p, fake, fix, st := activePlugins(t, seed)
+	out := seededPlugins{PluginsState: p, fake: fake, fix: fix, st: st}
+	loadedEngines(t, out)
+	return out
+}
+
+func (s seededPlugins) setEngines(ids ...string) {
+	s.fake.Update(func(st *fakeapi.State) { st.Engines = fakeapi.Engines(ids...) })
+}
+
+func (s seededPlugins) wantEngines(t *testing.T, want ...string) {
+	t.Helper()
+	s.fix.Await(t, func() bool { return slices.Equal(engineIDs(s.st), want) })
+}
+
+func TestInstallFinishRefreshesEngines(t *testing.T) {
+	s := engineChange(t, withEngineOps)
+	s.setEngines("pi", "claude", "codex")
+	if got := engineIDs(s.st); slices.Contains(got, "codex") {
+		t.Fatalf("engines = %v before the install finished, want the cached list", got)
+	}
+	s.fake.FinishOperation("op-engine", true, "")
+	tick(t, s.fix, s.fake, 1, time.Second, opsPath)
+	s.wantEngines(t, "pi", "claude", "codex")
+}
+
+func TestUninstallFinishRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	var op api.PluginOperation
+	s.Uninstall("telegram", func(o api.PluginOperation, err error) {
+		if err != nil {
+			t.Errorf("Uninstall: %v", err)
+		}
+		op = o
+	})
+	s.fix.Settle(t)
+	s.setEngines("pi")
+	s.fake.FinishOperation(op.ID, true, "")
+	tick(t, s.fix, s.fake, 1, time.Second, opsPath)
+	s.wantEngines(t, "pi")
+}
+
+func TestToggleRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	if err := call(t, s.fix, func(done func(error)) { s.Toggle("telegram", false, done) }); err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	s.wantEngines(t, "pi")
+
+	s.setEngines("pi", "claude")
+	if err := call(t, s.fix, func(done func(error)) { s.Toggle("telegram", true, done) }); err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	s.wantEngines(t, "pi", "claude")
+}
+
+func TestRestartRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("claude")
+	if err := call(t, s.fix, func(done func(error)) { s.Restart("telegram", done) }); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	s.wantEngines(t, "claude")
+}
+
+func TestSaveSettingsRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	name := "openbee_bot"
+	if err := call(t, s.fix, func(done func(error)) {
+		s.SaveSettings("telegram", api.PluginSettingsUpdate{BotName: &name}, done)
+	}); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+	s.wantEngines(t, "pi")
+}
+
+func TestFailedActionStillRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	s.fake.FailNext(http.MethodPost, pluginsPath+"/telegram/restart", http.StatusBadRequest, map[string]string{"error": "plugin is disabled"})
+	if err := call(t, s.fix, func(done func(error)) { s.Restart("telegram", done) }); err == nil {
+		t.Fatal("Restart error not reported")
+	}
+	s.wantEngines(t, "pi")
 }

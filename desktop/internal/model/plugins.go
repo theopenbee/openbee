@@ -23,7 +23,17 @@ const (
 	ActionIncompatible
 )
 
+const (
+	PluginChannel = "channel"
+	PluginEngine  = "engine"
+)
+
 type FieldValues map[string]string
+
+type TypeGroup[T any] struct {
+	Type  string
+	Items []T
+}
 
 var intPattern = regexp.MustCompile(`^-?[0-9]+$`)
 
@@ -105,6 +115,68 @@ func PluginName(id string, catalog *api.PluginCatalog, installed []api.PluginSta
 		return name
 	}
 	return id
+}
+
+func PluginType(t string) string {
+	if t == "" {
+		return PluginChannel
+	}
+	return t
+}
+
+func IsEngine(t string) bool {
+	return t == PluginEngine
+}
+
+func IsActiveState(state string) bool {
+	return state == "running" || state == "ready"
+}
+
+func CountActive(list []api.PluginStatus) int {
+	n := 0
+	for _, p := range list {
+		if IsActiveState(p.State) {
+			n++
+		}
+	}
+	return n
+}
+
+func GroupByType[T any](items []T, typeOf func(T) string) []TypeGroup[T] {
+	buckets := map[string][]T{}
+	var seen []string
+	for _, item := range items {
+		t := PluginType(typeOf(item))
+		if _, ok := buckets[t]; !ok {
+			seen = append(seen, t)
+		}
+		buckets[t] = append(buckets[t], item)
+	}
+	var order []string
+	for _, t := range []string{PluginChannel, PluginEngine} {
+		if _, ok := buckets[t]; ok {
+			order = append(order, t)
+		}
+	}
+	for _, t := range seen {
+		if t != PluginChannel && t != PluginEngine {
+			order = append(order, t)
+		}
+	}
+	groups := make([]TypeGroup[T], len(order))
+	for i, t := range order {
+		groups[i] = TypeGroup[T]{Type: t, Items: buckets[t]}
+	}
+	return groups
+}
+
+func CategoryName(categories []api.CatalogTag, t, lang string) string {
+	for _, c := range categories {
+		if c.ID == t {
+			return localize(c.Name, lang)
+		}
+	}
+	return ""
 }
 
 func PluginNeedsPolling(ps []api.PluginStatus) bool {
@@ -199,7 +271,7 @@ func BuildSettingsPayload(d api.PluginDetail, v FieldValues, bools map[string]bo
 		}
 	}
 	update := api.PluginSettingsUpdate{Config: config}
-	if name := strings.TrimSpace(botName); name != d.BotName {
+	if name := strings.TrimSpace(botName); !IsEngine(d.Type) && name != d.BotName {
 		update.BotName = &name
 	}
 	return update, len(config) > 0 || update.BotName != nil

@@ -43,6 +43,8 @@ const (
 	skeletonFirstH  = 16
 	skeletonRestH   = 12
 	skeletonLastW   = 72
+	groupsGap       = 32
+	groupHeadGap    = 12
 	tagJoin         = " · "
 	versionJoin     = " · v"
 	specJoin        = "@"
@@ -156,10 +158,18 @@ func (d *Dialog) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, cat
 	for _, tag := range catalog.Tags {
 		tagNames[tag.ID] = displayName(tag.Name, tag.ID)
 	}
-	ui.Grid(c).Columns(d.gridColumns()).GapX(gridGap).GapY(gridGap).MinWidth(0).Children(func() {
-		for _, plugin := range list {
-			op, installing := pending[plugin.Package]
-			d.marketCard(c, tk, plugin, op, installing || p.Requested(plugin.Package), tagNames)
+	ui.Column(c).MinWidth(0).Gap(groupsGap).Children(func() {
+		for _, group := range model.GroupByType(list, func(p api.CatalogPlugin) string { return p.Category }) {
+			ui.Column(c).Key(group.Type).MinWidth(0).Gap(groupHeadGap).Children(func() {
+				ui.Text(c, typeName(group.Type, catalog.Categories)).FontSize(textSize).FontWeight(mediumWeight).
+					Role(ui.RoleHeading).Level(2)
+				ui.Grid(c).Columns(d.gridColumns()).GapX(gridGap).GapY(gridGap).MinWidth(0).Children(func() {
+					for _, plugin := range group.Items {
+						op, installing := pending[plugin.Package]
+						d.marketCard(c, tk, plugin, op, installing || p.Requested(plugin.Package), tagNames)
+					}
+				})
+			})
 		}
 	})
 }

@@ -81,10 +81,12 @@ func (d *Dialog) settingsForm(c *ui.Context, tk theme.Tokens, st *detailState, d
 				settingsField(c, tk, fs, in, f, detail.Config, submit)
 			}
 		}
-		label := locales.PluginsDetailBotName()
-		kit.Field(c, tk, label, locales.PluginsDetailBotNameHelp(), "", func() {
-			kit.TextInput(c, tk, &fs.botName, label, "").OnSubmit(submit)
-		})
+		if !model.IsEngine(detail.Type) {
+			label := locales.PluginsDetailBotName()
+			kit.Field(c, tk, label, locales.PluginsDetailBotNameHelp(), "", func() {
+				kit.TextInput(c, tk, &fs.botName, label, "").OnSubmit(submit)
+			})
+		}
 		ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).Justify(ui.End).Gap(formActionsGap).
 			Padding(formActionsTop, 0, 0, 0).BorderWidth(cardBorder, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
 			kit.Button(c, tk, locales.PluginsDetailReset(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeMD, Disabled: st.saving}).
@@ -131,7 +133,7 @@ func (d *Dialog) saveSettings(st *detailState, fs *formState, detail api.PluginD
 		return
 	}
 	st.saving = true
-	enabled := detail.Enabled
+	enabled, engine := detail.Enabled, model.IsEngine(detail.Type)
 	d.s.Plugins().SaveSettings(detail.ID, update, func(err error) {
 		st.saving = false
 		if err != nil {
@@ -140,7 +142,10 @@ func (d *Dialog) saveSettings(st *detailState, fs *formState, detail api.PluginD
 		}
 		st.saved, st.savedAt = true, time.Time{}
 		title := locales.PluginsToastSavedEnableHint()
-		if enabled {
+		switch {
+		case engine:
+			title = locales.PluginsToastSaved()
+		case enabled:
 			title = locales.PluginsToastSavedRestarting(name)
 		}
 		d.s.Toast(kit.Toast{Tone: kit.ToneSuccess, Title: title})
