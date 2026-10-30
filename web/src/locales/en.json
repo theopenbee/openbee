@@ -34,6 +34,8 @@
       "engine": "AI engine",
       "engineHelper": "The AI agent engine this worker will use to execute tasks.",
       "engineDefault": "Select engine",
+      "engineSystemDefault": "System default",
+      "engineSystemDefaultNamed": "System default ({{engine}})",
       "engineUnavailable": "{{engine}} (not installed)",
       "noEngine": "No engine is installed. Install an engine plugin in Settings > Plugins first.",
       "name": "Name",

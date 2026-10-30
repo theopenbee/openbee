@@ -34,6 +34,8 @@
       "engine": "AI 引擎",
       "engineHelper": "该员工执行任务所使用的 AI 引擎。",
       "engineDefault": "选择引擎",
+      "engineSystemDefault": "跟随系统默认",
+      "engineSystemDefaultNamed": "跟随系统默认（{{engine}}）",
       "engineUnavailable": "{{engine}}（未安装）",
       "noEngine": "还没有安装引擎，请先在“设置 > 插件”中安装一个引擎插件。",
       "name": "名称",

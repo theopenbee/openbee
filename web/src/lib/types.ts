@@ -92,10 +92,6 @@ export interface EngineChoice {
   name: string
 }
 
-export function pickDefaultEngine(current: Engine | undefined, enabled: readonly Engine[]): Engine {
-  return current || enabled[0] || ""
-}
-
 export function newWorkerEngine(systemDefault: string | undefined, enabled: readonly Engine[]): Engine {
   return enabled.find((engine) => engine === systemDefault) ?? enabled[0] ?? ""
 }
