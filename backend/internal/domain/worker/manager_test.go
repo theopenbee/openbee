@@ -753,3 +753,21 @@ func TestManagerSettleStopped(t *testing.T) {
 		assert.Equal(t, []model.WorkerStatus{model.WorkerStatusWorking, model.WorkerStatusError}, run.log.list())
 	})
 }
+
+func TestChangedEngineArgs(t *testing.T) {
+	changed, err := ChangedEngineArgs(`{"codex":"--model o3","pi":"--model x"}`, map[string]string{
+		"codex":  "--model o3",
+		"pi":     "--model y",
+		"claude": "--model sonnet",
+		"gone":   "",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"pi": "--model y", "claude": "--model sonnet"}, changed)
+
+	changed, err = ChangedEngineArgs("", map[string]string{"pi": "--model x"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"pi": "--model x"}, changed)
+
+	_, err = ChangedEngineArgs("{", map[string]string{"pi": "--model x"})
+	require.Error(t, err)
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/model"
 )
 
@@ -91,7 +92,16 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "value must be a JSON object mapping engine to CLI args string"})
 				return
 			}
-			if err := h.validator.ValidateEngineArgs(raw); err != nil {
+			stored, _, err := h.store.Get(c.Request.Context(), key)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			changed, err := worker.ChangedEngineArgs(stored.Value, raw)
+			if err != nil {
+				changed = raw
+			}
+			if err := h.validator.ValidateEngineArgs(changed); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}

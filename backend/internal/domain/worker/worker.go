@@ -65,12 +65,23 @@ func (p UpdateWorkerParams) validateEngineChanges(m *Manager, current model.Work
 	if len(p.EngineArgs) == 0 {
 		return nil
 	}
-	existing, err := storedEngineArgs(current.EngineArgs)
+	changed, err := ChangedEngineArgs(current.EngineArgs, p.EngineArgs)
 	if err != nil {
 		return err
 	}
+	if err := m.ValidateEngineArgs(changed); err != nil {
+		return fmt.Errorf("%w: %w", err, ErrValidation)
+	}
+	return nil
+}
+
+func ChangedEngineArgs(stored string, submitted map[string]string) (map[string]string, error) {
+	existing, err := storedEngineArgs(stored)
+	if err != nil {
+		return nil, err
+	}
 	changed := make(map[string]string)
-	for engine, args := range p.EngineArgs {
+	for engine, args := range submitted {
 		if args == "" {
 			continue
 		}
@@ -79,10 +90,7 @@ func (p UpdateWorkerParams) validateEngineChanges(m *Manager, current model.Work
 		}
 		changed[engine] = args
 	}
-	if err := m.ValidateEngineArgs(changed); err != nil {
-		return fmt.Errorf("%w: %w", err, ErrValidation)
-	}
-	return nil
+	return changed, nil
 }
 
 func storedEngineArgs(raw string) (map[string]string, error) {

@@ -201,3 +201,70 @@ func TestSystemConfigHandler_Set_StoreError(t *testing.T) {
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+func putEngineArgs(t *testing.T, router http.Handler, key string, value map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+	body, err := json.Marshal(map[string]string{"value": string(raw)})
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+key, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func TestSystemConfigHandler_Set_EngineArgsKeepsStoredEntryOfMissingEngine(t *testing.T) {
+	for _, key := range []string{model.SystemConfigKeyEngineArgsGlobal, model.SystemConfigKeyEngineArgsBee} {
+		t.Run(key, func(t *testing.T) {
+			store := &fakeSysConfigStore{vals: map[string]string{key: `{"codex":"--x"}`}}
+			validator := &fakeEngineValidatorForSys{valid: map[string]bool{"pi": true}}
+			router, _ := newSysConfigRouter(store, validator, "pi")
+
+			w := putEngineArgs(t, router, key, map[string]string{"codex": "--x", "pi": "--y"})
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			assert.JSONEq(t, `{"codex":"--x","pi":"--y"}`, store.vals[key])
+
+			w = putEngineArgs(t, router, key, map[string]string{"codex": "--z"})
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.JSONEq(t, `{"codex":"--x","pi":"--y"}`, store.vals[key])
+		})
+	}
+}
+
+func TestSystemConfigHandler_Set_EngineArgsRemovingMissingEngineIsAllowed(t *testing.T) {
+	key := model.SystemConfigKeyEngineArgsGlobal
+	store := &fakeSysConfigStore{vals: map[string]string{key: `{"codex":"--x","pi":"--y"}`}}
+	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"pi": true}}
+	router, _ := newSysConfigRouter(store, validator, "pi")
+
+	w := putEngineArgs(t, router, key, map[string]string{"pi": "--y"})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `{"pi":"--y"}`, store.vals[key])
+}
+
+func TestSystemConfigHandler_Set_EngineArgsNewMissingEngineIsRejected(t *testing.T) {
+	key := model.SystemConfigKeyEngineArgsBee
+	store := &fakeSysConfigStore{vals: map[string]string{}}
+	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"pi": true}}
+	router, _ := newSysConfigRouter(store, validator, "pi")
+
+	w := putEngineArgs(t, router, key, map[string]string{"codex": "--x"})
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Empty(t, store.vals[key])
+}
+
+func TestSystemConfigHandler_Set_EngineArgsReplacesUnreadableStoredValue(t *testing.T) {
+	key := model.SystemConfigKeyEngineArgsGlobal
+	store := &fakeSysConfigStore{vals: map[string]string{key: `{`}}
+	validator := &fakeEngineValidatorForSys{valid: map[string]bool{"pi": true}}
+	router, _ := newSysConfigRouter(store, validator, "pi")
+
+	w := putEngineArgs(t, router, key, map[string]string{"codex": "--x"})
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+	w = putEngineArgs(t, router, key, map[string]string{"pi": "--y"})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `{"pi":"--y"}`, store.vals[key])
+}
