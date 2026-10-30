@@ -317,9 +317,21 @@ func TestSendOptimisticThenConfirmed(t *testing.T) {
 	if len(ch.List.Msgs) != 1 || ch.List.Msgs[0].TS != stored[0].TS {
 		t.Fatalf("messages after confirm = %+v, want the server ts %d", ch.List.Msgs, stored[0].TS)
 	}
-	if n := countCalls(fake, "GET", "/api/local/conversations"); n != 2 {
-		t.Fatalf("conversation list calls = %d, want a refetch after sending", n)
+	if n := countCalls(fake, "GET", "/api/local/conversations"); n != 1 {
+		t.Fatalf("conversation list calls = %d, want no refetch after sending", n)
 	}
+	if got := lastMessageOf(st, "worker:w1"); got == nil || got.Preview != "hello" || got.Sender.Type != "user" || got.TS != stored[0].TS {
+		t.Fatalf("last message = %+v, want the sent message at the server ts", got)
+	}
+}
+
+func lastMessageOf(st *store.Store, cid string) *api.LastMessage {
+	for _, c := range st.Conversations.Data {
+		if c.ID == cid {
+			return c.LastMessage
+		}
+	}
+	return nil
 }
 
 func TestSendFailureRemovesAndReports(t *testing.T) {
@@ -365,6 +377,9 @@ func TestSendAttachmentOnlySendsSpace(t *testing.T) {
 	}
 	if len(ch.List.Msgs) != 1 || ch.List.Msgs[0].Content != "" || !slices.Equal(ch.List.Msgs[0].MediaPaths, media) {
 		t.Fatalf("messages = %+v, want the attachment with the typed content", ch.List.Msgs)
+	}
+	if got := lastMessageOf(st, "worker:w1"); got == nil || got.Preview != "" || !slices.Equal(got.MediaPaths, media) {
+		t.Fatalf("last message = %+v, want the attachment without text", got)
 	}
 }
 

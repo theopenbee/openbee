@@ -320,6 +320,15 @@ func (s *Store) handleEvent(ev api.ChatEvent) {
 	s.attend(ev, eff.RefetchWorkers)
 }
 
+func (s *Store) noteSent(cid string, m api.ChatMessage) {
+	summaries := s.summaries()
+	i := slices.IndexFunc(summaries, func(c api.ConversationSummary) bool { return c.ID == cid })
+	if i >= 0 && summaries[i].LastMessage != nil && summaries[i].LastMessage.TS > m.TS {
+		return
+	}
+	s.applyEffect(model.ApplyEvent(api.ChatEvent{Type: "message", ConversationID: cid, Message: &m}, summaries, s.WorkerMap(), s.active, s.foreground))
+}
+
 func (s *Store) applyEffect(eff model.EventEffect) {
 	if eff.SummariesChanged {
 		s.Conversations.patch(eff.Summaries)

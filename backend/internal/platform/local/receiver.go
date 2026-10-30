@@ -34,10 +34,12 @@ func (r *LocalReceiver) Start(ctx context.Context, dispatch func(platform.Inboun
 
 // Enqueue adds a message to the dispatch queue.
 // If the channel is full the message is dropped and a warning is logged.
-func (r *LocalReceiver) Enqueue(msg platform.InboundMessage) {
+func (r *LocalReceiver) Enqueue(msg platform.InboundMessage) bool {
 	select {
 	case r.ch <- msg:
+		return true
 	default:
 		log.Warn("local receiver: channel full, dropping message", zap.String("sessionKey", msg.SessionKey))
+		return false
 	}
 }

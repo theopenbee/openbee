@@ -386,7 +386,7 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 	content := local.EncodeMediaPaths(body.MediaPaths, body.Content)
 	ts := time.Now().UnixMilli()
 
-	h.receiver.Enqueue(platform.InboundMessage{
+	queued := h.receiver.Enqueue(platform.InboundMessage{
 		Platform:          local.PlatformID,
 		SenderID:          uid,
 		SessionKey:        conv.sessionKey,
@@ -394,6 +394,18 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 		RawContent:        content,
 		PlatformMessageID: localMessageID(uid, id),
 		MessageTime:       ts,
+	})
+	if !queued {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "message queue is full"})
+		return
+	}
+	h.publisher.Message(conv.sessionKey, local.ChatMessage{
+		ID:         id,
+		Sender:     local.Sender{Type: store.SenderTypeUser},
+		Kind:       local.KindMessage,
+		Content:    body.Content,
+		MediaPaths: body.MediaPaths,
+		TS:         ts,
 	})
 
 	c.JSON(http.StatusAccepted, gin.H{"id": id, "ts": ts})

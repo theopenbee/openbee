@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -887,6 +888,53 @@ func TestSendToWorkerConversationUsesWorkerKey(t *testing.T) {
 	paths, text := local.DecodeMediaPaths(msg.Content)
 	assert.Equal(t, []string{"a.png"}, paths)
 	assert.Equal(t, "do it", text)
+}
+
+func TestSendPublishesOwnMessageLikeHistory(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	cid := local.WorkerConversationID(alice.ID)
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/"+cid+"/messages", map[string]any{
+		"id": "client-9", "content": "do it", "media_paths": []string{"a.png"},
+	})
+
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	ev := nextHubEvent(t, events)
+	assert.Equal(t, local.EventMessage, ev.Type)
+	assert.Equal(t, cid, ev.ConversationID)
+	require.NotNil(t, ev.Message)
+	msg := nextInbound(t, s.receiver)
+	seedInbound(t, s.msgStore, msg.SessionKey, store.BatchMsg{
+		ID: "row-9", Content: msg.Content, PlatformMsgID: msg.PlatformMessageID, MessageTime: msg.MessageTime,
+	})
+	history := getConversationMessages(t, s.router, testUserID, cid, "")
+	require.Len(t, history.Messages, 1)
+	assert.Equal(t, history.Messages[0], *ev.Message)
+	assert.Equal(t, local.Sender{Type: store.SenderTypeUser}, ev.Message.Sender)
+	assert.Equal(t, []string{"a.png"}, ev.Message.MediaPaths)
+}
+
+func TestSendRejectsWhenQueueIsFull(t *testing.T) {
+	s := newLocalChatServer(t)
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+	for i := range 4 {
+		rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/messages", map[string]any{"content": "m" + strconv.Itoa(i)})
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		nextHubEvent(t, events)
+	}
+
+	rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/messages", map[string]any{"content": "dropped"})
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	select {
+	case data := <-events:
+		t.Fatalf("unexpected event for a dropped message: %s", data)
+	case <-time.After(100 * time.Millisecond):
+	}
 }
 
 func TestSendToBeeConversationUsesBeeKey(t *testing.T) {

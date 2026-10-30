@@ -50,11 +50,9 @@ export function useLoadOlder(id: ConversationId, onLoaded: (page: ConversationMe
 }
 
 export function useSendToConversation(conversationId: ConversationId) {
-  const invalidate = useInvalidateConversations()
   return useMutation({
     mutationFn: ({ id, content, mediaPaths }: { id: string; content: string; mediaPaths?: string[] }) =>
       api.chat.send(conversationId, id, content, mediaPaths),
-    onSuccess: invalidate,
   })
 }
 

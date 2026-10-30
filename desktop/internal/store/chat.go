@@ -160,7 +160,14 @@ func (ch *Chat) Send(text string, media []string, done func(error)) {
 			if bee {
 				ch.busySince = sent.TS
 			}
-			ch.s.Conversations.Invalidate()
+			ch.s.noteSent(cid, api.ChatMessage{
+				ID:         id,
+				Sender:     api.ChatSender{Type: senderUser},
+				Kind:       kindMessage,
+				Content:    text,
+				MediaPaths: media,
+				TS:         sent.TS,
+			})
 			done(nil)
 		}
 	}, canceledBy(done))

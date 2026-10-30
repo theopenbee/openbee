@@ -59,6 +59,7 @@
 - Refuse to restore over a database that is in use.
 - Keep engine args when creating a worker through the API.
 - Label image and file messages in chat list previews.
+- Show your own sent messages in chat list previews immediately.
 
 ## [0.0.46] - 2026-10-25
 
