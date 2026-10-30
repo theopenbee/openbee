@@ -4,9 +4,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Check } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
-import { Select } from "@/components/arc/select/select"
 import { FadeIn } from "@/components/fade-in"
-import { useEngineOptions } from "@/components/engine-select-items"
+import { EngineSelect } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { api } from "@/lib/api"
@@ -77,7 +76,6 @@ export function SystemSettings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const enabledEngines = useEnabledEngines()
-  const engineOptions = useEngineOptions(enabledEngines)
 
   const { data: sysConfigs, error: loadError, isLoading, refetch } = useSystemConfigs()
 
@@ -171,9 +169,9 @@ export function SystemSettings() {
                 title={t("systemSettings.engineSection.rowTitle")}
                 description={t("systemSettings.engineSection.description")}
               >
-                <Select
+                <EngineSelect
                   label={t("systemSettings.engineSection.label")}
-                  options={engineOptions}
+                  engines={enabledEngines}
                   value={engine}
                   onValueChange={edit(setPendingEngine)}
                   disabled={saving}

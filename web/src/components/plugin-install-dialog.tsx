@@ -5,7 +5,7 @@ import { Button } from "@/components/arc/button/button"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { Input } from "@/components/arc/input/input"
 import { OperationProgress, useNow } from "@/components/plugin-ui"
-import { useInstallPlugin } from "@/hooks/use-plugins"
+import { useInstallPlugin, usePlugins } from "@/hooks/use-plugins"
 import { useSettingsDialog } from "@/hooks/use-settings-dialog"
 import { getErrorMessage } from "@/lib/utils"
 import type { PluginOperation } from "@/lib/types"
@@ -22,6 +22,7 @@ export function PluginInstallDialog({
   const { t } = useTranslation()
   const show = useSettingsDialog()
   const install = useInstallPlugin()
+  const installed = usePlugins()
   const [spec, setSpec] = useState("")
   const [opId, setOpId] = useState<string | null>(null)
   const [error, setError] = useState("")
@@ -31,6 +32,7 @@ export function PluginInstallDialog({
   const succeeded = op?.status === "succeeded"
   const failed = op?.status === "failed"
   const now = useNow(open && running)
+  const isEngine = installed.data?.find((p) => p.id === op?.plugin_id)?.type === "engine"
 
   const close = (next: boolean) => {
     onOpenChange(next)
@@ -74,7 +76,7 @@ export function PluginInstallDialog({
           )}
           {succeeded && (
             <Alert tone="success" title={t("plugins.installDialog.done")}>
-              {t("plugins.installDialog.doneHint")}
+              {isEngine ? t("plugins.installDialog.doneHintEngine") : t("plugins.installDialog.doneHint")}
             </Alert>
           )}
           {(failed || error) && (
@@ -94,7 +96,7 @@ export function PluginInstallDialog({
                   show({ section: "plugins", plugin: op.plugin_id })
                 }}
               >
-                {t("plugins.installDialog.configure")}
+                {isEngine ? t("plugins.installDialog.view") : t("plugins.installDialog.configure")}
               </Button>
             ) : (
               <Button type="submit" loading={install.isPending} disabled={!spec.trim() || succeeded || running}>

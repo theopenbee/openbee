@@ -68,6 +68,7 @@ export function usePluginOperations(onFinished?: (op: PluginOperation) => void) 
     if (finished.length === 0) return
     queryClient.invalidateQueries({ queryKey: ["plugins"] })
     queryClient.invalidateQueries({ queryKey: ["plugin-catalog"] })
+    queryClient.invalidateQueries({ queryKey: ["config"] })
     finished.forEach((op) => onFinishedRef.current?.(op))
   }, [query.data, queryClient])
 
@@ -102,7 +103,10 @@ export function usePluginAction() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: PluginAction }) => api.plugins[action](id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["plugins"] }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["plugins"] })
+      queryClient.invalidateQueries({ queryKey: ["config"] })
+    },
   })
 }
 

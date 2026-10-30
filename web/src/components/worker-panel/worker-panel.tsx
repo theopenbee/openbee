@@ -13,6 +13,7 @@ import { DeleteWorkerDialog, type DeleteTarget } from "@/components/worker-panel
 import { WorkerEnvSection } from "@/components/worker-panel/worker-env-section"
 import { WorkerInfoForm } from "@/components/worker-panel/worker-info-form"
 import { WorkerPermissions } from "@/components/worker-panel/worker-permissions"
+import { useEnabledEngines } from "@/hooks/use-config"
 import { useWorker } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
 import { formatEngineLabel } from "@/lib/format"
@@ -113,6 +114,7 @@ interface WorkerHeaderProps {
 
 function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) {
   const { t } = useTranslation()
+  const enabledEngines = useEnabledEngines()
 
   return (
     <div className="grid gap-4">
@@ -123,7 +125,7 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
           {worker.engine && (
             <span className="flex min-w-0 items-center gap-1.5 text-sm text-secondary">
               <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />
-              <span className="truncate">{formatEngineLabel(worker.engine, t)}</span>
+              <span className="truncate">{formatEngineLabel(worker.engine, enabledEngines)}</span>
             </span>
           )}
         </div>

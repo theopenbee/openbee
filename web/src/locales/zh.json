@@ -34,6 +34,8 @@
       "engine": "AI 引擎",
       "engineHelper": "该员工执行任务所使用的 AI 引擎。",
       "engineDefault": "选择引擎",
+      "engineUnavailable": "{{engine}}（未安装）",
+      "noEngine": "还没有安装引擎，请先在“设置 > 插件”中安装一个引擎插件。",
       "name": "名称",
       "namePlaceholder": "例如：sam",
       "nameHelper": "用于识别和提及该员工。",
@@ -72,11 +74,6 @@
       "deleteWorkDirHint": "将删除 {{path}} 及其中所有文件。",
       "confirm": "删除员工",
       "error": "无法删除员工"
-    },
-    "engines": {
-      "claude": "Claude Code",
-      "codex": "Codex",
-      "pi": "Pi"
     },
     "deleteWorker": "删除员工",
     "rowActions": "{{name}} 的操作"
@@ -348,7 +345,11 @@
   },
   "plugins": {
     "title": "插件",
-    "subtitle": "从插件目录安装渠道插件，配置后即可启用，无需重启 OpenBee",
+    "subtitle": "从插件目录安装渠道和引擎插件，配置后即可启用，无需重启 OpenBee",
+    "types": {
+      "channel": "渠道",
+      "engine": "引擎"
+    },
     "refreshCatalog": "刷新目录",
     "catalogError": "无法加载插件目录",
     "installedError": "无法加载已安装的插件",
@@ -387,6 +388,7 @@
     "uninstallFailed": "{{name}} 卸载失败：{{error}}",
     "state": {
       "running": "运行中",
+      "ready": "就绪",
       "disabled": "已停用",
       "not_configured": "未配置",
       "starting": "启动中",
@@ -401,10 +403,10 @@
       "botName": "机器人名称"
     },
     "installedTitle": "已安装的插件",
-    "installedSummary_other": "{{count}} 个插件，{{running}} 个运行中",
+    "installedSummary_other": "{{count}} 个插件，{{active}} 个可用",
     "emptyInstalled": {
       "title": "还没有安装插件",
-      "description": "去插件市场安装一个渠道插件，就能接入聊天平台。",
+      "description": "去插件市场安装插件，就能接入聊天平台或添加 AI 引擎。",
       "action": "打开插件市场"
     },
     "installDialog": {
@@ -418,13 +420,16 @@
       "installing": "安装中",
       "done": "插件已安装",
       "doneHint": "完成配置后即可启用。",
+      "doneHintEngine": "引擎已启用，创建或编辑员工时即可选用。",
       "failed": "插件安装失败",
       "configure": "配置插件",
+      "view": "查看插件",
       "close": "关闭"
     },
     "uninstallDialog": {
       "title": "卸载 {{name}}？",
       "description": "会删除该插件及其配置和数据，这个渠道会立即停止，其他渠道不受影响。",
+      "descriptionEngine": "会删除该插件及其配置和数据。使用这个引擎的员工在重新安装之前无法运行。",
       "confirm": "卸载",
       "error": "插件卸载失败"
     },
@@ -432,6 +437,7 @@
       "enabled": "已启用 {{name}}",
       "disabled": "已停用 {{name}}",
       "restarted": "已重启 {{name}}",
+      "saved": "已保存",
       "savedRestarting": "已保存，{{name}} 正在重启",
       "savedEnableHint": "已保存，启用插件后开始工作"
     },
@@ -443,6 +449,7 @@
       "restartNow": "重启插件",
       "settings": "配置",
       "settingsHint": "保存后只重启 {{name}}，不影响其他渠道",
+      "settingsHintEngine": "保存的配置会在下次运行时生效",
       "info": "插件信息",
       "package": "包名",
       "version": "版本",
@@ -501,6 +508,7 @@
     "plugin_env_secret_missing": "保存插件配置前，请先在 config.yaml 中设置 server.env_secret",
     "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
     "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
+    "bot_name_not_supported": "这个插件没有机器人名称",
     "plugin_operation_not_found": "找不到该插件操作",
     "plugin_catalog_unavailable": "暂时无法获取插件目录",
     "plugin_no_setup": "插件 {{id}} 没有登录步骤",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatListTime } from "../format"
+import { formatEngineLabel, formatListTime } from "../format"
 
 const at = (year: number, month: number, day: number, hour = 12, minute = 0) =>
   new Date(year, month - 1, day, hour, minute).getTime()
@@ -31,5 +31,24 @@ describe("formatListTime", () => {
     expect(formatListTime(at(2026, 10, 26, 10, 0), now, "zh-CN", "昨天")).toBe("昨天")
     expect(formatListTime(at(2026, 3, 4, 8, 0), now, "zh-CN", "昨天")).toBe("3/4")
     expect(formatListTime(at(2025, 3, 4, 8, 0), now, "zh-CN", "昨天")).toBe("2025/3/4")
+  })
+})
+
+describe("formatEngineLabel", () => {
+  const engines = [{ id: "pi", name: "Pi" }]
+
+  it("uses the localized engine name", () => {
+    expect(formatEngineLabel("pi", engines)).toBe("Pi")
+  })
+
+  it("falls back to the id when the engine is not installed", () => {
+    expect(formatEngineLabel("codex", engines)).toBe("codex")
+    expect(formatEngineLabel("codex", [])).toBe("codex")
+  })
+
+  it("shows a dash for an unset engine", () => {
+    expect(formatEngineLabel("", engines)).toBe("—")
+    expect(formatEngineLabel(undefined, engines)).toBe("—")
+    expect(formatEngineLabel(null, engines)).toBe("—")
   })
 })

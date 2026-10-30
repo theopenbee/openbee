@@ -12,10 +12,11 @@ import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { usePluginOperations } from "@/hooks/use-plugins"
 import { formatElapsed, localize, specPackage } from "@/lib/plugins"
 import { cn } from "@/lib/utils"
-import type { PluginCatalog, PluginOperation, PluginState, PluginStatus } from "@/lib/types"
+import type { PluginCatalog, PluginOperation, PluginState, PluginStatus, PluginType } from "@/lib/types"
 
 const STATE_TONE: Record<PluginState, BadgeTone> = {
   running: "success",
+  ready: "success",
   starting: "info",
   retrying: "warning",
   failed: "danger",
@@ -25,6 +26,7 @@ const STATE_TONE: Record<PluginState, BadgeTone> = {
 
 const STATE_DOT: Record<PluginState, string> = {
   running: "bg-success",
+  ready: "bg-success",
   starting: "bg-accent animate-pulse-soft",
   retrying: "bg-warning animate-pulse-soft",
   failed: "bg-danger",
@@ -124,6 +126,7 @@ export function usePluginOperationToasts() {
 
 export function UninstallPluginDialog({
   name,
+  type,
   open,
   pending,
   error,
@@ -131,6 +134,7 @@ export function UninstallPluginDialog({
   onConfirm,
 }: {
   name: string
+  type?: PluginType
   open: boolean
   pending: boolean
   error?: string
@@ -140,7 +144,7 @@ export function UninstallPluginDialog({
   const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={t("plugins.uninstallDialog.title", { name })} description={t("plugins.uninstallDialog.description")}>
+      <DialogContent title={t("plugins.uninstallDialog.title", { name })} description={type === "engine" ? t("plugins.uninstallDialog.descriptionEngine") : t("plugins.uninstallDialog.description")}>
         {error && (
           <div className="mb-6">
             <Alert tone="danger" title={t("plugins.uninstallDialog.error")}>

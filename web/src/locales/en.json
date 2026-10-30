@@ -34,6 +34,8 @@
       "engine": "AI engine",
       "engineHelper": "The AI agent engine this worker will use to execute tasks.",
       "engineDefault": "Select engine",
+      "engineUnavailable": "{{engine}} (not installed)",
+      "noEngine": "No engine is installed. Install an engine plugin in Settings > Plugins first.",
       "name": "Name",
       "namePlaceholder": "e.g. sam",
       "nameHelper": "Used to identify and mention this worker.",
@@ -72,11 +74,6 @@
       "deleteWorkDirHint": "Removes {{path}} and everything in it.",
       "confirm": "Delete worker",
       "error": "Couldn't delete the worker"
-    },
-    "engines": {
-      "claude": "Claude Code",
-      "codex": "Codex",
-      "pi": "Pi"
     },
     "deleteWorker": "Delete worker",
     "rowActions": "Actions for {{name}}"
@@ -351,7 +348,11 @@
   },
   "plugins": {
     "title": "Plugins",
-    "subtitle": "Install channel plugins from the catalog and turn them on without restarting OpenBee",
+    "subtitle": "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee",
+    "types": {
+      "channel": "Channels",
+      "engine": "Engines"
+    },
     "refreshCatalog": "Refresh catalog",
     "catalogError": "Could not load the plugin catalog",
     "installedError": "Could not load installed plugins",
@@ -390,6 +391,7 @@
     "uninstallFailed": "Could not uninstall {{name}}: {{error}}",
     "state": {
       "running": "Running",
+      "ready": "Ready",
       "disabled": "Disabled",
       "not_configured": "Not configured",
       "starting": "Starting",
@@ -404,11 +406,11 @@
       "botName": "Bot name"
     },
     "installedTitle": "Installed plugins",
-    "installedSummary_one": "{{count}} plugin, {{running}} running",
-    "installedSummary_other": "{{count}} plugins, {{running}} running",
+    "installedSummary_one": "{{count}} plugin, {{active}} active",
+    "installedSummary_other": "{{count}} plugins, {{active}} active",
     "emptyInstalled": {
       "title": "No plugins installed",
-      "description": "Install a channel plugin from the marketplace to connect a chat platform.",
+      "description": "Install a plugin from the marketplace to connect a chat platform or add an AI engine.",
       "action": "Open marketplace"
     },
     "installDialog": {
@@ -422,13 +424,16 @@
       "installing": "Installing",
       "done": "Plugin installed",
       "doneHint": "Configure it, then turn it on.",
+      "doneHintEngine": "The engine is enabled. Pick it when you create or edit a worker.",
       "failed": "Could not install the plugin",
       "configure": "Configure plugin",
+      "view": "View plugin",
       "close": "Close"
     },
     "uninstallDialog": {
       "title": "Uninstall {{name}}?",
       "description": "The plugin, its settings and its data are deleted. The channel stops right away; other channels keep running.",
+      "descriptionEngine": "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again.",
       "confirm": "Uninstall",
       "error": "Could not uninstall the plugin"
     },
@@ -436,6 +441,7 @@
       "enabled": "{{name}} enabled",
       "disabled": "{{name}} disabled",
       "restarted": "{{name}} restarted",
+      "saved": "Settings saved",
       "savedRestarting": "Settings saved, {{name}} is restarting",
       "savedEnableHint": "Settings saved. Enable the plugin to start it."
     },
@@ -447,6 +453,7 @@
       "restartNow": "Restart plugin",
       "settings": "Settings",
       "settingsHint": "Saving restarts only {{name}}; other channels are not affected",
+      "settingsHintEngine": "Saved settings apply to the next run",
       "info": "Plugin info",
       "package": "Package",
       "version": "Version",
@@ -505,6 +512,7 @@
     "plugin_env_secret_missing": "Set server.env_secret in config.yaml before saving plugin settings",
     "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
     "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
+    "bot_name_not_supported": "This plugin has no bot name",
     "plugin_operation_not_found": "Plugin operation not found",
     "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
     "plugin_no_setup": "Plugin {{id}} has no login step",

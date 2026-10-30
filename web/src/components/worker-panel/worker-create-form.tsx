@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronDown } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
@@ -6,17 +6,17 @@ import { Badge } from "@/components/arc/badge/badge"
 import { Button } from "@/components/arc/button/button"
 import { Checkbox } from "@/components/arc/checkbox/checkbox"
 import { Input } from "@/components/arc/input/input"
-import { Select } from "@/components/arc/select/select"
 import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
-import { useEngineOptions } from "@/components/engine-select-items"
+import { EngineSelect } from "@/components/engine-select-items"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
-import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
+import { useAppConfig, useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
+import { findEngine } from "@/lib/engines"
 import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
-import { DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
+import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
 import { cn, getErrorMessage } from "@/lib/utils"
 import { countAdvancedSettings } from "@/lib/worker-create"
 
@@ -113,7 +113,8 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
 
   const createWorker = useCreateWorker()
   const enabledEngines = useEnabledEngines()
-  const engineOptions = useEngineOptions(enabledEngines)
+  const engineIds = useMemo(() => enabledEngines.map((e) => e.id), [enabledEngines])
+  const { isPending: configPending } = useAppConfig()
   const { data: sysConfigs, isPending: sysConfigsPending } = useSystemConfigs()
   const systemDefaultEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE]
 
@@ -122,11 +123,11 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
   const [constraints, setConstraints] = useState("")
   const [workDir, setWorkDir] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
-  const [engine, setEngine] = useState<Engine>(DEFAULT_ENGINE)
+  const [engine, setEngine] = useState<Engine>("")
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitError, setSubmitError] = useState("")
-  const selectedEngine = availableEngine(engine, enabledEngines)
+  const selectedEngine = availableEngine(engine, engineIds)
   const advancedCount = countAdvancedSettings({
     constraints,
     workDir,
@@ -143,10 +144,10 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
 
   const seededRef = useRef(false)
   useEffect(() => {
-    if (seededRef.current || sysConfigsPending) return
+    if (seededRef.current || sysConfigsPending || configPending) return
     seededRef.current = true
-    setEngine(newWorkerEngine(systemDefaultEngine, enabledEngines))
-  }, [sysConfigsPending, systemDefaultEngine, enabledEngines])
+    setEngine(newWorkerEngine(systemDefaultEngine, engineIds))
+  }, [sysConfigsPending, configPending, systemDefaultEngine, engineIds])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -170,7 +171,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
 
   const isPending = createWorker.isPending
 
-  if (sysConfigsPending) return <CreateWorkerSkeleton />
+  if (sysConfigsPending || configPending) return <CreateWorkerSkeleton />
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-[minmax(0,1fr)] gap-8">
@@ -184,14 +185,14 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           autoFocus
           disabled={isPending}
         />
-        <Select
+        <EngineSelect
           id="cw-engine"
           label={t("workers.form.engine")}
           description={t("workers.form.engineHelper")}
           placeholder={t("workers.form.engineDefault")}
-          options={engineOptions}
+          engines={enabledEngines}
           value={selectedEngine}
-          onValueChange={(v) => v && setEngine(v as Engine)}
+          onValueChange={setEngine}
           disabled={isPending}
         />
         <Textarea
@@ -218,7 +219,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           disabled={isPending}
         />
         <EngineArgsSection
-          engines={[selectedEngine]}
+          engines={selectedEngine ? [findEngine(enabledEngines, selectedEngine)] : []}
           value={engineArgs}
           onChange={setEngineArgs}
           idPrefix="cw-engine-args"
@@ -270,7 +271,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isPending}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" loading={isPending} disabled={!name.trim()}>
+        <Button type="submit" loading={isPending} disabled={!name.trim() || !selectedEngine}>
           {t("workers.createWorker")}
         </Button>
       </div>

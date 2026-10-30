@@ -1,16 +1,16 @@
-import { useId, useState, type FormEvent } from "react"
+import { useId, useMemo, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { Alert } from "@/components/arc/alert/alert"
 import { Button } from "@/components/arc/button/button"
 import { Input } from "@/components/arc/input/input"
-import { Select } from "@/components/arc/select/select"
 import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
-import { useEngineOptions } from "@/components/engine-select-items"
+import { EngineSelect } from "@/components/engine-select-items"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines } from "@/hooks/use-config"
 import { useUpdateWorker } from "@/hooks/use-workers"
 import { engineArgsEqual, stripEmptyEngineArgs } from "@/lib/engine-args"
+import { findEngine } from "@/lib/engines"
 import { pickDefaultEngine, type Engine, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 
@@ -24,15 +24,16 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const headingId = useId()
   const updateWorker = useUpdateWorker()
   const enabledEngines = useEnabledEngines()
-  const engineOptions = useEngineOptions(enabledEngines)
+  const engineIds = useMemo(() => enabledEngines.map((e) => e.id), [enabledEngines])
 
   const [name, setName] = useState(worker.name ?? "")
   const [description, setDescription] = useState(worker.description ?? "")
   const [workDir, setWorkDir] = useState(worker.work_dir ?? "")
-  const [engine, setEngine] = useState<Engine>(() => pickDefaultEngine(worker.engine, enabledEngines))
+  const [engine, setEngine] = useState<Engine>(worker.engine ?? "")
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>(worker.engine_args ?? {})
   const [submitError, setSubmitError] = useState("")
 
+  const selectedEngine = pickDefaultEngine(engine, engineIds)
   const trimmedWorkDir = workDir.trim()
 
   const handleSubmit = async (e: FormEvent) => {
@@ -46,11 +47,11 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
         nameChanged ||
         description !== (worker.description ?? "") ||
         workDirChanged ||
-        engine !== pickDefaultEngine(worker.engine, enabledEngines) ||
+        selectedEngine !== pickDefaultEngine(worker.engine, engineIds) ||
         engineArgsChanged
 
       if (workerChanged) {
-        const data: Record<string, unknown> = { description, engine, engine_args: engineArgs }
+        const data: Record<string, unknown> = { description, engine: selectedEngine, engine_args: engineArgs }
         if (nameChanged) data.name = name
         if (workDirChanged) data.work_dir = trimmedWorkDir
         await updateWorker.mutateAsync({ id: worker.id, data })
@@ -108,18 +109,19 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
           </p>
         </div>
 
-        <Select
+        <EngineSelect
           id="ewis-engine"
           label={t("workers.form.engine")}
           description={t("workers.form.engineHelper")}
-          options={engineOptions}
-          value={engine}
-          onValueChange={(v) => v && setEngine(v as Engine)}
+          placeholder={t("workers.form.engineDefault")}
+          engines={enabledEngines}
+          value={selectedEngine}
+          onValueChange={setEngine}
           disabled={isPending}
         />
 
         <EngineArgsSection
-          engines={[engine]}
+          engines={selectedEngine ? [findEngine(enabledEngines, selectedEngine)] : []}
           value={engineArgs}
           onChange={setEngineArgs}
           idPrefix="ewis-engine-args"

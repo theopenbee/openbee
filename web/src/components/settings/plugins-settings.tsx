@@ -35,7 +35,7 @@ import {
   type PluginAction,
 } from "@/hooks/use-plugins"
 import { useSettingsDialog, type PluginsTab } from "@/hooks/use-settings-dialog"
-import { filterCatalog, localize, marketAction, pendingInstalls } from "@/lib/plugins"
+import { filterCatalog, groupByType, isActiveState, localize, marketAction, pendingInstalls, pluginTypeLabel } from "@/lib/plugins"
 import { getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginOperation, PluginStatus } from "@/lib/types"
 
@@ -166,6 +166,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
   const data = catalog.data
   const list = filterCatalog(data.plugins, query, tag)
   const tagName = (id: string) => localize(data.tags.find((v) => v.id === id)?.name, lang) || id
+  const typeName = (type: string) => pluginTypeLabel(type, data.categories, lang, t)
 
   const startInstall = (p: CatalogPlugin) => {
     setRequested((prev) => new Set(prev).add(p.package))
@@ -203,64 +204,73 @@ function Market({ operations }: { operations: PluginOperation[] }) {
           />
         </div>
       ) : (
-        <ul className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
-          {list.map((p) => {
-            const op = pending[p.package]
-            const action = marketAction(p, Boolean(op) || requested.has(p.package))
-            const name = localize(p.name, lang) || p.id
-            const deprecated = localize(p.deprecated, lang)
-            const description = localize(p.description, lang)
-            return (
-              <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-6">
-                <div className="flex-1">
-                  <div className="flex items-start gap-3">
-                    <PluginAvatar name={name} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="min-w-0 truncate text-base font-medium text-foreground">{name}</h3>
-                        {p.official && <Badge size="sm">{t("plugins.official")}</Badge>}
-                        {deprecated && (
-                          <Tooltip content={deprecated}>
-                            <span tabIndex={0} className="inline-flex rounded-full">
-                              <Badge tone="warning" size="sm">{t("plugins.deprecated")}</Badge>
-                            </span>
-                          </Tooltip>
+        <div className="grid gap-8">
+          {groupByType(list, (p) => p.category).map((group) => (
+            <section key={group.type} aria-labelledby={`market-group-${group.type}`}>
+              <h2 id={`market-group-${group.type}`} className="mb-3 text-sm font-medium text-foreground">
+                {typeName(group.type)}
+              </h2>
+              <ul className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+                {group.items.map((p) => {
+                  const op = pending[p.package]
+                  const action = marketAction(p, Boolean(op) || requested.has(p.package))
+                  const name = localize(p.name, lang) || p.id
+                  const deprecated = localize(p.deprecated, lang)
+                  const description = localize(p.description, lang)
+                  return (
+                    <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-6">
+                      <div className="flex-1">
+                        <div className="flex items-start gap-3">
+                          <PluginAvatar name={name} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="min-w-0 truncate text-base font-medium text-foreground">{name}</h3>
+                              {p.official && <Badge size="sm">{t("plugins.official")}</Badge>}
+                              {deprecated && (
+                                <Tooltip content={deprecated}>
+                                  <span tabIndex={0} className="inline-flex rounded-full">
+                                    <Badge tone="warning" size="sm">{t("plugins.deprecated")}</Badge>
+                                  </span>
+                                </Tooltip>
+                              )}
+                            </div>
+                            <p className="mt-0.5 truncate font-mono text-xs text-secondary">
+                              {p.id} · v{p.version}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-4 line-clamp-2 min-h-10 text-sm text-secondary">{description}</p>
+                        {p.tags.length > 0 && (
+                          <p className="mt-3 truncate text-xs text-muted">{p.tags.map(tagName).join(" · ")}</p>
                         )}
                       </div>
-                      <p className="mt-0.5 truncate font-mono text-xs text-secondary">
-                        {p.id} · v{p.version}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-4 line-clamp-2 min-h-10 text-sm text-secondary">{description}</p>
-                  {p.tags.length > 0 && (
-                    <p className="mt-3 truncate text-xs text-muted">{p.tags.map(tagName).join(" · ")}</p>
-                  )}
-                </div>
-                <div className="mt-5 flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border-subtle pt-4">
-                  <div className="min-w-0 text-xs text-secondary">
-                    {p.installed && (
-                      <span className="inline-flex items-center gap-1.5">
-                        <CheckIcon size={14} strokeWidth={1.75} className="shrink-0 text-success" aria-hidden="true" />
-                        {p.update_available
-                          ? t("plugins.updateAvailable", { version: p.installed_version })
-                          : t("plugins.installedVersion", { version: p.installed_version })}
-                      </span>
-                    )}
-                  </div>
-                  <MarketAction
-                    action={action}
-                    plugin={p}
-                    op={op}
-                    now={now}
-                    onInstall={() => startInstall(p)}
-                    onConfigure={() => show({ section: "plugins", plugin: p.id })}
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                      <div className="mt-5 flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border-subtle pt-4">
+                        <div className="min-w-0 text-xs text-secondary">
+                          {p.installed && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <CheckIcon size={14} strokeWidth={1.75} className="shrink-0 text-success" aria-hidden="true" />
+                              {p.update_available
+                                ? t("plugins.updateAvailable", { version: p.installed_version })
+                                : t("plugins.installedVersion", { version: p.installed_version })}
+                            </span>
+                          )}
+                        </div>
+                        <MarketAction
+                          action={action}
+                          plugin={p}
+                          op={op}
+                          now={now}
+                          onInstall={() => startInstall(p)}
+                          onConfigure={() => show({ section: "plugins", plugin: p.id })}
+                        />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </>
   )
@@ -313,6 +323,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
   const { t, i18n } = useTranslation()
   const show = useSettingsDialog()
   const plugins = usePlugins()
+  const catalog = usePluginCatalog()
   const action = usePluginAction()
   const uninstall = useUninstallPlugin()
   const [target, setTarget] = useState<PluginStatus | null>(null)
@@ -366,7 +377,8 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
       },
     )
   }
-  const running = list.filter((p) => p.state === "running").length
+  const active = list.filter((p) => isActiveState(p.state)).length
+  const typeName = (type: string) => pluginTypeLabel(type, catalog.data?.categories ?? [], lang, t)
 
   return (
     <>
@@ -374,7 +386,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
         title={t("plugins.installedTitle")}
         className="rounded-inset"
         flush
-        action={<span className="text-xs text-secondary tabular">{t("plugins.installedSummary", { count: list.length, running })}</span>}
+        action={<span className="text-xs text-secondary tabular">{t("plugins.installedSummary", { count: list.length, active })}</span>}
       >
         <div className={`hidden gap-4 px-6 pb-2 text-xs text-secondary @3xl:grid ${INSTALLED_GRID}`} aria-hidden="true">
           <span>{t("plugins.columns.plugin")}</span>
@@ -383,87 +395,95 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
           <span>{t("plugins.columns.botName")}</span>
           <span className="w-44" />
         </div>
-        <ul>
-          {list.map((p) => {
-            const name = nameOf(p)
-            const busy = Boolean(removing[p.id])
-            const enabled = toggling[p.id] ?? p.enabled
-            const showError = p.error && (p.state === "failed" || p.state === "retrying")
-            return (
-              <li
-                key={p.id}
-                className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-t border-border-subtle px-6 py-4 ${INSTALLED_GRID}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => show({ section: "plugins", plugin: p.id })}
-                  className="group flex min-w-0 items-center gap-3 text-left"
-                >
-                  <PluginAvatar name={name} />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-foreground group-hover:text-accent-strong">{name}</span>
-                    <span className="block truncate font-mono text-xs text-secondary">{p.id}</span>
-                  </span>
-                </button>
-                <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @3xl:contents">
-                  <span className="font-mono text-sm text-secondary tabular">{p.version ? `v${p.version}` : "–"}</span>
-                  <div className={showError ? "order-first w-full min-w-0 @3xl:order-none @3xl:w-auto" : "order-first min-w-0 @3xl:order-none"}>
-                    <PluginStateBadge state={p.state} uninstalling={busy} />
-                    {showError && (
-                      <p className="mt-1 truncate text-xs text-danger" title={p.error}>
-                        {p.error}
-                      </p>
-                    )}
-                  </div>
-                  <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-                    <BotIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted @3xl:hidden" aria-hidden="true" />
-                    <span className="truncate">{p.bot_name || <span className="text-muted">–</span>}</span>
-                  </span>
-                </div>
-                <div className="row-start-1 col-start-2 flex items-center justify-end gap-2 @3xl:col-start-auto @3xl:row-start-auto @3xl:w-44">
-                  <Switch
-                    aria-label={t("plugins.action.toggle", { name })}
-                    checked={enabled}
-                    disabled={busy || action.isPending || (!p.enabled && p.state === "not_configured")}
-                    onCheckedChange={(checked) => run(p, checked ? "enable" : "disable")}
-                  />
-                  <span className="hidden @lg:inline-flex">
-                    <Button size="sm" variant="secondary" disabled={busy} onClick={() => show({ section: "plugins", plugin: p.id })}>
-                      {t("plugins.action.configure")}
-                    </Button>
-                  </span>
-                  <DropdownMenu
-                    iconOnly
-                    icon={<EllipsisIcon size={16} strokeWidth={1.75} />}
-                    label={t("plugins.action.moreFor", { name })}
-                    disabled={busy}
-                    items={[
-                      {
-                        label: t("plugins.action.restart"),
-                        icon: <RotateCwIcon size={16} strokeWidth={1.75} />,
-                        disabled: !p.enabled || action.isPending,
-                        onSelect: () => run(p, "restart"),
-                      },
-                      {
-                        label: t("plugins.action.uninstall"),
-                        icon: <Trash2Icon size={16} strokeWidth={1.75} />,
-                        destructive: true,
-                        separatorBefore: true,
-                        onSelect: () => {
-                          setUninstallError("")
-                          setTarget(p)
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        {groupByType(list, (p) => p.type).map((group) => (
+          <section key={group.type} aria-labelledby={`installed-group-${group.type}`}>
+            <h3 id={`installed-group-${group.type}`} className="px-6 pt-4 pb-2 text-sm font-medium text-foreground">
+              {typeName(group.type)}
+            </h3>
+            <ul>
+              {group.items.map((p) => {
+                const name = nameOf(p)
+                const busy = Boolean(removing[p.id])
+                const enabled = toggling[p.id] ?? p.enabled
+                const showError = p.error && (p.state === "failed" || p.state === "retrying")
+                return (
+                  <li
+                    key={p.id}
+                    className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 border-t border-border-subtle px-6 py-4 ${INSTALLED_GRID}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => show({ section: "plugins", plugin: p.id })}
+                      className="group flex min-w-0 items-center gap-3 text-left"
+                    >
+                      <PluginAvatar name={name} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-foreground group-hover:text-accent-strong">{name}</span>
+                        <span className="block truncate font-mono text-xs text-secondary">{p.id}</span>
+                      </span>
+                    </button>
+                    <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @3xl:contents">
+                      <span className="font-mono text-sm text-secondary tabular">{p.version ? `v${p.version}` : "–"}</span>
+                      <div className={showError ? "order-first w-full min-w-0 @3xl:order-none @3xl:w-auto" : "order-first min-w-0 @3xl:order-none"}>
+                        <PluginStateBadge state={p.state} uninstalling={busy} />
+                        {showError && (
+                          <p className="mt-1 truncate text-xs text-danger" title={p.error}>
+                            {p.error}
+                          </p>
+                        )}
+                      </div>
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+                        <BotIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted @3xl:hidden" aria-hidden="true" />
+                        <span className="truncate">{p.bot_name || <span className="text-muted">–</span>}</span>
+                      </span>
+                    </div>
+                    <div className="row-start-1 col-start-2 flex items-center justify-end gap-2 @3xl:col-start-auto @3xl:row-start-auto @3xl:w-44">
+                      <Switch
+                        aria-label={t("plugins.action.toggle", { name })}
+                        checked={enabled}
+                        disabled={busy || action.isPending || (!p.enabled && p.state === "not_configured")}
+                        onCheckedChange={(checked) => run(p, checked ? "enable" : "disable")}
+                      />
+                      <span className="hidden @lg:inline-flex">
+                        <Button size="sm" variant="secondary" disabled={busy} onClick={() => show({ section: "plugins", plugin: p.id })}>
+                          {t("plugins.action.configure")}
+                        </Button>
+                      </span>
+                      <DropdownMenu
+                        iconOnly
+                        icon={<EllipsisIcon size={16} strokeWidth={1.75} />}
+                        label={t("plugins.action.moreFor", { name })}
+                        disabled={busy}
+                        items={[
+                          {
+                            label: t("plugins.action.restart"),
+                            icon: <RotateCwIcon size={16} strokeWidth={1.75} />,
+                            disabled: !p.enabled || action.isPending,
+                            onSelect: () => run(p, "restart"),
+                          },
+                          {
+                            label: t("plugins.action.uninstall"),
+                            icon: <Trash2Icon size={16} strokeWidth={1.75} />,
+                            destructive: true,
+                            separatorBefore: true,
+                            onSelect: () => {
+                              setUninstallError("")
+                              setTarget(p)
+                            },
+                          },
+                        ]}
+                      />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ))}
       </Panel>
       <UninstallPluginDialog
         name={target ? nameOf(target) : ""}
+        type={target?.type}
         open={target !== null}
         pending={uninstall.isPending}
         error={uninstallError}

@@ -3,6 +3,8 @@ import {
   buildSettingsPayload,
   filterCatalog,
   formatElapsed,
+  groupByType,
+  isActiveState,
   initialFormValues,
   isLink,
   invalidIntFields,
@@ -11,6 +13,7 @@ import {
   localize,
   marketAction,
   pendingInstalls,
+  pluginTypeLabel,
 } from "../plugins"
 import type { CatalogPlugin, PluginConfigField, PluginOperation } from "../types"
 
@@ -204,5 +207,63 @@ describe("formatElapsed", () => {
     expect(formatElapsed(12_400)).toBe("0:12")
     expect(formatElapsed(125_000)).toBe("2:05")
     expect(formatElapsed(-5)).toBe("0:00")
+  })
+})
+
+describe("groupByType", () => {
+  const item = (id: string, type?: string) => ({ id, type })
+
+  it("groups by type with channels first and keeps item order", () => {
+    const got = groupByType(
+      [item("pi", "engine"), item("telegram", "channel"), item("claude", "engine"), item("weixin", "channel")],
+      (p) => p.type,
+    )
+    expect(got.map((g) => g.type)).toEqual(["channel", "engine"])
+    expect(got[0].items.map((p) => p.id)).toEqual(["telegram", "weixin"])
+    expect(got[1].items.map((p) => p.id)).toEqual(["pi", "claude"])
+  })
+
+  it("treats a missing type as channel", () => {
+    const got = groupByType([item("a"), item("b", "engine"), item("c", "")], (p) => p.type)
+    expect(got.map((g) => g.type)).toEqual(["channel", "engine"])
+    expect(got[0].items.map((p) => p.id)).toEqual(["a", "c"])
+  })
+
+  it("omits empty groups and appends unknown types in first-seen order", () => {
+    expect(groupByType([item("pi", "engine")], (p) => p.type).map((g) => g.type)).toEqual(["engine"])
+    expect(groupByType([item("x", "tool"), item("y", "engine"), item("z", "agent")], (p) => p.type).map((g) => g.type)).toEqual([
+      "engine",
+      "tool",
+      "agent",
+    ])
+    expect(groupByType([], (p: { type?: string }) => p.type)).toEqual([])
+  })
+})
+
+describe("isActiveState", () => {
+  it("counts running channels and ready engines", () => {
+    expect(isActiveState("running")).toBe(true)
+    expect(isActiveState("ready")).toBe(true)
+    expect(isActiveState("failed")).toBe(false)
+    expect(isActiveState("disabled")).toBe(false)
+  })
+})
+
+describe("pluginTypeLabel", () => {
+  const categories = [
+    { id: "channel", name: { en: "Channels", zh: "渠道" } },
+    { id: "engine", name: { en: "Engines", zh: "引擎" } },
+  ]
+  const t = (key: string, options: { defaultValue: string }) => (key === "plugins.types.engine" ? "Engine plugins" : options.defaultValue)
+
+  it("uses the catalog category name for the UI language", () => {
+    expect(pluginTypeLabel("engine", categories, "zh", t)).toBe("引擎")
+    expect(pluginTypeLabel("channel", categories, "en", t)).toBe("Channels")
+    expect(pluginTypeLabel("engine", categories, "fr", t)).toBe("Engines")
+  })
+
+  it("falls back to the locale text, then to the raw type", () => {
+    expect(pluginTypeLabel("engine", [], "en", t)).toBe("Engine plugins")
+    expect(pluginTypeLabel("tool", categories, "en", t)).toBe("tool")
   })
 })

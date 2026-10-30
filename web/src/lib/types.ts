@@ -85,21 +85,19 @@ export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
 
-// Mirrors ai.AllEngines in Go — keep in sync.
-export const ENGINES = ["claude", "codex", "pi"] as const
-export type Engine = (typeof ENGINES)[number]
-export const DEFAULT_ENGINE: Engine = ENGINES[0]
+export type Engine = string
 
-// pickDefaultEngine returns the most appropriate engine to seed a form with:
-// the worker's current engine if set, else the first server-enabled engine,
-// else the global default. Shared by create/edit worker sheets so the rule
-// stays in one place.
+export interface EngineChoice {
+  id: Engine
+  name: string
+}
+
 export function pickDefaultEngine(current: Engine | undefined, enabled: readonly Engine[]): Engine {
-  return current ?? enabled[0] ?? DEFAULT_ENGINE
+  return current || enabled[0] || ""
 }
 
 export function newWorkerEngine(systemDefault: string | undefined, enabled: readonly Engine[]): Engine {
-  return enabled.find((engine) => engine === systemDefault) ?? enabled[0] ?? DEFAULT_ENGINE
+  return enabled.find((engine) => engine === systemDefault) ?? enabled[0] ?? ""
 }
 
 export function availableEngine(engine: Engine, enabled: readonly Engine[]): Engine {
@@ -116,9 +114,15 @@ export interface EnvConfig {
   updated_at: number
 }
 
+export interface EngineInfo {
+  id: Engine
+  name: LocalizedText
+}
+
 export interface AppConfig {
   language: string
   enabled_engines: Engine[]
+  engines: EngineInfo[]
 }
 
 export interface SetupStatus {
@@ -133,7 +137,9 @@ export interface TokenResponse {
 
 export type LocalizedText = Record<string, string>
 
-export type PluginState = "not_configured" | "disabled" | "starting" | "running" | "retrying" | "failed"
+export type PluginType = "channel" | "engine"
+
+export type PluginState = "not_configured" | "disabled" | "starting" | "running" | "ready" | "retrying" | "failed"
 
 export type PluginFieldType = "string" | "secret" | "bool" | "int" | "list"
 
@@ -149,6 +155,7 @@ export interface PluginConfigField {
 
 export interface PluginStatus {
   id: string
+  type: PluginType
   package?: string
   source: string
   version?: string

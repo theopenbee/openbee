@@ -28,7 +28,7 @@ import {
 import { useSettingsDialog } from "@/hooks/use-settings-dialog"
 import { ApiError } from "@/lib/api"
 import { buildSettingsPayload, initialFormValues, invalidIntFields, localize, pendingInstalls, type FormValues } from "@/lib/plugins"
-import { getErrorMessage } from "@/lib/utils"
+import { cn, getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginConfigField, PluginDetail as Detail, PluginSettingsUpdate } from "@/lib/types"
 
 const SAVED_FEEDBACK_MS = 2500
@@ -99,6 +99,9 @@ export function PluginDetailSettings({ id }: { id: string }) {
   const removing = Boolean(pendingUninstalls(ops)[d.id])
   const pendingKind = action.isPending ? action.variables?.action : undefined
   const showError = d.error && (d.state === "failed" || d.state === "retrying")
+  const isEngine = d.type === "engine"
+  const showSettings = !isEngine || d.fields.length > 0
+  const hasMain = d.has_setup || showSettings
 
   const run = (kind: PluginAction) =>
     action.mutate(
@@ -108,6 +111,39 @@ export function PluginDetailSettings({ id }: { id: string }) {
         onError: (err) => toast.error(getErrorMessage(err)),
       },
     )
+
+  const main = hasMain && (
+    <div className="grid min-w-0 gap-6">
+      {d.has_setup && (
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-inset border border-border bg-surface px-6 py-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-medium text-foreground">{setupLabel}</h2>
+            <p className="mt-1 text-sm text-secondary">{t("plugins.setup.cardHint")}</p>
+          </div>
+          <Button variant="secondary" onClick={() => setSetupOpen(true)}>
+            <QrCodeIcon size={16} strokeWidth={1.75} aria-hidden="true" />
+            {t("plugins.setup.start")}
+          </Button>
+        </section>
+      )}
+      {showSettings && (
+        <Panel
+          title={t("plugins.detail.settings")}
+          description={isEngine ? t("plugins.detail.settingsHintEngine") : t("plugins.detail.settingsHint", { name })}
+          className="rounded-inset"
+        >
+          <SettingsForm
+            key={`${resetKey}:${JSON.stringify(d.config)}:${d.bot_name}`}
+            detail={d}
+            name={name}
+            saved={savedAt > 0}
+            onSaved={() => setSavedAt(Date.now())}
+            onReset={() => setResetKey((k) => k + 1)}
+          />
+        </Panel>
+      )}
+    </div>
+  )
 
   return (
     <FadeIn>
@@ -186,35 +222,8 @@ export function PluginDetailSettings({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:items-start">
-        <div className="grid min-w-0 gap-6">
-          {d.has_setup && (
-            <section className="flex flex-wrap items-center justify-between gap-4 rounded-inset border border-border bg-surface px-6 py-5">
-              <div className="min-w-0">
-                <h2 className="text-base font-medium text-foreground">{setupLabel}</h2>
-                <p className="mt-1 text-sm text-secondary">{t("plugins.setup.cardHint")}</p>
-              </div>
-              <Button variant="secondary" onClick={() => setSetupOpen(true)}>
-                <QrCodeIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-                {t("plugins.setup.start")}
-              </Button>
-            </section>
-          )}
-          <Panel
-            title={t("plugins.detail.settings")}
-            description={t("plugins.detail.settingsHint", { name })}
-            className="rounded-inset"
-          >
-            <SettingsForm
-              key={`${resetKey}:${JSON.stringify(d.config)}:${d.bot_name}`}
-              detail={d}
-              name={name}
-              saved={savedAt > 0}
-              onSaved={() => setSavedAt(Date.now())}
-              onReset={() => setResetKey((k) => k + 1)}
-            />
-          </Panel>
-        </div>
+      <div className={cn("grid gap-6", hasMain && "@3xl:grid-cols-[minmax(0,1fr)_20rem] @3xl:items-start")}>
+        {main}
         <InfoPanel
           detail={d}
           entry={entry}
@@ -228,6 +237,7 @@ export function PluginDetailSettings({ id }: { id: string }) {
       )}
       <UninstallPluginDialog
         name={name}
+        type={d.type}
         open={confirmUninstall}
         pending={uninstall.isPending}
         error={uninstallError}
@@ -277,6 +287,7 @@ function SettingsForm({
   const save = useUpdatePluginSettings(detail.id)
   const [values, setValues] = useState<FormValues>(() => initialFormValues(detail.fields, detail.config))
   const [botName, setBotName] = useState(detail.bot_name)
+  const isEngine = detail.type === "engine"
   const [invalid, setInvalid] = useState<string[]>([])
 
   const labelOf = (f: PluginConfigField) => localize(f.label, lang) || f.key
@@ -292,7 +303,7 @@ function SettingsForm({
     }
     const config = buildSettingsPayload(detail.fields, detail.config, values)
     const body: PluginSettingsUpdate = { config }
-    if (botName.trim() !== detail.bot_name) body.bot_name = botName.trim()
+    if (!isEngine && botName.trim() !== detail.bot_name) body.bot_name = botName.trim()
     if (Object.keys(config).length === 0 && body.bot_name === undefined) {
       toast.info(t("plugins.detail.noChanges"))
       return
@@ -300,7 +311,13 @@ function SettingsForm({
     save.mutate(body, {
       onSuccess: () => {
         onSaved()
-        toast.success(detail.enabled ? t("plugins.toast.savedRestarting", { name }) : t("plugins.toast.savedEnableHint"))
+        toast.success(
+          isEngine
+            ? t("plugins.toast.saved")
+            : detail.enabled
+              ? t("plugins.toast.savedRestarting", { name })
+              : t("plugins.toast.savedEnableHint"),
+        )
       },
       onError: (err) => toast.error(getErrorMessage(err)),
     })
@@ -386,13 +403,15 @@ function SettingsForm({
           {field(f)}
         </div>
       ))}
-      <Input
-        id="plugin-bot-name"
-        label={t("plugins.detail.botName")}
-        description={t("plugins.detail.botNameHelp")}
-        value={botName}
-        onChange={(e) => setBotName(e.target.value)}
-      />
+      {!isEngine && (
+        <Input
+          id="plugin-bot-name"
+          label={t("plugins.detail.botName")}
+          description={t("plugins.detail.botNameHelp")}
+          value={botName}
+          onChange={(e) => setBotName(e.target.value)}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border-subtle pt-5">
         <Button type="button" variant="ghost" onClick={onReset} disabled={save.isPending}>
           {t("plugins.detail.reset")}

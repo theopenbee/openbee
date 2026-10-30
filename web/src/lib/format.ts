@@ -1,3 +1,6 @@
+import { findEngine } from "./engines"
+import type { EngineChoice } from "./types"
+
 export function formatTimestamp(value: number | null | undefined) {
   if (!value) return "—"
   return new Date(value).toLocaleString()
@@ -7,8 +10,8 @@ export function statusLabel(status: string, t: (key: string, defaultValue: strin
   return t(`statuses.${status}`, status)
 }
 
-export function formatEngineLabel(engine: string | null | undefined, t: (key: string) => string): string {
-  return engine ? t(`workers.engines.${engine}`) : "—"
+export function formatEngineLabel(engine: string | null | undefined, engines: readonly EngineChoice[]): string {
+  return engine ? findEngine(engines, engine).name : "—"
 }
 
 export function isSameDay(left: number, right: number) {

@@ -1,4 +1,4 @@
-import type { CatalogPlugin, LocalizedText, PluginConfigField, PluginOperation, PluginState } from "./types"
+import type { CatalogPlugin, CatalogVocab, LocalizedText, PluginConfigField, PluginOperation, PluginState } from "./types"
 
 export type FormValue = string | boolean
 export type FormValues = Record<string, FormValue>
@@ -155,6 +155,39 @@ export function latestLink(lines: string[]): string | null {
     if (isLink(lines[i])) return lines[i].trim()
   }
   return null
+}
+
+export interface PluginGroup<T> {
+  type: string
+  items: T[]
+}
+
+const TYPE_ORDER = ["channel", "engine"]
+
+export function groupByType<T>(items: readonly T[], typeOf: (item: T) => string | undefined): PluginGroup<T>[] {
+  const groups = new Map<string, T[]>()
+  for (const item of items) {
+    const type = typeOf(item) || "channel"
+    const bucket = groups.get(type)
+    if (bucket) bucket.push(item)
+    else groups.set(type, [item])
+  }
+  const known = TYPE_ORDER.filter((type) => groups.has(type))
+  const others = [...groups.keys()].filter((type) => !TYPE_ORDER.includes(type))
+  return [...known, ...others].map((type) => ({ type, items: groups.get(type) ?? [] }))
+}
+
+export function pluginTypeLabel(
+  type: string,
+  categories: readonly CatalogVocab[],
+  lang: string,
+  t: (key: string, options: { defaultValue: string }) => string,
+): string {
+  return localize(categories.find((c) => c.id === type)?.name, lang) || t(`plugins.types.${type}`, { defaultValue: type })
+}
+
+export function isActiveState(state: PluginState): boolean {
+  return state === "running" || state === "ready"
 }
 
 export function isTransitional(state: PluginState): boolean {
