@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/utils"
 	"github.com/theopenbee/openbee/internal/platform"
 )
 
@@ -16,9 +17,9 @@ var senderLog = logger.With(zap.String("component", "logging_sender"))
 // LoggingPlatformSenderAdapter wraps a PlatformSenderAdapter and records every
 // outbound message to OutboundMessageStore regardless of send success or failure.
 type LoggingPlatformSenderAdapter struct {
-	inner        platform.PlatformSenderAdapter
+	inner         platform.PlatformSenderAdapter
 	outboundStore *OutboundMessageStore
-	platformID   string
+	platformID    string
 }
 
 // NewLoggingPlatformSenderAdapter constructs a LoggingPlatformSenderAdapter.
@@ -28,9 +29,9 @@ func NewLoggingPlatformSenderAdapter(
 	platformID string,
 ) *LoggingPlatformSenderAdapter {
 	return &LoggingPlatformSenderAdapter{
-		inner:        inner,
+		inner:         inner,
 		outboundStore: outboundStore,
-		platformID:   platformID,
+		platformID:    platformID,
 	}
 }
 
@@ -39,7 +40,8 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 	if msg.ID == "" {
 		msg.ID = uuid.New().String()
 	}
-	sentAt := time.Now().UnixMilli()
+	sentAt := utils.NextMillis()
+	msg.SentAt = sentAt
 	sendErr := a.inner.Send(ctx, msg)
 
 	status := OutboundStatusSent

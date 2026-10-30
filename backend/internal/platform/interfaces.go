@@ -29,6 +29,7 @@ type OutboundMessage struct {
 	InboundMsgID string // ID of the bee_platform_messages row that triggered this reply
 	Kind         string
 	Payload      string
+	SentAt       int64
 }
 
 // PlatformReceiverAdapter receives inbound messages and dispatches them.

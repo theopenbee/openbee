@@ -277,3 +277,16 @@ func TestLocalSender_Send_MissingMediaFails(t *testing.T) {
 	default:
 	}
 }
+
+func TestLocalSender_UsesSentAtAsTimestamp(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("sess-1")
+	defer unsub()
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		ID: "out-ts", SessionKey: "local:sess-1", Content: "x", SentAt: 1234,
+	}))
+
+	assert.Equal(t, int64(1234), receiveChat(t, ch).TS)
+}

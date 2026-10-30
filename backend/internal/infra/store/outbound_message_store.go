@@ -187,7 +187,7 @@ func outboundFilterWhere(f OutboundMessageFilter) (string, []any) {
 	return b.build()
 }
 
-// ListBySessionKey returns outbound messages for a session ordered by sent_at ascending.
+// ListBySessionKey returns sent outbound messages for a session ordered by sent_at ascending.
 // If before > 0, only messages with sent_at < before are returned.
 // limit must be > 0.
 // limit controls max rows returned. Callers typically pass limit+1 to enable has_more detection.
@@ -199,15 +199,15 @@ func (s *OutboundMessageStore) ListBySessionKey(ctx context.Context, sessionKey 
 	if before > 0 {
 		query = `SELECT ` + outboundMessageColumns + `
 			 FROM bee_outbound_messages
-			 WHERE session_key = ? AND sent_at < ?
+			 WHERE session_key = ? AND status = ? AND sent_at < ?
 			 ORDER BY sent_at DESC LIMIT ?`
-		args = []any{sessionKey, before, limit}
+		args = []any{sessionKey, OutboundStatusSent, before, limit}
 	} else {
 		query = `SELECT ` + outboundMessageColumns + `
 			 FROM bee_outbound_messages
-			 WHERE session_key = ?
+			 WHERE session_key = ? AND status = ?
 			 ORDER BY sent_at DESC LIMIT ?`
-		args = []any{sessionKey, limit}
+		args = []any{sessionKey, OutboundStatusSent, limit}
 	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

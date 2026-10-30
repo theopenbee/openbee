@@ -34,7 +34,7 @@ func (s *LocalSender) Send(_ context.Context, msg platform.OutboundMessage) erro
 		Sender:  Sender{Type: cmp.Or(msg.SourceType, SenderBee), ID: msg.SourceID},
 		Kind:    cmp.Or(msg.Kind, KindMessage),
 		Content: msg.Content,
-		TS:      time.Now().UnixMilli(),
+		TS:      cmp.Or(msg.SentAt, time.Now().UnixMilli()),
 	}
 	if chat.Kind == KindHandoff {
 		var info HandoffInfo

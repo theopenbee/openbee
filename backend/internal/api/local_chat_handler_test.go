@@ -565,11 +565,25 @@ func TestGetMessages_ReturnsStagedReplyMedia(t *testing.T) {
 
 	res := getMessages(t, s.router, "")
 
-	require.Len(t, res.Messages, 5)
+	require.Len(t, res.Messages, 4)
 	assert.Equal(t, []string{"r1_report.pdf"}, res.Messages[0].MediaPaths)
 	for _, m := range res.Messages[1:] {
+		assert.NotEqual(t, "r2", m.ID)
 		assert.Empty(t, m.MediaPaths, m.ID)
 	}
+}
+
+func TestGetMessages_HidesFailedReplies(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "ok", Content: "delivered", SentAt: 100})
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "bad-media", MediaPath: "/missing.png", Status: store.OutboundStatusFailed, Error: "stage media: no such file", SentAt: 200})
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "bad-text", Content: "lost", Status: store.OutboundStatusFailed, SentAt: 300})
+
+	res := getMessages(t, s.router, "")
+
+	require.Len(t, res.Messages, 1)
+	assert.Equal(t, "ok", res.Messages[0].ID)
+	assert.False(t, getMessages(t, s.router, "limit=1").HasMore)
 }
 
 func TestUploadMedia_StoresInCurrentUserDir(t *testing.T) {

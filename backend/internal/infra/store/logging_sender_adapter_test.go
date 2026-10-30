@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -89,4 +90,62 @@ func TestLoggingPlatformSenderAdapter_RecordsKindAndPayload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, store.OutboundKindMessage, plain[0].Kind)
 	assert.Empty(t, plain[0].Payload)
+}
+
+func TestLoggingPlatformSenderAdapter_KeepsSendOrder(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+	inner := &recordingSender{}
+	adapter := store.NewLoggingPlatformSenderAdapter(inner, outboundStore, "local")
+
+	for _, msg := range []platform.OutboundMessage{
+		{SessionKey: "local:s1", Content: "text first"},
+		{SessionKey: "local:s1", MediaPath: "/tmp/chart.png"},
+		{SessionKey: "local:s1", Content: "text last"},
+	} {
+		require.NoError(t, adapter.Send(context.Background(), msg))
+	}
+
+	require.Len(t, inner.sent, 3)
+	assert.Less(t, inner.sent[0].SentAt, inner.sent[1].SentAt)
+	assert.Less(t, inner.sent[1].SentAt, inner.sent[2].SentAt)
+	require.Eventually(t, func() bool {
+		msgs, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+		return err == nil && len(msgs) == 3
+	}, time.Second, 10*time.Millisecond)
+	msgs, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+	require.NoError(t, err)
+	for i, m := range msgs {
+		assert.Equal(t, inner.sent[i].ID, m.ID)
+		assert.Equal(t, inner.sent[i].SentAt, m.SentAt)
+	}
+}
+
+type failingSender struct{}
+
+func (failingSender) Send(context.Context, platform.OutboundMessage) error {
+	return errors.New("stage media: no such file")
+}
+
+func TestOutboundListBySessionKey_SkipsFailedSends(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+	ok := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "local")
+	bad := store.NewLoggingPlatformSenderAdapter(failingSender{}, outboundStore, "local")
+
+	require.NoError(t, ok.Send(context.Background(), platform.OutboundMessage{SessionKey: "local:s1", Content: "hi"}))
+	require.Error(t, bad.Send(context.Background(), platform.OutboundMessage{SessionKey: "local:s1", MediaPath: "/missing.png"}))
+
+	require.Eventually(t, func() bool {
+		_, total, err := outboundStore.ListFiltered(context.Background(), store.OutboundMessageFilter{SessionKey: "local:s1"}, 10, 0)
+		return err == nil && total == 2
+	}, time.Second, 10*time.Millisecond)
+	msgs, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "hi", msgs[0].Content)
 }
