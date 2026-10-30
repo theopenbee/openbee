@@ -76,6 +76,9 @@ func (a *Adapter) Run(ctx context.Context, workDir, prompt string, opts ai.RunOp
 		defer close(ch)
 		waitErr := p.wait()
 		out, result := runOutcome(waitErr, p.resp, p.lastStderr)
+		if out.Type != ai.OutputDone {
+			p.sweep()
+		}
 		text.Store(&result)
 		ch <- out
 	}()
@@ -154,17 +157,25 @@ func (a *Adapter) call(ctx context.Context, method string, params any, timeout t
 		return err
 	}
 	waitErr := p.wait()
+	if err := callOutcome(ctx, method, waitErr, p.resp, p.lastStderr, out); err != nil {
+		p.sweep()
+		return err
+	}
+	return nil
+}
+
+func callOutcome(ctx context.Context, method string, waitErr error, resp *response, lastStderr string, out any) error {
 	switch {
-	case p.resp == nil && ctx.Err() != nil:
+	case resp == nil && ctx.Err() != nil:
 		return fmt.Errorf("engine plugin %s: %w", method, ctx.Err())
-	case p.resp == nil:
-		return noResponseError(waitErr, p.lastStderr)
-	case p.resp.Err != "":
-		return errors.New(p.resp.Err)
+	case resp == nil:
+		return noResponseError(waitErr, lastStderr)
+	case resp.Err != "":
+		return errors.New(resp.Err)
 	case waitErr != nil:
 		return waitErr
 	}
-	if err := decodeResult(p.resp.Result, out); err != nil {
+	if err := decodeResult(resp.Result, out); err != nil {
 		return fmt.Errorf("decode engine %s result: %w", method, err)
 	}
 	return nil

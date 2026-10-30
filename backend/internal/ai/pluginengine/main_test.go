@@ -62,7 +62,7 @@ func runFakeEngine(mode string) int {
 		writeRecord(rec)
 		switch req.Method {
 		case "check":
-			respond(map[string]any{"result": CheckResult{Version: "1.2.3", Path: "/opt/fake/bin/fakecli"}})
+			respond(successResponse(req.Method))
 		default:
 			text, _ := json.Marshal(rec)
 			respond(map[string]any{"result": map[string]any{"text": string(text), "error": ""}})
@@ -101,13 +101,42 @@ func runFakeEngine(mode string) int {
 		}
 		respond(map[string]any{"result": map[string]any{"usage": usage}})
 	case "sleep-with-child":
-		child := exec.Command("sleep", "300")
-		if err := child.Start(); err != nil {
-			fmt.Fprintln(os.Stderr, "start child:", err)
+		child, ok := spawnChild(&rec, nil)
+		if !ok {
 			return 2
 		}
-		rec.ChildPID = child.Process.Pid
+		_ = child.Wait()
+		time.Sleep(5 * time.Minute)
+	case "ok-exit1":
 		writeRecord(rec)
+		respond(successResponse(req.Method))
+		return 1
+	case "child-ok":
+		if _, ok := spawnChild(&rec, nil); !ok {
+			return 2
+		}
+		respond(successResponse(req.Method))
+	case "child-noresp":
+		if _, ok := spawnChild(&rec, nil); !ok {
+			return 2
+		}
+		fmt.Fprintln(os.Stderr, "cli crashed")
+		return 1
+	case "child-error":
+		if _, ok := spawnChild(&rec, nil); !ok {
+			return 2
+		}
+		respond(failureResponse(req.Method))
+	case "child-holds-stdout":
+		if _, ok := spawnChild(&rec, os.Stdout); !ok {
+			return 2
+		}
+	case "respond-then-block":
+		respond(successResponse(req.Method))
+		child, ok := spawnChild(&rec, nil)
+		if !ok {
+			return 2
+		}
 		_ = child.Wait()
 		time.Sleep(5 * time.Minute)
 	default:
@@ -115,6 +144,37 @@ func runFakeEngine(mode string) int {
 		return 2
 	}
 	return 0
+}
+
+func spawnChild(rec *fakeRecord, stdout io.Writer) (*exec.Cmd, bool) {
+	child := exec.Command("sleep", "300")
+	child.Stdout = stdout
+	if err := child.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "start child:", err)
+		return nil, false
+	}
+	rec.ChildPID = child.Process.Pid
+	writeRecord(*rec)
+	return child, true
+}
+
+func successResponse(method string) map[string]any {
+	switch method {
+	case "check":
+		return map[string]any{"result": CheckResult{Version: "1.2.3", Path: "/opt/fake/bin/fakecli"}}
+	case "usage":
+		return map[string]any{"result": map[string]any{"usage": map[string]any{
+			"s1": []map[string]any{{"model": "m1", "input_tokens": 7, "output_tokens": 8}},
+		}}}
+	}
+	return map[string]any{"result": map[string]any{"text": "answer", "error": ""}}
+}
+
+func failureResponse(method string) map[string]any {
+	if method == "run" {
+		return map[string]any{"result": map[string]any{"text": "partial", "error": "cli failed"}}
+	}
+	return map[string]any{"error": map[string]any{"message": "cli failed"}}
 }
 
 func respond(v any) {

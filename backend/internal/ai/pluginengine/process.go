@@ -68,7 +68,21 @@ func (p *pluginProcess) wait() error {
 		p.log.Warn("engine plugin exited but a child process kept its output open")
 		return nil
 	}
+	var exitErr *exec.ExitError
+	if p.resp != nil && errors.As(err, &exitErr) && exitErr.ExitCode() >= 0 {
+		p.log.Warn("engine plugin exited with a non-zero status after responding", zap.Int("exit_code", exitErr.ExitCode()))
+		return nil
+	}
 	return err
+}
+
+func (p *pluginProcess) sweep() {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if err := p.proc.Stop(); err != nil {
+		p.log.Warn("kill engine plugin process group", zap.Error(err))
+	}
 }
 
 func (p *pluginProcess) stdoutLine(line []byte) {

@@ -258,6 +258,47 @@ func TestRun_NoResponse(t *testing.T) {
 	assert.Equal(t, "", res.ExtractResult(""))
 }
 
+func observedAdapter(t *testing.T, mode string) (*Adapter, *observer.ObservedLogs) {
+	t.Helper()
+	spec, _ := fakeSpec(t, mode)
+	core, logs := observer.New(zapcore.DebugLevel)
+	a := New(spec)
+	a.log = zap.New(core)
+	return a, logs
+}
+
+func assertExitLogged(t *testing.T, logs *observer.ObservedLogs, code int64) {
+	t.Helper()
+	entries := logs.FilterLevelExact(zapcore.WarnLevel).FilterMessage("engine plugin exited with a non-zero status after responding").All()
+	require.Len(t, entries, 1)
+	assert.Equal(t, code, entries[0].ContextMap()["exit_code"])
+}
+
+func TestRun_ResponseWinsOverNonZeroExit(t *testing.T) {
+	a, logs := observedAdapter(t, "ok-exit1")
+	res, err := a.Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	assert.Equal(t, ai.Output{Type: ai.OutputDone}, awaitOutput(t, res))
+	assert.Equal(t, "answer", res.ExtractResult(""))
+	assertExitLogged(t, logs, 1)
+}
+
+func TestCheck_ResponseWinsOverNonZeroExit(t *testing.T) {
+	a, logs := observedAdapter(t, "ok-exit1")
+	got, err := a.Check(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, CheckResult{Version: "1.2.3", Path: "/opt/fake/bin/fakecli"}, got)
+	assertExitLogged(t, logs, 1)
+}
+
+func TestUsage_ResponseWinsOverNonZeroExit(t *testing.T) {
+	a, logs := observedAdapter(t, "ok-exit1")
+	got, err := a.CollectTokenUsage(context.Background(), []string{"s1"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]ai.TokenUsage{"s1": {{Model: "m1", InputTokens: 7, OutputTokens: 8}}}, got)
+	assertExitLogged(t, logs, 1)
+}
+
 func TestRun_MissingCommandFails(t *testing.T) {
 	spec, _ := fakeSpec(t, "echo")
 	spec.Command = []string{filepath.Join(t.TempDir(), "missing-engine")}
