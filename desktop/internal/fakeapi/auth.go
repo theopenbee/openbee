@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -108,11 +109,19 @@ func (s *Server) getConfig(*request) reply {
 	if language == "" {
 		language = "en"
 	}
-	engines := s.st.EnabledEngines
+	engines := slices.Clone(s.st.Engines)
 	if engines == nil {
-		engines = []string{}
+		engines = []api.EngineInfo{}
 	}
-	return ok(api.Config{Language: language, EnabledEngines: engines})
+	ids := make([]string, len(engines))
+	for i, engine := range engines {
+		ids[i] = engine.ID
+	}
+	cfg := api.Config{Language: language, EnabledEngines: ids, Engines: engines}
+	if s.st.LegacyConfig {
+		cfg.Engines = nil
+	}
+	return ok(cfg)
 }
 
 func (s *Server) setupStatus(*request) reply {

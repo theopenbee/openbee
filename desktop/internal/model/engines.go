@@ -8,21 +8,32 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 )
 
-var AllEngines = []string{"claude", "codex", "pi"}
-
-const fallbackEngine = "claude"
-
-func EnabledEngines(cfg api.Config) []string {
-	if len(cfg.EnabledEngines) == 0 {
-		return slices.Clone(AllEngines)
+func EnabledEngines(cfg api.Config) []api.EngineInfo {
+	if cfg.Engines != nil {
+		return slices.Clone(cfg.Engines)
 	}
-	var out []string
-	for _, engine := range AllEngines {
-		if slices.Contains(cfg.EnabledEngines, engine) {
-			out = append(out, engine)
+	engines := make([]api.EngineInfo, len(cfg.EnabledEngines))
+	for i, id := range cfg.EnabledEngines {
+		engines[i] = api.EngineInfo{ID: id}
+	}
+	return engines
+}
+
+func EngineIDs(engines []api.EngineInfo) []string {
+	ids := make([]string, len(engines))
+	for i, engine := range engines {
+		ids[i] = engine.ID
+	}
+	return ids
+}
+
+func FindEngine(engines []api.EngineInfo, id string) api.EngineInfo {
+	for _, engine := range engines {
+		if engine.ID == id {
+			return engine
 		}
 	}
-	return out
+	return api.EngineInfo{ID: id}
 }
 
 func DefaultEngine(systemDefault string, enabled []string) string {
@@ -32,7 +43,7 @@ func DefaultEngine(systemDefault string, enabled []string) string {
 	if len(enabled) > 0 {
 		return enabled[0]
 	}
-	return fallbackEngine
+	return ""
 }
 
 func AvailableEngine(chosen string, enabled []string) string {
@@ -40,6 +51,16 @@ func AvailableEngine(chosen string, enabled []string) string {
 		return chosen
 	}
 	return enabled[0]
+}
+
+func FollowedEngine(selected, systemDefault string, enabled []string) string {
+	if selected != "" {
+		return selected
+	}
+	if slices.Contains(enabled, systemDefault) {
+		return systemDefault
+	}
+	return ""
 }
 
 func CleanEngineArgs(m map[string]string) map[string]string {

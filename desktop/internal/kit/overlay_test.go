@@ -389,6 +389,47 @@ func TestSelectChooses(t *testing.T) {
 	}
 }
 
+func TestSelectDisabledOptionShowsButCannotBeChosen(t *testing.T) {
+	engine := "gone"
+	options := []kit.SelectOption{{Value: "claude", Text: "Claude Code"}, {Value: "pi", Text: "Pi"}, {Value: "gone", Text: "gone (not installed)", Disabled: true}}
+	tt := newTester(500, 400, func(c *ui.Context, tk theme.Tokens) {
+		kit.Select(c, tk, &engine, "Engine", options, "")
+	})
+	if !tt.HasText("gone (not installed)") {
+		t.Fatal("select does not show the disabled option it holds")
+	}
+	if err := tt.Click("Engine"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Claude Code") || !tt.HasText("Pi") {
+		t.Fatal("popup does not list the enabled options")
+	}
+	tt.Key(0, ui.KeyEnd)
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if engine != "pi" {
+		t.Errorf("engine = %q after End and Enter, want the last enabled option", engine)
+	}
+}
+
+func TestSelectClickingADisabledOptionKeepsThePopupOpen(t *testing.T) {
+	engine := "claude"
+	options := []kit.SelectOption{{Value: "claude", Text: "Claude Code"}, {Value: "gone", Text: "Retired", Disabled: true}}
+	tt := newTester(500, 400, func(c *ui.Context, tk theme.Tokens) {
+		kit.Select(c, tk, &engine, "Engine", options, "")
+	})
+	if err := tt.Click("Engine"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Retired"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if engine != "claude" {
+		t.Errorf("engine = %q, want the disabled option ignored", engine)
+	}
+}
+
 func TestShowToastsDrains(t *testing.T) {
 	queue := []kit.Toast{{Tone: kit.ToneSuccess, Title: "Plugin installed", Description: "Telegram is ready."}}
 	tt := newTester(800, 600, func(c *ui.Context, tk theme.Tokens) {

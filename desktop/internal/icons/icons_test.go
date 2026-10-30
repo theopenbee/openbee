@@ -90,8 +90,17 @@ func TestEngineMarks(t *testing.T) {
 			t.Errorf("Engine(%q) = nil", engine)
 		}
 	}
-	if Engine("unknown") != nil {
-		t.Error("Engine(\"unknown\") is not nil")
+	generic := Engine("gemini")
+	if generic == nil {
+		t.Fatal("Engine(\"gemini\") = nil, want the generic engine icon")
+	}
+	if Engine("another-plugin") != generic {
+		t.Error("unknown engines do not share the generic icon")
+	}
+	for _, engine := range []string{"claude", "codex", "pi"} {
+		if Engine(engine) == generic {
+			t.Errorf("Engine(%q) is the generic icon", engine)
+		}
 	}
 }
 

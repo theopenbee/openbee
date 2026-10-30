@@ -7,20 +7,19 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/theopenbee/openbee/desktop/internal/api"
-	"github.com/theopenbee/openbee/desktop/locales"
 )
 
-func EngineLabel(engine string) string {
-	switch engine {
-	case "claude":
-		return locales.WorkersEnginesClaude()
-	case "codex":
-		return locales.WorkersEnginesCodex()
-	case "pi":
-		return locales.WorkersEnginesPi()
+func EngineName(engine api.EngineInfo) string {
+	return engineName(engine, i18n.Locale())
+}
+
+func engineName(engine api.EngineInfo, lang string) string {
+	if name := Localized(engine.Name, lang); name != "" {
+		return name
 	}
-	return engine
+	return engine.ID
 }
 
 func ErrorText(err error) string {

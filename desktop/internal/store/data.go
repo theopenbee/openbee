@@ -57,7 +57,7 @@ func (s *Store) WorkerDetail(id string) *Resource[api.Worker] {
 	return r
 }
 
-func (s *Store) EnabledEngines() []string {
+func (s *Store) EnabledEngines() []api.EngineInfo {
 	s.Config.Ensure()
 	return model.EnabledEngines(s.Config.Data)
 }

@@ -103,6 +103,26 @@ func TestEndpoints(t *testing.T) {
 			want: Config{Language: "zh", EnabledEngines: []string{"claude", "pi"}},
 		},
 		{
+			name:   "config with engine plugins",
+			call:   func(c *Client) (any, error) { return c.Config(ctx) },
+			method: "GET", uri: "/api/config", public: true,
+			status:   200,
+			response: `{"language":"zh","enabled_engines":["pi"],"engines":[{"id":"pi","name":{"en":"Pi","zh":"Pi 引擎"}}]}`,
+			want: Config{
+				Language:       "zh",
+				EnabledEngines: []string{"pi"},
+				Engines:        []EngineInfo{{ID: "pi", Name: LocalizedText{"en": "Pi", "zh": "Pi 引擎"}}},
+			},
+		},
+		{
+			name:   "config without engines",
+			call:   func(c *Client) (any, error) { return c.Config(ctx) },
+			method: "GET", uri: "/api/config", public: true,
+			status:   200,
+			response: `{"language":"en","enabled_engines":[],"engines":[]}`,
+			want:     Config{Language: "en", EnabledEngines: []string{}, Engines: []EngineInfo{}},
+		},
+		{
 			name:   "setup status",
 			call:   func(c *Client) (any, error) { return c.SetupStatus(ctx) },
 			method: "GET", uri: "/api/setup/status", public: true,

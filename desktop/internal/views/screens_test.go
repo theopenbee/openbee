@@ -25,6 +25,7 @@ import (
 )
 
 const (
+	codexName        = "Codex"
 	wideW, wideH     = 1440, 900
 	narrowW, narrowH = 700, 900
 	settingsNarrowW  = 800
@@ -717,7 +718,7 @@ func systemSaveFailed(t *testing.T, h *testkit.Harness) {
 		map[string]any{"error": "engine_args_bee: --bogus is not a known flag"})
 	openSettings("system")(t, h)
 	scrollSettings(h, settingsScrollDy)
-	typeInto(t, h, locales.SystemSettingsBeeArgsSectionTitle()+": "+locales.WorkersEnginesCodex(), "--bogus")
+	typeInto(t, h, locales.SystemSettingsBeeArgsSectionTitle()+": "+codexName, "--bogus")
 	if err := h.T.Click(locales.SystemSettingsSave()); err != nil {
 		t.Fatal(err)
 	}

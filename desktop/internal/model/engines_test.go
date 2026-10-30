@@ -2,6 +2,7 @@ package model
 
 import (
 	"maps"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -38,7 +39,6 @@ func TestDefaultEngine(t *testing.T) {
 		{"preselects the system default engine when it is enabled", "pi", []string{"claude", "codex", "pi"}, "pi"},
 		{"falls back to the first enabled engine when the default is disabled", "claude", []string{"codex", "pi"}, "codex"},
 		{"falls back to the first enabled engine when the default is unset", "", []string{"pi"}, "pi"},
-		{"uses the built-in default when no engine is enabled", "pi", nil, "claude"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -49,33 +49,97 @@ func TestDefaultEngine(t *testing.T) {
 	}
 }
 
-func TestEnabledEngines(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  api.Config
-		want []string
-	}{
-		{"all engines when the config lists none", api.Config{}, []string{"claude", "codex", "pi"}},
-		{"all engines for an empty list", api.Config{EnabledEngines: []string{}}, []string{"claude", "codex", "pi"}},
-		{"keeps the canonical order", api.Config{EnabledEngines: []string{"pi", "claude"}}, []string{"claude", "pi"}},
-		{"drops unknown engines", api.Config{EnabledEngines: []string{"gemini", "codex"}}, []string{"codex"}},
-		{"ignores duplicates", api.Config{EnabledEngines: []string{"pi", "pi"}}, []string{"pi"}},
-		{"nothing known leaves nothing", api.Config{EnabledEngines: []string{"gemini"}}, nil},
+func TestDefaultEngine_NoneEnabled(t *testing.T) {
+	for _, enabled := range [][]string{nil, {}} {
+		if got := DefaultEngine("pi", enabled); got != "" {
+			t.Fatalf("got %q for %v, want an empty engine", got, enabled)
+		}
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := EnabledEngines(tc.cfg); !slices.Equal(got, tc.want) {
-				t.Fatalf("got %v, want %v", got, tc.want)
-			}
-		})
+}
+
+func TestEnabledEngines_Empty(t *testing.T) {
+	for _, cfg := range []api.Config{
+		{},
+		{Engines: []api.EngineInfo{}},
+		{Engines: []api.EngineInfo{}, EnabledEngines: []string{}},
+	} {
+		if got := EnabledEngines(cfg); len(got) != 0 {
+			t.Fatalf("EnabledEngines(%+v) = %v, want none", cfg, got)
+		}
+	}
+}
+
+func TestEnabledEngines_OldServerIDs(t *testing.T) {
+	got := EnabledEngines(api.Config{EnabledEngines: []string{"pi", "claude"}})
+	want := []api.EngineInfo{{ID: "pi"}, {ID: "claude"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func TestEnabledEngines_FromEngines(t *testing.T) {
+	cfg := api.Config{
+		EnabledEngines: []string{"claude"},
+		Engines: []api.EngineInfo{
+			{ID: "pi", Name: api.LocalizedText{"en": "Pi", "zh": "Pi"}},
+			{ID: "gemini", Name: api.LocalizedText{"en": "Gemini CLI"}},
+		},
+	}
+	got := EnabledEngines(cfg)
+	if !reflect.DeepEqual(got, cfg.Engines) {
+		t.Fatalf("got %#v, want the engines of the server in its order", got)
 	}
 }
 
 func TestEnabledEnginesReturnsACopy(t *testing.T) {
-	got := EnabledEngines(api.Config{})
-	got[0] = "changed"
-	if AllEngines[0] != "claude" {
-		t.Fatalf("AllEngines was mutated: %v", AllEngines)
+	cfg := api.Config{Engines: []api.EngineInfo{{ID: "pi"}}}
+	got := EnabledEngines(cfg)
+	got[0].ID = "changed"
+	if cfg.Engines[0].ID != "pi" {
+		t.Fatalf("the config engines were mutated: %v", cfg.Engines)
+	}
+}
+
+func TestEngineIDs(t *testing.T) {
+	got := EngineIDs([]api.EngineInfo{{ID: "pi"}, {ID: "claude"}})
+	if !slices.Equal(got, []string{"pi", "claude"}) {
+		t.Fatalf("got %v", got)
+	}
+	if got := EngineIDs(nil); len(got) != 0 {
+		t.Fatalf("got %v for no engines", got)
+	}
+}
+
+func TestFindEngine(t *testing.T) {
+	engines := []api.EngineInfo{{ID: "pi", Name: api.LocalizedText{"en": "Pi"}}}
+	if got := FindEngine(engines, "pi"); got.ID != "pi" || got.Name["en"] != "Pi" {
+		t.Fatalf("got %#v", got)
+	}
+	if got := FindEngine(engines, "gone"); !reflect.DeepEqual(got, api.EngineInfo{ID: "gone"}) {
+		t.Fatalf("got %#v for an unknown engine, want one carrying only the id", got)
+	}
+}
+
+func TestFollowedEngine(t *testing.T) {
+	enabled := []string{"claude", "pi"}
+	tests := []struct {
+		name          string
+		selected      string
+		systemDefault string
+		want          string
+	}{
+		{"keeps the selected engine", "pi", "claude", "pi"},
+		{"keeps a selected engine that is not installed", "gone", "claude", "gone"},
+		{"follows an installed system default", "", "claude", "claude"},
+		{"follows nothing for an uninstalled system default", "", "gone", ""},
+		{"follows nothing without a system default", "", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := FollowedEngine(tc.selected, tc.systemDefault, enabled); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

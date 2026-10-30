@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
@@ -145,7 +146,7 @@ func (d *Dialog) systemForm(c *ui.Context, tk theme.Tokens, st *systemState, sav
 		d.s.SaveSystemConfigs(changes, func(err error) { st.finish(err) })
 	}
 	ui.Column(c).MinWidth(0).Gap(formGap).Children(func() {
-		d.engineGroup(c, tk, st, &engine, engines, saving)
+		d.engineGroup(c, tk, st, &engine, saved.engine, engines, saving)
 		d.argsGroup(c, tk, st, engines, global, bee, saving, submit)
 		if st.status == statusError {
 			kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: locales.SystemSettingsSaveError(), Body: l10n.ErrorText(st.err)})
@@ -192,14 +193,18 @@ func (d *Dialog) saveButton(c *ui.Context, tk theme.Tokens, st *systemState, dir
 	})
 }
 
-func (d *Dialog) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, engine *string, engines []string, saving bool) {
-	options := engineOptions(engines)
+func (d *Dialog) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, engine *string, saved string, engines []api.EngineInfo, saving bool) {
+	options := kit.EngineOptions(engines, saved)
+	help := ""
+	if len(options) == 0 {
+		help = locales.WorkersFormNoEngine()
+	}
 	ui.Column(c).MinWidth(0).Gap(groupGap).Children(func() {
 		heading(c, locales.SystemSettingsEngineSectionTitle())
 		card(c, tk, func() {
 			d.row(c, tk, true, locales.SystemSettingsEngineSectionRowTitle(), locales.SystemSettingsEngineSectionDescription(), func() {
-				kit.Field(c, tk, locales.SystemSettingsEngineSectionLabel(), "", "", func() {
-					kit.Select(c, tk, engine, locales.SystemSettingsEngineSectionLabel(), options, "").Disabled(saving).
+				kit.Field(c, tk, locales.SystemSettingsEngineSectionLabel(), help, "", func() {
+					kit.Select(c, tk, engine, locales.SystemSettingsEngineSectionLabel(), options, "").Disabled(saving || len(options) == 0).
 						OnChange(func() {
 							st.engine, st.engineSet = *engine, true
 							st.edited()
@@ -210,7 +215,7 @@ func (d *Dialog) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, en
 	})
 }
 
-func (d *Dialog) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engines []string, global, bee map[string]string, saving bool, submit func()) {
+func (d *Dialog) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engines []api.EngineInfo, global, bee map[string]string, saving bool, submit func()) {
 	ui.Column(c).MinWidth(0).Gap(groupGap).Children(func() {
 		ui.Column(c).MinWidth(0).Gap(headingGap).Children(func() {
 			heading(c, locales.SystemSettingsArgsSectionTitle())
@@ -233,10 +238,14 @@ func (d *Dialog) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engi
 	})
 }
 
-func (d *Dialog) engineArgs(c *ui.Context, tk theme.Tokens, group string, engines []string, args map[string]string, saving bool, submit func(), changed func(map[string]string)) {
+func (d *Dialog) engineArgs(c *ui.Context, tk theme.Tokens, group string, engines []api.EngineInfo, args map[string]string, saving bool, submit func(), changed func(map[string]string)) {
 	ui.Column(c).MinWidth(0).Gap(argsGap).Children(func() {
-		for _, engine := range engines {
-			name := l10n.EngineLabel(engine)
+		if len(engines) == 0 {
+			ui.Text(c, locales.WorkersFormNoEngine()).TextColor(tk.TextSecondary)
+		}
+		for _, info := range engines {
+			engine := info.ID
+			name := l10n.EngineName(info)
 			label, help := name, ""
 			if len(engines) == 1 {
 				label, help = locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(name)
@@ -257,14 +266,6 @@ func (d *Dialog) engineArgs(c *ui.Context, tk theme.Tokens, group string, engine
 			})
 		}
 	})
-}
-
-func engineOptions(engines []string) []kit.SelectOption {
-	options := make([]kit.SelectOption, len(engines))
-	for i, engine := range engines {
-		options[i] = kit.SelectOption{Value: engine, Text: l10n.EngineLabel(engine)}
-	}
-	return options
 }
 
 func heading(c *ui.Context, text string) ui.Element {

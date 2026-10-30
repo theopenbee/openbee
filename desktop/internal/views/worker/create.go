@@ -71,13 +71,14 @@ func (p *Panel) createView(c *ui.Context) {
 	tk := theme.Apply(c)
 	configs := p.s.SystemConfigs
 	configs.Ensure()
+	installed := p.s.EnabledEngines()
 	root := ui.Column(c).Key(createKey{}).MinWidth(0).Gap(formGap)
 	cs := ui.Local(root, createKey{}, newCreate)
-	if !configs.Loaded && configs.Err == nil {
+	if (!configs.Loaded && configs.Err == nil) || (!p.s.Config.Loaded && p.s.Config.Err == nil) {
 		root.Children(func() { createSkeleton(c, tk) })
 		return
 	}
-	enabled := p.s.EnabledEngines()
+	enabled := model.EngineIDs(installed)
 	if !cs.seeded {
 		cs.seeded = true
 		cs.form.Engine = model.DefaultEngine(configs.Data["default_engine"], enabled)
@@ -85,8 +86,8 @@ func (p *Panel) createView(c *ui.Context) {
 	cs.form.Engine = model.AvailableEngine(cs.form.Engine, enabled)
 	submit := func() { p.createWorker(cs) }
 	root.Children(func() {
-		p.basicSection(c, tk, cs, enabled, submit)
-		p.advancedSection(c, tk, cs, submit)
+		p.basicSection(c, tk, cs, installed, submit)
+		p.advancedSection(c, tk, cs, installed, submit)
 		if cs.err != nil {
 			alert := kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: locales.WorkersFormCreateError(), Body: l10n.ErrorText(cs.err)})
 			if cs.reveal {
@@ -99,12 +100,13 @@ func (p *Panel) createView(c *ui.Context) {
 	})
 }
 
-func (p *Panel) basicSection(c *ui.Context, tk theme.Tokens, cs *createState, enabled []string, submit func()) {
+func (p *Panel) basicSection(c *ui.Context, tk theme.Tokens, cs *createState, installed []api.EngineInfo, submit func()) {
 	ui.Column(c).MinWidth(0).Gap(fieldsGap).Disabled(cs.creating).Children(func() {
 		heading(c, locales.WorkersFormSectionBasic(), 2)
 		p.nameField(c, tk, &cs.form.Name, &cs.name, cs.fail, submit)
-		kit.Field(c, tk, locales.WorkersFormEngine(), locales.WorkersFormEngineHelper(), "", func() {
-			kit.Select(c, tk, &cs.form.Engine, locales.WorkersFormEngine(), engineOptions(enabled), locales.WorkersFormEngineDefault())
+		options := kit.EngineOptions(installed, "")
+		kit.Field(c, tk, locales.WorkersFormEngine(), engineHelper(options), "", func() {
+			kit.Select(c, tk, &cs.form.Engine, locales.WorkersFormEngine(), options, locales.WorkersFormEngineDefault()).Disabled(len(options) == 0)
 		})
 		kit.Field(c, tk, locales.WorkersFormDescriptionOptional(), locales.WorkersFormDescriptionCreateHelper(), "", func() {
 			kit.TextArea(c, tk, &cs.form.Description, locales.WorkersFormDescriptionOptional(), locales.WorkersFormDescriptionPlaceholder(),
@@ -113,7 +115,7 @@ func (p *Panel) basicSection(c *ui.Context, tk theme.Tokens, cs *createState, en
 	})
 }
 
-func (p *Panel) advancedSection(c *ui.Context, tk theme.Tokens, cs *createState, submit func()) {
+func (p *Panel) advancedSection(c *ui.Context, tk theme.Tokens, cs *createState, installed []api.EngineInfo, submit func()) {
 	ui.Column(c).MinWidth(0).Gap(fieldsGap).Children(func() {
 		ui.Column(c).MinWidth(0).Gap(advancedHeadGap).Children(func() {
 			advancedToggle(c, tk, cs)
@@ -127,7 +129,11 @@ func (p *Panel) advancedSection(c *ui.Context, tk theme.Tokens, cs *createState,
 				kit.TextArea(c, tk, &cs.form.Constraints, locales.WorkersFormConstraints(), locales.WorkersFormConstraintsPlaceholder(),
 					constraintsRows, constraintsRows).MinHeight(constraintsMinHeight)
 			})
-			engineArgsField(c, tk, cs.form.Engine, cs.form.EngineArgs, submit)
+			if cs.form.Engine == "" {
+				ui.Text(c, locales.WorkersFormNoEngine()).TextColor(tk.TextSecondary)
+			} else {
+				engineArgsField(c, tk, model.FindEngine(installed, cs.form.Engine), cs.form.EngineArgs, submit)
+			}
 			kit.Field(c, tk, locales.WorkersFormWorkDir(), locales.WorkersFormWorkDirHelper(), "", func() {
 				kit.TextInput(c, tk, &cs.form.WorkDir, locales.WorkersFormWorkDir(), locales.WorkersFormWorkDirPlaceholder()).OnSubmit(submit)
 			})

@@ -42,7 +42,7 @@ func outWorker(w api.Worker) api.Worker {
 }
 
 func (s *Server) engineEnabled(engine string) bool {
-	return slices.Contains(s.st.EnabledEngines, engine)
+	return slices.ContainsFunc(s.st.Engines, func(e api.EngineInfo) bool { return e.ID == engine })
 }
 
 func (s *Server) validateEngine(engine string) error {
@@ -62,6 +62,16 @@ func (s *Server) validateEngineArgs(args map[string]string) error {
 		}
 	}
 	return nil
+}
+
+func changedEngineArgs(stored, submitted map[string]string) map[string]string {
+	changed := map[string]string{}
+	for engine, args := range submitted {
+		if args != "" && args != stored[engine] {
+			changed[engine] = args
+		}
+	}
+	return changed
 }
 
 func validatePermissionScopes(scopes string) error {
@@ -180,7 +190,11 @@ func (s *Server) updateWorker(q *request) reply {
 		}
 	}
 	if req.EngineArgs != nil {
-		if err := s.validateEngineArgs(*req.EngineArgs); err != nil {
+		var stored map[string]string
+		if i := s.workerIndex(id); i >= 0 {
+			stored = s.st.Workers[i].EngineArgs
+		}
+		if err := s.validateEngineArgs(changedEngineArgs(stored, *req.EngineArgs)); err != nil {
 			return errReply(http.StatusInternalServerError, err.Error())
 		}
 	}

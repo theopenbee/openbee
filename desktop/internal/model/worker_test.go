@@ -153,8 +153,8 @@ func TestEditUpdateOnlyChanged(t *testing.T) {
 	if got.Description == nil || *got.Description != "new helper" {
 		t.Fatalf("Description = %v, want %q", got.Description, "new helper")
 	}
-	if got.Engine == nil || *got.Engine != "claude" {
-		t.Fatalf("Engine = %v, want claude", got.Engine)
+	if got.Engine != nil {
+		t.Fatalf("Engine = %q, want nil for an unchanged engine", *got.Engine)
 	}
 	if got.EngineArgs == nil || !maps.Equal(*got.EngineArgs, w.EngineArgs) {
 		t.Fatalf("EngineArgs = %v, want the full edited map", got.EngineArgs)
@@ -184,6 +184,26 @@ func TestEditUpdateEngineChange(t *testing.T) {
 	got, ok := EditUpdate(w, f)
 	if !ok || got.Engine == nil || *got.Engine != "pi" {
 		t.Fatalf("got (%#v, %v), want Engine pi", got, ok)
+	}
+}
+
+func TestEditUpdateKeepsAnEmptyEngine(t *testing.T) {
+	w := existingWorker(func(w *api.Worker) { w.Engine = "" })
+	f := unchangedEdit(w)
+	f.Description = "new helper"
+	got, ok := EditUpdate(w, f)
+	if !ok || got.Engine != nil {
+		t.Fatalf("got (%#v, %v), want the follow-the-system-default engine left out", got, ok)
+	}
+}
+
+func TestEditUpdateKeepsAnUninstalledEngine(t *testing.T) {
+	w := existingWorker(func(w *api.Worker) { w.Engine = "gone" })
+	f := unchangedEdit(w)
+	f.Name = "sam2"
+	got, ok := EditUpdate(w, f)
+	if !ok || got.Engine != nil {
+		t.Fatalf("got (%#v, %v), want the stored engine left out", got, ok)
 	}
 }
 

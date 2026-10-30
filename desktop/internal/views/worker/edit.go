@@ -43,9 +43,17 @@ func (es *editState) complete() bool {
 }
 
 func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.Worker) {
+	configs := p.s.SystemConfigs
+	configs.Ensure()
+	installed := p.s.EnabledEngines()
 	box := ui.Column(c).Key(editKey{}).MinWidth(0).Gap(formGap)
 	es := ui.Local(box, editKey{}, func() editState { return newEdit(w) })
 	submit := func() { p.saveInfo(st, es, w) }
+	followed := model.FollowedEngine(es.form.Engine, configs.Data["default_engine"], model.EngineIDs(installed))
+	placeholder := locales.WorkersFormEngineSystemDefault()
+	if followed != "" {
+		placeholder = locales.WorkersFormEngineSystemDefaultNamed(l10n.EngineName(model.FindEngine(installed, followed)))
+	}
 	box.Children(func() {
 		ui.Column(c).MinWidth(0).Gap(fieldsGap).Disabled(es.saving).Children(func() {
 			heading(c, locales.WorkerDetailEditInfoTitle(), 4)
@@ -57,10 +65,13 @@ func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 			kit.Field(c, tk, locales.WorkersFormWorkDir(), locales.WorkersFormWorkDirEditHelper(), "", func() {
 				kit.TextInput(c, tk, &es.form.WorkDir, locales.WorkersFormWorkDir(), locales.WorkersFormWorkDirPlaceholder()).OnSubmit(submit)
 			})
-			kit.Field(c, tk, locales.WorkersFormEngine(), locales.WorkersFormEngineHelper(), "", func() {
-				kit.Select(c, tk, &es.form.Engine, locales.WorkersFormEngine(), engineOptions(p.s.EnabledEngines()), locales.WorkersFormEngineDefault())
+			options := kit.EngineOptions(installed, w.Engine)
+			kit.Field(c, tk, locales.WorkersFormEngine(), engineHelper(options), "", func() {
+				kit.Select(c, tk, &es.form.Engine, locales.WorkersFormEngine(), options, placeholder).Disabled(len(options) == 0)
 			})
-			engineArgsField(c, tk, es.form.Engine, es.form.EngineArgs, submit)
+			if followed != "" {
+				engineArgsField(c, tk, model.FindEngine(installed, followed), es.form.EngineArgs, submit)
+			}
 		})
 		errorAlert(c, tk, locales.WorkersFormSaveError(), es.err)
 		formFooter(c, tk, es.saving, func() { st.editing = false },
@@ -76,20 +87,19 @@ func formFooter(c *ui.Context, tk theme.Tokens, busy bool, cancel func(), label 
 	})
 }
 
-func engineOptions(engines []string) []kit.SelectOption {
-	options := make([]kit.SelectOption, len(engines))
-	for i, engine := range engines {
-		options[i] = kit.SelectOption{Value: engine, Text: l10n.EngineLabel(engine)}
+func engineHelper(options []kit.SelectOption) string {
+	if len(options) == 0 {
+		return locales.WorkersFormNoEngine()
 	}
-	return options
+	return locales.WorkersFormEngineHelper()
 }
 
-func engineArgsField(c *ui.Context, tk theme.Tokens, engine string, all map[string]string, submit func()) {
-	args := all[engine]
-	kit.Field(c, tk, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(l10n.EngineLabel(engine)), "", func() {
-		ui.Column(c).Key(engine).MinWidth(0).Children(func() {
+func engineArgsField(c *ui.Context, tk theme.Tokens, engine api.EngineInfo, all map[string]string, submit func()) {
+	args := all[engine.ID]
+	kit.Field(c, tk, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsHelper(l10n.EngineName(engine)), "", func() {
+		ui.Column(c).Key(engine.ID).MinWidth(0).Children(func() {
 			kit.TextInput(c, tk, &args, locales.WorkersFormEngineArgs(), locales.WorkersFormEngineArgsPlaceholder()).
-				OnChange(func() { all[engine] = args }).OnSubmit(submit)
+				OnChange(func() { all[engine.ID] = args }).OnSubmit(submit)
 		})
 	})
 }

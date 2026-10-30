@@ -57,10 +57,11 @@ func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
 	workDir := strings.TrimSpace(f.WorkDir)
 	nameChanged := f.Name != w.Name
 	workDirChanged := workDir != w.WorkDir
+	engineChanged := f.Engine != w.Engine
 	changed := nameChanged ||
 		workDirChanged ||
+		engineChanged ||
 		f.Description != w.Description ||
-		f.Engine != w.Engine ||
 		!maps.Equal(CleanEngineArgs(f.EngineArgs), w.EngineArgs)
 	if !changed {
 		return api.UpdateWorkerRequest{}, false
@@ -71,8 +72,10 @@ func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
 	}
 	req := api.UpdateWorkerRequest{
 		Description: &f.Description,
-		Engine:      &f.Engine,
 		EngineArgs:  &args,
+	}
+	if engineChanged {
+		req.Engine = &f.Engine
 	}
 	if nameChanged {
 		req.Name = &f.Name

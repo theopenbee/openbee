@@ -87,10 +87,13 @@ func newPanelFixture(t *testing.T, seed func(st *fakeapi.State)) *fixture {
 }
 
 func withSystemEngine(engine string, enabled ...string) func(st *fakeapi.State) {
+	if len(enabled) == 0 {
+		enabled = []string{"claude", "codex", "pi"}
+	}
 	return func(st *fakeapi.State) {
 		crew(st)
 		st.SystemConfigs = map[string]string{"default_engine": engine}
-		st.EnabledEngines = enabled
+		st.Engines = fakeapi.Engines(enabled...)
 	}
 }
 
@@ -109,8 +112,8 @@ func TestCreatePanelShowsBasicSection(t *testing.T) {
 
 func TestCreateDefaultsEngineFromSystem(t *testing.T) {
 	f := newPanelFixture(t, withSystemEngine("codex"))
-	f.wantShown(locales.WorkersEnginesCodex())
-	f.wantHidden(locales.WorkersEnginesClaude(), locales.WorkersEnginesPi())
+	f.wantShown(codexName)
+	f.wantHidden(claudeName, piName)
 	f.replaceText(locales.WorkersFormName(), "Nova")
 	f.click(locales.WorkersCreateWorker())
 	if body := f.lastPost(); body["engine"] != "codex" {
@@ -120,8 +123,8 @@ func TestCreateDefaultsEngineFromSystem(t *testing.T) {
 
 func TestCreateEngineFallsBackToFirstEnabled(t *testing.T) {
 	f := newPanelFixture(t, withSystemEngine("pi", "claude", "codex"))
-	f.wantShown(locales.WorkersEnginesClaude())
-	f.wantHidden(locales.WorkersEnginesPi(), locales.WorkersEnginesCodex())
+	f.wantShown(claudeName)
+	f.wantHidden(piName, codexName)
 	f.replaceText(locales.WorkersFormName(), "Nova")
 	f.click(locales.WorkersCreateWorker())
 	if body := f.lastPost(); body["engine"] != "claude" {
@@ -133,8 +136,8 @@ func TestCreateWorksWhenSystemConfigsFail(t *testing.T) {
 	f := newFixture(t, wideW, route.ChatPanel(api.BeeConversation, ""), withSystemEngine("codex"))
 	f.Fake.FailNext(http.MethodGet, "/api/system-configs", http.StatusInternalServerError, map[string]string{"error": "configs down"})
 	f.openNew()
-	f.wantShown(locales.WorkersFormSectionBasic(), locales.WorkersEnginesClaude())
-	f.wantHidden(locales.WorkersEnginesCodex())
+	f.wantShown(locales.WorkersFormSectionBasic(), claudeName)
+	f.wantHidden(codexName)
 	f.replaceText(locales.WorkersFormName(), "Nova")
 	f.click(locales.WorkersCreateWorker())
 	if body := f.lastPost(); body["engine"] != "claude" {
@@ -145,8 +148,8 @@ func TestCreateWorksWhenSystemConfigsFail(t *testing.T) {
 func TestCreateEngineSelectChangesPayload(t *testing.T) {
 	f := newPanelFixture(t, withSystemEngine("claude"))
 	f.click(locales.WorkersFormEngine())
-	f.click(locales.WorkersEnginesPi())
-	f.wantShown(locales.WorkersEnginesPi())
+	f.click(piName)
+	f.wantShown(piName)
 	f.replaceText(locales.WorkersFormName(), "Nova")
 	f.click(locales.WorkersCreateWorker())
 	if body := f.lastPost(); body["engine"] != "pi" {
@@ -234,7 +237,7 @@ func TestCreateAdvancedBadgeCount(t *testing.T) {
 	f.openAdvanced()
 	f.wantShown(locales.WorkersFormConstraintsHelper(), locales.WorkersFormWorkDirHelper(), locales.WorkersFormSectionPermissions(),
 		locales.WorkersFormPermissionsHelper(), locales.ScopesReadWorkersDescription(), locales.ScopesReadTasksDescription(),
-		locales.ScopesReadMessagesDescription(), locales.WorkersFormEngineArgsHelper(locales.WorkersEnginesClaude()))
+		locales.ScopesReadMessagesDescription(), locales.WorkersFormEngineArgsHelper(claudeName))
 	f.wantHidden(locales.WorkersFormAdvancedSet(1))
 	f.replaceText(locales.WorkersFormConstraints(), "   ")
 	f.openAdvanced()
@@ -276,8 +279,8 @@ func TestCreateEngineArgsFollowEngine(t *testing.T) {
 	f.wantShown(locales.WorkersFormAdvancedSet(1))
 	f.openAdvanced()
 	f.click(locales.WorkersFormEngine())
-	f.click(locales.WorkersEnginesCodex())
-	f.wantShown(locales.WorkersFormEngineArgsHelper(locales.WorkersEnginesCodex()))
+	f.click(codexName)
+	f.wantShown(locales.WorkersFormEngineArgsHelper(codexName))
 	if got := f.fieldText(locales.WorkersFormEngineArgs()); got != "" {
 		t.Fatalf("engine args = %q after switching engine, want none", got)
 	}
@@ -563,4 +566,78 @@ func TestMoreMenuWorksFromTheKeyboard(t *testing.T) {
 	f.T.Key(0, ui.KeyEnter)
 	f.settle()
 	f.wantShown(locales.WorkersDeleteDialogTitle("Alice"))
+}
+
+func TestCreateOffersPluginEngines(t *testing.T) {
+	f := newPanelFixture(t, func(st *fakeapi.State) {
+		crew(st)
+		st.SystemConfigs = map[string]string{"default_engine": "gemini"}
+		st.Engines = []api.EngineInfo{
+			{ID: "pi", Name: api.LocalizedText{"en": piName}},
+			{ID: "gemini", Name: api.LocalizedText{"en": "Gemini CLI"}},
+		}
+	})
+	f.wantShown("Gemini CLI")
+	f.click(locales.WorkersFormEngine())
+	f.wantShown(piName)
+	f.click(piName)
+	f.replaceText(locales.WorkersFormName(), "Nova")
+	f.click(locales.WorkersCreateWorker())
+	if body := f.lastPost(); body["engine"] != "pi" {
+		t.Fatalf("POST body = %v, want the picked engine", body)
+	}
+}
+
+func TestCreateNamesEnginesOfAnOlderServerByTheirIds(t *testing.T) {
+	f := newPanelFixture(t, func(st *fakeapi.State) {
+		crew(st)
+		st.SystemConfigs = map[string]string{"default_engine": "codex"}
+		st.Engines = fakeapi.Engines("claude", "codex")
+		st.LegacyConfig = true
+	})
+	f.wantShown("codex")
+	f.wantHidden(codexName)
+	f.replaceText(locales.WorkersFormName(), "Nova")
+	f.click(locales.WorkersCreateWorker())
+	if body := f.lastPost(); body["engine"] != "codex" {
+		t.Fatalf("POST body = %v, want the default engine", body)
+	}
+}
+
+func TestCreateWithoutAnEngineExplainsWhy(t *testing.T) {
+	f := newPanelFixture(t, func(st *fakeapi.State) {
+		crew(st)
+		st.Engines = nil
+	})
+	f.wantShown(locales.WorkersFormNoEngine())
+	f.wantHidden(locales.WorkersFormEngineHelper(), claudeName, codexName, piName)
+	f.openAdvanced()
+	f.wantHidden(locales.WorkersFormEngineArgs())
+	f.replaceText(locales.WorkersFormName(), "Nova")
+	f.click(locales.WorkersCreateWorker())
+	if body := f.lastPost(); body["engine"] != nil {
+		t.Fatalf("POST body = %v, want no engine", body)
+	}
+}
+
+func TestCreateWaitsForTheEnginesBeforeSeeding(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel(api.BeeConversation, ""), withSystemEngine("codex"))
+	f.Store.SystemConfigs.Ensure()
+	f.settle()
+	f.Store.Config.Reset()
+	release := f.Fake.HoldNext(http.MethodGet, "/api/config")
+	f.router.Push(route.ChatPanel(api.BeeConversation, route.PanelNew))
+	f.T.Advance(motionSettled)
+	f.T.Frame()
+	f.wantShown(locales.ChatNewWorker())
+	f.wantHidden(locales.WorkersFormEngine(), locales.WorkersFormNoEngine())
+	release()
+	f.settle()
+	f.wantShown(locales.WorkersFormEngine(), codexName)
+	f.wantHidden(locales.WorkersFormNoEngine(), claudeName)
+	f.replaceText(locales.WorkersFormName(), "Nova")
+	f.click(locales.WorkersCreateWorker())
+	if body := f.lastPost(); body["engine"] != "codex" {
+		t.Fatalf("POST body = %v, want the system default engine", body)
+	}
 }

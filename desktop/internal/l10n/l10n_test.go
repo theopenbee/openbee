@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
-	"github.com/theopenbee/openbee/desktop/locales"
 )
 
 func TestErrorTextCode(t *testing.T) {
@@ -162,15 +161,24 @@ func TestLocaleOf(t *testing.T) {
 	}
 }
 
-func TestEngineLabel(t *testing.T) {
-	for engine, want := range map[string]string{
-		"claude": locales.WorkersEnginesClaude(),
-		"codex":  locales.WorkersEnginesCodex(),
-		"pi":     locales.WorkersEnginesPi(),
-		"other":  "other",
-	} {
-		if got := EngineLabel(engine); got != want {
-			t.Errorf("EngineLabel(%q) = %q, want %q", engine, got, want)
+func TestEngineName(t *testing.T) {
+	cases := []struct {
+		name   string
+		engine api.EngineInfo
+		lang   string
+		want   string
+	}{
+		{"current language", api.EngineInfo{ID: "pi", Name: api.LocalizedText{"en": "Pi", "zh": "派"}}, "zh", "派"},
+		{"falls back to en", api.EngineInfo{ID: "pi", Name: api.LocalizedText{"en": "Pi"}}, "zh", "Pi"},
+		{"falls back to the id without a name", api.EngineInfo{ID: "gemini"}, "en", "gemini"},
+		{"falls back to the id for an empty name", api.EngineInfo{ID: "gemini", Name: api.LocalizedText{"en": ""}}, "en", "gemini"},
+	}
+	for _, c := range cases {
+		if got := engineName(c.engine, c.lang); got != c.want {
+			t.Errorf("%s: engineName(%v, %q) = %q, want %q", c.name, c.engine, c.lang, got, c.want)
 		}
+	}
+	if got := EngineName(api.EngineInfo{ID: "pi", Name: api.LocalizedText{"en": "Pi"}}); got != "Pi" {
+		t.Errorf("EngineName = %q, want Pi", got)
 	}
 }

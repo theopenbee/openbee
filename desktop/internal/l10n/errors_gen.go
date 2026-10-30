@@ -18,6 +18,8 @@ func errorText(code string, params map[string]any) (string, bool) {
 		return locales.ErrorsOldPasswordIncorrect(), true
 	case "plugin_bot_name_conflict":
 		return locales.ErrorsPluginBotNameConflict(param(params, "name")), true
+	case "plugin_bot_name_not_supported":
+		return locales.ErrorsPluginBotNameNotSupported(), true
 	case "plugin_catalog_unavailable":
 		return locales.ErrorsPluginCatalogUnavailable(), true
 	case "plugin_config_invalid":

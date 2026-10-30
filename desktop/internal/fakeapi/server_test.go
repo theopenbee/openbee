@@ -355,7 +355,8 @@ func TestSetupAndLogin(t *testing.T) {
 	c := ctx(t)
 
 	cfg, err := s.client.Config(c)
-	if err != nil || cfg.Language != "en" || !reflect.DeepEqual(cfg.EnabledEngines, []string{"claude", "codex", "pi"}) {
+	if err != nil || cfg.Language != "en" || !reflect.DeepEqual(cfg.EnabledEngines, []string{"claude", "codex", "pi"}) ||
+		!reflect.DeepEqual(cfg.Engines, fakeapi.Engines("claude", "codex", "pi")) || cfg.Engines[0].Name["en"] != "Claude Code" {
 		t.Fatalf("Config = %+v, %v", cfg, err)
 	}
 	if st, err := s.client.SetupStatus(c); err != nil || !st.Initialized {
@@ -379,14 +380,23 @@ func TestSetupAndLogin(t *testing.T) {
 	s.fake.Update(func(st *fakeapi.State) {
 		st.Initialized = false
 		st.Language = "zh"
-		st.EnabledEngines = nil
+		st.Engines = nil
 	})
 	if st, err := s.client.SetupStatus(c); err != nil || st.Initialized {
 		t.Fatalf("SetupStatus uninitialised = %+v, %v", st, err)
 	}
 	cfg, err = s.client.Config(c)
-	if err != nil || cfg.Language != "zh" || cfg.EnabledEngines == nil || len(cfg.EnabledEngines) != 0 {
+	if err != nil || cfg.Language != "zh" || cfg.EnabledEngines == nil || len(cfg.EnabledEngines) != 0 ||
+		cfg.Engines == nil || len(cfg.Engines) != 0 {
 		t.Fatalf("Config = %+v, %v", cfg, err)
+	}
+	s.fake.Update(func(st *fakeapi.State) {
+		st.Engines = fakeapi.Engines("pi")
+		st.LegacyConfig = true
+	})
+	cfg, err = s.client.Config(c)
+	if err != nil || !reflect.DeepEqual(cfg.EnabledEngines, []string{"pi"}) || cfg.Engines != nil {
+		t.Fatalf("legacy Config = %+v, %v, want the engine ids only", cfg, err)
 	}
 	if _, err := s.client.Setup(c, api.SetupRequest{Username: "root", Password: "123"}); apiError(t, err).Status != 400 {
 		t.Fatalf("short password: %v", err)

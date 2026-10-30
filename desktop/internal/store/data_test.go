@@ -13,7 +13,7 @@ import (
 )
 
 func team(st *fakeapi.State) {
-	st.EnabledEngines = []string{"pi", "claude"}
+	st.Engines = fakeapi.Engines("pi", "claude")
 	st.Workers = []api.Worker{
 		{ID: "w1", Name: "Alice", Description: "Writes docs", Engine: "claude", Status: "idle"},
 		{ID: "w2", Name: "Bob", Engine: "pi", Status: "idle"},
@@ -60,8 +60,8 @@ func TestWorkersAndConversationsLoad(t *testing.T) {
 	if _, ok := st.Worker("w1"); ok {
 		t.Fatal("Worker found before the list loaded")
 	}
-	if got := st.EnabledEngines(); !slices.Equal(got, model.AllEngines) {
-		t.Fatalf("EnabledEngines before config = %v, want all", got)
+	if got := st.EnabledEngines(); len(got) != 0 {
+		t.Fatalf("EnabledEngines before config = %v, want none", got)
 	}
 
 	st.Workers.Ensure()
@@ -86,8 +86,8 @@ func TestWorkersAndConversationsLoad(t *testing.T) {
 	if got := st.SystemConfigs.Data["default_engine"]; got != "pi" {
 		t.Fatalf("system config default_engine = %q, want pi", got)
 	}
-	if got := st.EnabledEngines(); !slices.Equal(got, []string{"claude", "pi"}) {
-		t.Fatalf("EnabledEngines = %v, want [claude pi]", got)
+	if got := model.EngineIDs(st.EnabledEngines()); !slices.Equal(got, []string{"pi", "claude"}) {
+		t.Fatalf("EnabledEngines = %v, want [pi claude]", got)
 	}
 
 	detail := st.WorkerDetail("w2")

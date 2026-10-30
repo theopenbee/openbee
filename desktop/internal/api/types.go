@@ -8,9 +8,15 @@ import (
 
 type LocalizedText map[string]string
 
+type EngineInfo struct {
+	ID   string        `json:"id"`
+	Name LocalizedText `json:"name"`
+}
+
 type Config struct {
-	Language       string   `json:"language"`
-	EnabledEngines []string `json:"enabled_engines"`
+	Language       string       `json:"language"`
+	EnabledEngines []string     `json:"enabled_engines"`
+	Engines        []EngineInfo `json:"engines"`
 }
 
 type SetupStatus struct {

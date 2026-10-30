@@ -16,6 +16,9 @@ import (
 )
 
 const (
+	claudeName     = "Claude Code"
+	codexName      = "Codex"
+	piName         = "Pi"
 	wideW, wideH   = 1440, 1000
 	systemPath     = "/api/system-configs"
 	engineArgsBee  = "engine_args_bee"
@@ -91,7 +94,7 @@ func (f *fixture) clickIn(name string) {
 
 func (f *fixture) chooseEngine(downs int) {
 	f.t.Helper()
-	f.click(locales.WorkersEnginesClaude())
+	f.click(claudeName)
 	for range downs {
 		f.T.Key(0, ui.KeyDown)
 	}
@@ -240,7 +243,7 @@ func TestSettingsNavSwitchesSections(t *testing.T) {
 
 func TestSettingsSectionRemountsOnSwitch(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
-	field := beeInput(locales.WorkersEnginesCodex())
+	field := beeInput(codexName)
 	f.typeInto(field, "--draft")
 	if got := f.fieldText(field); got != "--draft" {
 		t.Fatalf("bee codex args = %q before leaving, want the draft", got)
@@ -288,13 +291,13 @@ func TestSettingsClosesOnSignOut(t *testing.T) {
 func TestSystemShowsSavedValues(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
 	f.wantShown(locales.SystemSettingsEngineSectionRowTitle(), locales.SystemSettingsEngineSectionDescription(),
-		locales.SystemSettingsEngineSectionLabel(), locales.WorkersEnginesClaude(),
+		locales.SystemSettingsEngineSectionLabel(), claudeName,
 		locales.SystemSettingsArgsSectionDescription(),
 		locales.SystemSettingsGlobalArgsSectionTitle(), locales.SystemSettingsGlobalArgsSectionDescription(),
 		locales.SystemSettingsBeeArgsSectionTitle(), locales.SystemSettingsBeeArgsSectionDescription(),
-		globalInput(locales.WorkersEnginesClaude()), globalInput(locales.WorkersEnginesCodex()), globalInput(locales.WorkersEnginesPi()),
-		beeInput(locales.WorkersEnginesPi()), locales.SystemSettingsSave())
-	if got := f.fieldText(globalInput(locales.WorkersEnginesClaude())); got != "--model opus" {
+		globalInput(claudeName), globalInput(codexName), globalInput(piName),
+		beeInput(piName), locales.SystemSettingsSave())
+	if got := f.fieldText(globalInput(claudeName)); got != "--model opus" {
 		t.Fatalf("global claude args = %q, want the saved flags", got)
 	}
 }
@@ -302,16 +305,50 @@ func TestSystemShowsSavedValues(t *testing.T) {
 func TestSystemOnlyEnabledEnginesGetFields(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, func(st *fakeapi.State) {
 		configured(st)
-		st.EnabledEngines = []string{"codex"}
+		st.Engines = fakeapi.Engines("codex")
 	})
 	f.wantShown(globalInput(locales.WorkersFormEngineArgs()), beeInput(locales.WorkersFormEngineArgs()),
-		locales.WorkersFormEngineArgsHelper(locales.WorkersEnginesCodex()))
-	f.wantHidden(globalInput(locales.WorkersEnginesClaude()), globalInput(locales.WorkersEnginesPi()))
+		locales.WorkersFormEngineArgsHelper(codexName))
+	f.wantHidden(globalInput(claudeName), globalInput(piName))
+}
+
+func TestSystemOffersPluginEngines(t *testing.T) {
+	f := open(t, wideW, settings.SectionSystem, func(st *fakeapi.State) {
+		configured(st)
+		st.SystemConfigs = map[string]string{defaultEngine: "gemini"}
+		st.Engines = []api.EngineInfo{
+			{ID: "pi", Name: api.LocalizedText{"en": piName}},
+			{ID: "gemini", Name: api.LocalizedText{"en": "Gemini CLI"}},
+		}
+	})
+	f.wantShown("Gemini CLI", beeInput("Gemini CLI"), beeInput(piName), globalInput("Gemini CLI"), globalInput(piName))
+	f.wantHidden(claudeName)
+}
+
+func TestSystemShowsAnUninstalledDefaultEngine(t *testing.T) {
+	f := open(t, wideW, settings.SectionSystem, func(st *fakeapi.State) {
+		configured(st)
+		st.Engines = fakeapi.Engines("pi")
+	})
+	f.wantShown(locales.WorkersFormEngineUnavailable("claude"))
+	f.clickIn(locales.SystemSettingsSave())
+	if n := len(f.puts()); n != 0 {
+		t.Fatalf("saving untouched settings sent %d updates", n)
+	}
+}
+
+func TestSystemWithoutAnEngineExplainsWhy(t *testing.T) {
+	f := open(t, wideW, settings.SectionSystem, func(st *fakeapi.State) {
+		configured(st)
+		st.Engines = nil
+	})
+	f.wantShown(locales.WorkersFormNoEngine())
+	f.wantHidden(claudeName, codexName, piName, beeInput(claudeName), globalInput(claudeName))
 }
 
 func TestSystemSaveOnlyChanged(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
-	f.typeInto(beeInput(locales.WorkersEnginesCodex()), "--x")
+	f.typeInto(beeInput(codexName), "--x")
 	f.clickIn(locales.SystemSettingsSave())
 	want := map[string]string{systemPath + "/" + engineArgsBee: `{"codex":"--x"}`}
 	if got := f.puts(); len(got) != len(want) || got[systemPath+"/"+engineArgsBee] != want[systemPath+"/"+engineArgsBee] {
@@ -325,8 +362,8 @@ func TestSystemSaveOnlyChanged(t *testing.T) {
 func TestSystemSaveSendsEveryChangedKey(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
 	f.chooseEngine(2)
-	f.typeInto(globalInput(locales.WorkersEnginesClaude()), "")
-	f.typeInto(globalInput(locales.WorkersEnginesPi()), "--think")
+	f.typeInto(globalInput(claudeName), "")
+	f.typeInto(globalInput(piName), "--think")
 	f.clickIn(locales.SystemSettingsSave())
 	got := f.puts()
 	want := map[string]string{
@@ -341,7 +378,7 @@ func TestSystemSaveSendsEveryChangedKey(t *testing.T) {
 			t.Fatalf("PUT %s = %q, want %q (all: %v)", path, got[path], value, got)
 		}
 	}
-	f.wantShown(locales.SystemSettingsSaved(), locales.WorkersEnginesPi())
+	f.wantShown(locales.SystemSettingsSaved(), piName)
 }
 
 func TestSystemSaveDisabledWhenClean(t *testing.T) {
@@ -350,18 +387,18 @@ func TestSystemSaveDisabledWhenClean(t *testing.T) {
 	if n := len(f.puts()); n != 0 {
 		t.Fatalf("saving a clean form sent %d writes", n)
 	}
-	f.typeInto(beeInput(locales.WorkersEnginesCodex()), "   ")
+	f.typeInto(beeInput(codexName), "   ")
 	f.clickIn(locales.SystemSettingsSave())
 	if n := len(f.puts()); n != 0 {
 		t.Fatalf("a blank-only edit sent %d writes", n)
 	}
-	f.typeInto(beeInput(locales.WorkersEnginesCodex()), "--x")
-	f.typeInto(beeInput(locales.WorkersEnginesCodex()), "")
+	f.typeInto(beeInput(codexName), "--x")
+	f.typeInto(beeInput(codexName), "")
 	f.clickIn(locales.SystemSettingsSave())
 	if n := len(f.puts()); n != 0 {
 		t.Fatalf("reverting an edit sent %d writes", n)
 	}
-	f.typeInto(beeInput(locales.WorkersEnginesCodex()), "--x")
+	f.typeInto(beeInput(codexName), "--x")
 	f.clickIn(locales.SystemSettingsSave())
 	if n := len(f.puts()); n != 1 {
 		t.Fatalf("saving a real change sent %d writes, want 1", n)
@@ -370,7 +407,7 @@ func TestSystemSaveDisabledWhenClean(t *testing.T) {
 
 func TestSystemSavedFlash(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
-	f.typeInto(beeInput(locales.WorkersEnginesPi()), "--x")
+	f.typeInto(beeInput(piName), "--x")
 	f.clickIn(locales.SystemSettingsSave())
 	f.wantShown(locales.SystemSettingsSaved())
 	f.wantHidden(locales.SystemSettingsSave())
@@ -387,10 +424,10 @@ func TestSystemSavedFlash(t *testing.T) {
 
 func TestSystemEditingEndsTheSavedFlash(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
-	f.typeInto(beeInput(locales.WorkersEnginesPi()), "--x")
+	f.typeInto(beeInput(piName), "--x")
 	f.clickIn(locales.SystemSettingsSave())
 	f.wantShown(locales.SystemSettingsSaved())
-	f.typeInto(beeInput(locales.WorkersEnginesPi()), "--y")
+	f.typeInto(beeInput(piName), "--y")
 	f.wantShown(locales.SystemSettingsSave())
 	f.wantHidden(locales.SystemSettingsSaved())
 }
@@ -398,7 +435,7 @@ func TestSystemEditingEndsTheSavedFlash(t *testing.T) {
 func TestSystemSaveError(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, configured)
 	f.Fake.FailNext(http.MethodPut, systemPath+"/"+engineArgsBee, http.StatusBadRequest, map[string]string{"error": "flags rejected"})
-	f.typeInto(beeInput(locales.WorkersEnginesPi()), "--x")
+	f.typeInto(beeInput(piName), "--x")
 	f.clickIn(locales.SystemSettingsSave())
 	f.wantShown(locales.SystemSettingsSaveError(), "flags rejected", locales.SystemSettingsSave())
 	f.wantHidden(locales.SystemSettingsSaved())
@@ -414,10 +451,10 @@ func TestSystemSaveError(t *testing.T) {
 	}
 
 	f.Fake.FailNext(http.MethodPut, systemPath+"/"+engineArgsAll, http.StatusInternalServerError, map[string]string{"error": "again"})
-	f.typeInto(globalInput(locales.WorkersEnginesPi()), "--z")
+	f.typeInto(globalInput(piName), "--z")
 	f.clickIn(locales.SystemSettingsSave())
 	f.wantShown(locales.SystemSettingsSaveError(), "again")
-	f.typeInto(globalInput(locales.WorkersEnginesPi()), "--w")
+	f.typeInto(globalInput(piName), "--w")
 	f.wantHidden(locales.SystemSettingsSaveError())
 }
 
@@ -465,7 +502,7 @@ func TestSystemRowsFollowTheContentWidth(t *testing.T) {
 func TestSystemSelectOffersOnlyEnabledEngines(t *testing.T) {
 	f := open(t, wideW, settings.SectionSystem, func(st *fakeapi.State) {
 		configured(st)
-		st.EnabledEngines = []string{"claude", "pi"}
+		st.Engines = fakeapi.Engines("claude", "pi")
 	})
 	f.chooseEngine(1)
 	f.clickIn(locales.SystemSettingsSave())

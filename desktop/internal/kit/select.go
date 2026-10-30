@@ -7,7 +7,10 @@ import (
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
-type SelectOption struct{ Value, Text string }
+type SelectOption struct {
+	Value, Text string
+	Disabled    bool
+}
 
 const (
 	selectGap           = 12
@@ -72,6 +75,13 @@ func Select(c *ui.Context, tk theme.Tokens, value *string, label string, options
 		ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
 			ui.Column(c).PaddingY(selectViewportPadY).Children(func() {
 				for _, o := range options {
+					if o.Disabled {
+						ui.Row(c).MinHeight(selectItemHeight).Padding(0, selectItemPadEnd, 0, selectItemPadStart).AlignItems(ui.Center).
+							FontSize(bodyFontSize).TextColor(tk.TextMuted).Children(func() {
+							ui.Text(c, o.Text).SingleLine().MinWidth(0)
+						})
+						continue
+					}
 					item := sel.Item(o.Value).MinHeight(selectItemHeight).Padding(0, selectItemPadEnd, 0, selectItemPadStart).
 						Radius(itemRadius).FontSize(bodyFontSize).TextColor(tk.Foreground)
 					item.Background(item.AnimateColor("bg", highlight(tk, item.Highlighted()), instant))

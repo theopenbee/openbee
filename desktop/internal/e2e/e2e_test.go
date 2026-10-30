@@ -310,8 +310,8 @@ func (f *flow) fieldText(field string) string {
 	return f.T.Clipboard()
 }
 
-func beeArgsField(engines []string, engine string) string {
-	label := l10n.EngineLabel(engine)
+func beeArgsField(engines []api.EngineInfo, engine string) string {
+	label := l10n.EngineName(model.FindEngine(engines, engine))
 	if len(engines) == 1 {
 		label = locales.WorkersFormEngineArgs()
 	}
@@ -333,7 +333,7 @@ func TestLiveSystemSettings(t *testing.T) {
 	if len(engines) == 0 {
 		t.Fatal("the server has no enabled engine")
 	}
-	engine := model.DefaultEngine(saved[keyEngine], engines)
+	engine := model.DefaultEngine(saved[keyEngine], model.EngineIDs(engines))
 	field := beeArgsField(engines, engine)
 	f.reveal(field, settingsPane)
 	f.Fill(field, badArgs)

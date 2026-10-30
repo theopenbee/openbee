@@ -6,6 +6,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -45,7 +46,7 @@ func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Wor
 				ui.Text(c, w.Name).FontSize(nameSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
 					Role(ui.RoleHeading).Level(3)
 				if w.Engine != "" {
-					engineLine(c, tk, w.Engine)
+					engineLine(c, tk, w.Engine, l10n.EngineName(model.FindEngine(p.s.EnabledEngines(), w.Engine)))
 				}
 			})
 		})
@@ -62,12 +63,10 @@ func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Wor
 	})
 }
 
-func engineLine(c *ui.Context, tk theme.Tokens, engine string) {
+func engineLine(c *ui.Context, tk theme.Tokens, engine, name string) {
 	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(engineGap).TextColor(tk.TextSecondary).Children(func() {
-		if mark := icons.Engine(engine); mark != nil {
-			ui.Icon(c, mark).Size(engineGlyph, engineGlyph).Shrink(0)
-		}
-		ui.Text(c, l10n.EngineLabel(engine)).SingleLine().MinWidth(0)
+		ui.Icon(c, icons.Engine(engine)).Size(engineGlyph, engineGlyph).Shrink(0)
+		ui.Text(c, name).SingleLine().MinWidth(0)
 	})
 }
 

@@ -45,5 +45,5 @@ func Engine(engine string) *ui.SVG {
 	case "claude", "codex", "pi":
 		return cached("brand/"+engine, func() *ui.SVG { return ui.MustParseSVG(brandData(engine)) })
 	}
-	return nil
+	return Get("cpu")
 }

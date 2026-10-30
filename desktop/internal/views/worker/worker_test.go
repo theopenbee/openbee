@@ -21,6 +21,9 @@ import (
 )
 
 const (
+	claudeName    = "Claude Code"
+	codexName     = "Codex"
+	piName        = "Pi"
 	wideW, wideH  = 1440, 1200
 	drawerW       = 1000
 	aliceRules    = "Reply in English.\nKeep answers short."
@@ -192,7 +195,7 @@ func (f *fixture) lastPut(path string) map[string]any {
 
 func TestPanelShowsProfile(t *testing.T) {
 	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), crew)
-	f.wantShown(locales.ChatPanelTitle(), "Writes the release notes", locales.WorkersEnginesClaude(),
+	f.wantShown(locales.ChatPanelTitle(), "Writes the release notes", claudeName,
 		locales.WorkerDetailEditInfo(), locales.WorkersRowActions("Alice"),
 		locales.ChatPanelTabsConstraints(), locales.ChatPanelTabsPermissions(), locales.ChatPanelTabsEnv(),
 		locales.WorkerDetailConstraintsPanelCharCount(len(aliceRules)), aliceRules, locales.WorkerDetailEditConstraints())
@@ -200,9 +203,9 @@ func TestPanelShowsProfile(t *testing.T) {
 
 	f.router.Push(route.ChatPanel("w2", route.PanelConstraints))
 	f.settle()
-	f.wantShown(locales.CommonNoDescription(), locales.WorkersEnginesCodex(),
+	f.wantShown(locales.CommonNoDescription(), codexName,
 		locales.WorkerDetailConstraintsPanelEmptyTitle("Bob"), locales.WorkerDetailConstraintsPanelTemplatesToneTitle())
-	f.wantHidden("Writes the release notes", locales.WorkersEnginesClaude())
+	f.wantHidden("Writes the release notes", claudeName)
 }
 
 func TestPanelLoadErrorRetry(t *testing.T) {
@@ -245,7 +248,7 @@ func TestEditSavesOnlyChanged(t *testing.T) {
 	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), crew)
 	f.click(locales.WorkerDetailEditInfo())
 	f.wantShown(locales.WorkerDetailEditInfoTitle(), locales.WorkersFormDescriptionHelper(), locales.WorkersFormWorkDirEditHelper(),
-		locales.WorkersFormEngineArgsHelper(locales.WorkersEnginesClaude()))
+		locales.WorkersFormEngineArgsHelper(claudeName))
 	f.wantHidden(locales.ChatPanelTabsPermissions())
 	if got := f.fieldText(locales.WorkersFormName()); got != "Alice" {
 		t.Fatalf("name field = %q, want Alice", got)
@@ -260,11 +263,11 @@ func TestEditSavesOnlyChanged(t *testing.T) {
 	f.replaceText(locales.WorkersFormDescription(), "Ships every release")
 	f.click(locales.WorkerDetailSaveInfo())
 	body := f.lastPut(alicePath)
-	if keys := slices.Sorted(maps.Keys(body)); !slices.Equal(keys, []string{"description", "engine", "engine_args"}) {
-		t.Fatalf("PUT keys = %q, want description, engine, engine_args; body %v", keys, body)
+	if keys := slices.Sorted(maps.Keys(body)); !slices.Equal(keys, []string{"description", "engine_args"}) {
+		t.Fatalf("PUT keys = %q, want description, engine_args; body %v", keys, body)
 	}
 	args, _ := body["engine_args"].(map[string]any)
-	if body["description"] != "Ships every release" || body["engine"] != "claude" || len(args) != 1 || args["claude"] != "--model opus" {
+	if body["description"] != "Ships every release" || len(args) != 1 || args["claude"] != "--model opus" {
 		t.Fatalf("PUT body = %v", body)
 	}
 	f.wantHidden(locales.WorkerDetailEditInfoTitle())
@@ -509,5 +512,115 @@ func TestEnvTabAddRefreshesEffective(t *testing.T) {
 	if len(calls) != 1 || json.Unmarshal(calls[0].Body, &posted) != nil ||
 		posted["scope"] != "worker" || posted["scope_id"] != "w2" || posted["key"] != "API_KEY" || posted["value"] != "sk-live-1234" {
 		t.Fatalf("POST calls = %+v, want API_KEY for worker w2", calls)
+	}
+}
+
+func engineCrew(engine string, engines ...string) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		crew(st)
+		st.Workers[0].Engine = engine
+		st.Workers[0].EngineArgs = map[string]string{engine: "--model opus"}
+		st.Engines = fakeapi.Engines(engines...)
+		st.SystemConfigs = map[string]string{"default_engine": "pi"}
+	}
+}
+
+func TestPanelNamesThePluginEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), func(st *fakeapi.State) {
+		crew(st)
+		st.Workers[0].Engine = "gemini"
+		st.Engines = []api.EngineInfo{{ID: "gemini", Name: api.LocalizedText{"en": "Gemini CLI"}}}
+	})
+	f.wantShown("Gemini CLI")
+	f.wantHidden("gemini")
+}
+
+func TestPanelShowsTheIdOfAnUninstalledEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), engineCrew("gone", "pi"))
+	f.wantShown("gone")
+}
+
+func TestEditKeepsAnUninstalledEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), engineCrew("gone", "pi"))
+	f.click(locales.WorkerDetailEditInfo())
+	f.wantShown(locales.WorkersFormEngineUnavailable("gone"), locales.WorkersFormEngineArgsHelper("gone"))
+	f.replaceText(locales.WorkersFormDescription(), "Ships every release")
+	f.click(locales.WorkerDetailSaveInfo())
+	body := f.lastPut(alicePath)
+	if keys := slices.Sorted(maps.Keys(body)); !slices.Equal(keys, []string{"description", "engine_args"}) {
+		t.Fatalf("PUT keys = %q, want the stored engine left out; body %v", keys, body)
+	}
+	if args, _ := body["engine_args"].(map[string]any); len(args) != 1 || args["gone"] != "--model opus" {
+		t.Fatalf("PUT body = %v, want the stored engine args kept", body)
+	}
+	f.wantHidden(locales.WorkerDetailEditInfoTitle())
+}
+
+func TestEditKeyboardSkipsAnUninstalledEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), engineCrew("gone", "pi", "codex"))
+	f.click(locales.WorkerDetailEditInfo())
+	f.click(locales.WorkersFormEngine())
+	f.T.Key(0, ui.KeyEnd)
+	f.T.Key(0, ui.KeyEnter)
+	f.settle()
+	f.click(locales.WorkerDetailSaveInfo())
+	if body := f.lastPut(alicePath); body["engine"] != "codex" {
+		t.Fatalf("PUT body = %v, want the last installed engine", body)
+	}
+}
+
+func TestEditPicksAnInstalledEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), engineCrew("gone", "pi", "codex"))
+	f.click(locales.WorkerDetailEditInfo())
+	f.click(locales.WorkersFormEngine())
+	f.click(codexName)
+	f.click(locales.WorkerDetailSaveInfo())
+	body := f.lastPut(alicePath)
+	if body["engine"] != "codex" {
+		t.Fatalf("PUT body = %v, want the picked engine", body)
+	}
+}
+
+func TestEditKeepsTheSystemDefaultEngine(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), func(st *fakeapi.State) {
+		engineCrew("", "claude", "pi")(st)
+		st.Workers[0].EngineArgs = nil
+	})
+	f.click(locales.WorkerDetailEditInfo())
+	f.wantShown(locales.WorkersFormEngineSystemDefaultNamed(piName), locales.WorkersFormEngineArgsHelper(piName))
+	f.wantHidden(claudeName)
+	f.replaceText(locales.WorkersFormDescription(), "Ships every release")
+	f.click(locales.WorkerDetailSaveInfo())
+	body := f.lastPut(alicePath)
+	if keys := slices.Sorted(maps.Keys(body)); !slices.Equal(keys, []string{"description", "engine_args"}) {
+		t.Fatalf("PUT keys = %q, want the empty engine left out; body %v", keys, body)
+	}
+}
+
+func TestEditShowsPlainSystemDefaultWithoutOne(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), func(st *fakeapi.State) {
+		engineCrew("", "claude", "pi")(st)
+		st.Workers[0].EngineArgs = nil
+		st.SystemConfigs = map[string]string{}
+	})
+	f.click(locales.WorkerDetailEditInfo())
+	f.wantShown(locales.WorkersFormEngineSystemDefault())
+	f.wantHidden(locales.WorkersFormEngineArgsHelper(claudeName), locales.WorkersFormEngineArgsHelper(piName))
+}
+
+func TestEditOffersPluginEngines(t *testing.T) {
+	f := newFixture(t, wideW, route.ChatPanel("w1", route.PanelConstraints), func(st *fakeapi.State) {
+		engineCrew("claude", "claude")(st)
+		st.Engines = []api.EngineInfo{
+			{ID: "claude", Name: api.LocalizedText{"en": claudeName}},
+			{ID: "gemini", Name: api.LocalizedText{"en": "Gemini CLI", "zh": "双子座"}},
+		}
+	})
+	f.click(locales.WorkerDetailEditInfo())
+	f.click(locales.WorkersFormEngine())
+	f.click("Gemini CLI")
+	f.click(locales.WorkerDetailSaveInfo())
+	if body := f.lastPut(alicePath); body["engine"] != "gemini" {
+		t.Fatalf("PUT body = %v, want the plugin engine", body)
 	}
 }

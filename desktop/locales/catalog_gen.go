@@ -2752,6 +2752,18 @@ func (msgs Messages) ErrorsPluginBotNameConflict(name string) string {
 	return Catalog.Format(msgs.locale, "errorsPluginBotNameConflict", map[string]any{"name": name})
 }
 
+// ErrorsPluginBotNameNotSupported says "Engine plugins don't have a bot name."
+// in the language the app shows.
+func ErrorsPluginBotNameNotSupported() string {
+	return In(i18n.Locale()).ErrorsPluginBotNameNotSupported()
+}
+
+// ErrorsPluginBotNameNotSupported says "Engine plugins don't have a bot name."
+// in the language of msgs.
+func (msgs Messages) ErrorsPluginBotNameNotSupported() string {
+	return Catalog.Format(msgs.locale, "errorsPluginBotNameNotSupported", nil)
+}
+
 // ErrorsPluginCatalogUnavailable says "The plugin catalog is unavailable right now"
 // in the language the app shows.
 func ErrorsPluginCatalogUnavailable() string {
@@ -3770,6 +3782,18 @@ func (msgs Messages) PluginsDetailSettingsHint(name string) string {
 	return Catalog.Format(msgs.locale, "pluginsDetailSettingsHint", map[string]any{"name": name})
 }
 
+// PluginsDetailSettingsHintEngine says "Saved settings apply to the next run"
+// in the language the app shows.
+func PluginsDetailSettingsHintEngine() string {
+	return In(i18n.Locale()).PluginsDetailSettingsHintEngine()
+}
+
+// PluginsDetailSettingsHintEngine says "Saved settings apply to the next run"
+// in the language of msgs.
+func (msgs Messages) PluginsDetailSettingsHintEngine() string {
+	return Catalog.Format(msgs.locale, "pluginsDetailSettingsHintEngine", nil)
+}
+
 // PluginsDetailSource says "Source"
 // in the language the app shows.
 func PluginsDetailSource() string { return In(i18n.Locale()).PluginsDetailSource() }
@@ -3820,13 +3844,13 @@ func (msgs Messages) PluginsEmptyInstalledAction() string {
 	return Catalog.Format(msgs.locale, "pluginsEmptyInstalledAction", nil)
 }
 
-// PluginsEmptyInstalledDescription says "Install a channel plugin from the marketplace to connect a chat platform."
+// PluginsEmptyInstalledDescription says "Install a plugin from the marketplace to connect a chat platform or add an AI engine."
 // in the language the app shows.
 func PluginsEmptyInstalledDescription() string {
 	return In(i18n.Locale()).PluginsEmptyInstalledDescription()
 }
 
-// PluginsEmptyInstalledDescription says "Install a channel plugin from the marketplace to connect a chat platform."
+// PluginsEmptyInstalledDescription says "Install a plugin from the marketplace to connect a chat platform or add an AI engine."
 // in the language of msgs.
 func (msgs Messages) PluginsEmptyInstalledDescription() string {
 	return Catalog.Format(msgs.locale, "pluginsEmptyInstalledDescription", nil)
@@ -3892,6 +3916,18 @@ func PluginsInstallDialogDoneHint() string { return In(i18n.Locale()).PluginsIns
 // in the language of msgs.
 func (msgs Messages) PluginsInstallDialogDoneHint() string {
 	return Catalog.Format(msgs.locale, "pluginsInstallDialogDoneHint", nil)
+}
+
+// PluginsInstallDialogDoneHintEngine says "The engine is enabled. Pick it when you create or edit a worker."
+// in the language the app shows.
+func PluginsInstallDialogDoneHintEngine() string {
+	return In(i18n.Locale()).PluginsInstallDialogDoneHintEngine()
+}
+
+// PluginsInstallDialogDoneHintEngine says "The engine is enabled. Pick it when you create or edit a worker."
+// in the language of msgs.
+func (msgs Messages) PluginsInstallDialogDoneHintEngine() string {
+	return Catalog.Format(msgs.locale, "pluginsInstallDialogDoneHintEngine", nil)
 }
 
 // PluginsInstallDialogFailed says "Could not install the plugin"
@@ -3978,6 +4014,16 @@ func (msgs Messages) PluginsInstallDialogTitle() string {
 	return Catalog.Format(msgs.locale, "pluginsInstallDialogTitle", nil)
 }
 
+// PluginsInstallDialogView says "View plugin"
+// in the language the app shows.
+func PluginsInstallDialogView() string { return In(i18n.Locale()).PluginsInstallDialogView() }
+
+// PluginsInstallDialogView says "View plugin"
+// in the language of msgs.
+func (msgs Messages) PluginsInstallDialogView() string {
+	return Catalog.Format(msgs.locale, "pluginsInstallDialogView", nil)
+}
+
 // PluginsInstallDone says "{name} installed"
 // in the language the app shows.
 func PluginsInstallDone(name string) string { return In(i18n.Locale()).PluginsInstallDone(name) }
@@ -4010,16 +4056,16 @@ func (msgs Messages) PluginsInstalledError() string {
 	return Catalog.Format(msgs.locale, "pluginsInstalledError", nil)
 }
 
-// PluginsInstalledSummary says "{count, plural, one {# plugin, {running} running} other {# plugins, {running} running}}"
+// PluginsInstalledSummary says "{count, plural, one {# plugin, {active} active} other {# plugins, {active} active}}"
 // in the language the app shows.
-func PluginsInstalledSummary(count int, running string) string {
-	return In(i18n.Locale()).PluginsInstalledSummary(count, running)
+func PluginsInstalledSummary(count int, active string) string {
+	return In(i18n.Locale()).PluginsInstalledSummary(count, active)
 }
 
-// PluginsInstalledSummary says "{count, plural, one {# plugin, {running} running} other {# plugins, {running} running}}"
+// PluginsInstalledSummary says "{count, plural, one {# plugin, {active} active} other {# plugins, {active} active}}"
 // in the language of msgs.
-func (msgs Messages) PluginsInstalledSummary(count int, running string) string {
-	return Catalog.Format(msgs.locale, "pluginsInstalledSummary", map[string]any{"count": count, "running": running})
+func (msgs Messages) PluginsInstalledSummary(count int, active string) string {
+	return Catalog.Format(msgs.locale, "pluginsInstalledSummary", map[string]any{"count": count, "active": active})
 }
 
 // PluginsInstalledTitle says "Installed plugins"
@@ -4304,6 +4350,16 @@ func (msgs Messages) PluginsStateNotConfigured() string {
 	return Catalog.Format(msgs.locale, "pluginsStateNotConfigured", nil)
 }
 
+// PluginsStateReady says "Ready"
+// in the language the app shows.
+func PluginsStateReady() string { return In(i18n.Locale()).PluginsStateReady() }
+
+// PluginsStateReady says "Ready"
+// in the language of msgs.
+func (msgs Messages) PluginsStateReady() string {
+	return Catalog.Format(msgs.locale, "pluginsStateReady", nil)
+}
+
 // PluginsStateRetrying says "Retrying"
 // in the language the app shows.
 func PluginsStateRetrying() string { return In(i18n.Locale()).PluginsStateRetrying() }
@@ -4344,11 +4400,11 @@ func (msgs Messages) PluginsStateUninstalling() string {
 	return Catalog.Format(msgs.locale, "pluginsStateUninstalling", nil)
 }
 
-// PluginsSubtitle says "Install channel plugins from the catalog and turn them on without restarting OpenBee"
+// PluginsSubtitle says "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee"
 // in the language the app shows.
 func PluginsSubtitle() string { return In(i18n.Locale()).PluginsSubtitle() }
 
-// PluginsSubtitle says "Install channel plugins from the catalog and turn them on without restarting OpenBee"
+// PluginsSubtitle says "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee"
 // in the language of msgs.
 func (msgs Messages) PluginsSubtitle() string {
 	return Catalog.Format(msgs.locale, "pluginsSubtitle", nil)
@@ -4424,6 +4480,16 @@ func (msgs Messages) PluginsToastRestarted(name string) string {
 	return Catalog.Format(msgs.locale, "pluginsToastRestarted", map[string]any{"name": name})
 }
 
+// PluginsToastSaved says "Settings saved"
+// in the language the app shows.
+func PluginsToastSaved() string { return In(i18n.Locale()).PluginsToastSaved() }
+
+// PluginsToastSaved says "Settings saved"
+// in the language of msgs.
+func (msgs Messages) PluginsToastSaved() string {
+	return Catalog.Format(msgs.locale, "pluginsToastSaved", nil)
+}
+
 // PluginsToastSavedEnableHint says "Settings saved. Enable the plugin to start it."
 // in the language the app shows.
 func PluginsToastSavedEnableHint() string { return In(i18n.Locale()).PluginsToastSavedEnableHint() }
@@ -4446,6 +4512,26 @@ func (msgs Messages) PluginsToastSavedRestarting(name string) string {
 	return Catalog.Format(msgs.locale, "pluginsToastSavedRestarting", map[string]any{"name": name})
 }
 
+// PluginsTypesChannel says "Channels"
+// in the language the app shows.
+func PluginsTypesChannel() string { return In(i18n.Locale()).PluginsTypesChannel() }
+
+// PluginsTypesChannel says "Channels"
+// in the language of msgs.
+func (msgs Messages) PluginsTypesChannel() string {
+	return Catalog.Format(msgs.locale, "pluginsTypesChannel", nil)
+}
+
+// PluginsTypesEngine says "Engines"
+// in the language the app shows.
+func PluginsTypesEngine() string { return In(i18n.Locale()).PluginsTypesEngine() }
+
+// PluginsTypesEngine says "Engines"
+// in the language of msgs.
+func (msgs Messages) PluginsTypesEngine() string {
+	return Catalog.Format(msgs.locale, "pluginsTypesEngine", nil)
+}
+
 // PluginsUninstallDialogConfirm says "Uninstall"
 // in the language the app shows.
 func PluginsUninstallDialogConfirm() string { return In(i18n.Locale()).PluginsUninstallDialogConfirm() }
@@ -4466,6 +4552,18 @@ func PluginsUninstallDialogDescription() string {
 // in the language of msgs.
 func (msgs Messages) PluginsUninstallDialogDescription() string {
 	return Catalog.Format(msgs.locale, "pluginsUninstallDialogDescription", nil)
+}
+
+// PluginsUninstallDialogDescriptionEngine says "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again."
+// in the language the app shows.
+func PluginsUninstallDialogDescriptionEngine() string {
+	return In(i18n.Locale()).PluginsUninstallDialogDescriptionEngine()
+}
+
+// PluginsUninstallDialogDescriptionEngine says "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again."
+// in the language of msgs.
+func (msgs Messages) PluginsUninstallDialogDescriptionEngine() string {
+	return Catalog.Format(msgs.locale, "pluginsUninstallDialogDescriptionEngine", nil)
 }
 
 // PluginsUninstallDialogError says "Could not uninstall the plugin"
@@ -5558,36 +5656,6 @@ func (msgs Messages) WorkersDeleteWorker() string {
 	return Catalog.Format(msgs.locale, "workersDeleteWorker", nil)
 }
 
-// WorkersEnginesClaude says "Claude Code"
-// in the language the app shows.
-func WorkersEnginesClaude() string { return In(i18n.Locale()).WorkersEnginesClaude() }
-
-// WorkersEnginesClaude says "Claude Code"
-// in the language of msgs.
-func (msgs Messages) WorkersEnginesClaude() string {
-	return Catalog.Format(msgs.locale, "workersEnginesClaude", nil)
-}
-
-// WorkersEnginesCodex says "Codex"
-// in the language the app shows.
-func WorkersEnginesCodex() string { return In(i18n.Locale()).WorkersEnginesCodex() }
-
-// WorkersEnginesCodex says "Codex"
-// in the language of msgs.
-func (msgs Messages) WorkersEnginesCodex() string {
-	return Catalog.Format(msgs.locale, "workersEnginesCodex", nil)
-}
-
-// WorkersEnginesPi says "Pi"
-// in the language the app shows.
-func WorkersEnginesPi() string { return In(i18n.Locale()).WorkersEnginesPi() }
-
-// WorkersEnginesPi says "Pi"
-// in the language of msgs.
-func (msgs Messages) WorkersEnginesPi() string {
-	return Catalog.Format(msgs.locale, "workersEnginesPi", nil)
-}
-
 // WorkersFormAdvancedHelper says "All optional. Blank fields use the defaults."
 // in the language the app shows.
 func WorkersFormAdvancedHelper() string { return In(i18n.Locale()).WorkersFormAdvancedHelper() }
@@ -5770,6 +5838,42 @@ func (msgs Messages) WorkersFormEngineHelper() string {
 	return Catalog.Format(msgs.locale, "workersFormEngineHelper", nil)
 }
 
+// WorkersFormEngineSystemDefault says "System default"
+// in the language the app shows.
+func WorkersFormEngineSystemDefault() string {
+	return In(i18n.Locale()).WorkersFormEngineSystemDefault()
+}
+
+// WorkersFormEngineSystemDefault says "System default"
+// in the language of msgs.
+func (msgs Messages) WorkersFormEngineSystemDefault() string {
+	return Catalog.Format(msgs.locale, "workersFormEngineSystemDefault", nil)
+}
+
+// WorkersFormEngineSystemDefaultNamed says "System default ({engine})"
+// in the language the app shows.
+func WorkersFormEngineSystemDefaultNamed(engine string) string {
+	return In(i18n.Locale()).WorkersFormEngineSystemDefaultNamed(engine)
+}
+
+// WorkersFormEngineSystemDefaultNamed says "System default ({engine})"
+// in the language of msgs.
+func (msgs Messages) WorkersFormEngineSystemDefaultNamed(engine string) string {
+	return Catalog.Format(msgs.locale, "workersFormEngineSystemDefaultNamed", map[string]any{"engine": engine})
+}
+
+// WorkersFormEngineUnavailable says "{engine} (not installed)"
+// in the language the app shows.
+func WorkersFormEngineUnavailable(engine string) string {
+	return In(i18n.Locale()).WorkersFormEngineUnavailable(engine)
+}
+
+// WorkersFormEngineUnavailable says "{engine} (not installed)"
+// in the language of msgs.
+func (msgs Messages) WorkersFormEngineUnavailable(engine string) string {
+	return Catalog.Format(msgs.locale, "workersFormEngineUnavailable", map[string]any{"engine": engine})
+}
+
 // WorkersFormName says "Name"
 // in the language the app shows.
 func WorkersFormName() string { return In(i18n.Locale()).WorkersFormName() }
@@ -5798,6 +5902,16 @@ func WorkersFormNamePlaceholder() string { return In(i18n.Locale()).WorkersFormN
 // in the language of msgs.
 func (msgs Messages) WorkersFormNamePlaceholder() string {
 	return Catalog.Format(msgs.locale, "workersFormNamePlaceholder", nil)
+}
+
+// WorkersFormNoEngine says "No engine is installed. Install an engine plugin in Settings > Plugins first."
+// in the language the app shows.
+func WorkersFormNoEngine() string { return In(i18n.Locale()).WorkersFormNoEngine() }
+
+// WorkersFormNoEngine says "No engine is installed. Install an engine plugin in Settings > Plugins first."
+// in the language of msgs.
+func (msgs Messages) WorkersFormNoEngine() string {
+	return Catalog.Format(msgs.locale, "workersFormNoEngine", nil)
 }
 
 // WorkersFormPermissionsHelper says "With no permissions selected, the worker token cannot use any built-in system tool."

@@ -10,11 +10,12 @@ import (
 )
 
 type State struct {
-	Initialized    bool
-	Username       string
-	Password       string
-	Language       string
-	EnabledEngines []string
+	Initialized  bool
+	Username     string
+	Password     string
+	Language     string
+	Engines      []api.EngineInfo
+	LegacyConfig bool
 
 	Workers       []api.Worker
 	Conversations []api.ConversationSummary
@@ -32,15 +33,28 @@ type State struct {
 	RandomNames []string
 }
 
+func Engines(ids ...string) []api.EngineInfo {
+	names := map[string]string{"claude": "Claude Code", "codex": "Codex", "pi": "Pi"}
+	engines := make([]api.EngineInfo, len(ids))
+	for i, id := range ids {
+		name, known := names[id]
+		if !known {
+			name = id
+		}
+		engines[i] = api.EngineInfo{ID: id, Name: api.LocalizedText{"en": name, "zh": name}}
+	}
+	return engines
+}
+
 func seedState() State {
 	st := State{
-		Initialized:    true,
-		Username:       "admin",
-		Password:       "secret",
-		Language:       "en",
-		EnabledEngines: []string{"claude", "codex", "pi"},
-		Conversations:  []api.ConversationSummary{newSummary(api.BeeConversation)},
-		Catalog:        api.PluginCatalog{SchemaVersion: 1},
+		Initialized:   true,
+		Username:      "admin",
+		Password:      "secret",
+		Language:      "en",
+		Engines:       Engines("claude", "codex", "pi"),
+		Conversations: []api.ConversationSummary{newSummary(api.BeeConversation)},
+		Catalog:       api.PluginCatalog{SchemaVersion: 1},
 	}
 	st.normalize()
 	return st
@@ -63,7 +77,7 @@ func (st *State) normalize() {
 
 func cloneState(st State) State {
 	out := st
-	out.EnabledEngines = slices.Clone(st.EnabledEngines)
+	out.Engines = slices.Clone(st.Engines)
 	out.Workers = make([]api.Worker, len(st.Workers))
 	for i, w := range st.Workers {
 		w.EngineArgs = maps.Clone(w.EngineArgs)

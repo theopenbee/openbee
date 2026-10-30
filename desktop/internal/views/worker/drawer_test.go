@@ -81,9 +81,9 @@ func TestDrawerCreateEngineSelectKeepsPanelOpen(t *testing.T) {
 	f.wantDrawerOpen(route.PanelNew)
 	f.click(locales.WorkersFormEngine())
 	f.wantDrawerOpen(route.PanelNew)
-	f.click(locales.WorkersEnginesPi())
+	f.click(piName)
 	f.wantDrawerOpen(route.PanelNew)
-	f.wantShown(locales.WorkersEnginesPi(), locales.WorkersFormSectionBasic())
+	f.wantShown(piName, locales.WorkersFormSectionBasic())
 	f.replaceText(locales.WorkersFormName(), "Nova")
 	f.wantDrawerOpen(route.PanelNew)
 	f.click(locales.WorkersCreateWorker())
@@ -97,10 +97,10 @@ func TestDrawerCreateEngineSelectKeepsPanelOpen(t *testing.T) {
 func TestDrawerCreateEscapeClosesOnlyTheEnginePopup(t *testing.T) {
 	f := newFixture(t, drawerW, route.ChatPanel(api.BeeConversation, route.PanelNew), withSystemEngine("claude"))
 	f.click(locales.WorkersFormEngine())
-	f.wantShown(locales.WorkersEnginesPi())
+	f.wantShown(piName)
 	f.T.Key(0, ui.KeyEscape)
 	f.settle()
-	f.wantHidden(locales.WorkersEnginesPi())
+	f.wantHidden(piName)
 	f.wantDrawerOpen(route.PanelNew)
 }
 
