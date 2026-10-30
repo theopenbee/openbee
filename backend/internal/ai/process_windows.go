@@ -10,12 +10,16 @@ import (
 func (p *CmdProcess) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.cmd == nil || p.cmd.Process == nil {
+	if p.stopped || p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
 	pid := p.cmd.Process.Pid
 	kill := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
-	return kill.Run()
+	if err := kill.Run(); err != nil {
+		return err
+	}
+	p.stopped = true
+	return nil
 }
 
 func ConfigureCmd(cmd *exec.Cmd) {}

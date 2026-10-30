@@ -633,7 +633,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeEngineMissing_KeepsSession(t *testin
 		t.Run(name, func(t *testing.T) {
 			ss := newMockSessionStore()
 			_ = ss.UpsertSessionContext(context.Background(), "s1", "w1", "codex-session-id", "codex")
-			mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", engineErr)}
+			mgr := &tableExecManager{execErr: engineErr}
 			fn := &mockFailureNotifier{}
 			in := make(chan task.DispatchTask, 4)
 			d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore("codex", "", aitest.IDs("codex")), task.WithFailureNotifier(fn))
@@ -646,7 +646,7 @@ func TestTaskDispatcher_ImmediateTask_ResumeEngineMissing_KeepsSession(t *testin
 
 			require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
 			fn.mu.Lock()
-			assert.Equal(t, fmt.Sprintf("start runtime: %v", engineErr), fn.calls[0].info.Reason)
+			assert.Equal(t, engineErr.Error(), fn.calls[0].info.Reason)
 			fn.mu.Unlock()
 			assert.EqualValues(t, 1, mgr.executed.Load(), "expected no fresh retry")
 			assert.Zero(t, ss.deleteCount())
@@ -670,7 +670,7 @@ func TestTaskDispatcher_FreshStartEngineMissing_StoresNoSession(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ss := newMockSessionStore()
-			mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", tc.engineErr)}
+			mgr := &tableExecManager{execErr: tc.engineErr}
 			fn := &mockFailureNotifier{}
 			in := make(chan task.DispatchTask, 4)
 			d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore(tc.engine, "", aitest.IDs()), task.WithFailureNotifier(fn))
@@ -691,10 +691,49 @@ func TestTaskDispatcher_FreshStartEngineMissing_StoresNoSession(t *testing.T) {
 	}
 }
 
+func TestTaskDispatcher_EngineMissing_NoticeNamesTheWorker(t *testing.T) {
+	cases := []struct {
+		name     string
+		worker   model.Worker
+		lookup   error
+		wantName string
+	}{
+		{"WorkerName", model.Worker{ID: "w1", Name: "coder"}, nil, "coder"},
+		{"UnnamedWorkerFallsBackToID", model.Worker{ID: "w1"}, nil, "w1"},
+		{"LookupFailureFallsBackToID", model.Worker{}, errors.New("worker not found"), "w1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			engineErr := ai.ErrEngineUnavailable("pi")
+			mgr := &tableExecManager{execErr: engineErr}
+			fn := &mockFailureNotifier{}
+			in := make(chan task.DispatchTask, 4)
+			d := task.New(mgr, &mockTaskStore{}, newMockSessionStore(), &mockExecutionQuerier{}, in,
+				enginecfg.NewStore("pi", "", aitest.IDs("pi")),
+				task.WithWorkerLookup(&mockWorkerLookup{worker: tc.worker, err: tc.lookup}),
+				task.WithFailureNotifier(fn))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go d.Run(ctx)
+
+			in <- immediateTask("s1", "w1", "hello")
+
+			require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
+			fn.mu.Lock()
+			defer fn.mu.Unlock()
+			assert.Equal(t, tc.wantName, fn.calls[0].info.WorkerName)
+			if tc.lookup == nil {
+				assert.Equal(t, `engine "pi" is not installed or enabled`, fn.calls[0].info.Reason)
+			}
+		})
+	}
+}
+
 func TestTaskDispatcher_ScheduledLocalWorkerStartError_KeepsChatSession(t *testing.T) {
 	ss := newMockSessionStore()
 	_ = ss.UpsertSessionContext(context.Background(), "local:u1:worker:w1", "w1", "chat-session-id", "codex")
-	mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", ai.ErrEngineUnavailable("codex"))}
+	mgr := &tableExecManager{execErr: ai.ErrEngineUnavailable("codex")}
 	fn := &mockFailureNotifier{}
 	in := make(chan task.DispatchTask, 4)
 	d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore("codex", "", aitest.IDs()), task.WithFailureNotifier(fn))

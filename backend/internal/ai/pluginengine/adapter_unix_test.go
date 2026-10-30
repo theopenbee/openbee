@@ -4,15 +4,33 @@ package pluginengine
 
 import (
 	"context"
+	"os/exec"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 )
+
+const sweepWarning = "kill engine plugin process group"
+
+func observedSpecAdapter(spec Spec) (*Adapter, *observer.ObservedLogs) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	a := New(spec)
+	a.log = zap.New(core)
+	return a, logs
+}
+
+func assertNoSweepWarning(t *testing.T, logs *observer.ObservedLogs) {
+	t.Helper()
+	assert.Empty(t, logs.FilterMessage(sweepWarning).All(), "a stopped or cancelled process group must not log a kill warning")
+}
 
 func waitChildPID(t *testing.T, dir string) int {
 	t.Helper()
@@ -144,4 +162,116 @@ func TestRun_KilledAfterResponseFails(t *testing.T) {
 	require.NoError(t, res.Process.Stop())
 	assert.Equal(t, ai.Output{Type: ai.OutputError, Content: "signal: killed"}, awaitOutput(t, res))
 	assertGone(t, child)
+}
+
+func TestRun_StopDoesNotWarnAboutSweep(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "sleep-with-child")
+	a, logs := observedSpecAdapter(spec)
+	res, err := a.Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = res.Process.Stop() })
+	child := waitChildPID(t, recordDir)
+
+	require.NoError(t, res.Process.Stop())
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertGone(t, child)
+	assertNoSweepWarning(t, logs)
+}
+
+func TestRun_ContextCancelDoesNotWarnAboutSweep(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "sleep-with-child")
+	a, logs := observedSpecAdapter(spec)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	res, err := a.Run(ctx, t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = res.Process.Stop() })
+	child := waitChildPID(t, recordDir)
+
+	cancel()
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertGone(t, child)
+	assertNoSweepWarning(t, logs)
+}
+
+func TestRun_TimeoutDoesNotWarnAboutSweep(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "sleep-with-child")
+	a, logs := observedSpecAdapter(spec)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	res, err := a.Run(ctx, t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = res.Process.Stop() })
+	child := waitChildPID(t, recordDir)
+
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertGone(t, child)
+	assertNoSweepWarning(t, logs)
+}
+
+func TestRun_FailedRunWithoutLeftoversDoesNotWarnAboutSweep(t *testing.T) {
+	spec, _ := fakeSpec(t, "run-error")
+	a, logs := observedSpecAdapter(spec)
+	res, err := a.Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, ai.Output{Type: ai.OutputError, Content: "fakecli exited with code 2"}, awaitOutput(t, res))
+	assertNoSweepWarning(t, logs)
+}
+
+func TestCheck_TimeoutDoesNotWarnAboutSweep(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "sleep-with-child")
+	a, logs := observedSpecAdapter(spec)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	_, err := a.Check(ctx)
+	require.Error(t, err)
+	assertGone(t, waitChildPID(t, recordDir))
+	assertNoSweepWarning(t, logs)
+}
+
+func newSweepSubject(t *testing.T) (*pluginProcess, *observer.ObservedLogs) {
+	t.Helper()
+	cmd := exec.Command("sleep", "300")
+	ai.ConfigureCmd(cmd)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Wait()
+	})
+	core, logs := observer.New(zapcore.DebugLevel)
+	return &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core)}, logs
+}
+
+func TestSweep_SkipsAfterStop(t *testing.T) {
+	p, logs := newSweepSubject(t)
+
+	require.NoError(t, p.proc.Stop())
+	time.Sleep(200 * time.Millisecond)
+	p.sweep()
+
+	assertNoSweepWarning(t, logs)
+}
+
+func TestSweep_KillsGroupThatWasNotStopped(t *testing.T) {
+	p, logs := newSweepSubject(t)
+
+	p.sweep()
+
+	assertNoSweepWarning(t, logs)
+	assert.EqualError(t, p.cmd.Wait(), "signal: killed")
+}
+
+func TestSweep_IgnoresDeniedSignalOnExitedLeader(t *testing.T) {
+	cmd := exec.Command("true")
+	ai.ConfigureCmd(cmd)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() { _ = cmd.Wait() })
+	time.Sleep(300 * time.Millisecond)
+	core, logs := observer.New(zapcore.DebugLevel)
+	p := &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core)}
+
+	p.sweep()
+
+	assertNoSweepWarning(t, logs)
 }

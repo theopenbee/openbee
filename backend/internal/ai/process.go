@@ -13,8 +13,9 @@ import (
 
 // CmdProcess implements Process for an os/exec.Cmd.
 type CmdProcess struct {
-	cmd *exec.Cmd
-	mu  sync.Mutex
+	cmd     *exec.Cmd
+	mu      sync.Mutex
+	stopped bool
 }
 
 // NewCmdProcess wraps an exec.Cmd as a Process.

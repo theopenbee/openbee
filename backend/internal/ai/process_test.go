@@ -57,3 +57,16 @@ func TestCmdProcess_Stop_KillsProcessGroup(t *testing.T) {
 
 	assert.False(t, utils.IsProcessAlive(childPID), "child process %d still alive after Stop() — process group kill failed", childPID)
 }
+
+func TestCmdProcess_Stop_IsIdempotent(t *testing.T) {
+	cmd := exec.Command("sleep", "10000")
+	ConfigureCmd(cmd)
+	require.NoError(t, cmd.Start())
+	proc := NewCmdProcess(cmd)
+
+	require.NoError(t, proc.Stop())
+	time.Sleep(200 * time.Millisecond)
+	require.NoError(t, proc.Stop())
+	assert.EqualError(t, cmd.Wait(), "signal: killed")
+	require.NoError(t, proc.Stop())
+}

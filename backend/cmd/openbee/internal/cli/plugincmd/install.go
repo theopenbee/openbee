@@ -111,19 +111,23 @@ func installAll(ctx context.Context, c *Client, specs []string, out io.Writer, i
 	return installed, nil
 }
 
-func printConfigureHints(out io.Writer, ids []string) {
+func printConfigureHints(ctx context.Context, c *Client, out io.Writer, ids []string) {
 	if len(ids) == 0 {
 		return
 	}
 	fmt.Fprintln(out, "Plugins run with your user permissions. Only install plugins you trust.")
 	for _, id := range ids {
+		if p, err := c.Get(ctx, id); err == nil && p.isEngine() && p.Enabled {
+			fmt.Fprintf(out, "%s is enabled; check it with openbee plugin list\n", id)
+			continue
+		}
 		fmt.Fprintf(out, "Next: openbee plugin configure %s\n", id)
 	}
 }
 
 func installAndHint(ctx context.Context, c *Client, specs []string, out io.Writer, interval, timeout time.Duration) error {
 	ids, err := installAll(ctx, c, specs, out, interval, timeout)
-	printConfigureHints(out, ids)
+	printConfigureHints(ctx, c, out, ids)
 	return err
 }
 

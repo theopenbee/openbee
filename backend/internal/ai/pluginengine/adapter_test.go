@@ -406,3 +406,14 @@ func TestParseResponse(t *testing.T) {
 		assert.Equal(t, c.errText, resp.Err, c.line)
 	}
 }
+
+func TestStart_CancelStopsTheProcessTree(t *testing.T) {
+	spec, _ := fakeSpec(t, "echo")
+	a := New(spec)
+	p, err := a.start(context.Background(), methodCheck, struct{}{}, func(runtimeEnv []string) []string {
+		return append(ai.BuildBaseEnv(), runtimeEnv...)
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.wait())
+	assert.NotNil(t, p.cmd.Cancel, "cancelling the context must stop the plugin's whole process tree on every platform")
+}

@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -125,8 +126,8 @@ func TestResolveEngine_WorkerEngineGone(t *testing.T) {
 	assert.Nil(t, got)
 
 	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: coder.ID, TriggerInput: "hi", SessionID: "s1"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `engine "codex" is not installed or enabled`)
+	require.EqualError(t, err, `engine "codex" is not installed or enabled`)
+	assert.True(t, ai.IsEngineMissing(err))
 	stored, err := mgr.executionStore.GetByID(exec.ID)
 	require.NoError(t, err)
 	assert.Equal(t, model.ExecStatusFailed, stored.Status)
@@ -139,6 +140,20 @@ func TestResolveEngine_WorkerEngineGone(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pi.Runs(), 1)
 	assert.Equal(t, ai.RoleWorker, pi.Runs()[0].Role)
+}
+
+func TestExecuteWorker_OtherStartErrorsStayWrapped(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: func(context.Context, string, string, ai.RunOptions, string) (ai.RunResult, error) {
+		return ai.RunResult{}, errors.New("spawn failed")
+	}}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "helper"})
+	require.NoError(t, err)
+
+	_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s1"})
+	require.EqualError(t, err, "start runtime: spawn failed")
+	assert.False(t, ai.IsEngineMissing(err))
 }
 
 func TestResolveEngine_NoEngine(t *testing.T) {

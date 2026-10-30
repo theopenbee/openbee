@@ -98,6 +98,26 @@ func TestInstallAll_SequentialWithSummary(t *testing.T) {
 	assert.Contains(t, text, "ETARGET")
 }
 
+func TestInstall_EngineIsEnabledAutomatically(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(Detail{Plugin: Plugin{ID: "pi", Type: "engine", Enabled: true, State: "ready"}})
+	out, err := runCmd(t, api, &fakePrompter{}, "install", "@theopenbee/engine-pi@0.1.0", "@theopenbee/channel-lark@0.1.0")
+	require.NoError(t, err)
+	assert.Contains(t, out, "Installed pi")
+	assert.Contains(t, out, "pi is enabled; check it with openbee plugin list")
+	assert.NotContains(t, out, "openbee plugin configure pi")
+	assert.Contains(t, out, "openbee plugin configure lark")
+}
+
+func TestInstall_EngineThatStaysDisabledKeepsConfigureHint(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(Detail{Plugin: Plugin{ID: "pi", Type: "engine", State: "not_configured"}})
+	out, err := runCmd(t, api, &fakePrompter{}, "install", "@theopenbee/engine-pi@0.1.0")
+	require.NoError(t, err)
+	assert.Contains(t, out, "Next: openbee plugin configure pi")
+	assert.NotContains(t, out, "pi is enabled")
+}
+
 func TestWaitOperation_Timeout(t *testing.T) {
 	api := newFakeAPI()
 	api.ops["slow"] = Operation{ID: "slow", Status: "running"}

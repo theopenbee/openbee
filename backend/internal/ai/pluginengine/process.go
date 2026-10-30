@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -50,9 +51,7 @@ func (a *Adapter) start(ctx context.Context, method string, params any, env func
 	cmd.Stdout = p.stdout
 	cmd.Stderr = p.stderr
 	ai.ConfigureCmd(cmd)
-	if runtime.GOOS != "windows" {
-		cmd.Cancel = p.proc.Stop
-	}
+	cmd.Cancel = p.proc.Stop
 	cmd.WaitDelay = waitDelay
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start engine plugin: %w", err)
@@ -80,7 +79,7 @@ func (p *pluginProcess) sweep() {
 	if runtime.GOOS == "windows" {
 		return
 	}
-	if err := p.proc.Stop(); err != nil {
+	if err := p.proc.Stop(); err != nil && !errors.Is(err, syscall.EPERM) {
 		p.log.Warn("kill engine plugin process group", zap.Error(err))
 	}
 }

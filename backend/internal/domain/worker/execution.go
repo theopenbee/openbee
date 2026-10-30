@@ -62,6 +62,9 @@ func (m *Manager) ExecuteWorker(ctx context.Context, req ExecuteRequest) (model.
 	if launchErr != nil {
 		m.executionStore.UpdateResult(exec.ID, launchErr.Error(), model.ExecStatusFailed)
 		m.setStatus(worker.ID, model.WorkerStatusError)
+		if ai.IsEngineMissing(launchErr) {
+			return exec, launchErr
+		}
 		return exec, fmt.Errorf("start runtime: %w", launchErr)
 	}
 

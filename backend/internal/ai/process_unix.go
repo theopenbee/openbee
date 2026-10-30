@@ -11,12 +11,13 @@ import (
 func (p *CmdProcess) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.cmd == nil || p.cmd.Process == nil {
+	if p.stopped || p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
 	if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 		return err
 	}
+	p.stopped = true
 	return nil
 }
 

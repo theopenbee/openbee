@@ -408,9 +408,13 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
 			}
 		}
+		failedWorker := task.WorkerID
+		if worker != nil {
+			failedWorker = workerName(worker.Name, task.WorkerID)
+		}
 		d.notifyFailure(taskCtx, task, model.FailureInfo{
 			Reason:     err.Error(),
-			WorkerName: task.WorkerID,
+			WorkerName: failedWorker,
 		})
 		d.emit(task, StateFailed, 0)
 		return

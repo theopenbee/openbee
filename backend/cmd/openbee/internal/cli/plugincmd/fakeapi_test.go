@@ -56,7 +56,7 @@ func idFromSpec(spec string) string {
 		name = spec[:i]
 	}
 	name = name[strings.LastIndex(name, "/")+1:]
-	return strings.TrimPrefix(name, "channel-")
+	return strings.TrimPrefix(strings.TrimPrefix(name, "channel-"), "engine-")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
