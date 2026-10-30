@@ -33,7 +33,28 @@ func TestList_ShowsTableAndErrors(t *testing.T) {
 func TestList_Empty(t *testing.T) {
 	out, err := runCmd(t, newFakeAPI(), &fakePrompter{}, "list")
 	require.NoError(t, err)
-	assert.Contains(t, out, "No channel plugins installed")
+	assert.Contains(t, out, "No plugins installed")
+}
+
+func TestList_ShowsType(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(Detail{Plugin: Plugin{ID: "telegram", Type: "channel", Name: plugin.LocalizedText{"en": "Telegram"}, Version: "0.1.0", Enabled: true, State: "running", BotName: "TBot"}})
+	api.addPlugin(Detail{Plugin: Plugin{ID: "pi", Type: "engine", Name: plugin.LocalizedText{"en": "Pi"}, Version: "0.1.0", Enabled: true, State: "ready"}})
+	api.addPlugin(Detail{Plugin: Plugin{ID: "legacy", Name: plugin.LocalizedText{"en": "Legacy"}, Version: "0.1.0", State: "disabled"}})
+	out, err := runCmd(t, api, &fakePrompter{}, "list")
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	require.Len(t, lines, 4)
+	header := strings.Fields(lines[0])
+	assert.Equal(t, []string{"ID", "NAME", "TYPE", "VERSION", "STATE", "BOT", "NAME"}, header)
+	rows := map[string][]string{}
+	for _, line := range lines[1:] {
+		f := strings.Fields(line)
+		rows[f[0]] = f
+	}
+	assert.Equal(t, []string{"telegram", "Telegram", "channel", "0.1.0", "running", "TBot"}, rows["telegram"])
+	assert.Equal(t, []string{"pi", "Pi", "engine", "0.1.0", "ready", "-"}, rows["pi"])
+	assert.Equal(t, []string{"legacy", "Legacy", "channel", "0.1.0", "disabled", "-"}, rows["legacy"])
 }
 
 func TestEnable_WaitsForRunning(t *testing.T) {

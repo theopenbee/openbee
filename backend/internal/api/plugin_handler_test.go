@@ -199,6 +199,25 @@ func TestPluginHandler_List(t *testing.T) {
 	assert.Equal(t, false, p["has_setup"])
 }
 
+func TestPluginHandler_ListIncludesType(t *testing.T) {
+	svc := &fakePluginService{statuses: []pluginmgr.Status{
+		{ID: "telegram", Type: plugin.TypeChannel, State: pluginmgr.StateRunning},
+		{ID: "pi", Type: plugin.TypeEngine, State: pluginmgr.StateReady},
+	}}
+	w, body := doJSON(t, newPluginRouter(svc), http.MethodGet, "/api/plugins", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	items := body["plugins"].([]any)
+	require.Len(t, items, 2)
+	assert.Equal(t, "channel", items[0].(map[string]any)["type"])
+	assert.Equal(t, "engine", items[1].(map[string]any)["type"])
+	assert.Equal(t, "ready", items[1].(map[string]any)["state"])
+
+	svc.detail = pluginmgr.Detail{Status: pluginmgr.Status{ID: "pi", Type: plugin.TypeEngine, State: pluginmgr.StateReady}}
+	w, body = doJSON(t, newPluginRouter(svc), http.MethodGet, "/api/plugins/pi", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "engine", body["type"])
+}
+
 func TestPluginHandler_Get(t *testing.T) {
 	svc := &fakePluginService{detail: pluginmgr.Detail{
 		Status: pluginmgr.Status{ID: "telegram", State: pluginmgr.StateDisabled},
@@ -321,6 +340,13 @@ func TestPluginHandler_SettingsValidationError(t *testing.T) {
 	svc := &fakePluginService{err: errors.New("disk full")}
 	w, _ := doJSON(t, newPluginRouter(svc), http.MethodPut, "/api/plugins/telegram/settings", map[string]any{"config": map[string]any{}})
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestPluginHandler_BotNameNotSupported(t *testing.T) {
+	svc := &fakePluginService{err: apperr.New(pluginmgr.CodeBotNameNotSupported, "plugin \"pi\" is an engine and has no bot name")}
+	w, body := doJSON(t, newPluginRouter(svc), http.MethodPut, "/api/plugins/pi/settings", map[string]any{"bot_name": "PiBot"})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "plugin_bot_name_not_supported", body["code"])
 }
 
 func TestPluginHandler_Lifecycle(t *testing.T) {

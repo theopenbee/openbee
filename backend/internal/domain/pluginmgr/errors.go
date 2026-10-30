@@ -18,7 +18,7 @@ const (
 	CodeNoSetup             = "plugin_no_setup"
 	CodeSetupNotFound       = "plugin_setup_not_found"
 	CodeSetupFinished       = "plugin_setup_finished"
-	CodeBotNameNotSupported = "bot_name_not_supported"
+	CodeBotNameNotSupported = "plugin_bot_name_not_supported"
 )
 
 func errNotFound(id string) error {

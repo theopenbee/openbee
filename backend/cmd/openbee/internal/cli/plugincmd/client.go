@@ -40,6 +40,7 @@ type Plugin struct {
 	ID          string               `json:"id"`
 	Package     string               `json:"package"`
 	Source      string               `json:"source"`
+	Type        string               `json:"type"`
 	Version     string               `json:"version"`
 	Path        string               `json:"path"`
 	Name        plugin.LocalizedText `json:"name"`
@@ -50,6 +51,15 @@ type Plugin struct {
 	Error       string               `json:"error"`
 	HasSetup    bool                 `json:"has_setup"`
 }
+
+func (p Plugin) kind() string {
+	if p.Type == "" {
+		return plugin.TypeChannel
+	}
+	return p.Type
+}
+
+func (p Plugin) isEngine() bool { return p.kind() == plugin.TypeEngine }
 
 type Detail struct {
 	Plugin

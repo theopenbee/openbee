@@ -39,17 +39,17 @@ func (d *deps) newListCommand(client func() (*Client, error)) *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				fmt.Fprintln(d.Out, "No channel plugins installed.")
+				fmt.Fprintln(d.Out, "No plugins installed.")
 				return nil
 			}
 			w := tabwriter.NewWriter(d.Out, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tVERSION\tSTATE\tBOT NAME")
+			fmt.Fprintln(w, "ID\tNAME\tTYPE\tVERSION\tSTATE\tBOT NAME")
 			for _, p := range list {
 				bot := p.BotName
 				if bot == "" {
 					bot = "-"
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), displayVersion(p.Version), stateLabel(p.State), bot)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), p.kind(), displayVersion(p.Version), stateLabel(p.State), bot)
 			}
 			if err := w.Flush(); err != nil {
 				return err

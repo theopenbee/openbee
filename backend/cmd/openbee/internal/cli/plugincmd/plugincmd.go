@@ -41,7 +41,7 @@ func newCommand(dd deps) *cobra.Command {
 	var cfgPath string
 	root := &cobra.Command{
 		Use:          "plugin",
-		Short:        "Manage channel plugins",
+		Short:        "Manage plugins",
 		SilenceUsage: true,
 	}
 	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")

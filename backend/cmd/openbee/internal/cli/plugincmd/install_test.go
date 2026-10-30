@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +134,44 @@ func TestSearch_NonInteractivePrintsTable(t *testing.T) {
 	assert.Contains(t, out, "lark bot")
 	assert.Contains(t, out, "0.1.0 → 0.2.0")
 	assert.Empty(t, api.installs)
+}
+
+func TestSearch_ShowsCategory(t *testing.T) {
+	api := newFakeAPI()
+	cat := testCatalog()
+	engine := cat.Plugins[0]
+	engine.ID, engine.Package, engine.Category = "pi", "@theopenbee/engine-pi", "engine"
+	engine.Name = plugin.LocalizedText{"en": "Pi engine"}
+	engine.Installed, engine.UpdateAvailable = false, false
+	cat.Plugins = append(cat.Plugins, engine)
+	api.catalog = cat
+	out, err := runCmd(t, api, &fakePrompter{}, "search")
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	assert.Equal(t, []string{"ID", "NAME", "CATEGORY", "VERSION", "STATUS"}, strings.Fields(lines[0]))
+	rows := map[string][]string{}
+	for _, line := range lines[1:] {
+		f := strings.Fields(line)
+		rows[f[0]] = f
+	}
+	require.Contains(t, rows, "pi")
+	require.Contains(t, rows, "lark")
+	assert.Equal(t, []string{"pi", "Pi", "engine", "engine", "0.1.0", "available"}, rows["pi"])
+	assert.Equal(t, []string{"lark", "lark", "bot", "channel", "0.1.0", "available"}, rows["lark"])
+}
+
+func TestSearch_KeywordMatchesCategory(t *testing.T) {
+	api := newFakeAPI()
+	cat := testCatalog()
+	engine := cat.Plugins[1]
+	engine.ID, engine.Package, engine.Category = "pi", "@theopenbee/pi", "engine"
+	engine.Name = plugin.LocalizedText{"en": "Pi"}
+	cat.Plugins = append(cat.Plugins, engine)
+	api.catalog = cat
+	out, err := runCmd(t, api, &fakePrompter{}, "search", "engine")
+	require.NoError(t, err)
+	assert.Contains(t, out, "pi")
+	assert.NotContains(t, out, "lark")
 }
 
 func TestSearch_KeywordFilters(t *testing.T) {

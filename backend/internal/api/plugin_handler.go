@@ -48,6 +48,7 @@ type pluginView struct {
 	ID          string               `json:"id"`
 	Package     string               `json:"package,omitempty"`
 	Source      string               `json:"source"`
+	Type        string               `json:"type"`
 	Version     string               `json:"version,omitempty"`
 	Path        string               `json:"path"`
 	Name        plugin.LocalizedText `json:"name"`
@@ -94,7 +95,7 @@ type catalogView struct {
 
 func toPluginView(s pluginmgr.Status) pluginView {
 	return pluginView{
-		ID: s.ID, Package: s.Package, Source: s.Source, Version: s.Version, Path: s.Path,
+		ID: s.ID, Package: s.Package, Source: s.Source, Type: s.Type, Version: s.Version, Path: s.Path,
 		Name: s.Name, Description: s.Description, Enabled: s.Enabled, BotName: s.BotName,
 		State: s.State, Error: s.Error, HasSetup: s.HasSetup,
 	}

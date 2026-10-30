@@ -134,6 +134,9 @@ func collectSettings(d Detail, p Prompter, runSetup func(path string) (map[strin
 			return nil, nil, err
 		}
 	}
+	if d.isEngine() {
+		return nil, cfg, nil
+	}
 	fmt.Fprintln(out, "  The name users @mention in group chats; leave empty for none.")
 	msg := "Bot name"
 	if d.BotName != "" {
@@ -317,6 +320,9 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 			if err != nil {
 				return err
 			}
+			if detail.isEngine() && cmd.Flags().Changed("bot-name") {
+				return fmt.Errorf("%s is an engine and has no bot name; remove --bot-name", id)
+			}
 			var namePtr *string
 			var cfg map[string]any
 			if len(sets) > 0 || cmd.Flags().Changed("bot-name") {
@@ -328,7 +334,11 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 				}
 			} else {
 				if !d.Prompter.Interactive() {
-					return errors.New("Not running in a terminal; pass the settings with --set key=value (and --bot-name, --enable).")
+					flags := "--bot-name, --enable"
+					if detail.isEngine() {
+						flags = "--enable"
+					}
+					return fmt.Errorf("Not running in a terminal; pass the settings with --set key=value (and %s).", flags)
 				}
 				if namePtr, cfg, err = collectSettings(detail, d.Prompter, d.RunSetup, d.Out); err != nil {
 					return err

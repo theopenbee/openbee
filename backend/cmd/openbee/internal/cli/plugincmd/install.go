@@ -132,7 +132,7 @@ func matchesKeyword(p CatalogPlugin, keyword string) bool {
 		return true
 	}
 	k := strings.ToLower(keyword)
-	fields := []string{p.ID, p.Package}
+	fields := []string{p.ID, p.Package, p.Category}
 	for _, v := range p.Name {
 		fields = append(fields, v)
 	}
@@ -146,6 +146,13 @@ func matchesKeyword(p CatalogPlugin, keyword string) bool {
 		}
 	}
 	return false
+}
+
+func displayCategory(c string) string {
+	if c == "" {
+		return "-"
+	}
+	return c
 }
 
 func catalogStatus(p CatalogPlugin) string {
@@ -194,9 +201,9 @@ func (d *deps) newSearchCommand(client func() (*Client, error)) *cobra.Command {
 				return nil
 			}
 			w := tabwriter.NewWriter(d.Out, 0, 4, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tNAME\tVERSION\tSTATUS")
+			fmt.Fprintln(w, "ID\tNAME\tCATEGORY\tVERSION\tSTATUS")
 			for _, p := range matched {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), p.Version, catalogStatus(p))
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.ID, p.Name.Get(cliLang), displayCategory(p.Category), p.Version, catalogStatus(p))
 			}
 			if err := w.Flush(); err != nil {
 				return err

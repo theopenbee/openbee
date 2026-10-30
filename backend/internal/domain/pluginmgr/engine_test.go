@@ -360,7 +360,7 @@ func TestEngine_RejectsBotName(t *testing.T) {
 	name := "PiBot"
 	err := h.m.UpdateSettings(context.Background(), "pi", &name, nil)
 	assert.Equal(t, CodeBotNameNotSupported, apperr.Code(err))
-	assert.Equal(t, "bot_name_not_supported", CodeBotNameNotSupported)
+	assert.Equal(t, "plugin_bot_name_not_supported", CodeBotNameNotSupported)
 	assert.Empty(t, h.state("pi").BotName)
 	assert.Len(t, h.engines.builds("pi"), 1)
 

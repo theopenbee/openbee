@@ -148,6 +148,75 @@ func TestConfigure_InteractiveEnablesWhenConfirmed(t *testing.T) {
 	assert.Contains(t, out, "telegram is running")
 }
 
+func piDetail(config map[string]any) Detail {
+	return Detail{
+		Plugin: Plugin{ID: "pi", Type: "engine", State: "disabled", Path: "/plugins/pi"},
+		Fields: []plugin.ConfigField{{Key: "path", Type: plugin.FieldString, Label: plugin.LocalizedText{"en": "CLI path"}}},
+		Config: config,
+	}
+}
+
+func TestConfigure_EngineSkipsBotName(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(piDetail(nil))
+	api.states["pi"] = []string{"ready"}
+	p := &fakePrompter{interactive: true, answers: []any{"/opt/pi", true}}
+	out, err := runCmd(t, api, p, "configure", "pi")
+	require.NoError(t, err)
+	for _, asked := range p.asked {
+		assert.NotContains(t, asked, "Bot name")
+	}
+	assert.NotContains(t, out, "mention")
+	assert.Equal(t, []string{"settings:pi", "enable:pi"}, api.actions)
+	assert.Equal(t, map[string]any{"path": "/opt/pi"}, api.settings["pi"])
+	assert.Nil(t, api.botNames["pi"])
+}
+
+func TestCollectSettings_EngineDoesNotAskBotName(t *testing.T) {
+	p := &fakePrompter{interactive: true, answers: []any{"/opt/pi"}}
+	name, cfg, err := collectSettings(piDetail(nil), p, noSetup, &bytes.Buffer{})
+	require.NoError(t, err)
+	assert.Nil(t, name)
+	assert.Equal(t, map[string]any{"path": "/opt/pi"}, cfg)
+	assert.Equal(t, []string{"input:CLI path"}, p.asked)
+}
+
+func TestConfigure_EngineRejectsBotNameFlag(t *testing.T) {
+	for _, value := range []string{"PiBot", ""} {
+		api := newFakeAPI()
+		api.addPlugin(piDetail(nil))
+		_, err := runCmd(t, api, &fakePrompter{}, "configure", "pi", "--set", "path=/opt/pi", "--bot-name", value)
+		require.Error(t, err)
+		assert.Equal(t, `pi is an engine and has no bot name; remove --bot-name`, err.Error())
+		assert.Empty(t, api.actions)
+		assert.Nil(t, api.settings["pi"])
+	}
+}
+
+func TestConfigure_NonTTYHintMentionsBotNameOnlyForChannels(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(tgDetail(nil))
+	api.addPlugin(piDetail(nil))
+	_, err := runCmd(t, api, &fakePrompter{}, "configure", "telegram")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--bot-name")
+	_, err = runCmd(t, api, &fakePrompter{}, "configure", "pi")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "--bot-name")
+	assert.Contains(t, err.Error(), "--set")
+}
+
+func TestConfigure_ChannelStillAsksBotName(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(tgDetail(map[string]any{"token": "****abcd"}))
+	api.states["telegram"] = []string{"running"}
+	p := &fakePrompter{interactive: true, answers: []any{"", "", "10", false, "", "TBot", true}}
+	_, err := runCmd(t, api, p, "configure", "telegram")
+	require.NoError(t, err)
+	require.NotNil(t, api.botNames["telegram"])
+	assert.Equal(t, "TBot", *api.botNames["telegram"])
+}
+
 func TestConfigure_EnabledPluginRestartsAndWaits(t *testing.T) {
 	api := newFakeAPI()
 	d := tgDetail(map[string]any{"token": "****abcd"})
