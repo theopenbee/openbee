@@ -49,3 +49,5 @@
 
 - Right after a publish, don't probe the new tarball URL before it exists; the 404 gets cached for a few minutes. Use `npm install --prefer-online` to skip the local packument cache.
 - While the plugin catalog is unpublished, install by package (the script's default `npm:` spec), or pass `--env OPENBEE_PLUGIN_CATALOG=<local catalog.json>` to `up`.
+- `POST /api/plugins/install` takes npm specs, not catalog ids: a bare `pi` would install the unrelated npm package named `pi`. The script resolves engine ids through the catalog (`package@version`) first, and installs `--engine-src`/`NAME=DIR` as absolute directories.
+- Builds from before engine plugins have no `/api/plugins` engine support, so `up` cannot install pi into them; test those builds with an older copy of the script.

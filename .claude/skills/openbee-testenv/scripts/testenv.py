@@ -26,6 +26,9 @@ PORT_RANGE = range(12360, 12380)
 DEFAULT_NAME = "e2e"
 LINEAR_LABEL = "openbee-e2e"
 STATE_DIR = ".openbee"
+DEFAULT_ENGINE = "pi"
+ENGINE_READY_TIMEOUT = 60
+PLUGIN_INSTALL_TIMEOUT = 300
 
 CHANNELS = {
     "telegram": {"keys": ["token"], "defaults": {"auth_code": ""}, "package": "@theopenbee/channel-telegram"},
@@ -240,13 +243,6 @@ def read_secret(name):
     return p.read_text().strip()
 
 
-def engine_bin(name):
-    path = shutil.which(name)
-    if not path:
-        die(f"engine {name} not found on PATH")
-    return path
-
-
 def render_config(meta):
     cfg = {
         "language": "zh",
@@ -259,17 +255,10 @@ def render_config(meta):
         },
         "database": {"path": str(db_path(meta))},
         "bee": {
-            "engine": {"default": "pi"},
-            "engines": {
-                "claude": {"enabled": False},
-                "codex": {"enabled": False},
-                "pi": {"enabled": True, "path": str(pi_bin()), "env": {"DEEPSEEK_API_KEY": read_secret("deepseek-key")}},
-            },
+            "engine": {"default": DEFAULT_ENGINE},
             "rpc": {"token_secret": meta["rpc_secret"]},
         },
     }
-    for name in meta.get("extra_engines", []):
-        cfg["bee"]["engines"][name] = {"enabled": True, "path": engine_bin(name)}
     if meta.get("legacy_platforms"):
         cfg["bee"]["platforms"] = meta["legacy_platforms"]
     p = Path(meta["config"])
@@ -527,6 +516,94 @@ def add_channel(meta, ch, src, spec, overrides):
         log(f"channel {ch} connected")
 
 
+def api_call(meta, token, method, path, body=None, what=None):
+    code, out = http(meta, method, path, body, token=token)
+    if code not in (200, 201, 202, 204):
+        die(f"{what or f'{method} {path}'} failed: {code} {out}")
+    return out
+
+
+def parse_engine(value):
+    name, sep, directory = value.partition("=")
+    name = name.strip()
+    if not name:
+        die(f"bad engine '{value}'; expected NAME or NAME=DIR")
+    return name, directory.strip() if sep else ""
+
+
+def engine_dir(directory):
+    if not directory:
+        return ""
+    p = Path(directory).expanduser().resolve()
+    if not (p / "openbee.plugin.json").exists():
+        die(f"{p} has no openbee.plugin.json")
+    if not (p / "dist" / "index.js").exists():
+        die(f"{p}/dist/index.js is missing; build the plugin first")
+    return str(p)
+
+
+def catalog_spec(meta, token, name):
+    hint = "\ninstall it from a built checkout instead (up: --engine-src DIR for pi, --engine NAME=DIR for others; running env: engine NAME=DIR)"
+    code, out = http(meta, "GET", "/api/plugins/catalog", token=token, timeout=60)
+    if code != 200:
+        die(f"read the plugin catalog to find engine '{name}' failed: {code} {out}{hint}")
+    for entry in out.get("plugins", []):
+        if entry.get("id") == name:
+            return f"{entry['package']}@{entry['version']}"
+    die(f"engine '{name}' is not in the plugin catalog{hint}")
+
+
+def wait_install(meta, token, op, what):
+    deadline = time.time() + PLUGIN_INSTALL_TIMEOUT
+    while op["status"] not in ("succeeded", "failed"):
+        if time.time() > deadline:
+            die(f"{what} did not finish within {PLUGIN_INSTALL_TIMEOUT}s (status {op['status']})")
+        time.sleep(0.5)
+        op = api_call(meta, token, "GET", f"/api/plugins/operations/{op['id']}", what=what)
+    return op
+
+
+def wait_engine_ready(meta, token, name):
+    deadline = time.time() + ENGINE_READY_TIMEOUT
+    while True:
+        detail = api_call(meta, token, "GET", f"/api/plugins/{name}", what=f"read engine {name}")
+        state = detail.get("state")
+        if state == "ready":
+            return
+        if state == "failed":
+            die(f"engine {name} state is failed: {detail.get('error') or 'no error reported'}")
+        if time.time() > deadline:
+            die(f"engine {name} state is still {state} after {ENGINE_READY_TIMEOUT}s")
+        time.sleep(0.5)
+
+
+def setup_engine(meta, token, name, directory):
+    spec = engine_dir(directory) or catalog_spec(meta, token, name)
+    log(f"installing engine plugin {name} from {spec}")
+    what = f"install engine plugin {name} ({spec})"
+    op = wait_install(meta, token, api_call(meta, token, "POST", "/api/plugins/install", {"spec": spec}, what=what), what)
+    if op["status"] == "failed":
+        die(f"{what} failed: {op.get('error') or 'no error reported'}")
+    installed = op.get("plugin_id") or name
+    if installed != name:
+        die(f"{spec} installed plugin '{installed}', expected engine '{name}'")
+    detail = api_call(meta, token, "GET", f"/api/plugins/{name}", what=f"read engine {name}")
+    if detail.get("type") != "engine":
+        die(f"plugin '{name}' is a {detail.get('type')} plugin, not an engine")
+    path = str(pi_bin()) if name == DEFAULT_ENGINE else shutil.which(name)
+    if path and any(f.get("key") == "path" for f in detail.get("fields", [])):
+        api_call(meta, token, "PUT", f"/api/plugins/{name}/settings", {"config": {"path": path}}, what=f"save settings of engine {name}")
+    wait_engine_ready(meta, token, name)
+    log(f"engine {name} ready")
+    if name not in meta.setdefault("engines", []):
+        meta["engines"].append(name)
+    save_meta(meta)
+
+
+def store_deepseek_key(meta, token):
+    api_call(meta, token, "POST", "/api/envs", {"scope": "global", "key": "DEEPSEEK_API_KEY", "value": read_secret("deepseek-key")}, what="store DEEPSEEK_API_KEY")
+
+
 def cmd_up(a):
     name = a.name
     if (env_dir(name) / "meta.json").exists():
@@ -540,6 +617,12 @@ def cmd_up(a):
     if not (backend_dir(src) / "cmd" / "openbee").is_dir():
         die(f"{src} is not an openbee checkout")
     read_secret("deepseek-key")
+    extra_engines = [parse_engine(e) for e in a.engine or []]
+    for engine, directory in extra_engines:
+        if engine == DEFAULT_ENGINE:
+            die(f"engine {DEFAULT_ENGINE} is always installed; use --engine-src DIR to pick its source")
+        engine_dir(directory)
+    engine_dir(a.engine_src)
     d = env_dir(name)
     if d.exists():
         die(f"{d} exists without meta.json; remove it by hand after checking nothing runs from it")
@@ -567,7 +650,7 @@ def cmd_up(a):
         "env_secret": secrets.token_hex(32),
         "rpc_secret": secrets.token_hex(32),
         "extra_env": extra_env,
-        "extra_engines": a.engine or [],
+        "engines": [],
         "channels": [],
         "legacy_platforms": {},
         "worker_id": None,
@@ -585,8 +668,13 @@ def cmd_up(a):
         code, body = http(meta, "POST", "/api/setup", {"username": meta["admin_user"], "password": meta["admin_password"], "display_name": "E2E Admin"})
         if code != 200:
             die(f"/api/setup failed: {code} {body}")
+        token = body["access_token"]
+        store_deepseek_key(meta, token)
+        setup_engine(meta, token, DEFAULT_ENGINE, a.engine_src)
+        for engine, directory in extra_engines:
+            setup_engine(meta, token, engine, directory)
         if a.worker:
-            code, w = http(meta, "POST", "/api/workers", {"name": a.worker, "engine": "pi", "description": "E2E test worker"}, token=body["access_token"])
+            code, w = http(meta, "POST", "/api/workers", {"name": a.worker, "engine": DEFAULT_ENGINE, "description": "E2E test worker"}, token=token)
             if code not in (200, 201):
                 die(f"create worker failed: {code} {w}")
             meta["worker_id"] = w.get("id")
@@ -610,6 +698,14 @@ def cmd_channel(a):
             die(f"bad --set {s}")
         overrides[k] = v
     add_channel(meta, a.channel, a.src, a.spec, overrides)
+
+
+def cmd_engine(a):
+    meta = load_meta(a.name)
+    if not pid_of(meta):
+        die(f"env '{a.name}' is not running")
+    name, directory = parse_engine(a.engine)
+    setup_engine(meta, login(meta), name, directory)
 
 
 def qr_png(url, path):
@@ -678,6 +774,7 @@ def print_status(meta):
         "src": meta["src"],
         "build": f"{meta.get('branch')}@{meta.get('commit')}" + (" +uncommitted" if meta.get("dirty") else ""),
         "plugin_system": meta.get("plugin_system"),
+        "engines": meta.get("engines", []),
         "channels": meta.get("channels", []),
         "worker_id": meta.get("worker_id"),
         "config": meta["config"],
@@ -696,7 +793,7 @@ def cmd_status(a):
         pid = pid_of(m)
         if pid:
             managed.add(pid)
-        print(f"{m['name']:<12} {'running' if pid else 'stopped':<8} :{m['port']:<6} {m.get('branch')}@{m.get('commit')} channels={','.join(m.get('channels', [])) or '-'}")
+        print(f"{m['name']:<12} {'running' if pid else 'stopped':<8} :{m['port']:<6} {m.get('branch')}@{m.get('commit')} engines={','.join(m.get('engines', [])) or '-'} channels={','.join(m.get('channels', [])) or '-'}")
     if not metas:
         print("no test envs")
     for pid, _, cmd in process_table():
@@ -739,10 +836,6 @@ def cmd_restart(a):
             meta["src"] = str(src)
         build(meta, a.skip_web)
         install_skills(meta)
-        save_meta(meta)
-    if a.engine is not None:
-        meta["extra_engines"] = [e for e in a.engine if e]
-        render_config(meta)
         save_meta(meta)
     start(meta)
     print_status(meta)
@@ -906,7 +999,11 @@ def main():
     p.add_argument("--worker", default="tester")
     p.add_argument("--channel", action="append")
     p.add_argument("--env", action="append")
-    p.add_argument("--engine", action="append", choices=["claude", "codex"])
+    p.add_argument("--engine", action="append", metavar="NAME[=DIR]")
+    p.add_argument("--engine-src", metavar="DIR")
+
+    p = cmd("engine", cmd_engine)
+    p.add_argument("engine", metavar="NAME[=DIR]")
 
     p = cmd("channel", cmd_channel)
     p.add_argument("channel")
@@ -928,7 +1025,6 @@ def main():
     p.add_argument("--src")
     p.add_argument("--skip-web", action="store_true")
     p.add_argument("--force", action="store_true")
-    p.add_argument("--engine", action="append", choices=["claude", "codex", ""])
 
     p = cmd("mcp", cmd_mcp)
     p.add_argument("tool")
