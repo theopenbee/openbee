@@ -131,6 +131,19 @@ func runFakeEngine(mode string) int {
 		if _, ok := spawnChild(&rec, os.Stdout); !ok {
 			return 2
 		}
+	case "trap-term-child", "trap-term-child-exit1":
+		if !spawnShellChild(&rec, fmt.Sprintf(`trap 'touch %s; exit 0' TERM; while :; do sleep 0.02; done`, termMarker())) {
+			return 2
+		}
+		if mode == "trap-term-child-exit1" {
+			return 1
+		}
+		time.Sleep(5 * time.Minute)
+	case "ignore-term-child":
+		if !spawnShellChild(&rec, `trap '' TERM; while :; do sleep 0.02; done`) {
+			return 2
+		}
+		time.Sleep(5 * time.Minute)
 	case "respond-then-block":
 		respond(successResponse(req.Method))
 		child, ok := spawnChild(&rec, nil)
@@ -156,6 +169,22 @@ func spawnChild(rec *fakeRecord, stdout io.Writer) (*exec.Cmd, bool) {
 	rec.ChildPID = child.Process.Pid
 	writeRecord(*rec)
 	return child, true
+}
+
+func termMarker() string {
+	return filepath.Join(os.Getenv(fakeDirEnv), "term-seen")
+}
+
+func spawnShellChild(rec *fakeRecord, script string) bool {
+	child := exec.Command("sh", "-c", script)
+	if err := child.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, "start child:", err)
+		return false
+	}
+	time.Sleep(100 * time.Millisecond)
+	rec.ChildPID = child.Process.Pid
+	writeRecord(*rec)
+	return true
 }
 
 func successResponse(method string) map[string]any {

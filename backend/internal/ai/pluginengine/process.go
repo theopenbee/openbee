@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"syscall"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -20,11 +20,26 @@ const (
 	maxLineBytes   = 16 << 20
 	maxLoggedBytes = 4 << 10
 	waitDelay      = 3 * time.Second
+	waitInterval   = 20 * time.Millisecond
 )
+
+var activeCalls atomic.Int64
+
+func Wait(ctx context.Context) error {
+	for activeCalls.Load() > 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(waitInterval):
+		}
+	}
+	return nil
+}
 
 type pluginProcess struct {
 	cmd        *exec.Cmd
 	proc       *ai.CmdProcess
+	grace      time.Duration
 	log        lineLogger
 	stdout     *lineWriter
 	stderr     *lineWriter
@@ -45,15 +60,17 @@ func (a *Adapter) start(ctx context.Context, method string, params any, env func
 	cmd.Dir = a.spec.Dir
 	cmd.Env = env(inv.Env)
 	cmd.Stdin = bytes.NewReader(body)
-	p := &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: a.log}
+	p := &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), grace: a.grace, log: a.log}
 	p.stdout = &lineWriter{max: maxLineBytes, onLine: p.stdoutLine, onOverflow: p.overflow("stdout")}
 	p.stderr = &lineWriter{max: maxLineBytes, onLine: p.stderrLine, onOverflow: p.overflow("stderr")}
 	cmd.Stdout = p.stdout
 	cmd.Stderr = p.stderr
 	ai.ConfigureCmd(cmd)
-	cmd.Cancel = p.proc.Stop
+	cmd.Cancel = p.Stop
 	cmd.WaitDelay = waitDelay
+	activeCalls.Add(1)
 	if err := cmd.Start(); err != nil {
+		activeCalls.Add(-1)
 		return nil, fmt.Errorf("start engine plugin: %w", err)
 	}
 	return p, nil
@@ -75,11 +92,24 @@ func (p *pluginProcess) wait() error {
 	return err
 }
 
+func (p *pluginProcess) finish() {
+	p.proc.AwaitTermination()
+	activeCalls.Add(-1)
+}
+
+func (p *pluginProcess) PID() int {
+	return p.proc.PID()
+}
+
+func (p *pluginProcess) Stop() error {
+	return p.proc.Terminate(p.grace)
+}
+
 func (p *pluginProcess) sweep() {
 	if runtime.GOOS == "windows" {
 		return
 	}
-	if err := p.proc.Stop(); err != nil && !errors.Is(err, syscall.EPERM) {
+	if err := p.Stop(); err != nil {
 		p.log.Warn("kill engine plugin process group", zap.Error(err))
 	}
 }

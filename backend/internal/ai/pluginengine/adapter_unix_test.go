@@ -4,7 +4,9 @@ package pluginengine
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -152,6 +154,93 @@ func TestRun_SuccessKeepsBackgroundChildren(t *testing.T) {
 	assert.NoError(t, syscall.Kill(child, 0), "a successful run must leave background processes alone")
 }
 
+func assertTermSeen(t *testing.T, recordDir string) {
+	t.Helper()
+	assert.Eventually(t, func() bool {
+		_, err := os.Stat(filepath.Join(recordDir, "term-seen"))
+		return err == nil
+	}, 2*time.Second, 10*time.Millisecond, "the CLI must get SIGTERM so it can clean up")
+}
+
+func TestRun_StopLetsTheCLICleanUp(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "trap-term-child")
+	res, err := New(spec).Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	child := waitChildPID(t, recordDir)
+
+	require.NoError(t, res.Process.Stop())
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertTermSeen(t, recordDir)
+	assertGone(t, child)
+}
+
+func TestRun_ContextCancelLetsTheCLICleanUp(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	spec, recordDir := fakeSpec(t, "trap-term-child")
+	res, err := New(spec).Run(ctx, t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	child := waitChildPID(t, recordDir)
+
+	cancel()
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertTermSeen(t, recordDir)
+	assertGone(t, child)
+}
+
+func TestRun_FailedRunLetsTheCLICleanUp(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "trap-term-child-exit1")
+	res, err := New(spec).Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertTermSeen(t, recordDir)
+	assertGone(t, waitChildPID(t, recordDir))
+}
+
+func TestRun_StopKillsACLIThatIgnoresTerm(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "ignore-term-child")
+	a := New(spec)
+	a.grace = 200 * time.Millisecond
+	res, err := a.Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	child := waitChildPID(t, recordDir)
+
+	require.NoError(t, res.Process.Stop())
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	assertGone(t, child)
+}
+
+func TestWait_CoversTheStopGrace(t *testing.T) {
+	spec, recordDir := fakeSpec(t, "ignore-term-child")
+	a := New(spec)
+	a.grace = 300 * time.Millisecond
+	res, err := a.Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
+	require.NoError(t, err)
+	child := waitChildPID(t, recordDir)
+
+	start := time.Now()
+	require.NoError(t, res.Process.Stop())
+	assert.Equal(t, ai.OutputError, awaitOutput(t, res).Type)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	require.NoError(t, Wait(ctx))
+	assert.GreaterOrEqual(t, time.Since(start), a.grace)
+	assertGone(t, child)
+}
+
+func TestWait_StopsWithItsContext(t *testing.T) {
+	res, _ := startSleeper(t, context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.ErrorIs(t, Wait(ctx), context.Canceled)
+
+	require.NoError(t, res.Process.Stop())
+	awaitOutput(t, res)
+}
+
 func TestRun_KilledAfterResponseFails(t *testing.T) {
 	spec, recordDir := fakeSpec(t, "respond-then-block")
 	res, err := New(spec).Run(context.Background(), t.TempDir(), "p", ai.RunOptions{Role: ai.RoleWorker}, "")
@@ -160,7 +249,7 @@ func TestRun_KilledAfterResponseFails(t *testing.T) {
 	child := waitChildPID(t, recordDir)
 
 	require.NoError(t, res.Process.Stop())
-	assert.Equal(t, ai.Output{Type: ai.OutputError, Content: "signal: killed"}, awaitOutput(t, res))
+	assert.Equal(t, ai.Output{Type: ai.OutputError, Content: "signal: terminated"}, awaitOutput(t, res))
 	assertGone(t, child)
 }
 
@@ -240,7 +329,7 @@ func newSweepSubject(t *testing.T) (*pluginProcess, *observer.ObservedLogs) {
 		_ = cmd.Wait()
 	})
 	core, logs := observer.New(zapcore.DebugLevel)
-	return &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core)}, logs
+	return &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core), grace: time.Minute}, logs
 }
 
 func TestSweep_SkipsAfterStop(t *testing.T) {
@@ -253,13 +342,13 @@ func TestSweep_SkipsAfterStop(t *testing.T) {
 	assertNoSweepWarning(t, logs)
 }
 
-func TestSweep_KillsGroupThatWasNotStopped(t *testing.T) {
+func TestSweep_TerminatesGroupThatWasNotStopped(t *testing.T) {
 	p, logs := newSweepSubject(t)
 
 	p.sweep()
 
 	assertNoSweepWarning(t, logs)
-	assert.EqualError(t, p.cmd.Wait(), "signal: killed")
+	assert.EqualError(t, p.cmd.Wait(), "signal: terminated")
 }
 
 func TestSweep_IgnoresDeniedSignalOnExitedLeader(t *testing.T) {
@@ -269,7 +358,7 @@ func TestSweep_IgnoresDeniedSignalOnExitedLeader(t *testing.T) {
 	t.Cleanup(func() { _ = cmd.Wait() })
 	time.Sleep(300 * time.Millisecond)
 	core, logs := observer.New(zapcore.DebugLevel)
-	p := &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core)}
+	p := &pluginProcess{cmd: cmd, proc: ai.NewCmdProcess(cmd), log: zap.New(core), grace: time.Minute}
 
 	p.sweep()
 

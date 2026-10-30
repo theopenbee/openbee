@@ -17,6 +17,7 @@ import (
 const (
 	checkTimeout = 30 * time.Second
 	usageTimeout = 60 * time.Second
+	stopGrace    = 3 * time.Second
 )
 
 type Spec struct {
@@ -37,14 +38,15 @@ type lineLogger interface {
 }
 
 type Adapter struct {
-	spec Spec
-	log  lineLogger
+	spec  Spec
+	log   lineLogger
+	grace time.Duration
 }
 
 var _ ai.EngineAdapter = (*Adapter)(nil)
 
 func New(spec Spec) *Adapter {
-	return &Adapter{spec: spec, log: logger.With(zap.String("component", "engine:"+spec.ID))}
+	return &Adapter{spec: spec, log: logger.With(zap.String("component", "engine:"+spec.ID)), grace: stopGrace}
 }
 
 func (a *Adapter) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
@@ -73,6 +75,7 @@ func (a *Adapter) Run(ctx context.Context, workDir, prompt string, opts ai.RunOp
 	var text atomic.Pointer[string]
 	ch := make(chan ai.Output, 1)
 	go func() {
+		defer p.finish()
 		defer close(ch)
 		waitErr := p.wait()
 		out, result := runOutcome(waitErr, p.resp, p.lastStderr)
@@ -82,7 +85,7 @@ func (a *Adapter) Run(ctx context.Context, workDir, prompt string, opts ai.RunOp
 		text.Store(&result)
 		ch <- out
 	}()
-	return ai.NewRunResult(p.proc, ch, nil, func(string) string {
+	return ai.NewRunResult(p, ch, nil, func(string) string {
 		if s := text.Load(); s != nil {
 			return *s
 		}
@@ -156,6 +159,7 @@ func (a *Adapter) call(ctx context.Context, method string, params any, timeout t
 	if err != nil {
 		return err
 	}
+	defer func() { go p.finish() }()
 	waitErr := p.wait()
 	if err := callOutcome(ctx, method, waitErr, p.resp, p.lastStderr, out); err != nil {
 		p.sweep()

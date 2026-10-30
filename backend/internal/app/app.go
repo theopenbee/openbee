@@ -97,6 +97,9 @@ func (a *App) Run() {
 	if err := a.plugins.Wait(shutdownCtx); err != nil {
 		logger.Warn("timed out waiting for plugin channels to stop")
 	}
+	if err := pluginengine.Wait(shutdownCtx); err != nil {
+		logger.Warn("timed out waiting for engine processes to stop")
+	}
 
 	a.db.Close()
 }

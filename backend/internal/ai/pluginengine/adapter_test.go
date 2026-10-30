@@ -414,6 +414,7 @@ func TestStart_CancelStopsTheProcessTree(t *testing.T) {
 		return append(ai.BuildBaseEnv(), runtimeEnv...)
 	})
 	require.NoError(t, err)
+	defer p.finish()
 	require.NoError(t, p.wait())
 	assert.NotNil(t, p.cmd.Cancel, "cancelling the context must stop the plugin's whole process tree on every platform")
 }

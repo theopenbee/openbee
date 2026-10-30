@@ -47,6 +47,7 @@
 - Remove `openbee ctl` and the `/rpc/bee/call` endpoint.
 
 ### Fixed
+- Stopping a task no longer leaves pi bash commands running.
 - Preselect the default engine when creating a worker.
 - Keep slash commands in the web chat history.
 - Fix pi failing when the Bee receives web chat images.

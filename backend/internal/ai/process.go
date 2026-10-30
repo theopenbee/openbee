@@ -13,14 +13,25 @@ import (
 
 // CmdProcess implements Process for an os/exec.Cmd.
 type CmdProcess struct {
-	cmd     *exec.Cmd
-	mu      sync.Mutex
-	stopped bool
+	cmd         *exec.Cmd
+	mu          sync.Mutex
+	stopped     bool
+	terminating bool
+	terminated  chan struct{}
 }
 
 // NewCmdProcess wraps an exec.Cmd as a Process.
 func NewCmdProcess(cmd *exec.Cmd) *CmdProcess {
 	return &CmdProcess{cmd: cmd}
+}
+
+func (p *CmdProcess) AwaitTermination() {
+	p.mu.Lock()
+	terminated := p.terminated
+	p.mu.Unlock()
+	if terminated != nil {
+		<-terminated
+	}
 }
 
 func (p *CmdProcess) PID() int {

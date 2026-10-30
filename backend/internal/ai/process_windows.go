@@ -5,6 +5,7 @@ package ai
 import (
 	"os/exec"
 	"strconv"
+	"time"
 )
 
 func (p *CmdProcess) Stop() error {
@@ -20,6 +21,10 @@ func (p *CmdProcess) Stop() error {
 	}
 	p.stopped = true
 	return nil
+}
+
+func (p *CmdProcess) Terminate(time.Duration) error {
+	return p.Stop()
 }
 
 func ConfigureCmd(cmd *exec.Cmd) {}
