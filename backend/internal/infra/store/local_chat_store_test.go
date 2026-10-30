@@ -74,6 +74,21 @@ func TestLastMessagePicksNewestAcrossTables(t *testing.T) {
 	assert.Equal(t, LastMessage{SenderType: SourceTypeWorker, SenderID: "w1", Kind: OutboundKindHandoff, Content: "out-o2", Payload: `{"worker_id":"w9"}`, TS: 400}, last)
 }
 
+func TestLastMessageCarriesReplyMediaPath(t *testing.T) {
+	db := newTestDB(t)
+	s := NewLocalChatStore(db)
+	key := "local:u1:worker:w1"
+	seedInbound(t, db, "i1", key, SenderTypeUser, MsgStatusReceived, 100)
+	seedOutboundRow(t, db, "o1", key, SourceTypeWorker, "w1", "", OutboundStatusSent, 200)
+	_, err := db.Exec(`UPDATE bee_outbound_messages SET content = '', media_path = ? WHERE id = ?`, "/tmp/out/chart.png", "o1")
+	require.NoError(t, err)
+
+	last, ok, err := s.LastMessage(context.Background(), key)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, LastMessage{SenderType: SourceTypeWorker, SenderID: "w1", Kind: OutboundKindMessage, MediaPath: "/tmp/out/chart.png", TS: 200}, last)
+}
+
 func TestLastMessageSameTimestampPrefersReply(t *testing.T) {
 	db := newTestDB(t)
 	s := NewLocalChatStore(db)

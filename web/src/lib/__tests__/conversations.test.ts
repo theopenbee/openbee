@@ -145,4 +145,18 @@ describe("previewText", () => {
   it("falls back to the preview when the handoff target is missing", () => {
     expect(previewText(last({ kind: "handoff" }), workers, t)).toBe("write the report")
   })
+
+  it("labels a media-only message by its attachments", () => {
+    expect(previewText(last({ preview: "", media_paths: ["a.png", "b.JPG"] }), workers, t)).toBe("chat.imagePreview")
+    expect(previewText(last({ preview: "", media_paths: ["a.png", "report.pdf"] }), workers, t)).toBe(
+      "chat.filePreview",
+    )
+    expect(previewText(last({ preview: "", media_paths: ["a.png"], sender: { type: "user" } }), workers, t)).toBe(
+      "chat.youPrefixchat.imagePreview",
+    )
+  })
+
+  it("keeps the text when a message has both text and media", () => {
+    expect(previewText(last({ media_paths: ["a.png"] }), workers, t)).toBe("write the report")
+  })
 })

@@ -221,6 +221,30 @@ func TestConversationPreview(t *testing.T) {
 			want: Preview{Kind: PreviewPlain, Text: "write the report"},
 		},
 		{
+			name: "labels a media-only message with images",
+			cs:   conv("worker:w1", func(l *api.LastMessage) { l.Preview = ""; l.MediaPaths = []string{"a.png", "b.JPG"} }),
+			want: Preview{Kind: PreviewPlain, Media: MediaImage},
+		},
+		{
+			name: "labels a media-only message with any other file as a file",
+			cs:   conv("worker:w1", func(l *api.LastMessage) { l.Preview = ""; l.MediaPaths = []string{"a.png", "report.pdf"} }),
+			want: Preview{Kind: PreviewPlain, Media: MediaFile},
+		},
+		{
+			name: "labels the user's own media-only message",
+			cs: conv("bee", func(l *api.LastMessage) {
+				l.Sender = api.ChatSender{Type: "user"}
+				l.Preview = ""
+				l.MediaPaths = []string{"photo.webp"}
+			}),
+			want: Preview{Kind: PreviewYou, Media: MediaImage},
+		},
+		{
+			name: "keeps the text of a message with text and media",
+			cs:   conv("worker:w1", func(l *api.LastMessage) { l.MediaPaths = []string{"a.png"} }),
+			want: Preview{Kind: PreviewPlain, Text: "write the report"},
+		},
+		{
 			name: "shows the worker description without a last message",
 			cs:   summary("worker:w1"),
 			want: Preview{Kind: PreviewDescription, Text: "Finds papers"},

@@ -773,11 +773,22 @@ func TestConversationsPreviewStripsMediaAndTruncates(t *testing.T) {
 	seedInbound(t, s.msgStore, local.WorkerSessionKey(testUserID, bob.ID), store.BatchMsg{
 		ID: "b1", Content: strings.Repeat("字", 130), MessageTime: 200,
 	})
+	carol := s.createWorker(t, "carol")
+	seedOutboundIn(t, s.outboundStore, local.WorkerSessionKey(testUserID, carol.ID), store.OutboundMessage{
+		ID: "c1", MediaPath: "/tmp/out/report.pdf", SourceType: store.SourceTypeWorker, SourceID: carol.ID, SentAt: 300,
+	})
 
 	byID := conversationsByID(listConversations(t, s.router, testUserID))
 
-	assert.Equal(t, "look at this pic", byID[local.WorkerConversationID(alice.ID)].LastMessage.Preview)
-	assert.Equal(t, strings.Repeat("字", 120), byID[local.WorkerConversationID(bob.ID)].LastMessage.Preview)
+	aliceLast := byID[local.WorkerConversationID(alice.ID)].LastMessage
+	assert.Equal(t, "look at this pic", aliceLast.Preview)
+	assert.Equal(t, []string{"photo.png"}, aliceLast.MediaPaths)
+	bobLast := byID[local.WorkerConversationID(bob.ID)].LastMessage
+	assert.Equal(t, strings.Repeat("字", 120), bobLast.Preview)
+	assert.Nil(t, bobLast.MediaPaths)
+	carolLast := byID[local.WorkerConversationID(carol.ID)].LastMessage
+	assert.Empty(t, carolLast.Preview)
+	assert.Equal(t, []string{"report.pdf"}, carolLast.MediaPaths)
 }
 
 func TestConversationsReportActivityAndHandoffPreview(t *testing.T) {

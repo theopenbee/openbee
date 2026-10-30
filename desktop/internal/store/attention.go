@@ -127,7 +127,7 @@ func (s *Store) notification(ev api.ChatEvent) Notification {
 			title = w.Name
 		}
 	}
-	last := &api.LastMessage{Sender: m.Sender, Kind: m.Kind, Preview: model.PreviewText(m.Content), TS: m.TS}
+	last := &api.LastMessage{Sender: m.Sender, Kind: m.Kind, Preview: model.PreviewText(m.Content), MediaPaths: m.MediaPaths, TS: m.TS}
 	if m.Handoff != nil {
 		last.HandoffWorkerID = m.Handoff.WorkerID
 	}
@@ -147,7 +147,17 @@ func previewBody(msgs locales.Messages, p model.Preview) string {
 		}
 		return msgs.ChatHandedOffTo(name)
 	case model.PreviewYou:
-		return msgs.ChatYouPrefix() + p.Text
+		return msgs.ChatYouPrefix() + previewContent(msgs, p)
+	}
+	return previewContent(msgs, p)
+}
+
+func previewContent(msgs locales.Messages, p model.Preview) string {
+	switch p.Media {
+	case model.MediaImage:
+		return msgs.ChatImagePreview()
+	case model.MediaFile:
+		return msgs.ChatFilePreview()
 	}
 	return p.Text
 }

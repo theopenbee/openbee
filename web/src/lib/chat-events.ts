@@ -155,6 +155,7 @@ export function applyEventToConversations(
           sender: message.sender,
           kind: message.kind,
           preview: previewOf(message),
+          ...(message.media_paths?.length ? { media_paths: message.media_paths } : {}),
           ...(message.handoff ? { handoff_worker_id: message.handoff.worker_id } : {}),
           ts: message.ts,
         },

@@ -94,6 +94,7 @@ export function notificationContent(
       sender: message.sender,
       kind: message.kind,
       preview: previewOf(message),
+      media_paths: message.media_paths,
       handoff_worker_id: message.handoff?.worker_id,
       ts: message.ts,
     },

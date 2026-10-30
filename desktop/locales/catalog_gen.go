@@ -1538,6 +1538,16 @@ func (msgs Messages) ChatEmptyWorker(name string) string {
 	return Catalog.Format(msgs.locale, "chatEmptyWorker", map[string]any{"name": name})
 }
 
+// ChatFilePreview says "[File]"
+// in the language the app shows.
+func ChatFilePreview() string { return In(i18n.Locale()).ChatFilePreview() }
+
+// ChatFilePreview says "[File]"
+// in the language of msgs.
+func (msgs Messages) ChatFilePreview() string {
+	return Catalog.Format(msgs.locale, "chatFilePreview", nil)
+}
+
 // ChatFromBee says "Bee handoff"
 // in the language the app shows.
 func ChatFromBee() string { return In(i18n.Locale()).ChatFromBee() }
@@ -1556,6 +1566,16 @@ func ChatHandedOffTo(name string) string { return In(i18n.Locale()).ChatHandedOf
 // in the language of msgs.
 func (msgs Messages) ChatHandedOffTo(name string) string {
 	return Catalog.Format(msgs.locale, "chatHandedOffTo", map[string]any{"name": name})
+}
+
+// ChatImagePreview says "[Image]"
+// in the language the app shows.
+func ChatImagePreview() string { return In(i18n.Locale()).ChatImagePreview() }
+
+// ChatImagePreview says "[Image]"
+// in the language of msgs.
+func (msgs Messages) ChatImagePreview() string {
+	return Catalog.Format(msgs.locale, "chatImagePreview", nil)
 }
 
 // ChatLoadMore says "Load earlier messages"

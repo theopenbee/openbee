@@ -1,4 +1,5 @@
 import type { ConversationId, ConversationSummary, Worker } from "@/lib/types"
+import { isImage } from "@/lib/utils"
 
 export const BEE_CONVERSATION: ConversationId = "bee"
 
@@ -54,10 +55,16 @@ export function filterConversations(
 type LastMessage = NonNullable<ConversationSummary["last_message"]>
 type Translate = (key: string, options?: Record<string, string>) => string
 
+function mediaPreview(paths: string[] | undefined, t: Translate): string {
+  if (!paths?.length) return ""
+  return t(paths.every(isImage) ? "chat.imagePreview" : "chat.filePreview")
+}
+
 export function previewText(last: LastMessage, workers: Map<string, Worker>, t: Translate): string {
   if (last.kind === "handoff" && last.handoff_worker_id) {
     const name = workers.get(last.handoff_worker_id)?.name ?? t("chat.deletedWorker")
     return t("chat.handedOffTo", { name })
   }
-  return last.sender.type === "user" ? `${t("chat.youPrefix")}${last.preview}` : last.preview
+  const text = last.preview || mediaPreview(last.media_paths, t)
+  return last.sender.type === "user" ? `${t("chat.youPrefix")}${text}` : text
 }

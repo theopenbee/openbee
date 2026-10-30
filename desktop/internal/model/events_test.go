@@ -149,6 +149,18 @@ func TestApplyEventMessage(t *testing.T) {
 		}
 	})
 
+	t.Run("keeps the media paths of an attachment", func(t *testing.T) {
+		list := []api.ConversationSummary{summary("worker:w1")}
+		attachment := eventMessage("", func(m *api.ChatMessage) { m.MediaPaths = []string{"m1_chart.png"} })
+
+		eff := ApplyEvent(messageEvent("worker:w1", attachment, 1), list, nil, "", true)
+
+		want := &api.LastMessage{Sender: api.ChatSender{Type: "worker", ID: "w1"}, Kind: "message", MediaPaths: []string{"m1_chart.png"}, TS: 100}
+		if !reflect.DeepEqual(eff.Summaries[0].LastMessage, want) {
+			t.Fatalf("last message = %+v, want %+v", eff.Summaries[0].LastMessage, want)
+		}
+	})
+
 	t.Run("records the handoff worker and drops it on the next plain message", func(t *testing.T) {
 		list := []api.ConversationSummary{summary("bee")}
 		bee := bySender(api.ChatSender{Type: "bee"})

@@ -357,12 +357,14 @@ func TestNotifyWhenBackground(t *testing.T) {
 	fake.Reply("worker:w1", api.ChatMessage{ID: "m1", Content: "Draft  is\nready"})
 	fake.Reply("bee", api.ChatMessage{ID: "m2", Kind: "handoff", Content: "Handing off", Handoff: &api.HandoffInfo{WorkerID: "w2", TaskID: "t1", TaskType: "once", ConversationID: "worker:w2"}})
 	fake.Reply("bee", api.ChatMessage{ID: "m3", Content: "[file] a.png\n"})
-	fix.Await(t, func() bool { return len(fix.Notifier.Shown) == 3 })
+	fake.Reply("worker:w1", api.ChatMessage{ID: "m4", MediaPaths: []string{"m4_report.pdf"}})
+	fix.Await(t, func() bool { return len(fix.Notifier.Shown) == 4 })
 
 	want := []store.Notification{
 		{ID: "worker:w1/m1", Group: "worker:w1", Title: "Alice", Body: "Draft is ready", ConversationID: "worker:w1"},
 		{ID: "bee/m2", Group: "bee", Title: msgs.ChatBeeLabel(), Body: msgs.ChatHandedOffTo("Bob"), ConversationID: "bee"},
 		{ID: "bee/m3", Group: "bee", Title: msgs.ChatBeeLabel(), Body: msgs.NotificationsNewMessage(), ConversationID: "bee"},
+		{ID: "worker:w1/m4", Group: "worker:w1", Title: "Alice", Body: msgs.ChatFilePreview(), ConversationID: "worker:w1"},
 	}
 	if !slices.Equal(fix.Notifier.Shown, want) {
 		t.Fatalf("notifications =\n%+v\nwant\n%+v", fix.Notifier.Shown, want)

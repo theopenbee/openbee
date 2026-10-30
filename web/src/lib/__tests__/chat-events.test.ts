@@ -88,6 +88,24 @@ describe("applyEventToConversations", () => {
     expect(list[1].unread).toBe(2)
   })
 
+  it("message event keeps the media paths of an attachment", () => {
+    const list = [summary("worker:w1")]
+
+    const next = applyEventToConversations(
+      list,
+      messageEvent("worker:w1", message("", { media_paths: ["m1_report.pdf"] })),
+      idle,
+    )
+
+    expect(next[0].last_message).toEqual({
+      sender: { type: "worker", id: "w1" },
+      kind: "message",
+      preview: "",
+      media_paths: ["m1_report.pdf"],
+      ts: 100,
+    })
+  })
+
   it("message event does not bump unread for active visible conversation", () => {
     const list = [summary("bee"), summary("worker:w1")]
 

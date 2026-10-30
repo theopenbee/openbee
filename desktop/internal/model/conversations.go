@@ -1,6 +1,7 @@
 package model
 
 import (
+	"path"
 	"slices"
 	"strings"
 
@@ -17,11 +18,37 @@ const (
 	PreviewEmpty
 )
 
+type PreviewMedia int
+
+const (
+	MediaNone PreviewMedia = iota
+	MediaImage
+	MediaFile
+)
+
+const ImageExtensions = "jpg jpeg png gif webp svg bmp"
+
 type Preview struct {
 	Kind          PreviewKind
 	Text          string
+	Media         PreviewMedia
 	WorkerName    string
 	WorkerDeleted bool
+}
+
+func isImageName(name string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(path.Ext(name), "."))
+	return slices.Contains(strings.Fields(ImageExtensions), ext)
+}
+
+func previewMedia(last *api.LastMessage) PreviewMedia {
+	switch {
+	case last.Preview != "" || len(last.MediaPaths) == 0:
+		return MediaNone
+	case slices.ContainsFunc(last.MediaPaths, func(p string) bool { return !isImageName(p) }):
+		return MediaFile
+	}
+	return MediaImage
 }
 
 func compareNames(a, b string) int {
@@ -118,7 +145,7 @@ func ConversationPreview(cs api.ConversationSummary, workers map[string]api.Work
 		return Preview{Kind: PreviewHandoff, WorkerName: w.Name}
 	}
 	if last.Sender.Type == "user" {
-		return Preview{Kind: PreviewYou, Text: last.Preview}
+		return Preview{Kind: PreviewYou, Text: last.Preview, Media: previewMedia(last)}
 	}
-	return Preview{Kind: PreviewPlain, Text: last.Preview}
+	return Preview{Kind: PreviewPlain, Text: last.Preview, Media: previewMedia(last)}
 }

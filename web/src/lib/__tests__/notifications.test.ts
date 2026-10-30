@@ -215,6 +215,12 @@ describe("notificationContent", () => {
     )
   })
 
+  it("labels a media-only message by its attachment", () => {
+    expect(notificationContent("worker:w1", message({ content: "", media_paths: ["m1_chart.png"] }), workers, t).body).toBe(
+      "chat.imagePreview",
+    )
+  })
+
   it("uses a generic body when there is no text", () => {
     expect(notificationContent("worker:w1", message({ content: "[file] /tmp/a.png\n" }), workers, t).body).toBe(
       "notifications.newMessage",

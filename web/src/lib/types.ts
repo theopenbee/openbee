@@ -56,6 +56,7 @@ export interface ConversationSummary {
     sender: ChatSender
     kind: ChatMessageKind
     preview: string
+    media_paths?: string[]
     handoff_worker_id?: string
     ts: number
   }

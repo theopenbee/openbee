@@ -101,6 +101,7 @@ type LastMessage struct {
 	Sender          ChatSender `json:"sender"`
 	Kind            string     `json:"kind"`
 	Preview         string     `json:"preview"`
+	MediaPaths      []string   `json:"media_paths,omitempty"`
 	HandoffWorkerID string     `json:"handoff_worker_id,omitempty"`
 	TS              int64      `json:"ts"`
 }

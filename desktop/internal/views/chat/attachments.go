@@ -39,7 +39,7 @@ const (
 )
 
 var categoryExtensions = []struct{ category, extensions string }{
-	{categoryImage, "jpg jpeg png gif webp svg bmp"},
+	{categoryImage, model.ImageExtensions},
 	{categoryAudio, "mp3 wav ogg aac flac m4a wma"},
 	{categoryVideo, "mp4 mov avi mkv webm flv wmv"},
 	{categoryDocument, "pdf doc docx txt md csv xls xlsx ppt pptx rtf"},

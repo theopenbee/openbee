@@ -123,6 +123,8 @@
     "title": "聊天",
     "youPrefix": "你：",
     "handedOffTo": "已交给 {{name}}",
+    "imagePreview": "[图片]",
+    "filePreview": "[文件]",
     "deletedWorker": "已删除的员工",
     "yesterday": "昨天",
     "newWorker": "新建员工",

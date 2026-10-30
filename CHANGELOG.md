@@ -58,6 +58,7 @@
 - Back up the database consistently while openbee is running.
 - Refuse to restore over a database that is in use.
 - Keep engine args when creating a worker through the API.
+- Label image and file messages in chat list previews.
 
 ## [0.0.46] - 2026-10-25
 

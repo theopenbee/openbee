@@ -234,6 +234,19 @@ func TestRowPreviewYouPrefix(t *testing.T) {
 	f.wantHidden(locales.ChatYouPrefix() + "Done")
 }
 
+func TestRowPreviewLabelsMediaOnlyMessages(t *testing.T) {
+	now := time.Now()
+	image := said("user", "", now)
+	image.MediaPaths = []string{"photo.png"}
+	file := said("worker", "", now)
+	file.MediaPaths = []string{"m1_report.pdf"}
+	f := newFixture(t, wideW, wideH, route.Chat("bee"), seed(team(),
+		conversation("w1", image, 0),
+		conversation("w2", file, 0),
+	))
+	f.wantShown(locales.ChatYouPrefix()+locales.ChatImagePreview(), locales.ChatFilePreview())
+}
+
 func TestRowPreviewHandoffAndDescription(t *testing.T) {
 	now := time.Now()
 	f := newFixture(t, wideW, wideH, route.Chat("bee"), func(st *fakeapi.State) {

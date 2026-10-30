@@ -14,6 +14,7 @@ type LastMessage struct {
 	Kind       string
 	Content    string
 	Payload    string
+	MediaPath  string
 	TS         int64
 }
 
@@ -58,20 +59,20 @@ func (s *LocalChatStore) ReadMarks(ctx context.Context, userID string) (map[stri
 func (s *LocalChatStore) LastMessage(ctx context.Context, sessionKey string) (LastMessage, bool, error) {
 	var m LastMessage
 	err := s.db.QueryRowContext(ctx,
-		`SELECT sender_type, sender_id, kind, content, payload, ts FROM (
+		`SELECT sender_type, sender_id, kind, content, payload, media_path, ts FROM (
 			SELECT sender_type AS sender_type, '' AS sender_id, ? AS kind, content AS content,
-			       '' AS payload, received_at AS ts, 0 AS ord
+			       '' AS payload, '' AS media_path, received_at AS ts, 0 AS ord
 			  FROM bee_platform_messages
 			 WHERE session_key = ? AND status != ?
 			UNION ALL
 			SELECT CASE source_type WHEN '' THEN ? ELSE source_type END, source_id, kind, content,
-			       payload, sent_at, 1
+			       payload, media_path, sent_at, 1
 			  FROM bee_outbound_messages
 			 WHERE session_key = ? AND status = ? AND kind != ?
 		 ) ORDER BY ts DESC, ord DESC LIMIT 1`,
 		OutboundKindMessage, sessionKey, MsgStatusMerged,
 		SenderTypeBee, sessionKey, OutboundStatusSent, OutboundKindReset,
-	).Scan(&m.SenderType, &m.SenderID, &m.Kind, &m.Content, &m.Payload, &m.TS)
+	).Scan(&m.SenderType, &m.SenderID, &m.Kind, &m.Content, &m.Payload, &m.MediaPath, &m.TS)
 	if errors.Is(err, sql.ErrNoRows) {
 		return LastMessage{}, false, nil
 	}

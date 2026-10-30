@@ -313,10 +313,11 @@ func (s *Server) noteMessage(cid string, m api.ChatMessage) {
 	}
 	i := s.ensureSummary(cid)
 	last := &api.LastMessage{
-		Sender:  api.ChatSender{Type: m.Sender.Type},
-		Kind:    m.Kind,
-		Preview: previewText(m.Content),
-		TS:      m.TS,
+		Sender:     api.ChatSender{Type: m.Sender.Type},
+		Kind:       m.Kind,
+		Preview:    previewText(m.Content),
+		MediaPaths: slices.Clone(m.MediaPaths),
+		TS:         m.TS,
 	}
 	if m.Sender.Type == senderWorker {
 		last.Sender.ID = m.Sender.ID

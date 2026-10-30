@@ -91,10 +91,11 @@ func activityOf(ev api.ChatEvent) api.ConversationActivity {
 
 func withMessage(c api.ConversationSummary, m api.ChatMessage, seen bool) api.ConversationSummary {
 	last := &api.LastMessage{
-		Sender:  m.Sender,
-		Kind:    m.Kind,
-		Preview: PreviewText(m.Content),
-		TS:      m.TS,
+		Sender:     m.Sender,
+		Kind:       m.Kind,
+		Preview:    PreviewText(m.Content),
+		MediaPaths: m.MediaPaths,
+		TS:         m.TS,
 	}
 	if m.Handoff != nil {
 		last.HandoffWorkerID = m.Handoff.WorkerID

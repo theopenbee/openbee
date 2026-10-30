@@ -123,6 +123,8 @@
     "title": "Chat",
     "youPrefix": "You: ",
     "handedOffTo": "Handed off to {{name}}",
+    "imagePreview": "[Image]",
+    "filePreview": "[File]",
     "deletedWorker": "Deleted worker",
     "yesterday": "Yesterday",
     "newWorker": "New worker",

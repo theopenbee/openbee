@@ -104,6 +104,7 @@ type ConversationPreview struct {
 	Sender          local.Sender `json:"sender"`
 	Kind            string       `json:"kind"`
 	Preview         string       `json:"preview"`
+	MediaPaths      []string     `json:"media_paths,omitempty"`
 	HandoffWorkerID string       `json:"handoff_worker_id,omitempty"`
 	TS              int64        `json:"ts"`
 }
@@ -237,13 +238,16 @@ func chatSender(senderType, senderID string) local.Sender {
 	}
 }
 
-func conversationPreview(content string) string {
-	_, text := local.DecodeMediaPaths(content)
-	text = strings.Join(strings.Fields(text), " ")
-	if utf8.RuneCountInString(text) <= previewMaxRunes {
-		return text
+func conversationPreview(m store.LastMessage) (string, []string) {
+	paths, text := local.DecodeMediaPaths(m.Content)
+	if m.MediaPath != "" {
+		paths = append(paths, filepath.Base(m.MediaPath))
 	}
-	return string([]rune(text)[:previewMaxRunes])
+	text = strings.Join(strings.Fields(text), " ")
+	if utf8.RuneCountInString(text) > previewMaxRunes {
+		text = string([]rune(text)[:previewMaxRunes])
+	}
+	return text, paths
 }
 
 func handoffWorkerID(kind, payload string) string {
@@ -269,10 +273,12 @@ func (h *LocalChatHandler) summarizeConversation(ctx context.Context, uid, worke
 		return ConversationSummary{}, err
 	}
 	if found {
+		preview, mediaPaths := conversationPreview(last)
 		summary.LastMessage = &ConversationPreview{
 			Sender:          chatSender(last.SenderType, last.SenderID),
 			Kind:            last.Kind,
-			Preview:         conversationPreview(last.Content),
+			Preview:         preview,
+			MediaPaths:      mediaPaths,
 			HandoffWorkerID: handoffWorkerID(last.Kind, last.Payload),
 			TS:              last.TS,
 		}

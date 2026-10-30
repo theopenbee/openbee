@@ -88,7 +88,17 @@ func previewText(p model.Preview) string {
 		}
 		return locales.ChatHandedOffTo(name)
 	case model.PreviewYou:
-		return locales.ChatYouPrefix() + p.Text
+		return locales.ChatYouPrefix() + previewContent(p)
+	}
+	return previewContent(p)
+}
+
+func previewContent(p model.Preview) string {
+	switch p.Media {
+	case model.MediaImage:
+		return locales.ChatImagePreview()
+	case model.MediaFile:
+		return locales.ChatFilePreview()
 	}
 	return p.Text
 }
