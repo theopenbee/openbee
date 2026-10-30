@@ -172,6 +172,76 @@ func TestValidateEngine_UsesSource(t *testing.T) {
 	assert.Equal(t, []string{"codex"}, mgr.EnabledEngines())
 }
 
+func newUninstalledEngineWorker(t *testing.T) (*Manager, model.Worker) {
+	t.Helper()
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": &aitest.Engine{}, "codex": &aitest.Engine{}})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	w, err := mgr.CreateWorker(CreateWorkerParams{
+		Name:       "coder",
+		Engine:     "codex",
+		EngineArgs: `{"codex":"--model o3","pi":"--model x"}`,
+	})
+	require.NoError(t, err)
+	src.Remove("codex")
+	return mgr, w
+}
+
+func strPtr(s string) *string { return &s }
+
+func TestUpdateWorker_UninstalledEngine(t *testing.T) {
+	t.Run("UnchangedEngineAndArgsSucceeds", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+			Description: strPtr("edited"),
+			Engine:      strPtr("codex"),
+			EngineArgs:  map[string]string{"codex": "--model o3", "pi": "--model x"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "edited", updated.Description)
+		assert.Equal(t, "codex", updated.Engine)
+		assert.JSONEq(t, `{"codex":"--model o3","pi":"--model x"}`, updated.EngineArgs)
+	})
+
+	t.Run("RemoveArgsKeySucceeds", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+			EngineArgs: map[string]string{"codex": "", "pi": "--model x"},
+		})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"pi":"--model x"}`, updated.EngineArgs)
+	})
+
+	t.Run("ChangeToUninstalledEngineFails", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{Engine: strPtr("pi")})
+		require.NoError(t, err)
+		_, err = mgr.UpdateWorker(w.ID, UpdateWorkerParams{Engine: strPtr("codex")})
+		require.ErrorIs(t, err, ErrValidation)
+		assert.True(t, ai.IsEngineMissing(err))
+		assert.Contains(t, err.Error(), `engine "codex" is not installed or enabled`)
+	})
+
+	t.Run("AddArgsKeyForUninstalledEngineFails", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineArgs: map[string]string{"claude": "--model sonnet"}})
+		require.ErrorIs(t, err, ErrValidation)
+		assert.Contains(t, err.Error(), `engine "claude" is not installed or enabled`)
+	})
+
+	t.Run("ChangeArgsForUninstalledEngineFails", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineArgs: map[string]string{"codex": "--model o4"}})
+		require.ErrorIs(t, err, ErrValidation)
+		assert.Contains(t, err.Error(), `engine "codex" is not installed or enabled`)
+	})
+
+	t.Run("ChangedArgsStillParsed", func(t *testing.T) {
+		mgr, w := newUninstalledEngineWorker(t)
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineArgs: map[string]string{"pi": `--model "unterminated`}})
+		require.ErrorIs(t, err, ErrValidation)
+	})
+}
+
 func TestManager_ValidateEngineArgs_RejectsUnknownEngine(t *testing.T) {
 	mgr := newTestManager(t, map[string]ai.EngineAdapter{"claude": &mockEngine{}}, "claude")
 	err := mgr.ValidateEngineArgs(map[string]string{"unknown": "--model foo"})

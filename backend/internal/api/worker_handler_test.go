@@ -2,14 +2,18 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -144,4 +148,38 @@ func TestDeleteWorkerNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Empty(t, cleaner.deleted)
+}
+
+func TestUpdateWorker_UninstalledEngineFormEdit(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	workers := store.NewWorkerStore(db)
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": &aitest.Engine{}})
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, workers, nil, src, nil, nil, nil)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.PUT("/workers/:id", NewWorkerHandler(workers, mgr, nil, "en").Update)
+	w, err := workers.Create(model.Worker{Name: "coder", Engine: "codex", EngineArgs: `{"codex":"--model o3"}`})
+	require.NoError(t, err)
+	put := func(body string) (int, map[string]any) {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/workers/"+w.ID, strings.NewReader(body)))
+		var out map[string]any
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
+		return rec.Code, out
+	}
+
+	code, body := put(`{"description":"edited","engine":"codex","engine_args":{"codex":"--model o3"}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, "edited", body["description"])
+	assert.Equal(t, "codex", body["engine"])
+
+	code, body = put(`{"engine":"pi"}`)
+	require.Equal(t, http.StatusOK, code, body)
+
+	code, body = put(`{"engine":"codex"}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body["error"], `engine "codex" is not installed or enabled`)
+	assert.Equal(t, "worker_validation", body["code"])
 }

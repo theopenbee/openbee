@@ -465,12 +465,16 @@ func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, in
 	sessionID := uuid.New().String()
 	d.upsertSessionContext(ctx, task, sessionID, engineName)
 	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
-	return d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+	exec, err := d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
 		WorkerID:     task.WorkerID,
 		TaskID:       task.TaskID,
 		TriggerInput: prefix + instruction,
 		SessionID:    sessionID,
 	})
+	if err != nil {
+		d.deleteSessionContext(context.WithoutCancel(ctx), task, engineName)
+	}
+	return exec, err
 }
 
 func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
@@ -497,11 +501,7 @@ func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask
 		return exec, err
 	}
 	log.Error("resume error, falling back to fresh", zap.Error(err))
-	if task.SessionKey != "" && task.WorkerID != "" {
-		if _, clearErr := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); clearErr != nil {
-			log.Error("clear stale session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(clearErr))
-		}
-	}
+	d.deleteSessionContext(ctx, task, engineName)
 	return d.executeFresh(ctx, task, instruction, engineName, w)
 }
 
@@ -585,17 +585,33 @@ func (d *TaskDispatcher) stoppedInLocalChat(task DispatchTask) bool {
 	return t.Status == model.TaskStatusCancelled
 }
 
-func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID, engineName string) {
-	if task.SessionKey == "" || task.WorkerID == "" || sessionID == "" {
-		return
+func tracksSessionContext(task DispatchTask) bool {
+	if task.SessionKey == "" || task.WorkerID == "" {
+		return false
 	}
 	if task.TaskType != model.TaskTypeImmediate {
 		if _, ok := local.WorkerIDFromSessionKey(task.SessionKey); ok {
-			return
+			return false
 		}
+	}
+	return true
+}
+
+func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID, engineName string) {
+	if sessionID == "" || !tracksSessionContext(task) {
+		return
 	}
 	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, engineName); err != nil {
 		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
+	}
+}
+
+func (d *TaskDispatcher) deleteSessionContext(ctx context.Context, task DispatchTask, engineName string) {
+	if !tracksSessionContext(task) {
+		return
+	}
+	if _, err := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); err != nil {
+		log.Error("delete session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(err))
 	}
 }
 

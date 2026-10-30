@@ -223,6 +223,12 @@ func (s *mockSessionStore) sessionID(sessionKey, agentID, engine string) string 
 	return sessionID
 }
 
+func (s *mockSessionStore) rowCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.data)
+}
+
 func (s *mockSessionStore) deleteCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -647,6 +653,61 @@ func TestTaskDispatcher_ImmediateTask_ResumeEngineMissing_KeepsSession(t *testin
 			assert.Equal(t, "codex-session-id", ss.sessionID("s1", "w1", "codex"))
 		})
 	}
+}
+
+func TestTaskDispatcher_FreshStartEngineMissing_StoresNoSession(t *testing.T) {
+	cases := []struct {
+		name       string
+		engine     string
+		engineErr  error
+		sessionKey string
+		taskType   string
+	}{
+		{"Unavailable", "codex", ai.ErrEngineUnavailable("codex"), "s1", model.TaskTypeImmediate},
+		{"NoEngine", "", ai.ErrNoEngine, "s1", model.TaskTypeImmediate},
+		{"ScheduledUnavailable", "codex", ai.ErrEngineUnavailable("codex"), "telegram:chat-1:user-1", model.TaskTypeScheduled},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ss := newMockSessionStore()
+			mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", tc.engineErr)}
+			fn := &mockFailureNotifier{}
+			in := make(chan task.DispatchTask, 4)
+			d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore(tc.engine, "", aitest.IDs()), task.WithFailureNotifier(fn))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go d.Run(ctx)
+
+			dt := proactiveTaskFor("t1", tc.sessionKey, tc.taskType)
+			dt.MessageID = "msg-1"
+			in <- dt
+
+			require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
+			assert.EqualValues(t, 1, mgr.executed.Load())
+			assert.Equal(t, 1, ss.upsertCount())
+			assert.Zero(t, ss.rowCount(), "expected no session context stored for a run that never started")
+		})
+	}
+}
+
+func TestTaskDispatcher_ScheduledLocalWorkerStartError_KeepsChatSession(t *testing.T) {
+	ss := newMockSessionStore()
+	_ = ss.UpsertSessionContext(context.Background(), "local:u1:worker:w1", "w1", "chat-session-id", "codex")
+	mgr := &tableExecManager{execErr: fmt.Errorf("start runtime: %w", ai.ErrEngineUnavailable("codex"))}
+	fn := &mockFailureNotifier{}
+	in := make(chan task.DispatchTask, 4)
+	d := task.New(mgr, &mockTaskStore{}, ss, &mockExecutionQuerier{}, in, enginecfg.NewStore("codex", "", aitest.IDs()), task.WithFailureNotifier(fn))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go d.Run(ctx)
+
+	in <- proactiveTaskFor("t1", "local:u1:worker:w1", model.TaskTypeScheduled)
+
+	require.True(t, fn.waitForCall(2*time.Second), "expected NotifyTaskFailure to be called")
+	assert.Zero(t, ss.deleteCount())
+	assert.Equal(t, "chat-session-id", ss.sessionID("local:u1:worker:w1", "w1", "codex"))
 }
 
 func TestTaskDispatcher_Serialized(t *testing.T) {

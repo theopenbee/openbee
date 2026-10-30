@@ -42,7 +42,7 @@ func (p UpdateWorkerParams) HasChanges() bool {
 		p.WorkDir != nil || p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil
 }
 
-func (p UpdateWorkerParams) Validate(m *Manager) error {
+func (p UpdateWorkerParams) Validate() error {
 	if p.WorkDir != nil {
 		if strings.TrimSpace(*p.WorkDir) == "" {
 			return fmt.Errorf("work_dir cannot be empty: %w", ErrValidation)
@@ -53,17 +53,47 @@ func (p UpdateWorkerParams) Validate(m *Manager) error {
 			return err
 		}
 	}
-	if p.Engine != nil {
+	return nil
+}
+
+func (p UpdateWorkerParams) validateEngineChanges(m *Manager, current model.Worker) error {
+	if p.Engine != nil && *p.Engine != current.Engine {
 		if err := m.ValidateEngine(*p.Engine); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", err, ErrValidation)
 		}
 	}
-	if p.EngineArgs != nil {
-		if err := m.ValidateEngineArgs(p.EngineArgs); err != nil {
-			return err
+	if len(p.EngineArgs) == 0 {
+		return nil
+	}
+	existing, err := storedEngineArgs(current.EngineArgs)
+	if err != nil {
+		return err
+	}
+	changed := make(map[string]string)
+	for engine, args := range p.EngineArgs {
+		if args == "" {
+			continue
 		}
+		if prev, ok := existing[engine]; ok && prev == args {
+			continue
+		}
+		changed[engine] = args
+	}
+	if err := m.ValidateEngineArgs(changed); err != nil {
+		return fmt.Errorf("%w: %w", err, ErrValidation)
 	}
 	return nil
+}
+
+func storedEngineArgs(raw string) (map[string]string, error) {
+	existing := make(map[string]string)
+	if raw == "" || raw == "{}" {
+		return existing, nil
+	}
+	if err := json.Unmarshal([]byte(raw), &existing); err != nil {
+		return nil, fmt.Errorf("parse existing engine_args: %w", err)
+	}
+	return existing, nil
 }
 
 func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
@@ -92,11 +122,9 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 		w.EngineArgs = "{}"
 		return nil
 	}
-	existing := make(map[string]string)
-	if w.EngineArgs != "" && w.EngineArgs != "{}" {
-		if err := json.Unmarshal([]byte(w.EngineArgs), &existing); err != nil {
-			return fmt.Errorf("parse existing engine_args: %w", err)
-		}
+	existing, err := storedEngineArgs(w.EngineArgs)
+	if err != nil {
+		return err
 	}
 	for engine, args := range p.EngineArgs {
 		if args == "" {
@@ -128,7 +156,7 @@ func (m *Manager) validateWorkerName(name, excludeID string) error {
 }
 
 func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, error) {
-	if err := p.Validate(m); err != nil {
+	if err := p.Validate(); err != nil {
 		return model.Worker{}, err
 	}
 	w, err := m.workerStore.GetByID(id)
@@ -137,6 +165,9 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 			return model.Worker{}, ErrNotFound
 		}
 		return model.Worker{}, fmt.Errorf("get worker: %w", err)
+	}
+	if err := p.validateEngineChanges(m, w); err != nil {
+		return model.Worker{}, err
 	}
 	if p.Name != nil {
 		trimmed := strings.TrimSpace(*p.Name)
