@@ -510,7 +510,7 @@
     "plugin_env_secret_missing": "保存插件配置前，请先在 config.yaml 中设置 server.env_secret",
     "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
     "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
-    "bot_name_not_supported": "这个插件没有机器人名称",
+    "plugin_bot_name_not_supported": "引擎插件没有机器人名称。",
     "plugin_operation_not_found": "找不到该插件操作",
     "plugin_catalog_unavailable": "暂时无法获取插件目录",
     "plugin_no_setup": "插件 {{id}} 没有登录步骤",

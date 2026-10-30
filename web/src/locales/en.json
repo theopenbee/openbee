@@ -514,7 +514,7 @@
     "plugin_env_secret_missing": "Set server.env_secret in config.yaml before saving plugin settings",
     "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
     "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
-    "bot_name_not_supported": "This plugin has no bot name",
+    "plugin_bot_name_not_supported": "Engine plugins don't have a bot name.",
     "plugin_operation_not_found": "Plugin operation not found",
     "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
     "plugin_no_setup": "Plugin {{id}} has no login step",
