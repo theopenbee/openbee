@@ -128,7 +128,9 @@ func (m *Manager) runInstall(opID, spec string) {
 	if prevID != "" {
 		unlockPrev = m.lockID(prevID)
 		m.mu.Lock()
-		_, stoppedPrev = m.instances[prevID]
+		_, channelActive := m.instances[prevID]
+		_, engineActive := m.engines[prevID]
+		stoppedPrev = channelActive || engineActive
 		m.upgrading[prevID] = true
 		m.mu.Unlock()
 		defer m.clearUpgrading(prevID)
@@ -167,11 +169,14 @@ func (m *Manager) runInstall(opID, spec string) {
 	defer unlock()
 
 	row, found, err := m.deps.Store.Get(ctx, id)
-	if err == nil && found && row.Enabled {
+	switch {
+	case err == nil && found && row.Enabled:
 		m.stopLocked(id)
 		if serr := m.startLocked(ctx, id); serr != nil {
 			log.Error("start plugin after install", zap.String("plugin", id), zap.Error(serr))
 		}
+	case err == nil && !found:
+		m.enableNewEngine(ctx, entry)
 	}
 	log.Info("plugin installed", zap.String("plugin", id), zap.String("version", entry.Version))
 	m.finishOp(opID, nil)

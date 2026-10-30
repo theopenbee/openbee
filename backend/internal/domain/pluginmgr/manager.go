@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/theopenbee/openbee/internal/ai/pluginengine"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -33,6 +34,7 @@ const (
 	StateRunning       State = "running"
 	StateRetrying      State = "retrying"
 	StateFailed        State = "failed"
+	StateReady         State = "ready"
 )
 
 type Registry interface {
@@ -66,6 +68,8 @@ type Deps struct {
 	Version         string
 	SetupCommand    func(ctx context.Context, man plugin.Manifest, lang string) (*exec.Cmd, error)
 	Language        string
+	EngineFactory   func(pluginengine.Spec) EngineRunner
+	StateDir        func(id string) string
 }
 
 type Status struct {
@@ -74,6 +78,7 @@ type Status struct {
 	Source      string
 	Version     string
 	Path        string
+	Type        string
 	Name        plugin.LocalizedText
 	Description plugin.LocalizedText
 	Enabled     bool
@@ -103,9 +108,11 @@ type Manager struct {
 
 	mu         sync.Mutex
 	rootCtx    context.Context
+	engineCtx  context.Context
 	dispatch   func(platform.InboundMessage)
 	onBotNames func(map[string]string)
 	instances  map[string]*instance
+	engines    map[string]*engineInstance
 	startErrs  map[string]string
 	locks      map[string]*sync.Mutex
 	botNames   map[string]string
@@ -126,6 +133,7 @@ func New(d Deps) *Manager {
 	return &Manager{
 		deps:      d,
 		instances: make(map[string]*instance),
+		engines:   make(map[string]*engineInstance),
 		startErrs: make(map[string]string),
 		locks:     make(map[string]*sync.Mutex),
 		botNames:  make(map[string]string),
@@ -155,7 +163,7 @@ func (m *Manager) Start(ctx context.Context, dispatch func(platform.InboundMessa
 			log.Error("read plugin settings", zap.String("plugin", e.ID), zap.Error(err))
 			continue
 		}
-		if !found || !row.Enabled {
+		if !found || !row.Enabled || m.isEngine(e) {
 			continue
 		}
 		unlock := m.lockID(e.ID)
@@ -229,7 +237,15 @@ func isDone(ch chan struct{}) bool {
 func (m *Manager) startLocked(ctx context.Context, id string) error {
 	m.mu.Lock()
 	rec := m.instances[id]
+	eng := m.engines[id]
+	engFailed := eng != nil && eng.state == StateFailed
 	m.mu.Unlock()
+	if eng != nil {
+		if !engFailed {
+			return nil
+		}
+		m.stopLocked(id)
+	}
 	if rec != nil {
 		if !isDone(rec.done) {
 			return nil
@@ -277,6 +293,9 @@ func (m *Manager) launch(ctx context.Context, id string) error {
 	}
 	if err := os.Chmod(dataDir, 0o700); err != nil {
 		return fmt.Errorf("secure plugin data dir: %w", err)
+	}
+	if man.Kind() == plugin.TypeEngine {
+		return m.launchEngine(id, man, cfg, dataDir)
 	}
 
 	m.mu.Lock()
@@ -352,9 +371,15 @@ func errText(err error) string {
 func (m *Manager) stopLocked(id string) {
 	m.mu.Lock()
 	rec := m.instances[id]
+	eng := m.engines[id]
 	delete(m.instances, id)
+	delete(m.engines, id)
 	delete(m.startErrs, id)
 	m.mu.Unlock()
+	if eng != nil {
+		eng.cancel()
+		log.Info("engine unregistered", zap.String("plugin", id))
+	}
 	m.deps.Senders.Delete(id)
 	if rec == nil {
 		return
@@ -380,6 +405,10 @@ func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string
 	if err != nil {
 		return err
 	}
+	isEngine := man.Kind() == plugin.TypeEngine
+	if isEngine && botName != nil && strings.TrimSpace(*botName) != "" {
+		return errBotNameNotSupported(id)
+	}
 	cur := Settings{Config: map[string]any{}}
 	row, found, err := m.deps.Store.Get(ctx, id)
 	if err != nil {
@@ -398,6 +427,9 @@ func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string
 	next := Settings{Enabled: cur.Enabled, BotName: cur.BotName, Config: merged}
 	if botName != nil {
 		next.BotName = strings.TrimSpace(*botName)
+	}
+	if isEngine {
+		next.BotName = ""
 	}
 	if next.BotName != "" && next.BotName != cur.BotName && m.deps.WorkerNameTaken != nil {
 		taken, err := m.deps.WorkerNameTaken(next.BotName)
@@ -438,6 +470,12 @@ func (m *Manager) Enable(ctx context.Context, id string) error {
 	row, found, err := m.deps.Store.Get(ctx, id)
 	if err != nil {
 		return err
+	}
+	if !found && man.Kind() == plugin.TypeEngine {
+		if err := m.saveEngineDefaults(ctx, id, man); err != nil {
+			return err
+		}
+		return m.startLocked(ctx, id)
 	}
 	if !found {
 		return errNotConfigured(id, errors.New("no settings saved"))
@@ -552,6 +590,7 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 		Source:  e.Source,
 		Version: e.Version,
 		Path:    e.Path,
+		Type:    plugin.TypeChannel,
 		Name:    plugin.LocalizedText{"en": e.ID},
 	}
 	if found {
@@ -560,6 +599,7 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 	}
 	man, merr := m.manifest(e)
 	if merr == nil {
+		st.Type = man.Kind()
 		if len(man.Name) > 0 {
 			st.Name = man.Name
 		}
@@ -569,17 +609,22 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 
 	m.mu.Lock()
 	rec := m.instances[e.ID]
+	eng := m.engines[e.ID]
 	startErr := m.startErrs[e.ID]
 	upgrading := m.upgrading[e.ID]
+	active := rec != nil || eng != nil
 	var recState State
 	var recErr string
-	if rec != nil {
+	switch {
+	case rec != nil:
 		recState, recErr = rec.state, rec.err
+	case eng != nil:
+		recState, recErr = eng.state, eng.err
 	}
 	m.mu.Unlock()
 
 	switch {
-	case rec != nil:
+	case active:
 		st.State, st.Error = recState, recErr
 	case upgrading && found && row.Enabled:
 		st.State = StateStarting

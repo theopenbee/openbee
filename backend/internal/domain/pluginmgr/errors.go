@@ -7,17 +7,18 @@ import (
 )
 
 const (
-	CodeNotFound           = "plugin_not_found"
-	CodeConfigInvalid      = "plugin_config_invalid"
-	CodeUnknownField       = "plugin_unknown_field"
-	CodeEnvSecretMissing   = "plugin_env_secret_missing"
-	CodeNotConfigured      = "plugin_not_configured"
-	CodeBotNameConflict    = "plugin_bot_name_conflict"
-	CodeOperationNotFound  = "plugin_operation_not_found"
-	CodeCatalogUnavailable = "plugin_catalog_unavailable"
-	CodeNoSetup            = "plugin_no_setup"
-	CodeSetupNotFound      = "plugin_setup_not_found"
-	CodeSetupFinished      = "plugin_setup_finished"
+	CodeNotFound            = "plugin_not_found"
+	CodeConfigInvalid       = "plugin_config_invalid"
+	CodeUnknownField        = "plugin_unknown_field"
+	CodeEnvSecretMissing    = "plugin_env_secret_missing"
+	CodeNotConfigured       = "plugin_not_configured"
+	CodeBotNameConflict     = "plugin_bot_name_conflict"
+	CodeOperationNotFound   = "plugin_operation_not_found"
+	CodeCatalogUnavailable  = "plugin_catalog_unavailable"
+	CodeNoSetup             = "plugin_no_setup"
+	CodeSetupNotFound       = "plugin_setup_not_found"
+	CodeSetupFinished       = "plugin_setup_finished"
+	CodeBotNameNotSupported = "bot_name_not_supported"
 )
 
 func errNotFound(id string) error {
@@ -42,6 +43,10 @@ func errNotConfigured(id string, err error) error {
 
 func errBotNameConflict(name string) error {
 	return apperr.New(CodeBotNameConflict, fmt.Sprintf("bot name %q is already used by a worker", name)).WithParams(map[string]any{"name": name})
+}
+
+func errBotNameNotSupported(id string) error {
+	return apperr.New(CodeBotNameNotSupported, fmt.Sprintf("plugin %q is an engine and has no bot name", id)).WithParams(map[string]any{"id": id})
 }
 
 func errCatalogUnavailable(err error) error {

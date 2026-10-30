@@ -114,7 +114,8 @@ func pluginErrorStatus(err error) int {
 	case pluginmgr.CodeNotFound, pluginmgr.CodeOperationNotFound, pluginmgr.CodeSetupNotFound:
 		return http.StatusNotFound
 	case pluginmgr.CodeConfigInvalid, pluginmgr.CodeUnknownField, pluginmgr.CodeBotNameConflict,
-		pluginmgr.CodeEnvSecretMissing, pluginmgr.CodeNotConfigured, pluginmgr.CodeNoSetup:
+		pluginmgr.CodeEnvSecretMissing, pluginmgr.CodeNotConfigured, pluginmgr.CodeNoSetup,
+		pluginmgr.CodeBotNameNotSupported:
 		return http.StatusBadRequest
 	case pluginmgr.CodeSetupFinished:
 		return http.StatusConflict

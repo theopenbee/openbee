@@ -61,13 +61,19 @@ func (f *fakeInstaller) Install(ctx context.Context, spec string) (plugin.Entry,
 		return plugin.Entry{}, plugin.Manifest{}, fail
 	}
 	name := packageNameFromSpec(spec)
-	id := strings.TrimPrefix(name[strings.LastIndex(name, "/")+1:], "channel-")
+	base := name[strings.LastIndex(name, "/")+1:]
 	version := "1.0.0"
 	if i := strings.LastIndex(spec, "@"); i > 0 {
 		version = spec[i+1:]
 	}
 	dir := filepath.Join(f.h.reg.dir, "node_modules", name)
-	writeManifest(f.h.t, dir, id, tokenField)
+	id := strings.TrimPrefix(base, "channel-")
+	if engineID, ok := strings.CutPrefix(base, "engine-"); ok {
+		id = engineID
+		writeEngineManifest(f.h.t, dir, id, f.h.engines.fieldsFor(id))
+	} else {
+		writeManifest(f.h.t, dir, id, tokenField)
+	}
 	e := plugin.Entry{ID: id, Source: plugin.SourceNpm, Package: name, Path: dir, Version: version}
 	f.h.reg.put(e)
 	return e, plugin.Manifest{ID: id}, nil

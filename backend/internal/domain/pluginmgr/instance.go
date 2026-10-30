@@ -3,6 +3,8 @@ package pluginmgr
 import (
 	"context"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/pluginengine"
 	"github.com/theopenbee/openbee/internal/infra/buildinfo"
 	"github.com/theopenbee/openbee/internal/infra/media"
 	"github.com/theopenbee/openbee/internal/platform"
@@ -25,6 +27,11 @@ type InstanceSpec struct {
 }
 
 type Factory func(InstanceSpec) Instance
+
+type EngineRunner interface {
+	ai.EngineAdapter
+	Check(ctx context.Context) (pluginengine.CheckResult, error)
+}
 
 func PluginChannelFactory(runtime *plugin.RuntimeResolver, mediaSvc *media.Service, migrator pluginchannel.SessionKeyMigrator, language string) Factory {
 	return func(s InstanceSpec) Instance {

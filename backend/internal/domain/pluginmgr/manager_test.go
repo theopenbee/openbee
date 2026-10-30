@@ -152,6 +152,8 @@ type harness struct {
 	store    *store.PluginSettingsStore
 	codec    *Codec
 	factory  *fakeFactory
+	engines  *fakeEngineFactory
+	stateDir string
 	senders  *platform.SenderRegistry
 	workers  map[string]bool
 	botNames chan map[string]string
@@ -187,6 +189,8 @@ func newHarness(t *testing.T) *harness {
 		store:    store.NewPluginSettingsStore(db),
 		codec:    codec,
 		factory:  newFakeFactory(),
+		engines:  newFakeEngineFactory(),
+		stateDir: t.TempDir(),
 		senders:  platform.NewSenderRegistry(),
 		workers:  map[string]bool{},
 		botNames: make(chan map[string]string, 256),
@@ -199,14 +203,18 @@ func newHarness(t *testing.T) *harness {
 			cmd.Env = append(os.Environ(), "OPENBEE_LANGUAGE="+lang)
 			return cmd, nil
 		},
-		Language:   "zh",
-		Registry:   h.reg,
-		Installer:  h.inst,
-		Store:      h.store,
-		Codec:      h.codec,
-		Senders:    h.senders,
-		WrapSender: func(_ string, s platform.PlatformSenderAdapter) platform.PlatformSenderAdapter { return s },
-		Factory:    h.factory.build,
+		Language:      "zh",
+		Registry:      h.reg,
+		Installer:     h.inst,
+		Store:         h.store,
+		Codec:         h.codec,
+		Senders:       h.senders,
+		WrapSender:    func(_ string, s platform.PlatformSenderAdapter) platform.PlatformSenderAdapter { return s },
+		Factory:       h.factory.build,
+		EngineFactory: h.engines.build,
+		StateDir: func(id string) string {
+			return filepath.Join(h.stateDir, "."+id)
+		},
 		WorkerNameTaken: func(name string) (bool, error) {
 			return h.workers[name], nil
 		},

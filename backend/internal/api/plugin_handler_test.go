@@ -306,11 +306,12 @@ func TestPluginHandler_UpdateSettings(t *testing.T) {
 
 func TestPluginHandler_SettingsValidationError(t *testing.T) {
 	for code, status := range map[string]int{
-		pluginmgr.CodeConfigInvalid:    http.StatusBadRequest,
-		pluginmgr.CodeUnknownField:     http.StatusBadRequest,
-		pluginmgr.CodeBotNameConflict:  http.StatusBadRequest,
-		pluginmgr.CodeEnvSecretMissing: http.StatusBadRequest,
-		pluginmgr.CodeNotConfigured:    http.StatusBadRequest,
+		pluginmgr.CodeConfigInvalid:       http.StatusBadRequest,
+		pluginmgr.CodeUnknownField:        http.StatusBadRequest,
+		pluginmgr.CodeBotNameConflict:     http.StatusBadRequest,
+		pluginmgr.CodeEnvSecretMissing:    http.StatusBadRequest,
+		pluginmgr.CodeNotConfigured:       http.StatusBadRequest,
+		pluginmgr.CodeBotNameNotSupported: http.StatusBadRequest,
 	} {
 		svc := &fakePluginService{err: apperr.New(code, "nope")}
 		w, body := doJSON(t, newPluginRouter(svc), http.MethodPut, "/api/plugins/telegram/settings", map[string]any{"config": map[string]any{}})

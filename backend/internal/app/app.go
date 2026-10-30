@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/pluginengine"
 	"github.com/theopenbee/openbee/internal/domain/bee"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -53,11 +54,13 @@ type App struct {
 	runners  []func(ctx context.Context)
 	plugins  *pluginmgr.Manager
 	addr     string
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // Run starts all goroutines, waits for a signal, then shuts down gracefully.
 func (a *App) Run() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := a.ctx, a.cancel
 	defer cancel()
 
 	for _, r := range a.runners {
@@ -100,6 +103,17 @@ func (a *App) Run() {
 
 // BuildApp wires all components together. Returns a ready-to-run App.
 func BuildApp(cfg config.Config) (*App, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	a, err := buildApp(ctx, cfg)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	a.ctx, a.cancel = ctx, cancel
+	return a, nil
+}
+
+func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 	if !cfg.Server.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -114,19 +128,21 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Warn(msg)
 	}
 
-	var engines ai.EngineSource = noEngines{}
-	engineCfg := enginecfg.NewStore(selectedEngine(s.systemConfigStore, cfg.Bee.Engine.Default), cfg.Bee.Engine.Default,
-		func() []string { return ai.EngineIDs(engines) })
+	sendersByPlatform := platform.NewSenderRegistry()
+	pluginMgr, err := buildPluginManager(cfg, s, sendersByPlatform)
+	if err != nil {
+		return nil, err
+	}
+	pluginMgr.LoadEngines(ctx)
+	engineCfg := enginecfg.NewStore(selectedEngine(s.systemConfigStore, cfg.Bee.Engine.Default), cfg.Bee.Engine.Default, pluginMgr.EnabledEngineIDs)
 
 	envSvc, err := env.NewService(s.envConfigStore, cfg.Server.EnvSecret)
 	if err != nil {
 		return nil, fmt.Errorf("init env service: %w", err)
 	}
-	mgr := buildWorkerManager(cfg.Bee, s, engines, engineCfg, envSvc)
+	mgr := buildWorkerManager(cfg.Bee, s, pluginMgr, engineCfg, envSvc)
 
 	dispatchCh := make(chan task.DispatchTask, 128)
-
-	sendersByPlatform := platform.NewSenderRegistry()
 
 	failureNotifier := task.NewPlatformFailureNotifier(s.msgStore, sendersByPlatform)
 	localMediaRoot, err := config.LocalUploadsDir()
@@ -144,12 +160,8 @@ func BuildApp(cfg config.Config) (*App, error) {
 	sendersByPlatform.Set(local.PlatformID, localSender)
 	handoff := localchat.NewHandoff(s.msgStore, s.taskStore, localSender, localPub)
 
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, engines, engineCfg, envSvc, localMediaRoot, handoff)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, pluginMgr, engineCfg, envSvc, localMediaRoot, handoff)
 
-	pluginMgr, err := buildPluginManager(cfg, s, sendersByPlatform)
-	if err != nil {
-		return nil, err
-	}
 	mgr.SetBotNameSource(pluginMgr.BotNameList)
 	mgr.SetStatusObserver(func(id string, status model.WorkerStatus) {
 		localPub.WorkerStatus(id, string(status))
@@ -200,7 +212,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		logger.Info("reset orphaned executions", zap.Int64("count", n))
 	}
 
-	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, engines)
+	tokenSyncer := tokenstat.NewSyncer(db, s.tokenStatsStore, pluginMgr)
 	reconciler := task.NewReconciler(s.taskStore, s.execStore, 0)
 	runners := []func(ctx context.Context){
 		func(ctx context.Context) { ingest.Run(ctx) },
@@ -232,7 +244,7 @@ func BuildApp(cfg config.Config) (*App, error) {
 		MediaRoot: localMediaRoot,
 	})
 
-	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engines, engineCfg, pluginMgr)
+	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
@@ -280,12 +292,6 @@ func buildStores(cfg config.DatabaseConfig) (*sql.DB, appStores, error) {
 		localChatStore:    store.NewLocalChatStore(db),
 	}, nil
 }
-
-type noEngines struct{}
-
-func (noEngines) Engine(string) (ai.EngineAdapter, bool) { return nil, false }
-
-func (noEngines) Engines() []ai.EngineInfo { return nil }
 
 func selectedEngine(sysStore *store.SystemConfigStore, configDefault string) string {
 	row, found, err := sysStore.Get(context.Background(), model.SystemConfigKeyDefaultEngine)
@@ -340,7 +346,7 @@ func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, q
 	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead)
 }
 
-func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engines ai.EngineSource, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
+func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {
 	secret := serverCfg.Auth.JWTSecret
 	jwtSvc := auth.NewJWTService(secret, serverCfg.Auth.AccessTokenTTL, serverCfg.Auth.RefreshTokenTTL)
 	rateLimiter := auth.NewLoginRateLimiter(5, time.Minute)
@@ -350,7 +356,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 
 	return routes.NewServer(routes.ServerParams{
 		Workers:           api.NewWorkerHandler(s.workerStore, mgr, workerChats, language),
-		Config:            api.NewConfigHandler(language, engines),
+		Config:            api.NewConfigHandler(language, plugins),
 		LocalChat:         localChat,
 		Auth:              authHandler,
 		Envs:              api.NewEnvHandler(envSvc),
@@ -375,6 +381,7 @@ func buildPluginManager(cfg config.Config, s appStores, senders *platform.Sender
 		logger.Info("no usable bun or node found, installing bun for plugins", zap.String("version", version), zap.String("dir", dir))
 	}
 	registry := plugin.OpenRegistry(plugin.DefaultDir())
+	home, _ := os.UserHomeDir()
 	return pluginmgr.New(pluginmgr.Deps{
 		Registry:  registry,
 		Installer: &plugin.Installer{Registry: registry, Runtime: runtime, Run: plugin.ExecRunner},
@@ -385,6 +392,13 @@ func buildPluginManager(cfg config.Config, s appStores, senders *platform.Sender
 			return store.NewLoggingPlatformSenderAdapter(sender, s.outboundMsgStore, id)
 		},
 		Factory: pluginmgr.PluginChannelFactory(runtime, media.NewService(), s.taskStore, cfg.Language),
+		EngineFactory: func(spec pluginengine.Spec) pluginmgr.EngineRunner {
+			spec.Runtime = runtime
+			return pluginengine.New(spec)
+		},
+		StateDir: func(id string) string {
+			return filepath.Join(home, ".openbee", "."+id)
+		},
 		WorkerNameTaken: func(name string) (bool, error) {
 			return s.workerStore.ExistsByName(name, "")
 		},
