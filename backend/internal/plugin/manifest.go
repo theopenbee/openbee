@@ -11,8 +11,14 @@ import (
 )
 
 const (
-	ManifestFile    = "openbee.plugin.json"
-	ProtocolVersion = 1
+	ManifestFile          = "openbee.plugin.json"
+	ProtocolVersion       = 1
+	EngineProtocolVersion = 1
+)
+
+const (
+	TypeChannel = "channel"
+	TypeEngine  = "engine"
 )
 
 var ReservedIDs = []string{"local"}
@@ -73,6 +79,7 @@ type Setup struct {
 
 type Manifest struct {
 	ProtocolVersion int           `json:"protocol_version"`
+	Type            string        `json:"type,omitempty"`
 	ID              string        `json:"id"`
 	Name            LocalizedText `json:"name,omitempty"`
 	Description     LocalizedText `json:"description,omitempty"`
@@ -130,15 +137,34 @@ func ValidateID(id string) error {
 	return nil
 }
 
+func (m Manifest) Kind() string {
+	if m.Type == "" {
+		return TypeChannel
+	}
+	return m.Type
+}
+
 func (m Manifest) Validate() error {
-	if m.ProtocolVersion != ProtocolVersion {
-		return fmt.Errorf("unsupported protocol_version %d (supported: %d)", m.ProtocolVersion, ProtocolVersion)
+	var supported int
+	switch m.Kind() {
+	case TypeChannel:
+		supported = ProtocolVersion
+	case TypeEngine:
+		supported = EngineProtocolVersion
+	default:
+		return fmt.Errorf("unknown type %q (supported: %s, %s)", m.Type, TypeChannel, TypeEngine)
+	}
+	if m.ProtocolVersion != supported {
+		return fmt.Errorf("unsupported protocol_version %d (supported: %d)", m.ProtocolVersion, supported)
 	}
 	if err := ValidateID(m.ID); err != nil {
 		return err
 	}
 	if len(m.Command) == 0 || m.Command[0] == "" {
 		return errors.New("manifest command must not be empty")
+	}
+	if m.Kind() == TypeEngine && m.Setup != nil {
+		return errors.New("engine plugins cannot declare setup")
 	}
 	if m.Setup != nil && (len(m.Setup.Command) == 0 || m.Setup.Command[0] == "") {
 		return errors.New("manifest setup command must not be empty")

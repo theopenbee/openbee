@@ -164,3 +164,80 @@ func TestLoadManifest_RandomDefault(t *testing.T) {
 	require.Len(t, m.Config, 1)
 	assert.True(t, m.Config[0].RandomDefault)
 }
+
+const engineManifest = `{
+  "protocol_version": 1,
+  "type": "engine",
+  "id": "claude",
+  "name": { "en": "Claude Code", "zh": "Claude Code" },
+  "description": { "en": "Runs tasks with Claude Code", "zh": "用 Claude Code 执行任务" },
+  "command": ["node", "dist/index.js"],
+  "config": [
+    { "key": "path", "type": "string", "label": { "en": "Claude Code path", "zh": "Claude Code 路径" }, "help": { "en": "Leave empty to use claude on PATH", "zh": "留空则使用 PATH 里的 claude" } }
+  ]
+}`
+
+func TestManifest_TypeDefaultsToChannel(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, validManifest)
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "", m.Type)
+	assert.Equal(t, TypeChannel, m.Kind())
+	assert.Equal(t, "channel", m.Kind())
+	assert.Equal(t, TypeEngine, Manifest{Type: TypeEngine}.Kind())
+}
+
+func TestManifest_UnknownTypeRejected(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(validManifest), &raw))
+	raw["type"] = "agent"
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	_, err := LoadManifest(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "type")
+	assert.Contains(t, err.Error(), "agent")
+}
+
+func TestManifest_EngineRejectsSetup(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(engineManifest), &raw))
+	raw["setup"] = map[string]any{"command": []string{"node", "dist/setup.js"}}
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	_, err := LoadManifest(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "setup")
+}
+
+func TestManifest_EngineValid(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, engineManifest)
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, TypeEngine, m.Type)
+	assert.Equal(t, TypeEngine, m.Kind())
+	assert.Equal(t, "claude", m.ID)
+	assert.Equal(t, "用 Claude Code 执行任务", m.Description.Get("zh"))
+	require.Len(t, m.Config, 1)
+	assert.Equal(t, "path", m.Config[0].Key)
+}
+
+func TestManifest_ProtocolVersionPerType(t *testing.T) {
+	assert.Equal(t, 1, EngineProtocolVersion)
+
+	engine := Manifest{ProtocolVersion: EngineProtocolVersion, Type: TypeEngine, ID: "claude", Command: []string{"node", "index.js"}}
+	require.NoError(t, engine.Validate())
+
+	engine.ProtocolVersion = EngineProtocolVersion + 1
+	err := engine.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "protocol_version")
+}

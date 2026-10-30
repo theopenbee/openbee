@@ -115,3 +115,49 @@ func TestManager_CatalogDoesNotOfferDowngrade(t *testing.T) {
 	assert.True(t, view.Plugins[0].Installed)
 	assert.False(t, view.Plugins[0].UpdateAvailable)
 }
+
+func TestCatalog_IncludesEngineCategory(t *testing.T) {
+	h := newHarness(t)
+	engine := catalog.Entry{Category: "engine", ID: "claude", Package: "@theopenbee/engine-claude", Version: "0.1.0", ProtocolVersion: 1, Name: plugin.LocalizedText{"en": "Claude Code"}}
+	stale := catalog.Entry{Category: "engine", ID: "oldengine", Package: "@theopenbee/engine-old", Version: "0.1.0", ProtocolVersion: 2, Name: plugin.LocalizedText{"en": "Old"}}
+	h.m.deps.Catalog = &fakeCatalog{cat: catalog.Catalog{
+		SchemaVersion: 1,
+		Categories:    []catalog.Vocab{{ID: "channel"}, {ID: "engine"}, {ID: "agent"}},
+		Plugins:       []catalog.Entry{catalogEntry("telegram", "@theopenbee/channel-telegram", "0.1.0"), engine, stale},
+	}}
+
+	view, err := h.m.Catalog(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, []catalog.Vocab{{ID: "channel"}, {ID: "engine"}}, view.Categories)
+
+	byID := map[string]CatalogPlugin{}
+	for _, p := range view.Plugins {
+		byID[p.ID] = p
+	}
+	require.Contains(t, byID, "claude")
+	assert.Equal(t, "engine", byID["claude"].Category)
+	assert.True(t, byID["claude"].Installable)
+	assert.True(t, byID["telegram"].Installable)
+	require.Contains(t, byID, "oldengine")
+	assert.False(t, byID["oldengine"].Installable)
+}
+
+func TestCatalog_SkipsUnknownCategory(t *testing.T) {
+	h := newHarness(t)
+	h.m.deps.Catalog = &fakeCatalog{cat: catalog.Catalog{
+		SchemaVersion: 1,
+		Categories:    []catalog.Vocab{{ID: "channel"}, {ID: "agent"}, {ID: "theme"}},
+		Plugins: []catalog.Entry{
+			catalogEntry("telegram", "@theopenbee/channel-telegram", "0.1.0"),
+			{Category: "agent", ID: "coder", Package: "@theopenbee/agent-coder", Version: "1.0.0", ProtocolVersion: 1},
+			{Category: "theme", ID: "dark", Package: "@theopenbee/theme-dark", Version: "1.0.0", ProtocolVersion: 1},
+			{ID: "nocat", Package: "@theopenbee/nocat", Version: "1.0.0", ProtocolVersion: 1},
+		},
+	}}
+
+	view, err := h.m.Catalog(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, []catalog.Vocab{{ID: "channel"}}, view.Categories)
+	require.Len(t, view.Plugins, 1)
+	assert.Equal(t, "telegram", view.Plugins[0].ID)
+}

@@ -9,7 +9,10 @@ import (
 	"github.com/theopenbee/openbee/internal/plugin/catalog"
 )
 
-const supportedCategory = "channel"
+var supportedCategories = map[string]int{
+	plugin.TypeChannel: pluginchannel.ProtocolVersion,
+	plugin.TypeEngine:  plugin.EngineProtocolVersion,
+}
 
 type CatalogSource interface {
 	Get(ctx context.Context, refresh bool) (catalog.Catalog, error)
@@ -48,15 +51,16 @@ func (m *Manager) Catalog(ctx context.Context, refresh bool) (CatalogView, error
 	}
 	view := CatalogView{SchemaVersion: cat.SchemaVersion, Tags: cat.Tags, Categories: []catalog.Vocab{}, Plugins: []CatalogPlugin{}}
 	for _, c := range cat.Categories {
-		if c.ID == supportedCategory {
+		if _, ok := supportedCategories[c.ID]; ok {
 			view.Categories = append(view.Categories, c)
 		}
 	}
 	for _, p := range cat.Plugins {
-		if p.Category != supportedCategory {
+		protocolVersion, ok := supportedCategories[p.Category]
+		if !ok {
 			continue
 		}
-		cp := CatalogPlugin{Entry: p, Installable: p.ProtocolVersion == pluginchannel.ProtocolVersion && m.versionAllows(p.MinOpenbeeVersion)}
+		cp := CatalogPlugin{Entry: p, Installable: p.ProtocolVersion == protocolVersion && m.versionAllows(p.MinOpenbeeVersion)}
 		if e, ok := installed[p.ID]; ok {
 			cp.Installed = true
 			cp.InstalledVersion = e.Version
