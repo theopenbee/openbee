@@ -1,0 +1,667 @@
+package task
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
+)
+
+var log = logger.With(zap.String("component", "taskdispatcher"))
+
+type taskMeta struct {
+	MessageID       string          `json:"message_id,omitempty"`
+	SessionKey      string          `json:"session_key,omitempty"`
+	TaskID          string          `json:"task_id,omitempty"`
+	PlatformContext json.RawMessage `json:"platform_context,omitempty"`
+}
+
+const (
+	pollInterval      = 2 * time.Second
+	stopSettleTimeout = 10 * time.Second
+)
+
+const (
+	StateQueued    = "queued"
+	StateRunning   = "running"
+	StateCompleted = "completed"
+	StateFailed    = "failed"
+	StateCancelled = "cancelled"
+)
+
+type TaskObserver interface {
+	TaskStateChanged(t DispatchTask, state string, queuedAhead int)
+}
+
+type StopSettler interface {
+	SettleStopped(ctx context.Context, executionID, workerID string)
+}
+
+// ExecutionManager manages worker executions.
+type ExecutionManager interface {
+	ExecuteWorker(ctx context.Context, req worker.ExecuteRequest) (model.WorkerExecution, error)
+	CancelExecution(ctx context.Context, executionID string) error
+}
+
+// ExecutionQuerier retrieves execution state by ID.
+type ExecutionQuerier interface {
+	GetByID(id string) (model.WorkerExecution, error)
+}
+
+// TaskStore is the subset of store.TaskStore used by the TaskDispatcher.
+type TaskStore interface {
+	GetByID(ctx context.Context, id string) (model.Task, error)
+	UpdateStatus(ctx context.Context, taskID, status string) error
+	CompleteTask(ctx context.Context, taskID string) error
+	FailTask(ctx context.Context, taskID string) error
+	CancelTask(ctx context.Context, taskID string) error
+	AbortRun(ctx context.Context, taskID string) error
+}
+
+// FailureNotifier sends failure and cancellation notifications to users.
+type FailureNotifier interface {
+	NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error
+	NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName string) error
+}
+
+// SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
+type SessionStore interface {
+	GetSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (sessionID string, err error)
+	UpsertSessionContext(ctx context.Context, sessionKey, agentID, sessionID, engine string) error
+	DeleteSessionContextForEngine(ctx context.Context, sessionKey, agentID, engine string) (bool, error)
+	ClearSessionContexts(ctx context.Context, sessionKey, beeEngine string) error
+}
+
+// WorkerLookup fetches worker metadata for persona injection on new sessions.
+type WorkerLookup interface {
+	GetByID(id string) (model.Worker, error)
+}
+
+type queueState struct {
+	executing    bool
+	pendingTasks []DispatchTask
+}
+
+type internalResult struct {
+	queueKey string
+	task     DispatchTask
+}
+
+// clearRequest signals the Run loop to drain queued tasks for a session.
+// An empty workerID drains every queued task in sessionKey; a non-empty
+// workerID restricts the drain to that (sessionKey, workerID) pair.
+type clearRequest struct {
+	sessionKey string
+	workerID   string
+}
+
+// TaskDispatcher serializes worker executions per WorkerID.
+type TaskDispatcher struct {
+	ctx             context.Context
+	manager         ExecutionManager
+	taskStore       TaskStore
+	sessionStore    SessionStore
+	execStore       ExecutionQuerier
+	engineCfg       *enginecfg.Store
+	failureNotifier FailureNotifier
+	workerLookup    WorkerLookup // nil disables persona injection
+	inCh            <-chan DispatchTask
+	resultsCh       chan internalResult
+	queues          map[string]*queueState // per-workerID serial queues
+	clearCh         chan clearRequest
+	cancelFuncs     map[string]context.CancelFunc // owned by Run loop
+	cancelCh        chan string
+	observer        TaskObserver
+	stopSettler     StopSettler
+	aborted         sync.Map
+}
+
+// New constructs a TaskDispatcher.
+func New(manager ExecutionManager, taskStore TaskStore, sessionStore SessionStore, execStore ExecutionQuerier, in <-chan DispatchTask, engineCfg *enginecfg.Store, opts ...Option) *TaskDispatcher {
+	d := &TaskDispatcher{
+		manager:      manager,
+		taskStore:    taskStore,
+		sessionStore: sessionStore,
+		execStore:    execStore,
+		engineCfg:    engineCfg,
+		inCh:         in,
+		resultsCh:    make(chan internalResult, 64),
+		queues:       make(map[string]*queueState),
+		clearCh:      make(chan clearRequest, 16),
+		cancelFuncs:  make(map[string]context.CancelFunc),
+		cancelCh:     make(chan string, 16),
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// Option configures a TaskDispatcher.
+type Option func(*TaskDispatcher)
+
+// WithFailureNotifier sets the notifier used to inform users about task failures.
+func WithFailureNotifier(fn FailureNotifier) Option {
+	return func(d *TaskDispatcher) { d.failureNotifier = fn }
+}
+
+// WithWorkerLookup sets the lookup used to fetch worker metadata for persona injection.
+func WithWorkerLookup(lookup WorkerLookup) Option {
+	return func(d *TaskDispatcher) { d.workerLookup = lookup }
+}
+
+func WithTaskObserver(o TaskObserver) Option {
+	return func(d *TaskDispatcher) { d.observer = o }
+}
+
+func WithStopSettler(s StopSettler) Option {
+	return func(d *TaskDispatcher) { d.stopSettler = s }
+}
+
+// Run processes tasks until ctx is cancelled. Call in a goroutine.
+func (d *TaskDispatcher) Run(ctx context.Context) {
+	d.ctx = ctx
+	for {
+		select {
+		case task, ok := <-d.inCh:
+			if !ok {
+				return
+			}
+			d.handleInbound(task)
+		case res := <-d.resultsCh:
+			d.handleResult(res)
+		case req := <-d.clearCh:
+			d.handleClear(req)
+		case taskID := <-d.cancelCh:
+			d.handleCancel(taskID)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (d *TaskDispatcher) handleInbound(task DispatchTask) {
+	key := task.WorkerID
+	state, ok := d.queues[key]
+	if !ok {
+		state = &queueState{}
+		d.queues[key] = state
+	}
+
+	if !state.executing {
+		state.executing = true
+		d.startTask(key, task)
+	} else {
+		state.pendingTasks = append(state.pendingTasks, task)
+		d.emit(task, StateQueued, len(state.pendingTasks))
+	}
+}
+
+func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
+	taskCtx, cancel := context.WithCancel(d.ctx)
+	if task.TaskID != "" {
+		d.cancelFuncs[task.TaskID] = cancel
+	}
+	d.emit(task, StateRunning, 0)
+	go d.executeAsync(taskCtx, cancel, key, task)
+}
+
+func (d *TaskDispatcher) emit(task DispatchTask, state string, queuedAhead int) {
+	if d.observer != nil {
+		d.observer.TaskStateChanged(task, state, queuedAhead)
+	}
+}
+
+func (d *TaskDispatcher) emitQueuePositions(state *queueState) {
+	for i, t := range state.pendingTasks {
+		d.emit(t, StateQueued, i+1)
+	}
+}
+
+func (d *TaskDispatcher) finishCancelled(task DispatchTask) {
+	if _, aborted := d.aborted.LoadAndDelete(task.TaskID); aborted {
+		if err := d.taskStore.AbortRun(context.Background(), task.TaskID); err != nil {
+			log.Error("abort task run", zap.String("taskID", task.TaskID), zap.Error(err))
+		}
+	}
+	d.emit(task, StateCancelled, 0)
+}
+
+func (d *TaskDispatcher) finishStopped(task DispatchTask, executionID string) {
+	d.finishCancelled(task)
+	if d.stopSettler == nil || d.ctx.Err() != nil {
+		return
+	}
+	if _, _, ok := local.ParseSessionKey(task.SessionKey); !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(d.ctx, stopSettleTimeout)
+	defer cancel()
+	d.stopSettler.SettleStopped(ctx, executionID, task.WorkerID)
+}
+
+// ClearWorker removes queued tasks for the given (sessionKey, workerID) pair from the
+// dispatcher's in-memory queues. Safe to call from any goroutine.
+//
+// The caller is responsible for stopping any currently executing worker via
+// StopExecution and marking tasks cancelled in the database; this method only
+// drains the pending tail of the queue so no future tasks fire for that pair.
+func (d *TaskDispatcher) ClearWorker(sessionKey, workerID string) {
+	d.sendClear(clearRequest{sessionKey: sessionKey, workerID: workerID})
+}
+
+// ClearSession removes all queued tasks for the given session and clears session contexts.
+// Safe to call from any goroutine — uses a buffered channel to signal the Run loop.
+func (d *TaskDispatcher) ClearSession(sessionKey string) {
+	// Clear DB synchronously so feeder can detect the clear after bee exits.
+	if err := d.sessionStore.ClearSessionContexts(context.Background(), sessionKey, d.engineCfg.Get()); err != nil {
+		log.Error("clear session contexts", zap.String("sessionKey", sessionKey), zap.Error(err))
+	}
+	d.sendClear(clearRequest{sessionKey: sessionKey})
+}
+
+func (d *TaskDispatcher) sendClear(req clearRequest) {
+	select {
+	case d.clearCh <- req:
+	default:
+		log.Warn("clearCh full, dropping clear",
+			zap.String("sessionKey", req.sessionKey),
+			zap.String("workerID", req.workerID))
+	}
+}
+
+func (d *TaskDispatcher) handleCancel(taskID string) {
+	// Remove from any pending queue
+	d.dropQueued(func(t DispatchTask) bool { return t.TaskID != taskID })
+	// Interrupt executing goroutine if present
+	cancel, ok := d.cancelFuncs[taskID]
+	if !ok {
+		d.aborted.Delete(taskID)
+		return
+	}
+	cancel()
+	delete(d.cancelFuncs, taskID)
+}
+
+// CancelTask marks the task cancelled in DB and signals the Run loop to
+// remove it from the in-memory queue or interrupt its executing goroutine.
+// Best-effort: returns once DB is updated; goroutine interruption is async.
+func (d *TaskDispatcher) CancelTask(ctx context.Context, taskID string) error {
+	if err := d.taskStore.CancelTask(ctx, taskID); err != nil {
+		return err
+	}
+	select {
+	case d.cancelCh <- taskID:
+	default:
+		log.Warn("cancelCh full, in-memory cancel dropped", zap.String("taskID", taskID))
+	}
+	return nil
+}
+
+func (d *TaskDispatcher) AbortRun(taskID string) {
+	d.aborted.Store(taskID, struct{}{})
+	select {
+	case d.cancelCh <- taskID:
+	default:
+		d.aborted.Delete(taskID)
+		log.Warn("cancelCh full, abort dropped", zap.String("taskID", taskID))
+	}
+}
+
+// dropQueued removes pending tasks for which keep(task) is false from every queue.
+// Empty, idle queues are deleted from d.queues.
+func (d *TaskDispatcher) dropQueued(keep func(DispatchTask) bool) {
+	for key, state := range d.queues {
+		var remaining, dropped []DispatchTask
+		for _, t := range state.pendingTasks {
+			if keep(t) {
+				remaining = append(remaining, t)
+			} else {
+				dropped = append(dropped, t)
+			}
+		}
+		state.pendingTasks = remaining
+		for _, t := range dropped {
+			d.finishCancelled(t)
+		}
+		if len(dropped) > 0 {
+			d.emitQueuePositions(state)
+		}
+		if !state.executing && len(state.pendingTasks) == 0 {
+			delete(d.queues, key)
+		}
+	}
+}
+
+// handleClear drops queued (not-yet-executing) tasks matching req. An empty
+// workerID matches every task in req.sessionKey. Tasks already running keep
+// going — the command layer stops their executions and cancels them in the
+// database separately.
+func (d *TaskDispatcher) handleClear(req clearRequest) {
+	d.dropQueued(func(t DispatchTask) bool {
+		if t.SessionKey != req.sessionKey {
+			return true
+		}
+		return req.workerID != "" && t.WorkerID != req.workerID
+	})
+}
+
+// buildInstruction prepends task metadata to the instruction so workers
+// can call mark_task_success and send_message via RPC.
+func buildInstruction(t DispatchTask) string {
+	if t.TaskID != "" || t.MessageID != "" {
+		meta := taskMeta{TaskID: t.TaskID}
+		if t.Proactive() {
+			meta.SessionKey = t.SessionKey
+		} else {
+			meta.MessageID = t.MessageID
+		}
+		if ctx := platform.ExtractContext(t.ReplyTo.Platform, t.ReplyTo.Raw); ctx != "" {
+			meta.PlatformContext = json.RawMessage(ctx)
+		}
+		b, _ := json.Marshal(meta)
+		return fmt.Sprintf("<task_meta>%s</task_meta>\n<task_content>\n%s\n</task_content>", b, t.Instruction)
+	}
+	return t.Instruction
+}
+
+func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.CancelFunc, key string, task DispatchTask) {
+	defer cancel() // always release the cancel func's resources
+	defer func() {
+		select {
+		case d.resultsCh <- internalResult{queueKey: key, task: task}:
+		case <-d.ctx.Done():
+		}
+	}()
+
+	engineName, worker := d.resolveWorkerEngine(task.WorkerID)
+	instruction := buildInstruction(task)
+	exec, err := d.resolveExecution(taskCtx, task, instruction, engineName, worker)
+	if err != nil {
+		if _, aborted := d.aborted.Load(task.TaskID); aborted && taskCtx.Err() != nil {
+			d.finishStopped(task, exec.ID)
+			return
+		}
+		log.Error("execute error",
+			zap.String("workerID", task.WorkerID),
+			zap.String("taskID", task.TaskID),
+			zap.String("messageID", task.MessageID),
+			zap.String("taskType", task.TaskType),
+			zap.String("sessionKey", task.SessionKey),
+			zap.Error(err),
+		)
+		if task.TaskID != "" {
+			if failErr := d.taskStore.FailTask(taskCtx, task.TaskID); failErr != nil {
+				log.Error("fail task after execute error", zap.String("taskID", task.TaskID), zap.Error(failErr))
+			}
+		}
+		failedWorker := task.WorkerID
+		if worker != nil {
+			failedWorker = workerName(worker.Name, task.WorkerID)
+		}
+		d.notifyFailure(taskCtx, task, model.FailureInfo{
+			Reason:     err.Error(),
+			WorkerName: failedWorker,
+		})
+		d.emit(task, StateFailed, 0)
+		return
+	}
+
+	// Cancellation may have arrived while resolveExecution was in-flight; kill the
+	// just-launched worker before entering waitForResult.
+	if taskCtx.Err() != nil {
+		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
+		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+		d.finishStopped(task, exec.ID)
+		return
+	}
+
+	if task.TaskID != "" {
+		if err := d.taskStore.UpdateStatus(taskCtx, task.TaskID, model.TaskStatusRunning); err != nil {
+			log.Error("update task status", zap.String("taskID", task.TaskID), zap.Error(err))
+		}
+	}
+	d.waitForResult(taskCtx, exec.ID, task, engineName)
+}
+
+// resolveWorkerEngine returns the engine name and the fetched worker (nil if
+// workerLookup is unavailable or the lookup fails). A single DB call covers
+// both engine selection and the persona injection needed by executeFresh.
+func (d *TaskDispatcher) resolveWorkerEngine(workerID string) (string, *model.Worker) {
+	if d.workerLookup != nil {
+		w, err := d.workerLookup.GetByID(workerID)
+		if err != nil {
+			log.Warn("worker lookup failed, falling back to default engine",
+				zap.String("workerID", workerID), zap.Error(err))
+			return d.engineCfg.Get(), nil
+		}
+		return d.engineCfg.Resolve(w.Engine), &w
+	}
+	return d.engineCfg.Get(), nil
+}
+
+// executeFresh builds the session prefix (Step 1 + persona) and starts a fresh
+// execution. w is the pre-fetched record from resolveWorkerEngine; if
+// workerLookup is configured but w is nil, the lookup failed and the task
+// is aborted.
+func (d *TaskDispatcher) executeFresh(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
+	persona := ""
+	if d.workerLookup != nil {
+		if w == nil {
+			return model.WorkerExecution{}, fmt.Errorf("worker %q not found", task.WorkerID)
+		}
+		persona = ai.WorkerPersona(w.Name, w.Description, w.Constraints)
+	}
+	prefix := ai.BuildWorkerSessionPrefix(persona)
+	sessionID := uuid.New().String()
+	d.upsertSessionContext(ctx, task, sessionID, engineName)
+	log.Info("executing worker", zap.String("workerID", task.WorkerID), zap.String("taskID", task.TaskID))
+	exec, err := d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: prefix + instruction,
+		SessionID:    sessionID,
+	})
+	if err != nil {
+		d.deleteSessionContext(context.WithoutCancel(ctx), task, engineName)
+	}
+	return exec, err
+}
+
+func (d *TaskDispatcher) resolveExecution(ctx context.Context, task DispatchTask, instruction, engineName string, w *model.Worker) (model.WorkerExecution, error) {
+	if task.TaskType != model.TaskTypeImmediate {
+		return d.executeFresh(ctx, task, instruction, engineName, w)
+	}
+	sessionID, err := d.sessionStore.GetSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName)
+	if err != nil {
+		log.Error("get session context", zap.Error(err))
+	}
+	if sessionID == "" {
+		return d.executeFresh(ctx, task, instruction, engineName, w)
+	}
+	log.Info("resuming session", zap.String("sessionID", sessionID), zap.String("taskID", task.TaskID))
+	d.upsertSessionContext(ctx, task, sessionID, engineName)
+	exec, err := d.manager.ExecuteWorker(ctx, worker.ExecuteRequest{
+		WorkerID:     task.WorkerID,
+		TaskID:       task.TaskID,
+		TriggerInput: instruction,
+		SessionID:    sessionID,
+		Resume:       true,
+	})
+	if err == nil || ai.IsEngineMissing(err) {
+		return exec, err
+	}
+	log.Error("resume error, falling back to fresh", zap.Error(err))
+	d.deleteSessionContext(ctx, task, engineName)
+	return d.executeFresh(ctx, task, instruction, engineName, w)
+}
+
+// waitForResult polls the execution until it reaches a terminal state or ctx
+// is cancelled. Process-level timeouts are enforced by launchRuntime via
+// workerTimeout; this loop must not impose its own deadline, or it would exit
+// while the worker keeps running and leave the task row stuck in `running`.
+func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, task DispatchTask, engineName string) {
+	lastStatus := ""
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	for {
+		exec, err := d.execStore.GetByID(executionID)
+		if err != nil {
+			log.Error("poll error", zap.String("execID", executionID), zap.Error(err))
+			if ctx.Err() != nil {
+				d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+				d.finishStopped(task, executionID)
+				return
+			}
+			d.emit(task, StateFailed, 0)
+			return
+		}
+		if string(exec.Status) != lastStatus {
+			log.Info("polling execution", zap.String("execID", executionID), zap.Any("status", exec.Status))
+			lastStatus = string(exec.Status)
+		}
+		switch exec.Status {
+		case model.ExecStatusCompleted:
+			if task.TaskID != "" {
+				if err := d.taskStore.CompleteTask(ctx, task.TaskID); err != nil {
+					log.Error("complete task", zap.String("taskID", task.TaskID), zap.Error(err))
+				}
+			}
+			// Persist session_id for future resume (only on success).
+			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+			d.emit(task, StateCompleted, 0)
+			return
+		case model.ExecStatusFailed:
+			if d.stoppedInLocalChat(task) {
+				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+				d.finishStopped(task, executionID)
+				return
+			}
+			// Persist session context even on failure so the next dispatch can attempt
+			// to resume. If resume also fails, resolveExecution will clear and retry fresh.
+			d.upsertSessionContext(ctx, task, exec.SessionID, engineName)
+			// Dispatcher sets terminal task status on abnormal worker exit.
+			if task.TaskID != "" {
+				if err := d.taskStore.FailTask(ctx, task.TaskID); err != nil {
+					log.Error("fail task", zap.String("taskID", task.TaskID), zap.Error(err))
+				}
+			}
+			d.notifyFailure(ctx, task, model.FailureInfo{
+				Reason:     exec.Result,
+				WorkerName: workerName(exec.WorkerName, task.WorkerID),
+			})
+			d.emit(task, StateFailed, 0)
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
+			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+			d.finishStopped(task, executionID)
+			return
+		}
+	}
+}
+
+func (d *TaskDispatcher) stoppedInLocalChat(task DispatchTask) bool {
+	if _, _, ok := local.ParseSessionKey(task.SessionKey); !ok || task.TaskID == "" {
+		return false
+	}
+	t, err := d.taskStore.GetByID(context.Background(), task.TaskID)
+	if err != nil {
+		log.Error("read stopped task", zap.String("taskID", task.TaskID), zap.Error(err))
+		return false
+	}
+	return t.Status == model.TaskStatusCancelled
+}
+
+func tracksSessionContext(task DispatchTask) bool {
+	if task.SessionKey == "" || task.WorkerID == "" {
+		return false
+	}
+	if task.TaskType != model.TaskTypeImmediate {
+		if _, ok := local.WorkerIDFromSessionKey(task.SessionKey); ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *TaskDispatcher) upsertSessionContext(ctx context.Context, task DispatchTask, sessionID, engineName string) {
+	if sessionID == "" || !tracksSessionContext(task) {
+		return
+	}
+	if err := d.sessionStore.UpsertSessionContext(ctx, task.SessionKey, task.WorkerID, sessionID, engineName); err != nil {
+		log.Error("upsert session context", zap.String("sessionKey", task.SessionKey), zap.Error(err))
+	}
+}
+
+func (d *TaskDispatcher) deleteSessionContext(ctx context.Context, task DispatchTask, engineName string) {
+	if !tracksSessionContext(task) {
+		return
+	}
+	if _, err := d.sessionStore.DeleteSessionContextForEngine(ctx, task.SessionKey, task.WorkerID, engineName); err != nil {
+		log.Error("delete session context", zap.String("sessionKey", task.SessionKey), zap.String("workerID", task.WorkerID), zap.String("engine", engineName), zap.Error(err))
+	}
+}
+
+func workerName(primary, fallback string) string {
+	if primary != "" {
+		return primary
+	}
+	return fallback
+}
+
+func (d *TaskDispatcher) notifyFailure(ctx context.Context, task DispatchTask, info model.FailureInfo) {
+	target := task.DeliveryTarget()
+	if d.failureNotifier == nil || (target.MessageID == "" && target.SessionKey == "") {
+		return
+	}
+	if err := d.failureNotifier.NotifyTaskFailure(ctx, target, info); err != nil {
+		log.Error("notify task failure", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
+	}
+}
+
+func (d *TaskDispatcher) notifyCancel(ctx context.Context, task DispatchTask, workerName string) {
+	target := task.DeliveryTarget()
+	if d.failureNotifier == nil || (target.MessageID == "" && target.SessionKey == "") {
+		return
+	}
+	if err := d.failureNotifier.NotifyTaskCancelled(ctx, target, workerName); err != nil {
+		log.Error("notify task cancel", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
+	}
+}
+
+func (d *TaskDispatcher) handleResult(res internalResult) {
+	delete(d.cancelFuncs, res.task.TaskID)
+	d.aborted.Delete(res.task.TaskID)
+
+	state, ok := d.queues[res.queueKey]
+	if !ok {
+		return
+	}
+
+	if len(state.pendingTasks) > 0 {
+		next := state.pendingTasks[0]
+		state.pendingTasks = state.pendingTasks[1:]
+		d.startTask(res.queueKey, next)
+		d.emitQueuePositions(state)
+	} else {
+		state.executing = false
+		delete(d.queues, res.queueKey)
+	}
+}

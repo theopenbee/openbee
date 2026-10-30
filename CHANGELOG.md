@@ -2,20 +2,89 @@
 
 ## [Unreleased]
 
+### Added
+- Add `openbee reset-password` to reset the admin password.
+- Chat directly with each worker in the web console.
+- Warn in the web chat when the server connection drops.
+- Switch the web console language from the account menu.
+- Show desktop notifications and tab unread counts for web chats.
+- Mark where a web chat started a new conversation.
+- Add a native desktop app for macOS, Windows and Linux.
+- Desktop: show unread counts in menu bar and tray.
+- Agents reach openbee through an MCP server with codemode.
+
+### Changed
+- Redesign the web console on the Arc UI library.
+- Manage variables, settings and plugins in a settings dialog.
+- Show sender and time on every worker and Bee message.
+- Double the collapsed height of long chat messages.
+- Open worker details from the chat header name.
+- Simplify worker profile labels and drop duplicate status.
+- Rename system settings to Settings; shorten env nav label.
+- Show worker and Bee replies in chat bubbles.
+- Shrink conversation list previews to 12px.
+- Fold optional new worker fields under Advanced settings.
+- Split the repo into backend, web, docs and npm.
+- Desktop sidebar: drop logo, put search beside new worker.
+- Desktop: keep sign-in tokens in a file, not keychain.
+- Show reconnect progress and failure in the offline banner.
+- Windows desktop: closing the window hides it to the tray.
+- Workers can only send messages and read; writes are refused.
+- Engines are now plugins installed with openbee plugin install.
+
+### Removed
+- Remove user and role management; keep one admin account.
+- Remove overview, sessions and scheduled pages and their APIs.
+- Remove session and task tabs from worker details.
+- Remove the GitHub link and sidebar collapse from the console.
+- Remove unused web username and password from config.
+- Remove CLI translations; the CLI is English only.
+- Remove departments and department-level environment variables.
+- Remove the overview tab from the worker profile.
+- Remove the copy worker action from the web console.
+- Drop unused legacy local chat tables from the database.
+- Drop unused accordion and popover web dependencies.
+- Remove `openbee ctl` and the `/rpc/bee/call` endpoint.
+
 ### Fixed
+- Stopping a task no longer leaves pi bash commands running.
+- Preselect the default engine when creating a worker.
+- Keep slash commands in the web chat history.
+- Fix pi failing when the Bee receives web chat images.
+- Keep the web chat list scroll when chats reorder.
+- Scroll the selected web chat fully into view.
+- Use 24-hour time for web chat messages.
+- Keep the English constraints header on one line.
+- Stop the server promptly while web chats are open.
 - Actually enable SQLite WAL mode and the busy timeout.
 - Back up the database consistently while openbee is running.
 - Refuse to restore over a database that is in use.
+- Keep engine args when creating a worker through the API.
+- Label image and file messages in chat list previews.
+- Show your own sent messages in chat list previews immediately.
 
 ## [0.0.46] - 2026-10-25
 
 ### Added
 - Send messages to a session with `message send --session-key`.
+- Add external channel plugins over stdio JSON-RPC.
+- Add `openbee plugin` install, list and remove commands.
+- Add `migrate_chat` notification to the channel plugin protocol.
+- Let plugin config fields suggest a random default.
+- Let channel plugins run an interactive setup step.
+- Run plugins on Bun or Node.js, installing Bun locally.
 
 ### Changed
 - Worker skill recommends xlsx for tabular attachments.
+- Move Telegram from a built-in channel to a channel plugin.
+- Move Lark, DingTalk and WeCom to channel plugins.
+- Move WeChat from a built-in channel to a channel plugin.
+- Move Linear from a built-in channel to a channel plugin.
 - Give each Telegram forum topic its own session.
-- Switch Telegram integration to the go-telegram/bot library.
+
+### Removed
+- Remove the unused `bee.media.ffprobe_path` setting.
+- Remove the `bee.media.ffmpeg_path` setting.
 
 ### Fixed
 - Deliver scheduled and countdown task results proactively to the conversation.

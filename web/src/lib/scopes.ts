@@ -1,5 +1,4 @@
 export const SCOPE_READ_WORKERS = "read:workers"
-export const SCOPE_READ_DEPARTMENTS = "read:departments"
 export const SCOPE_READ_TASKS = "read:tasks"
 export const SCOPE_READ_MESSAGES = "read:messages"
 
@@ -14,11 +13,6 @@ export const KNOWN_SCOPES: ScopeDef[] = [
     id: SCOPE_READ_WORKERS,
     titleKey: "scopes.readWorkers.title",
     descriptionKey: "scopes.readWorkers.description",
-  },
-  {
-    id: SCOPE_READ_DEPARTMENTS,
-    titleKey: "scopes.readDepartments.title",
-    descriptionKey: "scopes.readDepartments.description",
   },
   {
     id: SCOPE_READ_TASKS,

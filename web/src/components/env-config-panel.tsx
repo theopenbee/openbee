@@ -1,396 +1,181 @@
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { PlusIcon, Trash2Icon, PencilIcon, EyeIcon, EyeOffIcon } from "lucide-react"
-import { useEnvList, useCreateEnv, useUpdateEnv, useDeleteEnv } from "@/hooks/use-envs"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { KeyRoundIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { useEnvList } from "@/hooks/use-envs"
+import { Alert } from "@/components/arc/alert/alert"
+import { Button } from "@/components/arc/button/button"
+import { Tooltip } from "@/components/arc/tooltip/tooltip"
+import { CopyButton } from "@/components/copy-button"
+import { EmptyState } from "@/components/empty-state"
+import { EnvAddDialog, EnvDeleteDialog, EnvEditDialog } from "@/components/env-variable-dialogs"
+import { formatRelative } from "@/lib/format"
 import { cn, getErrorMessage } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
-import { useCan } from "@/hooks/use-can"
-import { Perm } from "@/lib/permissions"
 import type { EnvConfig, EnvScope } from "@/lib/types"
 
-function ValueHints({ value }: { value: string }) {
-  const { t } = useTranslation()
-  const hasLeadingTrailingSpace = value.length > 0 && value !== value.trim()
-  return (
-    <div className="flex items-center justify-between min-h-[1rem]">
-      {hasLeadingTrailingSpace && (
-        <p className="text-xs text-amber-500 dark:text-amber-400">{t("envConfig.valueSpaceWarning")}</p>
-      )}
-      {value.length > 0 && (
-        <span className="text-[11px] tabular-nums text-muted-foreground/60">{value.length}</span>
-      )}
-    </div>
-  )
-}
+const ICON = { size: 16, strokeWidth: 1.75, "aria-hidden": true } as const
 
-function SecretInput({ id, value, onChange, autoFocus, placeholder }: {
-  id: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  autoFocus?: boolean
-  placeholder?: string
-}) {
-  const [show, setShow] = useState(false)
-  const { t } = useTranslation()
-  return (
-    <div className="relative">
-      <Input
-        id={id}
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required
-        autoFocus={autoFocus}
-        className="font-mono pr-10"
-      />
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-        tabIndex={-1}
-        title={show ? t("envConfig.hideValue") : t("envConfig.showValue")}
-      >
-        {show ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-      </button>
-    </div>
-  )
-}
-
-interface AddEnvDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  scope: EnvScope
-  scopeId?: string
-  existingKeys: string[]
-}
-
-function AddEnvDialog({ open, onOpenChange, scope, scopeId, existingKeys }: AddEnvDialogProps) {
-  const { t } = useTranslation()
-  const createEnv = useCreateEnv()
-
-  const [formKey, setFormKey] = useState("")
-  const [formValue, setFormValue] = useState("")
-  const [apiError, setApiError] = useState("")
-
-  const handleKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const normalized = e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")
-    setFormKey(normalized)
-    setApiError("")
-  }
-
-  const keyDuplicate = formKey.length > 0 && existingKeys.includes(formKey)
-  const canSubmit = formKey.trim().length > 0 && formValue.length > 0 && !keyDuplicate && !createEnv.isPending
-
-  const resetForm = () => {
-    setFormKey("")
-    setFormValue("")
-    setApiError("")
-  }
-
-  const handleClose = () => {
-    resetForm()
-    onOpenChange(false)
-  }
-
-  const submit = async (addAnother: boolean) => {
-    if (!canSubmit) return
-    setApiError("")
-    try {
-      await createEnv.mutateAsync({ scope, scope_id: scopeId, key: formKey.trim(), value: formValue })
-      if (addAnother) {
-        resetForm()
-      } else {
-        handleClose()
-      }
-    } catch (err) {
-      setApiError(getErrorMessage(err))
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}>
-      <DialogContent className="max-w-md" showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{t("envConfig.addTitle")}</DialogTitle>
-          <DialogDescription>{t("envConfig.addDescription")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4 py-1">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="add-env-key">{t("envConfig.key")}</Label>
-              <span className="text-[11px] font-mono text-muted-foreground/60 tracking-wide select-none">
-                A–Z · 0–9 · _
-              </span>
-            </div>
-            <Input
-              id="add-env-key"
-              value={formKey}
-              onChange={handleKeyChange}
-              placeholder={t("envConfig.keyPlaceholder")}
-              required
-              autoFocus
-              autoComplete="off"
-              spellCheck={false}
-              className={cn("font-mono", keyDuplicate && "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20")}
-            />
-            {keyDuplicate && (
-              <p className="text-xs text-destructive">{t("envConfig.keyExists")}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="add-env-value">{t("envConfig.value")}</Label>
-            <SecretInput
-              id="add-env-value"
-              value={formValue}
-              onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
-              placeholder={t("envConfig.valuePlaceholder")}
-            />
-            <ValueHints value={formValue} />
-          </div>
-
-          {apiError && (
-            <p className="text-xs text-destructive">{apiError}</p>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto">
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" variant="outline" disabled={!canSubmit} onClick={() => submit(true)}>
-            {t("envConfig.saveAndAddAnother")}
-          </Button>
-          <Button type="button" disabled={!canSubmit} onClick={() => submit(false)}>
-            {t("common.create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-interface EditEnvDialogProps {
-  target: EnvConfig | null
-  onClose: () => void
-  scope: EnvScope
-  scopeId?: string
-}
-
-function EditEnvDialog({ target, onClose, scope, scopeId }: EditEnvDialogProps) {
-  const { t } = useTranslation()
-  const updateEnv = useUpdateEnv(scope, scopeId)
-
-  const [formValue, setFormValue] = useState("")
-  const [apiError, setApiError] = useState("")
-
-  const handleClose = () => {
-    setFormValue("")
-    setApiError("")
-    onClose()
-  }
-
-  const handleSubmit = async () => {
-    if (!target || !formValue) return
-    setApiError("")
-    try {
-      await updateEnv.mutateAsync({ id: target.id, value: formValue })
-      handleClose()
-    } catch (err) {
-      setApiError(getErrorMessage(err))
-    }
-  }
-
-  const canSubmit = formValue.length > 0 && !updateEnv.isPending
-
-  return (
-    <Dialog
-      open={target !== null}
-      onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}
-    >
-      <DialogContent className="max-w-md" showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{t("envConfig.editTitle")}</DialogTitle>
-          <DialogDescription className="font-mono">{target?.key}</DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4 py-1">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-env-value">{t("envConfig.value")}</Label>
-            <SecretInput
-              id="edit-env-value"
-              value={formValue}
-              onChange={(e) => { setFormValue(e.target.value); setApiError("") }}
-              placeholder={t("envConfig.valuePlaceholder")}
-              autoFocus
-            />
-            <ValueHints value={formValue} />
-          </div>
-
-          {apiError && (
-            <p className="text-xs text-destructive">{apiError}</p>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} className="mr-auto">
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
-            {t("common.save")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+const EMPTY_DESCRIPTION: Record<EnvScope, [string, string]> = {
+  global: ["envConfig.emptyGlobal", "Add a variable to pass it to the Bee and every worker."],
+  bee: ["envConfig.emptyBee", "Add a variable to pass it to the Bee only."],
+  worker: ["envConfig.emptyWorker", "Add a variable to pass it to this worker only."],
 }
 
 interface EnvConfigPanelProps {
   scope: EnvScope
   scopeId?: string
   title?: string
+  description?: string
+  inset?: boolean
 }
 
-export function EnvConfigPanel({ scope, scopeId, title }: EnvConfigPanelProps) {
+export function EnvConfigPanel({ scope, scopeId, title, description, inset = false }: EnvConfigPanelProps) {
   const { t } = useTranslation()
-  const canWrite = useCan(Perm.EnvWrite)
-  const { data: envs = [], isLoading } = useEnvList(scope, scopeId)
-  const deleteEnv = useDeleteEnv(scope, scopeId)
-
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const headingId = useId()
+  const { data: envs = [], isLoading, isError, error, refetch, isRefetching } = useEnvList(scope, scopeId)
+  const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<EnvConfig | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EnvConfig | null>(null)
-
   const existingKeys = useMemo(() => envs.map((e) => e.key), [envs])
+  const isEmpty = !isLoading && !isError && envs.length === 0
+  const [emptyKey, emptyFallback] = EMPTY_DESCRIPTION[scope]
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return
-    try {
-      await deleteEnv.mutateAsync(deleteTarget.id)
-    } finally {
-      setDeleteTarget(null)
-    }
-  }
+  const addButton = (
+    <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
+      <PlusIcon {...ICON} />
+      {t("envConfig.add", "Add variable")}
+    </Button>
+  )
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          {title && <p className={EYEBROW_LABEL}>{title}</p>}
+    <section className="grid min-w-0 gap-4" aria-labelledby={title ? headingId : undefined}>
+      {title || description || !isEmpty ? (
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {title ? (
+              <h2 id={headingId} className="text-base font-medium text-foreground">
+                {title}
+              </h2>
+            ) : null}
+            {description ? <p className="mt-1 text-sm text-secondary">{description}</p> : null}
+          </div>
+          {!isEmpty && !isError ? <div className="shrink-0">{addButton}</div> : null}
         </div>
-        {canWrite && (
-          <Button size="sm" className="shrink-0" onClick={() => setAddDialogOpen(true)}>
-            <PlusIcon className="size-3.5" />
-            {t("envConfig.add")}
-          </Button>
-        )}
-      </div>
+      ) : null}
 
-      {!isLoading && envs.length === 0 && (
-        <div className="px-4 py-8 text-sm leading-6 text-muted-foreground text-center">
-          {t("envConfig.empty")}
-        </div>
-      )}
-      {!isLoading && envs.length > 0 && (
-        <div className="rounded-sm border border-border/70 overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("envConfig.key")}</TableHead>
-                <TableHead>{t("envConfig.masked")}</TableHead>
-                {canWrite && (
-                  <TableHead className="text-right">{t("workers.columns.actions")}</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      {isError ? (
+        <Alert tone="danger" title={t("envConfig.loadError", "Could not load variables")}>
+          <span className="block">{getErrorMessage(error)}</span>
+          <span className="mt-3 block">
+            <Button variant="secondary" size="sm" loading={isRefetching} onClick={() => void refetch()}>
+              {t("common.retry", "Retry")}
+            </Button>
+          </span>
+        </Alert>
+      ) : (
+        <div
+          className={cn(
+            "@container min-w-0 overflow-hidden border border-border bg-surface",
+            inset ? "rounded-inset" : "rounded-surface",
+          )}
+          aria-busy={isLoading || undefined}
+        >
+          {isLoading ? (
+            <EnvRowsSkeleton />
+          ) : isEmpty ? (
+            <EmptyState
+              icon={<KeyRoundIcon size={24} strokeWidth={1.75} aria-hidden="true" />}
+              title={t("envConfig.empty", "No variables yet")}
+              description={t(emptyKey, emptyFallback)}
+              action={addButton}
+            />
+          ) : (
+            <ul className="divide-y divide-border-subtle">
               {envs.map((env) => (
-                <TableRow key={env.id}>
-                  <TableCell className="font-mono text-sm">{env.key}</TableCell>
-                  <TableCell className="font-mono text-sm text-muted-foreground">{env.masked}</TableCell>
-                  {canWrite && (
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => setEditTarget(env)}
-                          title={t("common.edit")}
-                        >
-                          <PencilIcon className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => setDeleteTarget(env)}
-                          title={t("common.delete")}
-                        >
-                          <Trash2Icon className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
+                <EnvRow
+                  key={env.id}
+                  env={env}
+                  onEdit={() => setEditTarget(env)}
+                  onDelete={() => setDeleteTarget(env)}
+                />
               ))}
-            </TableBody>
-          </Table>
+            </ul>
+          )}
         </div>
       )}
 
-      <AddEnvDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+      <EnvAddDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
         scope={scope}
         scopeId={scopeId}
         existingKeys={existingKeys}
       />
+      <EnvEditDialog target={editTarget} onClose={() => setEditTarget(null)} scope={scope} scopeId={scopeId} />
+      <EnvDeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} scope={scope} scopeId={scopeId} />
+    </section>
+  )
+}
 
-      <EditEnvDialog
-        target={editTarget}
-        onClose={() => setEditTarget(null)}
-        scope={scope}
-        scopeId={scopeId}
-      />
+function EnvRow({ env, onEdit, onDelete }: { env: EnvConfig; onEdit: () => void; onDelete: () => void }) {
+  const { t } = useTranslation()
+  const updated = formatRelative(env.updated_at, t)
 
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("common.delete")}</DialogTitle>
-            <DialogDescription>
-              {t("envConfig.deleteConfirm", { key: deleteTarget?.key })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteEnv.isPending}>
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+  return (
+    <li className="flex min-h-16 items-center gap-3 py-3 pr-4 pl-5 sm:pl-6">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-mono text-sm text-foreground" title={env.key}>
+          {env.key}
+        </p>
+        <p className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+          <span className="min-w-0 truncate font-mono text-secondary">
+            <span className="sr-only">{t("envConfig.masked", "Value")}: </span>
+            {env.masked}
+          </span>
+          <span aria-hidden="true" className="text-muted @max-md:hidden">·</span>
+          <span className="shrink-0 text-muted @max-md:hidden">
+            {t("envConfig.updated", { time: updated, defaultValue: "Updated {{time}}" })}
+          </span>
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <CopyButton value={env.key} label={t("envConfig.copyKey", { key: env.key, defaultValue: "Copy {{key}}" })} />
+        <Tooltip content={t("envConfig.editAction", "Edit value")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("envConfig.editLabel", { key: env.key, defaultValue: "Edit {{key}}" })}
+            onClick={onEdit}
+          >
+            <PencilIcon {...ICON} />
+          </Button>
+        </Tooltip>
+        <Tooltip content={t("envConfig.deleteAction", "Delete variable")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("envConfig.deleteLabel", { key: env.key, defaultValue: "Delete {{key}}" })}
+            onClick={onDelete}
+          >
+            <Trash2Icon {...ICON} />
+          </Button>
+        </Tooltip>
+      </div>
+    </li>
+  )
+}
+
+function EnvRowsSkeleton() {
+  return (
+    <ul className="divide-y divide-border-subtle" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <li key={i} className="flex min-h-16 items-center gap-3 py-3 pr-4 pl-5 sm:pl-6">
+          <div className="grid min-w-0 flex-1 gap-2">
+            <div className="skeleton h-4 w-40 max-w-full" />
+            <div className="skeleton h-3 w-56 max-w-full" />
+          </div>
+          <div className="skeleton h-8 w-24 shrink-0" />
+        </li>
+      ))}
+    </ul>
   )
 }

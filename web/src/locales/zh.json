@@ -6,31 +6,11 @@
     "daysAgo": "{{count}} 天前"
   },
   "nav": {
-    "dashboard": "概览",
-    "workers": "员工",
-    "sessions": "会话",
-    "tasks": "定时任务",
-    "departments": "部门",
-    "users": "用户",
-    "roles": "角色",
-    "directory": "通讯录",
-    "digitalEmployees": "数字员工",
-    "settings": "环境变量",
-    "systemSettings": "系统设置",
-    "systemConfig": "系统",
-    "collapseNav": "收起导航",
-    "expandNav": "展开导航"
+    "settings": "设置"
   },
   "common": {
-    "save": "保存",
-    "edit": "编辑",
     "cancel": "取消",
-    "delete": "删除",
-    "view": "查看",
     "copy": "复制",
-    "copied": "已复制",
-    "copyFailed": "复制失败",
-    "create": "创建",
     "noDescription": "无描述",
     "loadError": "加载数据失败。",
     "retry": "重试",
@@ -47,63 +27,27 @@
     "failed": "失败",
     "cancelled": "已取消"
   },
-  "dashboard": {
-    "title": "概览",
-    "tagline": "Build smarter AI teams.",
-    "basicInfo": "基础信息",
-    "departments": "部门数",
-    "workers": "员工数",
-    "scheduledTasks": "定时任务",
-    "quickAccess": "快捷入口",
-    "tokenUsage": "Token 使用情况",
-    "tokensToday": "今日",
-    "tokensYesterday": "昨日",
-    "dayOverDay": "同比",
-    "noComparison": "暂无对比数据",
-    "tokens": "Token 用量",
-    "tokensTrend": "Token 使用趋势",
-    "tokensTrendAriaLabel": "最近 {{days}} 天 Token 使用趋势",
-    "noTokenData": "暂无 Token 数据",
-    "noTokenDataDesc": "有会话完成执行后，Token 趋势将显示在此处。",
-    "days": "天",
-    "daysLabel": "显示最近 {{count}} 天数据",
-    "supportedAgents": "支持的 Agent",
-    "agentEnabled": "已启用",
-    "agentDisabled": "未启用",
-    "systemInfo": "系统信息",
-    "version": "版本",
-    "commit": "Commit",
-    "buildDate": "构建时间",
-    "runtime": "运行环境",
-    "platform": "平台"
-  },
   "workers": {
-    "title": "员工",
     "createWorker": "创建员工",
-    "copyWorker": "复制员工",
-    "backToList": "返回员工列表",
-    "summary_one": "{{count}} 名员工，{{active}} 名运行中",
-    "summary_other": "{{count}} 名员工，{{active}} 名运行中",
-    "columns": {
-      "name": "名称",
-      "engine": "引擎",
-      "activeTime": "活跃时间",
-      "actions": "操作"
-    },
     "form": {
-      "copySuffix": "副本",
       "sectionBasic": "基本信息",
       "engine": "AI 引擎",
       "engineHelper": "该员工执行任务所使用的 AI 引擎。",
       "engineDefault": "选择引擎",
+      "engineSystemDefault": "跟随系统默认",
+      "engineSystemDefaultNamed": "跟随系统默认（{{engine}}）",
+      "engineUnavailable": "{{engine}}（未安装）",
+      "noEngine": "还没有安装引擎，请先在“设置 > 插件”中安装一个引擎插件。",
       "name": "名称",
       "namePlaceholder": "例如：sam",
-      "nameHelper": "用于身份识别",
+      "nameHelper": "用于识别和提及该员工。",
       "randomName": "随机姓名",
       "randomNameExhausted": "所有名字已被使用",
       "description": "描述",
       "descriptionPlaceholder": "这个员工做什么？",
-      "descriptionHelper": "用于任务分发",
+      "descriptionHelper": "用于判断该员工适合接收哪些任务。",
+      "descriptionOptional": "描述（选填）",
+      "descriptionCreateHelper": "Bee 据此决定把哪些任务交给该员工，建议填写。",
       "workDir": "工作目录",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "员工读写文件的绝对路径。留空使用默认目录。",
@@ -112,73 +56,37 @@
       "constraintsPlaceholder": "这个员工的工作约束...",
       "engineArgs": "引擎参数",
       "engineArgsPlaceholder": "--effort high",
-      "sectionDepartment": "部门",
-      "departmentHelper": "将员工分配到所属部门（可选）",
-      "searchDepartments": "搜索部门",
-      "noMatchingDepartments": "没有匹配的部门",
-      "sectionEnhancement": "增强信息",
-      "sectionOther": "其它配置",
+      "sectionAdvanced": "高级配置",
+      "advancedHelper": "以下均为选填，留空即使用默认值。",
+      "advancedSet": "已设置 {{count}} 项",
       "sectionPermissions": "权限配置",
-      "permissionsHelper": "未勾选任何权限时，员工 token 禁止访问任何系统内置工具"
+      "permissionsHelper": "未选择任何权限时，员工 token 无法使用任何系统内置工具。",
+      "constraintsHelper": "每次会话开始时注入。",
+      "engineArgsHelper": "启动 {{engine}} 时附加的命令行参数。",
+      "createError": "无法创建员工",
+      "saveError": "无法保存修改"
     },
     "deleteDialog": {
-      "title": "删除员工",
-      "stepOne": "第 1 步",
-      "stepTwo": "第 2 步",
-      "stepTwoDescription": "你将删除 <strong>{{name}}</strong>。删除操作无法撤销。",
-      "continue": "下一步",
+      "title": "删除 {{name}}？",
       "deleteWorkDir": "同时删除工作目录",
-      "confirmNameLabel": "输入 {{name}} 以进入下一步",
-      "confirmNamePlaceholder": "输入员工名称"
+      "confirmNameLabel": "输入 {{name}} 以确认",
+      "confirmNamePlaceholder": "输入员工名称",
+      "description": "员工及其配置将被删除，此操作无法撤销。",
+      "chatWarning": "该员工的私聊记录会一并删除。",
+      "deleteWorkDirHint": "将删除 {{path}} 及其中所有文件。",
+      "confirm": "删除员工",
+      "error": "无法删除员工"
     },
-    "engines": {
-      "claude": "Claude Code",
-      "codex": "Codex",
-      "pi": "Pi"
-    }
-  },
-  "sessions": {
-    "title": "会话记录",
-    "noExecutions": "还没有会话记录。",
-    "noTriggerContent": "无触发内容",
-    "viewSession": "查看会话 {{id}}",
-    "turnCount_one": "{{count}} 轮",
-    "turnCount_other": "{{count}} 轮",
-    "summary_one": "{{count}} 条会话",
-    "summary_other": "{{count}} 条会话",
-    "summaryWithActive_one": "{{count}} 条会话 — {{active}} 活跃中",
-    "summaryWithActive_other": "{{count}} 条会话 — {{active}} 活跃中",
-    "columns": {
-      "session": "会话",
-      "worker": "员工",
-      "turns": "轮次",
-      "latestStatus": "最新状态",
-      "started": "开始时间",
-      "duration": "耗时",
-      "tokens": "Token 用量"
-    },
-    "pagination": {
-      "page": "第 {{page}} / {{totalPages}} 页",
-      "previous": "上一页",
-      "next": "下一页"
-    }
+    "deleteWorker": "删除员工",
+    "rowActions": "{{name}} 的操作"
   },
   "workerDetail": {
-    "overview": "概览",
-    "sessions": "会话",
-    "workerInfo": "员工信息",
-    "id": "ID",
-    "workDir": "工作目录",
-    "created": "创建时间",
-    "lastActive": "最近活跃",
-    "constraints": "工作约束",
     "editConstraints": "编辑工作约束",
     "constraintsPanel": {
       "charCount": "{{count}} 字",
-      "shortcuts": "⌘↵ 保存 · Esc 取消",
+      "shortcuts": "⌘↵ 保存，Esc 取消",
       "emptyTitle": "为 {{name}} 设定工作约束",
       "emptyDescription": "工作约束会在每次会话开始时注入，用来设定 TA 的工作边界、风格与优先级。",
-      "emptyReadonly": "尚未设定工作约束。",
       "add": "添加工作约束",
       "templatesLabel": "从模板开始",
       "templates": {
@@ -197,293 +105,152 @@
           "desc": "约定代码风格、提交规范与完成后动作",
           "body": "【交付规范】\n- 遵循项目既有的代码风格与目录约定。\n- 提交信息说明做了什么、为什么。\n- 完成前自检：构建通过、自测通过，再回报结果。"
         }
-      }
+      },
+      "save": "保存约束",
+      "saveError": "无法保存工作约束"
     },
     "permissions": "权限",
-    "permissionsReadonly": "你没有修改权限，以下为当前已授予的权限范围（只读）。"
+    "sectionNav": "员工详情分区",
+    "editInfo": "编辑",
+    "editInfoTitle": "编辑员工信息",
+    "saveInfo": "保存修改",
+    "loadError": "无法加载该员工",
+    "permissionsSaveError": "无法更新权限",
+    "effectiveEnvDescription": "合并全局与员工级变量后，该员工实际可见的值。"
   },
-  "executionDetail": {
-    "noResult": "暂无结果。",
-    "logs": "日志",
-    "result": "结果",
-    "session": "会话",
-    "triggerInput": "触发输入",
-    "pid": "进程ID",
-    "started": "开始时间",
-    "completed": "完成时间"
-  },
-  "sessionDetail": {
-    "session": "会话",
-    "worker": "员工",
-    "turn": "第 {{index}} 轮",
-    "noExecutions": "该会话暂无会话记录。",
-    "overview": "会话概览",
-    "summary_one": "当前会话共 {{count}} 轮，可按轮次回看输入、状态与日志。",
-    "summary_other": "当前会话共 {{count}} 轮，可按轮次回看输入、状态与日志。",
-    "latestTurn": "最新轮次",
-    "bee": "Bee 协调器",
-    "turnNavigator": "轮次导航",
-    "turnNavigatorHint": "最新活动固定在顶部，选择一轮查看输入、状态和日志。",
-    "latest": "最新",
-    "inspectTurn": "轮次详情",
-    "inspectTurnHint": "从会话总览快速切到任意一轮，聚焦查看该次执行的上下文与输出。",
-    "noTriggerInput": "未记录触发输入。",
-    "execution": "执行",
-    "metadata": "元数据",
-    "logsHint": "当前选中执行的完整日志流。即使会话很长，也可以只查看这一轮。",
-    "live": "进行中",
-    "tokens": "Token 用量"
-  },
-  "logViewer": {
-    "all": "全部",
-    "narrative": "叙述",
-    "tools": "工具调用",
-    "raw": "原始流",
-    "waiting": "等待输出...",
-    "noLogs": "没有日志记录。",
-    "noMatches": "当前筛选条件隐藏了所有事件。",
-    "input": "输入",
-    "output": "输出",
-    "expand": "展开 {{name}}",
-    "collapse": "收起 {{name}}",
-    "result": "结果",
-    "followLive": "跟随实时",
-    "jumpToLatest": "跳到最新",
-    "toolCall": "工具调用",
-    "assistant": "助手",
-    "rawOutput": "原始输出",
-    "failed": "执行失败",
-    "commandExecution": "命令",
-    "running": "执行中...",
-    "turnUsage": "本轮用量",
-    "inputTokens": "输入",
-    "cachedTokens": "缓存",
-    "outputTokens": "输出",
-    "thinking": "思考过程"
-  },
-  "tasks": {
-    "title": "定时任务",
-    "summary_one": "{{count}}个任务",
-    "summary_other": "{{count}}个任务",
-    "columns": {
-      "worker": "员工",
-      "instruction": "指令",
-      "cron": "Cron 表达式",
-      "nextRunAt": "下次执行时间",
-      "actions": "操作"
-    },
-    "cancel": "取消",
-    "cancelTask": "取消任务",
-    "cancelConfirmTitle": "取消任务",
-    "cancelConfirmDescription": "确定要取消此任务吗？此操作无法撤销。",
-    "cancelAll": "取消所有任务",
-    "cancelAllConfirmTitle": "取消所有任务",
-    "cancelAllConfirmDescription": "确定要取消该员工的所有任务吗？此操作无法撤销。"
-  },
-  "localChat": {
+  "chat": {
     "title": "聊天",
-    "inputPlaceholder": "输入消息...",
+    "youPrefix": "你：",
+    "handedOffTo": "已交给 {{name}}",
+    "imagePreview": "[图片]",
+    "filePreview": "[文件]",
+    "deletedWorker": "已删除的员工",
+    "yesterday": "昨天",
+    "newWorker": "新建员工",
+    "search": "搜索",
+    "noWorkersHint": "还没有数字员工，点右上角 + 新建一个",
+    "back": "返回",
+    "you": "你",
+    "system": "系统",
+    "fromBee": "Bee 转交",
+    "status": {
+      "queued": "排队中 · 前面 {{count}} 个",
+      "running": "处理中"
+    },
+    "newConversation": "新对话",
+    "newConversationConfirm": "开始新对话？员工会忘记之前的上下文，聊天记录会保留。",
+    "newConversationConfirmBee": "开始新对话？Bee 会忘记之前的上下文，聊天记录会保留。",
+    "newConversationActive": "这些任务还在进行，开始新对话会先停止它们：",
+    "newConversationFailed": "无法开始新对话",
+    "stopAndRestart": "停止并开始新对话",
+    "stop": "停止",
+    "stopFailed": "停止失败",
+    "openPanel": "查看员工信息",
+    "closePanel": "收起员工信息",
+    "connectionLost": "与 OpenBee 服务的连接已断开",
+    "connectionLostDescription": "正在自动重连，恢复前不会收到新消息。",
+    "reconnectNow": "立即重连",
+    "reconnecting": "正在重连…",
+    "reconnectFailed": "仍然连不上服务器，会继续自动重试。",
+    "panelTitle": "资料",
+    "panelClose": "关闭面板",
+    "messagePlaceholder": "给 {{name}} 发消息",
+    "emptyWorker": "和 {{name}} 打个招呼，直接交代工作吧。",
+    "sendFailed": "消息没有发出，内容已放回输入框。",
+    "composerHintPlain": "回车发送，Shift+Enter 换行",
+    "composerHintTouchPlain": "Ctrl/⌘+Enter 发送",
+    "beeLabel": "Bee",
     "send": "发送",
     "uploadFile": "上传文件",
-    "processing": "处理中...",
     "uploadError_other": "{{count}} 个文件上传失败，请重试",
     "noMessagesTitle": "开始第一轮对话",
     "noMessagesDescription": "发送一条消息，或者上传文件。",
-    "operatorLabel": "操作员",
-    "beeLabel": "Bee",
-    "composerHint": "回车发送，Shift+Enter 换行",
-    "composerHintTouch": "Ctrl/⌘+Enter 发送",
-    "removeAttachment": "移除附件",
+    "composerHint": "回车发送，Shift+Enter 换行，输入 @ 提及员工",
+    "composerHintTouch": "Ctrl/⌘+Enter 发送，输入 @ 提及员工",
     "loadMore": "加载更早消息",
-    "loadingMore": "加载中…",
-    "loadMoreError": "加载失败，点击重试"
+    "loadMoreFailed": "无法加载更早的消息。",
+    "removeNamedAttachment": "移除 {{name}}",
+    "attachments": "附件",
+    "messageLabel": "消息",
+    "copyMessage": "复制消息",
+    "viewImage": "查看图片 {{name}}",
+    "openOriginal": "打开原图",
+    "closeImage": "关闭图片",
+    "taskType": {
+      "countdown": "定时一次",
+      "scheduled": "周期任务"
+    },
+    "panelTabs": {
+      "constraints": "约束",
+      "permissions": "权限",
+      "env": "环境变量"
+    }
   },
-  "breadcrumb": {
-    "detail": "详情"
-  },
-  "theme": {
-    "light": "浅色模式",
-    "dark": "深色模式"
+  "notifications": {
+    "promptTitle": "开启桌面通知",
+    "promptDescription": "回复到达时提醒你。",
+    "enable": "开启",
+    "blockedTitle": "浏览器已拦截通知",
+    "blockedDescription": "请在浏览器的网站设置里允许本站发送通知。",
+    "newMessage": "发来一条新消息",
+    "unavailable": {
+      "insecure": "需要 HTTPS 访问",
+      "unsupported": "此浏览器不支持",
+      "denied": "已被浏览器拦截"
+    }
   },
   "account": {
+    "role": "管理员",
     "changePassword": "修改密码",
-    "changePasswordDescription": "更新你账号的登录密码。",
+    "changePasswordDescription": "修改后，所有会话都会退出登录。",
     "currentPassword": "当前密码",
-    "currentPasswordPlaceholder": "请输入当前密码",
     "newPassword": "新密码",
-    "newPasswordPlaceholder": "至少 6 个字符",
     "confirmPassword": "确认新密码",
-    "confirmPasswordPlaceholder": "请再次输入新密码",
     "passwordChanged": "密码已修改",
-    "passwordChangedRelogin": "密码已修改，请使用新密码重新登录。",
-    "errorMismatch": "两次输入的密码不一致。",
-    "errorSameAsOld": "新密码不能与当前密码相同。"
+    "passwordChangedRelogin": "请使用新密码重新登录。",
+    "errorMismatch": "两次输入的密码不一致",
+    "errorSameAsOld": "新密码不能与当前密码相同",
+    "newPasswordHint": "至少 6 个字符。",
+    "currentRequired": "请输入当前密码",
+    "errorTooShort": "至少需要 6 个字符",
+    "errorTitle": "无法修改密码",
+    "signInAgain": "重新登录"
   },
   "login": {
     "title": "登录",
-    "eyebrow": "控制台入口",
     "username": "用户名",
-    "usernamePlaceholder": "operator",
     "password": "密码",
-    "passwordPlaceholder": "输入密码",
     "submit": "登录",
-    "submitting": "登录中...",
-    "logout": "退出登录",
-    "error401": "用户名或密码错误",
-    "error429": "尝试次数过多，请稍后再试",
-    "errorGeneric": "登录失败"
+    "error401": "用户名或密码不正确。",
+    "error429": "尝试次数过多，请稍等片刻再试。",
+    "errorGeneric": "请检查网络连接后重试。",
+    "description": "使用 OpenBee 管理员账号登录。",
+    "usernameRequired": "请输入用户名",
+    "passwordRequired": "请输入密码",
+    "errorTitle": "无法登录"
   },
   "setup": {
-    "title": "创建管理员账户",
-    "description": "尚未创建任何账户。请先创建第一个管理员账户。",
+    "title": "创建管理员账号",
+    "description": "OpenBee 还没有任何账号。在这里创建的账号将用于登录控制台。",
     "username": "用户名",
     "usernamePlaceholder": "admin",
     "displayName": "显示名称",
     "displayNamePlaceholder": "管理员",
     "displayNameOptional": "可选",
     "password": "密码",
-    "passwordPlaceholder": "至少 6 个字符",
-    "passwordHint": "密码至少需要 6 个字符。",
-    "submit": "创建账户",
-    "submitting": "创建中...",
-    "errorPasswordLength": "密码至少需要 6 个字符",
-    "errorConflict": "账户已存在",
-    "errorGeneric": "初始化失败"
-  },
-  "departments": {
-    "title": "部门",
-    "filter": "筛选",
-    "allWorkers": "全部员工",
-    "ungrouped": "未分组",
-    "manageDescription": "创建、编辑和组织员工的部门结构。",
-    "empty": "暂无部门，创建一个开始使用。",
-    "create": "创建部门",
-    "addChild": "添加子部门",
-    "rename": "重命名",
-    "rowActions": "部门操作",
-    "form": {
-      "name": "部门名称",
-      "namePlaceholder": "例如：技术部",
-      "parent": "上级部门",
-      "noParent": "无（顶级部门）"
-    },
-    "deleteConfirm": {
-      "title": "删除部门",
-      "description": "确定要删除部门「{{name}}」吗？此操作无法撤销。"
-    }
-  },
-  "users": {
-    "create": "新建用户",
-    "createDescription": "创建用户账号并分配角色。",
-    "empty": "暂无用户，创建一个开始使用。",
-    "rowActions": "用户操作",
-    "editProfile": "编辑资料",
-    "editProfileDescription": "修改「{{name}}」的用户名和显示名称。",
-    "editRoles": "编辑角色",
-    "editRolesDescription": "为「{{name}}」分配角色。",
-    "resetPassword": "重置密码",
-    "resetPasswordDescription": "为「{{name}}」设置新密码。",
-    "enable": "启用",
-    "disable": "禁用",
-    "noRoles": "暂无可用角色，请先创建角色。",
-    "created": "用户已创建",
-    "profileUpdated": "资料已更新",
-    "rolesUpdated": "角色已更新",
-    "passwordReset": "密码已重置",
-    "enabled": "用户已启用",
-    "disabled": "用户已禁用",
-    "deleted": "用户已删除",
-    "table": {
-      "username": "用户名",
-      "displayName": "显示名称",
-      "roles": "角色",
-      "status": "状态"
-    },
-    "status": {
-      "active": "正常",
-      "disabled": "已禁用"
-    },
-    "form": {
-      "username": "用户名",
-      "usernamePlaceholder": "例如：alice",
-      "password": "密码",
-      "passwordPlaceholder": "至少 6 个字符",
-      "displayName": "显示名称",
-      "displayNamePlaceholder": "可选",
-      "roles": "角色"
-    },
-    "deleteConfirm": {
-      "title": "删除用户",
-      "description": "确定要删除用户「{{name}}」吗？此操作无法撤销。"
-    }
-  },
-  "roles": {
-    "create": "新建角色",
-    "edit": "编辑角色",
-    "formDescription": "定义角色名称并授予权限。",
-    "empty": "暂无角色，创建一个开始使用。",
-    "rowActions": "角色操作",
-    "system": "系统",
-    "superadmin": {
-      "name": "超级管理员",
-      "description": "拥有全部权限，不可删除或降级"
-    },
-    "allPermissions": "全部权限",
-    "noPermissions": "无权限",
-    "noPermissionsAvailable": "暂无可用权限。",
-    "permissionGroups": {
-      "contacts": "通讯录",
-      "chat": "聊天",
-      "tasks": "任务",
-      "sessions": "会话",
-      "dashboard": "仪表盘",
-      "env": "环境变量",
-      "system_config": "系统配置",
-      "administration": "管理"
-    },
-    "permissionItems": {
-      "contacts": { "read": "查看通讯录", "write": "编辑通讯录" },
-      "chat": { "write": "聊天" },
-      "tasks": { "read": "查看任务", "write": "创建与管理任务" },
-      "sessions": { "read": "查看会话", "write": "管理会话" },
-      "dashboard": { "read": "查看仪表盘" },
-      "env": { "read": "查看环境变量", "write": "编辑环境变量" },
-      "system_config": { "read": "查看系统配置", "write": "修改系统配置" },
-      "users": { "manage": "管理用户" },
-      "roles": { "manage": "管理角色" }
-    },
-    "created": "角色已创建",
-    "updated": "角色已更新",
-    "deleted": "角色已删除",
-    "form": {
-      "name": "角色名称",
-      "namePlaceholder": "例如：编辑者",
-      "description": "描述",
-      "descriptionPlaceholder": "可选",
-      "permissions": "权限"
-    },
-    "deleteConfirm": {
-      "title": "删除角色",
-      "description": "确定要删除角色「{{name}}」吗？此操作无法撤销。"
-    }
-  },
-  "emptyState": {
-    "noWorkers": "蜂巢中还没有员工",
-    "noWorkersDesc": "创建你的第一个 AI 员工开始使用",
-    "noWorkersInGroup": "该分组下暂无员工",
-    "noWorkersInGroupDesc": "切换分组或将员工添加到此分组",
-    "noExecutions": "暂无会话记录",
-    "noExecutionsDesc": "当员工执行任务时，记录会显示在这里",
-    "noTasks": "暂无任务"
+    "passwordHint": "至少 6 个字符。",
+    "submit": "创建账号",
+    "errorPasswordLength": "至少需要 6 个字符",
+    "errorConflict": "管理员账号已存在，请直接登录。",
+    "errorGeneric": "请检查网络连接后重试。",
+    "usernameRequired": "请输入用户名",
+    "errorTitle": "无法创建账号",
+    "goToLogin": "前往登录"
   },
   "scopes": {
     "readWorkers": {
       "title": "查询员工",
       "description": "允许列出和查看员工的基本信息与状态"
-    },
-    "readDepartments": {
-      "title": "查询部门",
-      "description": "允许列出和查看部门信息"
     },
     "readTasks": {
       "title": "查询任务",
@@ -496,81 +263,433 @@
   },
   "envConfig": {
     "title": "环境变量",
+    "navTitle": "环境变量",
     "workerTitle": "员工级变量",
-    "globalTitle": "全局环境变量",
+    "globalTitle": "全局变量",
     "add": "添加变量",
-    "editTitle": "编辑变量",
+    "editTitle": "编辑 {{key}}",
     "addTitle": "添加变量",
     "addDescription": "变量名自动转为大写，值加密存储。",
     "key": "变量名",
-    "keyPlaceholder": "例如：DATABASE_URL",
-    "keyExists": "该变量名已存在。",
+    "keyPlaceholder": "DATABASE_URL",
+    "keyExists": "{{key}} 已存在，请直接编辑它。",
     "value": "变量值",
     "valuePlaceholder": "请输入值",
     "showValue": "显示值",
     "hideValue": "隐藏值",
-    "valueSpaceWarning": "值的首尾包含空格。",
     "saveAndAddAnother": "保存并继续添加",
     "masked": "变量值",
-    "empty": "暂无环境变量配置。",
-    "deleteConfirm": "确认删除变量 \"{{key}}\"？此操作不可撤销。",
+    "empty": "暂无变量",
+    "deleteConfirm": "使用该变量的进程在下次运行时将不再获得它。此操作不可撤销。",
     "effectiveTitle": "生效变量预览",
-    "beeTitle": "Bee 环境变量",
+    "beeTitle": "Bee 变量",
     "sourceGlobal": "全局",
-    "sourceDepartment": "部门",
     "sourceWorker": "员工",
     "source": "来源",
     "noEffective": "该员工暂无任何环境变量配置。",
-    "depEnvTitle": "环境变量"
+    "pageDescription": "Bee 和员工启动时会注入这些变量。变量值加密存储，保存后不再显示。",
+    "globalDescription": "对 Bee 和所有员工生效。",
+    "beeDescription": "仅对 Bee 协调者生效，同名时覆盖全局变量。",
+    "editDescription": "当前值不会显示。输入新值即可替换。",
+    "keyHint": "仅限字母、数字和下划线。",
+    "newValue": "新的值",
+    "multiline": "多行值",
+    "valueLength_other": "{{count}} 个字符。",
+    "saveValue": "保存新值",
+    "added": "已添加 {{key}}",
+    "addedDescription": "可以继续添加下一个变量，或关闭对话框。",
+    "updated": "{{time}}更新",
+    "copyKey": "复制 {{key}}",
+    "editLabel": "编辑 {{key}}",
+    "deleteLabel": "删除 {{key}}",
+    "editAction": "编辑值",
+    "deleteAction": "删除变量",
+    "emptyGlobal": "添加变量后，Bee 和所有员工都会获得它。",
+    "emptyBee": "添加变量后，只有 Bee 会获得它。",
+    "emptyWorker": "添加变量后，只有该员工会获得它。",
+    "deleteTitle": "删除 {{key}}？",
+    "deleteError": "无法删除变量",
+    "saveError": "无法保存变量",
+    "loadError": "无法加载变量",
+    "valueLengthSpace_other": "{{count}} 个字符。首尾包含空格。"
   },
   "systemSettings": {
-    "title": "系统设置",
-    "readonlyHint": "你没有修改权限，以下设置为只读。",
+    "title": "设置",
     "engineSection": {
-      "title": "默认引擎"
+      "title": "默认引擎",
+      "rowTitle": "Bee 与新员工",
+      "description": "Bee 用它运行，新建员工时默认选中它。",
+      "label": "引擎"
     },
-    "updated": "默认引擎已更新",
     "globalArgsSection": {
-      "title": "全局员工参数",
-      "updated": "全局员工参数已更新"
+      "title": "全部员工",
+      "description": "应用于每一位员工。"
     },
     "beeArgsSection": {
-      "title": "Bee 引擎参数",
-      "updated": "Bee 引擎参数已更新"
+      "title": "Bee 协调器",
+      "description": "应用于把消息分派给员工的 Bee。"
+    },
+    "subtitle": "Bee 和新员工的默认引擎，以及各引擎启动时附加的参数。",
+    "loadError": "无法加载系统设置",
+    "save": "保存更改",
+    "saved": "已保存",
+    "saveError": "无法保存设置",
+    "argsSection": {
+      "title": "引擎参数",
+      "description": "引擎启动时附加的命令行参数，留空表示不附加。"
     }
   },
   "notFound": {
-    "code": "404",
     "title": "页面不存在",
-    "description": "你访问的路径不存在或已被移除",
-    "backToHome": "返回首页",
-    "goToLogin": "去登录"
+    "description": "地址可能有误，或页面已被移除。",
+    "backToHome": "前往聊天",
+    "goToLogin": "前往登录"
   },
-  "permission": {
-    "deniedTitle": "无访问权限",
-    "deniedDescription": "你没有权限查看此内容。如有疑问，请联系管理员。",
-    "noAccessTitle": "暂无可访问的功能",
-    "noAccessDescription": "你的账号尚未被分配任何可访问的功能，请联系管理员开通权限。",
-    "logout": "退出登录"
+  "plugins": {
+    "title": "插件",
+    "subtitle": "从插件目录安装渠道和引擎插件，配置后即可启用，无需重启 OpenBee",
+    "types": {
+      "channel": "渠道",
+      "engine": "引擎"
+    },
+    "refreshCatalog": "刷新目录",
+    "catalogError": "无法加载插件目录",
+    "installedError": "无法加载已安装的插件",
+    "tabs": {
+      "market": "插件市场",
+      "installed": "已安装"
+    },
+    "search": "搜索插件",
+    "searchPlaceholder": "名称或描述",
+    "tagFilter": "按标签筛选",
+    "allTags": "全部",
+    "official": "官方",
+    "deprecated": "已弃用",
+    "noResults": "没有匹配的插件",
+    "noResultsHint": "换个名称试试，或显示全部标签。",
+    "clearFilters": "清除筛选",
+    "action": {
+      "install": "安装",
+      "installingShort": "安装中",
+      "configure": "配置",
+      "update": "更新到 {{version}}",
+      "incompatible": "需要更新版本的 OpenBee",
+      "enable": "启用",
+      "disable": "停用",
+      "toggle": "启用 {{name}}",
+      "restart": "重启",
+      "uninstall": "卸载",
+      "moreFor": "{{name}} 的更多操作"
+    },
+    "installedVersion": "已安装 v{{version}}",
+    "updateAvailable": "已安装 v{{version}}，有新版本",
+    "installDone": "{{name}} 已安装",
+    "updateDone": "{{name}} 已更新到 {{version}}",
+    "installFailed": "{{name}} 安装失败：{{error}}",
+    "uninstallDone": "已卸载 {{name}}",
+    "uninstallFailed": "{{name}} 卸载失败：{{error}}",
+    "state": {
+      "running": "运行中",
+      "ready": "就绪",
+      "disabled": "已停用",
+      "not_configured": "未配置",
+      "starting": "启动中",
+      "retrying": "重试中",
+      "failed": "失败",
+      "uninstalling": "卸载中"
+    },
+    "columns": {
+      "plugin": "插件",
+      "version": "版本",
+      "status": "状态",
+      "botName": "机器人名称"
+    },
+    "installedTitle": "已安装的插件",
+    "installedSummary_other": "{{count}} 个插件，{{active}} 个可用",
+    "emptyInstalled": {
+      "title": "还没有安装插件",
+      "description": "去插件市场安装插件，就能接入聊天平台或添加 AI 引擎。",
+      "action": "打开插件市场"
+    },
+    "installDialog": {
+      "open": "从包安装",
+      "title": "从包安装",
+      "description": "安装不在插件目录中的插件。",
+      "spec": "包名或路径",
+      "specHelp": "npm 包名（可带 @版本），或 OpenBee 服务器上的插件目录。",
+      "placeholder": "@scope/openbee-plugin@1.0.0",
+      "submit": "安装插件",
+      "installing": "安装中",
+      "done": "插件已安装",
+      "doneHint": "完成配置后即可启用。",
+      "doneHintEngine": "引擎已启用，创建或编辑员工时即可选用。",
+      "failed": "插件安装失败",
+      "configure": "配置插件",
+      "view": "查看插件",
+      "close": "关闭"
+    },
+    "uninstallDialog": {
+      "title": "卸载 {{name}}？",
+      "description": "会删除该插件及其配置和数据，这个渠道会立即停止，其他渠道不受影响。",
+      "descriptionEngine": "会删除该插件及其配置和数据。使用这个引擎的员工在重新安装之前无法运行。",
+      "confirm": "卸载",
+      "error": "插件卸载失败"
+    },
+    "toast": {
+      "enabled": "已启用 {{name}}",
+      "disabled": "已停用 {{name}}",
+      "restarted": "已重启 {{name}}",
+      "saved": "已保存",
+      "savedRestarting": "已保存，{{name}} 正在重启",
+      "savedEnableHint": "已保存，启用插件后开始工作"
+    },
+    "detail": {
+      "back": "插件",
+      "loadError": "无法加载该插件",
+      "failedTitle": "插件因错误停止运行",
+      "retryingTitle": "插件出错，正在重试",
+      "restartNow": "重启插件",
+      "settings": "配置",
+      "settingsHint": "保存后只重启 {{name}}，不影响其他渠道",
+      "settingsHintEngine": "保存的配置会在下次运行时生效",
+      "info": "插件信息",
+      "package": "包名",
+      "version": "版本",
+      "source": "来源",
+      "sourceNpm": "插件目录（npm）",
+      "sourcePath": "本地目录",
+      "path": "路径",
+      "repository": "仓库",
+      "license": "许可证",
+      "latest": "已是目录中的最新版本",
+      "newer": "目录中有新版本 {{version}}",
+      "botName": "机器人名称",
+      "botNameHelp": "群聊里 @ 机器人时用的名称；不能和员工重名",
+      "secretSaved": "已保存 {{mask}}，留空则保留",
+      "defaultValue": "默认 {{value}}",
+      "listHelp": "一行一个值",
+      "requiredLabel": "{{label}}（必填）",
+      "intInvalid": "{{label}} 请输入整数",
+      "noChanges": "没有需要保存的改动",
+      "reset": "撤销修改",
+      "save": "保存配置",
+      "saved": "已保存",
+      "notFound": "这个插件没有安装",
+      "notFoundHint": "它可能已被卸载，可以去插件市场重新安装。"
+    },
+    "setup": {
+      "defaultLabel": "登录",
+      "cardHint": "登录成功后会自动保存相关配置",
+      "start": "开始",
+      "waiting": "正在启动…",
+      "scanHint": "请用手机扫描二维码，并在手机上确认",
+      "refreshHint": "二维码过期后会自动换新",
+      "output": "登录输出",
+      "inputLabel": "回复登录会话",
+      "inputPlaceholder": "需要时在这里输入",
+      "send": "发送",
+      "again": "重新获取",
+      "reconnecting": "正在重新连接…",
+      "success": "登录成功，配置已保存",
+      "stopped": "暂无二维码",
+      "stoppedTitle": "登录已停止",
+      "failed": "登录失败：{{error}}",
+      "lost": "与登录会话的连接已断开，请点击“重新获取”重试。"
+    }
   },
   "errors": {
-    "last_super_admin": "无法移除或停用最后一个启用的超级管理员",
-    "username_taken": "用户名已被占用",
-    "username_required": "用户名不能为空",
-    "user_not_found": "用户不存在",
-    "system_role_undeletable": "系统角色不可删除",
-    "department_not_found": "部门不存在",
-    "department_parent_not_found": "上级部门不存在",
-    "department_has_sub": "该部门下存在子部门，请先移除子部门",
-    "department_has_workers": "该部门下存在数字员工，请先将其移动到其他部门",
-    "department_circular_reference": "不能将下级部门设为上级部门",
-    "department_invalid_parent": "上级部门参数无效",
-    "departments_not_found": "存在一个或多个部门不存在",
     "worker_not_found": "数字员工不存在",
     "env_not_found": "环境变量配置不存在",
-    "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee、department 或 worker 之一",
+    "env_invalid_scope": "无效的作用域 {{scope}}，必须为 global、bee 或 worker 之一",
     "env_reserved_key": "{{key}} 为保留键，不可设置",
     "env_scope_id_required": "作用域 {{scope}} 需要提供 scope_id",
-    "old_password_incorrect": "当前密码不正确。"
+    "old_password_incorrect": "当前密码不正确。",
+    "plugin_not_found": "插件 {{id}} 未安装",
+    "plugin_config_invalid": "插件配置无效：{{reason}}",
+    "plugin_unknown_field": "{{key}} 不是该插件的配置项",
+    "plugin_env_secret_missing": "保存插件配置前，请先在 config.yaml 中设置 server.env_secret",
+    "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
+    "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
+    "plugin_bot_name_not_supported": "引擎插件没有机器人名称。",
+    "plugin_operation_not_found": "找不到该插件操作",
+    "plugin_catalog_unavailable": "暂时无法获取插件目录",
+    "plugin_no_setup": "插件 {{id}} 没有登录步骤",
+    "plugin_setup_not_found": "登录会话已结束，请重新开始",
+    "plugin_setup_finished": "登录会话已经结束"
+  },
+  "arc": {
+    "alert": {
+      "dismiss": "关闭：{{title}}"
+    },
+    "avatar": {
+      "withStatus": "{{name}}，{{status}}",
+      "online": "在线",
+      "offline": "离线"
+    },
+    "barChart": {
+      "average": "日均",
+      "value": "总计",
+      "category": "日期",
+      "averageTick": "均值 {{value}}",
+      "empty": "暂无数据",
+      "summary": "{{label}}，{{period}}。{{averageLabel}} {{average}}。",
+      "highest": "最高为 {{label}}，{{value}}。",
+      "lowest": "最低为 {{label}}，{{value}}。",
+      "explore": "{{label}}，按{{category}}浏览",
+      "update": "{{period}}。{{averageLabel}} {{average}}。"
+    },
+    "breadcrumb": {
+      "label": "面包屑导航"
+    },
+    "card": {
+      "close": "关闭快速预览"
+    },
+    "checkbox": {
+      "label": "复选框"
+    },
+    "codeBlock": {
+      "expand": "展开全部 {{count}} 行",
+      "collapse": "收起",
+      "region": "{{name}} 源代码",
+      "sourceCode": "源代码",
+      "copy": "复制代码",
+      "selectable": "可选中的源代码"
+    },
+    "combobox": {
+      "placeholder": "搜索或选择…",
+      "empty": "没有匹配项",
+      "clear": "清除选择",
+      "options": "{{label}}选项"
+    },
+    "confirmMorph": {
+      "confirm": "删除",
+      "cancel": "取消",
+      "pending": "正在删除",
+      "done": "已删除",
+      "error": "操作失败",
+      "retry": "重试",
+      "undo": "撤销",
+      "undoing": "正在恢复",
+      "countdown": "{{confirm}}倒计时",
+      "undone": "已撤销",
+      "undoAvailable": "{{done}}。可{{undo}}。",
+      "cancelled": "已取消",
+      "keepHolding": "继续按住以{{action}}",
+      "countdownAnnouncement": "{{label}} {{seconds}} 秒",
+      "question": "？",
+      "holdHint": "按住以确认"
+    },
+    "copyButton": {
+      "copy": "复制",
+      "copied": "已复制",
+      "failed": "复制失败",
+      "failedAnnouncement": "{{label}}：复制失败",
+      "copiedAnnouncement": "{{label}}：已复制"
+    },
+    "dialog": {
+      "close": "关闭对话框"
+    },
+    "drawer": {
+      "close": "关闭面板"
+    },
+    "expandableText": {
+      "more": "展开",
+      "less": "收起"
+    },
+    "lineChart": {
+      "empty": "此时间范围内暂无数据",
+      "category": "日期",
+      "seriesShown": "已显示 {{visible}}/{{total}} 个系列",
+      "emptySummary": "{{label}}。{{message}}。",
+      "summary": "{{label}}，{{from}} 至 {{to}}。",
+      "latest": "{{series}}，最新值 {{value}}。",
+      "legend": "{{label}}系列",
+      "explore": "{{label}}，按{{category}}浏览",
+      "allHidden": "请选择要显示的系列",
+      "loading": "加载中"
+    },
+    "numberField": {
+      "increase": "增加{{label}}",
+      "decrease": "减少{{label}}",
+      "atMaximum": "{{value}}，已达最大值",
+      "atMinimum": "{{value}}，已达最小值",
+      "max": "最大 {{value}}",
+      "min": "最小 {{value}}"
+    },
+    "pagination": {
+      "label": "分页",
+      "previous": "上一页",
+      "page": "第 {{number}} 页",
+      "next": "下一页"
+    },
+    "passwordField": {
+      "show": "显示密码",
+      "hide": "隐藏密码"
+    },
+    "searchField": {
+      "clear": "清除搜索"
+    },
+    "select": {
+      "placeholder": "请选择"
+    },
+    "skeleton": {
+      "label": "加载中"
+    },
+    "sortableDataTable": {
+      "caption": "数据表格",
+      "empty": "暂无数据",
+      "row": "行",
+      "rows": "行",
+      "selected": "项已选",
+      "sortedAscending": "已按{{column}}升序排列",
+      "sortedDescending": "已按{{column}}降序排列",
+      "selectedCount": "已选择 {{selected}}/{{total}} 项",
+      "selectionCleared": "已清除选择",
+      "selectAll": "选择全部行",
+      "sortBy": "按{{column}}排序",
+      "sortByAscending": "按{{column}}排序，当前为升序",
+      "sortByDescending": "按{{column}}排序，当前为降序",
+      "selectRow": "选择{{row}}",
+      "clear": "清除选择"
+    },
+    "tabs": {
+      "scrollLeft": "向左滚动标签",
+      "scrollRight": "向右滚动标签"
+    },
+    "themeSwitch": {
+      "toDark": "切换到深色模式",
+      "toLight": "切换到浅色模式",
+      "label": "切换主题"
+    },
+    "toast": {
+      "dismiss": "关闭通知"
+    },
+    "treeView": {
+      "label": "文件树"
+    },
+    "userMenu": {
+      "status": "状态",
+      "theme": "主题",
+      "language": "语言",
+      "notifications": "桌面通知",
+      "signOut": "退出登录",
+      "signingOut": "正在退出",
+      "triggerWithStatus": "账户菜单，{{name}}，{{status}}",
+      "trigger": "账户菜单，{{name}}",
+      "statuses": {
+        "available": "在线",
+        "busy": "忙碌",
+        "away": "离开"
+      },
+      "themes": {
+        "light": "浅色",
+        "dark": "深色",
+        "system": "跟随系统"
+      },
+      "toggles": {
+        "off": "关",
+        "on": "开"
+      }
+    }
   }
 }

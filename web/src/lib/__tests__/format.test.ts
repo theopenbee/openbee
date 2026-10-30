@@ -1,66 +1,54 @@
 import { describe, expect, it } from "vitest"
-import { extractMessageContent, formatTotalDuration } from "../format"
+import { formatEngineLabel, formatListTime } from "../format"
 
-describe("extractMessageContent", () => {
-  it("returns input unchanged when no known format is detected", () => {
-    expect(extractMessageContent("hello world")).toBe("hello world")
+const at = (year: number, month: number, day: number, hour = 12, minute = 0) =>
+  new Date(year, month - 1, day, hour, minute).getTime()
+
+describe("formatListTime", () => {
+  const now = at(2026, 10, 27, 15, 30)
+
+  it("formats today, yesterday, this year and older", () => {
+    expect(formatListTime(at(2026, 10, 27, 9, 5), now, "en-GB", "Yesterday")).toBe("09:05")
+    expect(formatListTime(at(2026, 10, 26, 23, 59), now, "en-GB", "Yesterday")).toBe("Yesterday")
+    expect(formatListTime(at(2026, 3, 4, 8, 0), now, "en-GB", "Yesterday")).toBe("04/03")
+    expect(formatListTime(at(2025, 12, 31, 8, 0), now, "en-GB", "Yesterday")).toBe("31/12/2025")
   })
 
-  it("returns empty string unchanged", () => {
-    expect(extractMessageContent("")).toBe("")
+  it("treats the local midnight boundary as a day change", () => {
+    const justAfterMidnight = at(2026, 10, 27, 0, 1)
+    expect(formatListTime(at(2026, 10, 27, 0, 0), justAfterMidnight, "en-GB", "Yesterday")).toBe("00:00")
+    expect(formatListTime(at(2026, 10, 26, 23, 59), justAfterMidnight, "en-GB", "Yesterday")).toBe("Yesterday")
+    expect(formatListTime(at(2026, 10, 25, 23, 59), justAfterMidnight, "en-GB", "Yesterday")).toBe("25/10")
   })
 
-  it("strips old frontmatter format", () => {
-    const input = "---\nmessage_id: abc123\n---\n\nThis is the content"
-    expect(extractMessageContent(input)).toBe("This is the content")
+  it("finds yesterday across month and year boundaries", () => {
+    expect(formatListTime(at(2026, 2, 28, 20, 0), at(2026, 3, 1, 8, 0), "en-GB", "Yesterday")).toBe("Yesterday")
+    expect(formatListTime(at(2025, 12, 31, 20, 0), at(2026, 1, 1, 8, 0), "en-GB", "Yesterday")).toBe("Yesterday")
+    expect(formatListTime(at(2024, 2, 29, 20, 0), at(2024, 3, 1, 8, 0), "en-GB", "Yesterday")).toBe("Yesterday")
   })
 
-  it("strips old frontmatter format without trailing blank line", () => {
-    const input = "---\nmessage_id: abc123\n---\nThis is the content"
-    expect(extractMessageContent(input)).toBe("This is the content")
-  })
-
-  it("extracts content from new format with message_content tag", () => {
-    const input = `<message_meta>{"from":"feishu","message_id":"abc"}</message_meta>\n<message_content>\nhello world\n</message_content>`
-    expect(extractMessageContent(input)).toBe("hello world")
-  })
-
-  it("extracts content from new format with task_content tag", () => {
-    const input = `<message_meta>{"from":"feishu","message_id":"abc"}</message_meta>\n<task_content>\ndo something\n</task_content>`
-    expect(extractMessageContent(input)).toBe("do something")
-  })
-
-  it("preserves nested content inside task_content as-is", () => {
-    const input = `<message_meta>{}</message_meta>\n<task_content>\n<worker_persona>X</worker_persona>\nsome task\n</task_content>`
-    expect(extractMessageContent(input)).toBe("<worker_persona>X</worker_persona>\nsome task")
+  it("uses the given yesterday label and locale", () => {
+    expect(formatListTime(at(2026, 10, 26, 10, 0), now, "zh-CN", "昨天")).toBe("昨天")
+    expect(formatListTime(at(2026, 3, 4, 8, 0), now, "zh-CN", "昨天")).toBe("3/4")
+    expect(formatListTime(at(2025, 3, 4, 8, 0), now, "zh-CN", "昨天")).toBe("2025/3/4")
   })
 })
 
-describe("formatTotalDuration", () => {
-  it("returns 0s for zero milliseconds", () => {
-    expect(formatTotalDuration(0)).toBe("0s")
+describe("formatEngineLabel", () => {
+  const engines = [{ id: "pi", name: "Pi" }]
+
+  it("uses the localized engine name", () => {
+    expect(formatEngineLabel("pi", engines)).toBe("Pi")
   })
 
-  it("formats sub-minute durations as seconds", () => {
-    expect(formatTotalDuration(45_000)).toBe("45s")
-    expect(formatTotalDuration(1_000)).toBe("1s")
-    expect(formatTotalDuration(59_999)).toBe("59s")
+  it("falls back to the id when the engine is not installed", () => {
+    expect(formatEngineLabel("codex", engines)).toBe("codex")
+    expect(formatEngineLabel("codex", [])).toBe("codex")
   })
 
-  it("formats minute-range durations as m s", () => {
-    expect(formatTotalDuration(90_000)).toBe("1m 30s")
-    expect(formatTotalDuration(750_000)).toBe("12m 30s")
-    expect(formatTotalDuration(3_599_999)).toBe("59m 59s")
-  })
-
-  it("formats hour-range durations as h m", () => {
-    expect(formatTotalDuration(3_600_000)).toBe("1h 0m")
-    expect(formatTotalDuration(8_100_000)).toBe("2h 15m")
-    expect(formatTotalDuration(86_399_999)).toBe("23h 59m")
-  })
-
-  it("formats day-range durations as d h", () => {
-    expect(formatTotalDuration(86_400_000)).toBe("1d 0h")
-    expect(formatTotalDuration(97_200_000)).toBe("1d 3h")
+  it("shows a dash for an unset engine", () => {
+    expect(formatEngineLabel("", engines)).toBe("—")
+    expect(formatEngineLabel(undefined, engines)).toBe("—")
+    expect(formatEngineLabel(null, engines)).toBe("—")
   })
 })

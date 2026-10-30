@@ -1,0 +1,64 @@
+package auth
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/theopenbee/openbee/internal/infra/utils"
+)
+
+const (
+	ScopeReadWorkers  = "read:workers"
+	ScopeReadTasks    = "read:tasks"
+	ScopeReadMessages = "read:messages"
+)
+
+var AllScopes = []string{
+	ScopeReadWorkers,
+	ScopeReadTasks,
+	ScopeReadMessages,
+}
+
+var validScopeSet = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(AllScopes))
+	for _, s := range AllScopes {
+		m[s] = struct{}{}
+	}
+	return m
+}()
+
+var allowedScopesStr = strings.Join(AllScopes, ", ")
+
+// ValidatePermissionScopes checks that every scope in the comma-separated string
+// is a recognised value. Returns an error listing any invalid scopes found.
+func ValidatePermissionScopes(scopes string) error {
+	if scopes == "" {
+		return nil
+	}
+	var invalid []string
+	for _, s := range utils.SplitAndTrim(scopes) {
+		if _, ok := validScopeSet[s]; !ok {
+			invalid = append(invalid, s)
+		}
+	}
+	if len(invalid) > 0 {
+		return fmt.Errorf("invalid permission scope(s): %s; allowed values: %s",
+			strings.Join(invalid, ", "), allowedScopesStr)
+	}
+	return nil
+}
+
+var workerToolScopes = map[string]string{
+	utils.SendMessage:          "",
+	utils.ListWorkers:          ScopeReadWorkers,
+	utils.GetWorker:            ScopeReadWorkers,
+	utils.GetWorkerStatus:      ScopeReadWorkers,
+	utils.ListTasks:            ScopeReadTasks,
+	utils.ListMessages:         ScopeReadMessages,
+	utils.ListOutboundMessages: ScopeReadMessages,
+}
+
+func WorkerToolScope(name string) (scope string, allowed bool) {
+	scope, allowed = workerToolScopes[name]
+	return scope, allowed
+}

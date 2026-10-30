@@ -1,0 +1,1067 @@
+package views_test
+
+import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
+	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/envpanel"
+	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
+	"github.com/theopenbee/openbee/desktop/locales"
+)
+
+const (
+	codexName        = "Codex"
+	wideW, wideH     = 1440, 900
+	narrowW, narrowH = 700, 900
+	settingsNarrowW  = 800
+	settingsScrollX  = 900
+	settingsScrollY  = 500
+	settingsScrollDy = 3000
+	titleNudge       = 10
+	chartW, chartH   = 360, 88
+	chartBar         = 14
+	chartGap         = 8
+	imageWait        = 3 * time.Second
+	chartAlt         = "Coverage by package"
+	boardChart       = "board-chart.png"
+	chartPicW        = 720
+	chartPicH        = 440
+	sunSize          = 96
+	drawerW          = 1000
+	envColumnW       = 880
+	envPad           = 24
+	tallH            = 2400
+	panelScrollX     = 1200
+	panelScrollY     = 450
+	panelScrollDy    = 700
+	envGap           = 40
+	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
+)
+
+type shots int
+
+const (
+	wideAndNarrow shots = iota
+	wideOnly
+	narrowOnly
+)
+
+type screen struct {
+	name     string
+	seed     func(st *fakeapi.State)
+	signedIn bool
+	prepare  func(t *testing.T, h *testkit.Harness)
+	narrow   func(t *testing.T, h *testkit.Harness)
+	shots    shots
+	hint     bool
+	want     func() string
+}
+
+func uninitialized(st *fakeapi.State) { st.Initialized = false }
+
+func connect(_ *testing.T, h *testkit.Harness) { h.Connect() }
+
+func failedLogin(t *testing.T, h *testkit.Harness) {
+	h.Connect()
+	for _, field := range []struct{ label, text string }{
+		{locales.LoginUsername(), "admin"},
+		{locales.LoginPassword(), "wrong"},
+	} {
+		if err := h.T.Click(field.label); err != nil {
+			t.Fatal(err)
+		}
+		h.T.Type(field.text)
+	}
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+}
+
+func changedServer(_ *testing.T, h *testkit.Harness) {
+	h.Connect()
+	h.Store.ChangeServer()
+	h.Settle()
+}
+
+var authScreens = []screen{
+	{name: "connect", want: locales.ConnectTitle},
+	{name: "connect-back", prepare: changedServer, want: locales.ConnectTitle},
+	{name: "login", prepare: connect, want: locales.LoginDescription},
+	{name: "login-error", prepare: failedLogin, want: locales.LoginError401},
+	{name: "setup", seed: uninitialized, prepare: connect, want: locales.SetupTitle},
+}
+
+func staffWorker(id, name, description, status string) api.Worker {
+	return api.Worker{ID: id, Name: name, Description: description, Status: status, Engine: "claude", WorkDir: "/srv/" + id}
+}
+
+func lastMessage(sender, preview string, at time.Time) *api.LastMessage {
+	return &api.LastMessage{Sender: api.ChatSender{Type: sender}, Kind: "message", Preview: preview, TS: at.UnixMilli()}
+}
+
+func workerChat(id string, last *api.LastMessage, unread int) api.ConversationSummary {
+	return api.ConversationSummary{ID: api.WorkerConversation(id), Kind: "worker", WorkerID: id, LastMessage: last, Unread: unread,
+		Activity: api.ConversationActivity{State: "idle"}}
+}
+
+func staffed(st *fakeapi.State) {
+	now := time.Now()
+	st.Workers = []api.Worker{
+		staffWorker("zhang", "张伟", "后端开发与接口维护", "working"),
+		staffWorker("ada", "Ada Lovelace", "Data analysis and monthly reports", "idle"),
+		staffWorker("li", "李娜", "文档与翻译", "idle"),
+		staffWorker("release", "release-bot", "Ships builds for every platform", "error"),
+		staffWorker("grace", "Grace Hopper", "Code review and refactoring", "idle"),
+	}
+	st.Conversations = []api.ConversationSummary{
+		{ID: api.BeeConversation, Kind: "bee", Unread: 2, Activity: api.ConversationActivity{State: "idle"},
+			LastMessage: lastMessage("bee", "Morning! Two workers finished their overnight tasks.", now.Add(-9*time.Minute))},
+		workerChat("zhang", lastMessage("worker", "接口已经改好了，正在跑集成测试", now.Add(-3*time.Minute)), 3),
+		workerChat("ada", lastMessage("user", "Can you rerun the March report with the new filters?", now.Add(-47*time.Minute)), 0),
+		workerChat("li", &api.LastMessage{Sender: api.ChatSender{Type: "bee"}, Kind: "handoff", HandoffWorkerID: "ada",
+			TS: now.AddDate(0, 0, -1).UnixMilli()}, 0),
+		workerChat("release", lastMessage("worker", "Build 1.4.2 failed on Windows arm64", now.AddDate(0, 0, -6)), 150),
+	}
+}
+
+func listOnly(_ *testing.T, h *testkit.Harness) {
+	h.Root.Nav().Push(route.ChatPath)
+	h.Settle()
+}
+
+func stillLoading(_ *testing.T, h *testkit.Harness) {
+	for _, r := range []interface{ Reset() }{h.Store.Workers, h.Store.Conversations} {
+		r.Reset()
+	}
+	h.Store.Workers.Loading = true
+	h.Store.Conversations.Loading = true
+	h.Settle()
+}
+
+var shellScreens = []screen{
+	{name: "shell-list", seed: staffed, signedIn: true, narrow: listOnly, want: func() string { return "Ada Lovelace" }},
+	{name: "shell-loading", seed: staffed, signedIn: true, prepare: stillLoading, narrow: listOnly, want: locales.NavSettings},
+}
+
+func said(id, senderType, senderID, content string, at time.Time) api.ChatMessage {
+	return api.ChatMessage{ID: id, Sender: api.ChatSender{Type: senderType, ID: senderID}, Kind: "message", Content: content, TS: at.UnixMilli()}
+}
+
+func handedOff(id, workerID, taskType, cron, content string, at time.Time) api.ChatMessage {
+	m := said(id, "bee", "", content, at)
+	m.Kind = "handoff"
+	m.Handoff = &api.HandoffInfo{WorkerID: workerID, TaskID: "task-" + id, TaskType: taskType, CronExpr: cron,
+		ConversationID: api.WorkerConversation(workerID)}
+	return m
+}
+
+func busy(st *fakeapi.State, workerID string) {
+	for i := range st.Conversations {
+		if st.Conversations[i].WorkerID == workerID {
+			st.Conversations[i].Activity = api.ConversationActivity{State: "running"}
+		}
+	}
+}
+
+func chatHistory(st *fakeapi.State) {
+	staffed(st)
+	now := time.Now()
+	yesterday := now.AddDate(0, 0, -1)
+	st.Messages = map[string][]api.ChatMessage{
+		api.WorkerConversation("ada"): {
+			said("a1", "user", "", "Can you pull the February numbers before the board call?", yesterday.Add(-3*time.Hour)),
+			said("a2", "worker", "ada", "Done. Revenue is up 4.2% month over month; churn held at 1.9%.", yesterday.Add(-3*time.Hour+4*time.Minute)),
+			{ID: "a3", Sender: api.ChatSender{Type: "system"}, Kind: "reset", TS: yesterday.Add(-2 * time.Hour).UnixMilli()},
+			said("a4", "bee", "", "Prepare the monthly report for March: revenue by region, churn, and the five largest accounts.", now.Add(-58*time.Minute)),
+			said("a5", "worker", "ada", "On it. I'll use the warehouse snapshot from this morning.\nFirst draft in about 20 minutes.", now.Add(-55*time.Minute)),
+			said("a6", "user", "", "Can you rerun the March report with the new filters?", now.Add(-47*time.Minute)),
+			said("a7", "user", "", "Exclude the trial accounts this time.", now.Add(-46*time.Minute)),
+			said("a8", "user", "", "/status", now.Add(-40*time.Minute)),
+			said("a9", "system", "", "Ada Lovelace is working on 1 task. 3 tasks finished today.", now.Add(-40*time.Minute)),
+			said("a10", "worker", "ada", "Rerunning with trial accounts excluded. Revenue by region:\n\n• North America: $1.42M (+3.1%)\n• Europe: $0.98M (+5.6%)\n• APAC: $0.61M (+8.9%)\n\nThe churn table is next.", now.Add(-12*time.Minute)),
+		},
+		api.BeeConversation: {
+			said("b1", "user", "", "@Ada Lovelace please prepare the monthly report every Monday at 9.", now.Add(-35*time.Minute)),
+			said("b2", "bee", "", "Got it. I scheduled the report for Ada and asked 张伟 to rerun the integration tests.", now.Add(-34*time.Minute)),
+			handedOff("b3", "ada", "scheduled", "0 9 * * 1", "Prepare the monthly report: revenue by region, churn and top accounts.\n\nShare it in this chat.\nFlag anything unusual.\nKeep it under two pages.", now.Add(-34*time.Minute)),
+			handedOff("b4", "zhang", "countdown", "", "接口改完之后重新跑一遍集成测试", now.Add(-33*time.Minute)),
+			handedOff("b5", "retired", "immediate", "", "Archive the 1.3 build artifacts", now.Add(-32*time.Minute)),
+			said("b6", "worker", "zhang", "集成测试全部通过，可以合并了。", now.Add(-9*time.Minute)),
+			said("b7", "bee", "", "Morning! Two workers finished their overnight tasks.", now.Add(-9*time.Minute)),
+		},
+		api.WorkerConversation("zhang"): {
+			said("z1", "user", "", "接口改完之后跑一下集成测试", now.Add(-20*time.Minute)),
+			said("z2", "worker", "zhang", "好的，正在跑。预计十分钟。", now.Add(-19*time.Minute)),
+		},
+	}
+	st.ActiveTasks = map[string][]api.ActiveTask{
+		api.WorkerConversation("zhang"): {
+			{ID: "t1", Instruction: "接口改完之后重新跑一遍集成测试", Type: "countdown"},
+			{ID: "t2", Instruction: "Post the nightly build summary to the release channel and tag the owners of every failing job", Type: "scheduled"},
+			{ID: "t3", Instruction: "Review the open pull requests", Type: "immediate"},
+		},
+	}
+	busy(st, "ada")
+	busy(st, "zhang")
+}
+
+func emptyBee(st *fakeapi.State) {
+	staffed(st)
+	st.Conversations[0].LastMessage = nil
+	st.Conversations[0].Unread = 0
+}
+
+func openChat(param string) func(t *testing.T, h *testkit.Harness) {
+	return func(_ *testing.T, h *testkit.Harness) {
+		h.Root.Nav().Push(route.Chat(param))
+		h.Settle()
+		h.T.Advance(time.Second)
+		h.Settle()
+	}
+}
+
+func offline(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	h.Fake.FailNext(http.MethodGet, "/api/local/stream", http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	h.Fake.DropStreams()
+	h.Fix.Await(t, func() bool { return !h.Store.Online })
+	h.Fix.Clock.AwaitSleepers(t, 2)
+	h.Fix.Clock.Advance(3 * time.Second)
+	h.Fix.Await(t, func() bool {
+		return len(h.Fake.Calls(http.MethodGet, "/api/local/stream")) == 2 && h.Fix.Clock.Sleepers() == 2
+	})
+	h.Fix.Clock.Advance(time.Second)
+	h.Fix.Await(t, func() bool { return h.Store.Offline })
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func retrying(t *testing.T, h *testkit.Harness) {
+	offline(t, h)
+	h.Fake.FailNext(http.MethodGet, "/api/local/stream", http.StatusServiceUnavailable, map[string]any{"error": "down"})
+	clickAndSettle(t, h, locales.ChatReconnectNow(), 0)
+	h.Fix.Await(t, func() bool { return len(h.Fake.Calls(http.MethodGet, "/api/local/stream")) == 3 })
+	h.Settle()
+}
+
+func retryFailed(t *testing.T, h *testkit.Harness) {
+	retrying(t, h)
+	h.Fix.Clock.Advance(time.Second)
+	h.Fix.Await(t, func() bool { return h.Store.ReconnectFailed })
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func blockedHint(t *testing.T, h *testkit.Harness) {
+	h.Fix.Notifier.ShowErr = store.ErrNotificationsDenied
+	openChat("ada")(t, h)
+	clickAndSettle(t, h, locales.NotificationsEnable(), 0)
+}
+
+func beeBusy(t *testing.T, h *testkit.Harness) {
+	openChat("bee")(t, h)
+	typeInComposer(t, h, "Please summarise the nightly results.")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func clickAndSettle(t *testing.T, h *testkit.Harness, name string, dx float32) {
+	t.Helper()
+	r, ok := h.T.Find(name)
+	if !ok {
+		t.Fatalf("no %q; texts %q", name, h.T.Texts())
+	}
+	h.T.ClickAt(r.X+r.W/2+dx, r.Y+r.H/2)
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func resetConflict(t *testing.T, h *testkit.Harness) {
+	openChat("zhang")(t, h)
+	clickAndSettle(t, h, locales.ChatNewConversation(), 0)
+	r, _ := h.T.Find(locales.CommonCancel())
+	clickAndSettle(t, h, locales.CommonCancel(), r.W/2+40)
+}
+
+const richReply = "## Release 1.4.2 review\n" +
+	"The branch is close; see the [release guide](https://docs.openbee.dev/release) for the steps.\n\n" +
+	"- Signed builds for **macOS** and *Linux*\n" +
+	"- The ~~old~~ new updater feed\n\n" +
+	"* [x] Tag the build and update the changelog\n" +
+	"* [ ] Publish the notes after `make dist` passes\n\n" +
+	"> Windows arm64 still needs a manual retry after signing.\n\n" +
+	"```go\n" +
+	"if err := retry(ctx, \"sign-arm64\", 3); err != nil {\n" +
+	"\treturn fmt.Errorf(\"sign: %w\", err)\n" +
+	"}\n" +
+	"```\n\n" +
+	"| Platform | Status | Size |\n" +
+	"| --- | --- | ---: |\n" +
+	"| macOS universal | Ready | 48.2 MB |\n" +
+	"| Windows arm64 | Retrying | 50.9 MB |\n\n" +
+	"![" + chartAlt + "](/api/local/media/coverage.png)"
+
+func coverageChart(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, chartW, chartH))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{R: 250, G: 246, B: 240, A: 255}}, image.Point{}, draw.Src)
+	for i, share := range []float64{0.92, 0.78, 0.64, 0.41} {
+		y := chartGap + i*(chartBar+chartGap/2)
+		bar := image.Rect(chartGap, y, chartGap+int(share*float64(chartW-2*chartGap)), y+chartBar)
+		draw.Draw(img, bar, &image.Uniform{color.RGBA{R: 244, G: 129 - uint8(i*18), B: 32 + uint8(i*30), A: 255}}, image.Point{}, draw.Src)
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func markdownChat(chart []byte) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		staffed(st)
+		now := time.Now()
+		st.Media = map[string][]byte{"coverage.png": chart}
+		st.Messages = map[string][]api.ChatMessage{
+			api.WorkerConversation("grace"): {
+				said("g1", "user", "", "Where are we with the 1.4.2 release?", now.Add(-30*time.Minute)),
+				said("g2", "worker", "grace", richReply, now.Add(-28*time.Minute)),
+			},
+		}
+	}
+}
+
+func openRich(t *testing.T, h *testkit.Harness) {
+	openChat("grace")(t, h)
+	deadline := time.Now().Add(imageWait)
+	for {
+		h.Settle()
+		h.T.Frame()
+		if r, ok := h.T.Find(chartAlt); ok && r.W == chartW && r.H == chartH {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the chart did not load; texts %q", h.T.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+var chatScreens = []screen{
+	{name: "chat-worker", seed: chatHistory, signedIn: true, prepare: openChat("ada"), shots: wideOnly,
+		want: func() string { return "Exclude the trial accounts this time." }},
+	{name: "chat-narrow", seed: chatHistory, signedIn: true, prepare: openChat("bee"), shots: narrowOnly,
+		want: func() string { return locales.ChatHandedOffTo("Ada Lovelace") }},
+	{name: "chat-bee-empty", seed: emptyBee, signedIn: true, prepare: openChat("bee"), shots: wideOnly, want: locales.ChatNoMessagesTitle},
+	{name: "chat-worker-intro", seed: staffed, signedIn: true, prepare: openChat("grace"), shots: wideOnly,
+		want: func() string { return locales.ChatEmptyWorker("Grace Hopper") }},
+	{name: "chat-reset-dialog", seed: chatHistory, signedIn: true, prepare: resetConflict, shots: wideOnly, want: locales.ChatStopAndRestart},
+	{name: "chat-offline", seed: chatHistory, signedIn: true, prepare: offline, want: locales.ChatConnectionLost},
+	{name: "chat-offline-retrying", seed: chatHistory, signedIn: true, prepare: retrying, shots: wideOnly, want: locales.ChatConnectionLostDescription},
+	{name: "chat-offline-retry-failed", seed: chatHistory, signedIn: true, prepare: retryFailed, shots: wideOnly, want: locales.ChatReconnectFailed},
+	{name: "chat-hint-prompt", seed: chatHistory, signedIn: true, prepare: openChat("ada"), hint: true, want: locales.NotificationsPromptTitle},
+	{name: "chat-hint-blocked", seed: chatHistory, signedIn: true, prepare: blockedHint, hint: true, shots: wideOnly,
+		want: locales.NotificationsBlockedDesktopTitle},
+	{name: "chat-busy", seed: chatHistory, signedIn: true, prepare: beeBusy, shots: wideOnly,
+		want: func() string { return "Please summarise the nightly results." }},
+}
+
+func markdownScreens(t *testing.T) []screen {
+	return []screen{
+		{name: "markdown-rich", seed: markdownChat(coverageChart(t)), signedIn: true, prepare: openRich, shots: wideOnly,
+			want: func() string { return "Release 1.4.2 review" }},
+	}
+}
+
+func boardPicture(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, chartPicW, chartPicH))
+	for y := range chartPicH {
+		mix := float64(y) / chartPicH
+		row := color.RGBA{R: uint8(252 - 70*mix), G: uint8(214 - 40*mix), B: uint8(170 + 60*mix), A: 255}
+		draw.Draw(img, image.Rect(0, y, chartPicW, y+1), &image.Uniform{row}, image.Point{}, draw.Src)
+	}
+	for i, h := range []int{120, 190, 150, 260, 210} {
+		x := 60 + i*120
+		bar := image.Rect(x, chartPicH-40-h, x+72, chartPicH-40)
+		draw.Draw(img, bar, &image.Uniform{color.RGBA{R: 38, G: 54, B: uint8(92 + i*24), A: 255}}, image.Point{}, draw.Src)
+	}
+	sun := image.Rect(chartPicW-sunSize-40, 36, chartPicW-40, 36+sunSize)
+	draw.Draw(img, sun, &image.Uniform{color.RGBA{R: 255, G: 244, B: 214, A: 255}}, image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func attachmentChat(picture []byte) func(st *fakeapi.State) {
+	files := []string{"march-report.pdf", "source-data.zip", "export.py", "walkthrough.mp4", "memo.bin"}
+	return func(st *fakeapi.State) {
+		staffed(st)
+		now := time.Now()
+		st.Media = map[string][]byte{boardChart: picture}
+		for _, name := range files {
+			st.Media[name] = []byte(name)
+		}
+		upload := said("u1", "user", "", "Here is the board chart, can you check the numbers against it?", now.Add(-30*time.Minute))
+		upload.MediaPaths = []string{boardChart}
+		reply := said("u2", "worker", "ada", "Checked. The report, the raw data and my script are attached.", now.Add(-25*time.Minute))
+		reply.MediaPaths = files
+		st.Messages = map[string][]api.ChatMessage{api.WorkerConversation("ada"): {upload, reply}}
+	}
+}
+
+func openAttachments(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	label := locales.ChatViewImage(boardChart)
+	deadline := time.Now().Add(imageWait)
+	for {
+		h.Settle()
+		h.T.Frame()
+		if _, ok := h.T.Find(label); ok {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the thumbnail did not load; texts %q", h.T.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func openLightbox(t *testing.T, h *testkit.Harness) {
+	openAttachments(t, h)
+	clickAndSettle(t, h, locales.ChatViewImage(boardChart), 0)
+}
+
+func attachmentScreens(t *testing.T) []screen {
+	seed := attachmentChat(boardPicture(t))
+	return []screen{
+		{name: "chat-attachments", seed: seed, signedIn: true, prepare: openAttachments, shots: wideOnly,
+			want: func() string { return "march-report.pdf" }},
+		{name: "lightbox", seed: seed, signedIn: true, prepare: openLightbox, shots: wideAndNarrow,
+			want: func() string { return boardChart }},
+	}
+}
+
+func typeInComposer(t *testing.T, h *testkit.Harness, text string) {
+	t.Helper()
+	if err := h.T.Click(locales.ChatMessageLabel()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type(text)
+	h.Settle()
+}
+
+func mentionPopup(t *testing.T, h *testkit.Harness) {
+	openChat("bee")(t, h)
+	typeInComposer(t, h, "Please ask @a")
+	h.T.Key(0, ui.KeyDown)
+	h.Settle()
+}
+
+func pendingAttachments(t *testing.T, h *testkit.Harness) {
+	openChat("ada")(t, h)
+	dir := t.TempDir()
+	var paths []string
+	for _, name := range []string{"march-report-final-version-with-appendix.pdf", "revenue-by-region.csv", "board-chart.png"} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+	paths = append(paths, filepath.Join(dir, "missing.zip"))
+	typeInComposer(t, h, "Here are the files for the March report.")
+	r, _ := h.T.Find(locales.ChatMessageLabel())
+	if !h.T.DropFiles(r.X+r.W/2, r.Y+r.H/2, paths...) {
+		t.Fatal("the composer did not take the files")
+	}
+	h.Settle()
+}
+
+var composerScreens = []screen{
+	{name: "composer-mention", seed: chatHistory, signedIn: true, prepare: mentionPopup, shots: wideOnly,
+		want: func() string { return "Grace Hopper" }},
+	{name: "composer-attachments", seed: chatHistory, signedIn: true, prepare: pendingAttachments,
+		want: func() string { return locales.ChatUploadError(1) }},
+}
+
+func panelCrew(st *fakeapi.State) {
+	chatHistory(st)
+	for i := range st.Workers {
+		if st.Workers[i].ID == "ada" {
+			st.Workers[i].Constraints = adaRules
+			st.Workers[i].PermissionScopes = "read:workers,read:tasks"
+			st.Workers[i].EngineArgs = map[string]string{"claude": "--model opus"}
+		}
+	}
+}
+
+func openPanel(param, tab string) func(t *testing.T, h *testkit.Harness) {
+	return func(_ *testing.T, h *testkit.Harness) {
+		h.Root.Nav().Push(route.ChatPanel(param, tab))
+		h.Settle()
+		h.T.Advance(time.Second)
+		h.Settle()
+	}
+}
+
+func editPanel(t *testing.T, h *testkit.Harness) {
+	openPanel("ada", route.PanelConstraints)(t, h)
+	clickAndSettle(t, h, locales.WorkerDetailEditInfo(), 0)
+}
+
+func drawerPanel(t *testing.T, h *testkit.Harness) {
+	h.T.SetSize(drawerW, wideH)
+	h.Settle()
+	openPanel("ada", route.PanelConstraints)(t, h)
+}
+
+var panelScreens = []screen{
+	{name: "panel-profile", seed: panelCrew, signedIn: true, prepare: openPanel("ada", route.PanelConstraints), shots: wideOnly,
+		want: func() string { return locales.WorkerDetailConstraintsPanelCharCount(len(adaRules)) }},
+	{name: "panel-edit", seed: panelCrew, signedIn: true, prepare: editPanel, shots: wideOnly, want: locales.WorkerDetailEditInfoTitle},
+	{name: "panel-constraints-empty", seed: panelCrew, signedIn: true, prepare: openPanel("grace", route.PanelConstraints), shots: wideOnly,
+		want: locales.WorkerDetailConstraintsPanelTemplatesLabel},
+	{name: "panel-permissions", seed: panelCrew, signedIn: true, prepare: openPanel("ada", route.PanelPermissions), shots: wideOnly,
+		want: locales.ScopesReadMessagesDescription},
+	{name: "panel-drawer", seed: panelCrew, signedIn: true, prepare: drawerPanel, shots: wideOnly, want: locales.ArcDrawerClose},
+}
+
+func typeInto(t *testing.T, h *testkit.Harness, field, text string) {
+	t.Helper()
+	if err := h.T.Click(field); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type(text)
+	h.Settle()
+}
+
+func newWorkerSeed(st *fakeapi.State) {
+	panelCrew(st)
+	st.SystemConfigs = map[string]string{"default_engine": "codex"}
+}
+
+func fillNewWorker(t *testing.T, h *testkit.Harness) {
+	h.T.SetSize(wideW, tallH)
+	openPanel(api.BeeConversation, route.PanelNew)(t, h)
+	typeInto(t, h, locales.WorkersFormName(), "Nova")
+	typeInto(t, h, locales.WorkersFormDescriptionOptional(), "Reviews pull requests and keeps the changelog tidy.")
+	clickAndSettle(t, h, locales.WorkersFormSectionAdvanced(), 0)
+	typeInto(t, h, locales.WorkersFormConstraints(), "Review every change before it ships.")
+	typeInto(t, h, locales.WorkersFormEngineArgs(), "--effort high")
+	typeInto(t, h, locales.WorkersFormWorkDir(), "/srv/nova")
+	clickAndSettle(t, h, locales.ScopesReadWorkersTitle(), 0)
+	clickAndSettle(t, h, locales.ScopesReadMessagesTitle(), 0)
+}
+
+func restoreWindow(h *testkit.Harness) {
+	h.T.SetSize(wideW, wideH)
+	h.Settle()
+}
+
+func newWorkerAdvanced(t *testing.T, h *testkit.Harness) {
+	fillNewWorker(t, h)
+	restoreWindow(h)
+	h.T.Scroll(panelScrollX, panelScrollY, 0, panelScrollDy)
+	h.Settle()
+}
+
+func newWorkerBadge(t *testing.T, h *testkit.Harness) {
+	fillNewWorker(t, h)
+	clickAndSettle(t, h, locales.WorkersFormSectionAdvanced(), 0)
+	restoreWindow(h)
+}
+
+func deleteDialog(t *testing.T, h *testkit.Harness) {
+	openPanel("ada", route.PanelConstraints)(t, h)
+	clickAndSettle(t, h, locales.WorkersRowActions("Ada Lovelace"), 0)
+	clickAndSettle(t, h, locales.WorkersDeleteWorker(), 0)
+	h.T.Type("Ada Lovelace")
+	h.Settle()
+	clickAndSettle(t, h, locales.WorkersDeleteDialogDeleteWorkDir(), 0)
+}
+
+var createScreens = []screen{
+	{name: "panel-new", seed: newWorkerSeed, signedIn: true, prepare: openPanel(api.BeeConversation, route.PanelNew), shots: wideOnly,
+		want: locales.WorkersFormSectionBasic},
+	{name: "panel-new-advanced", seed: newWorkerSeed, signedIn: true, prepare: newWorkerAdvanced, shots: wideOnly,
+		want: locales.WorkersFormSectionPermissions},
+	{name: "panel-new-badge", seed: newWorkerSeed, signedIn: true, prepare: newWorkerBadge, shots: wideOnly,
+		want: func() string { return locales.WorkersFormAdvancedSet(4) }},
+	{name: "delete-dialog", seed: panelCrew, signedIn: true, prepare: deleteDialog, shots: wideOnly,
+		want: func() string { return locales.WorkersDeleteDialogTitle("Ada Lovelace") }},
+}
+
+func scopedEnv(id, scope, scopeID, key, masked string, ago time.Duration) api.EnvConfig {
+	env := api.EnvConfig{ID: id, Scope: scope, Key: key, Masked: masked, UpdatedAt: time.Now().Add(-ago).UnixMilli()}
+	if scopeID != "" {
+		env.ScopeID = &scopeID
+	}
+	return env
+}
+
+func envCrew(st *fakeapi.State) {
+	panelCrew(st)
+	st.Envs = []api.EnvConfig{
+		scopedEnv("g1", "global", "", "DATABASE_URL", "post****5432", 2*time.Hour),
+		scopedEnv("g2", "global", "", "OPENAI_API_KEY", "sk-p****xY7z", 3*24*time.Hour),
+		scopedEnv("g3", "global", "", "SLACK_WEBHOOK_URL", "http****a1b2", 12*time.Minute),
+		scopedEnv("g4", "global", "", "AWS_SECRET_ACCESS_KEY_FOR_THE_PRODUCTION_DATA_WAREHOUSE_EXPORT_JOB", "wJal****EKEY", 30*time.Second),
+		scopedEnv("w1", "worker", "ada", "REPORT_TOKEN", "rpt_****k9d2", 47*time.Minute),
+		scopedEnv("w2", "worker", "ada", "DATABASE_URL", "ada-****9999", 5*24*time.Hour),
+		scopedEnv("w3", "worker", "grace", "REVIEW_BOT_TOKEN", "ghp_****Qx4e", time.Hour),
+	}
+}
+
+func envScreen(h *testkit.Harness) {
+	global := envpanel.New(h.Store, "global", "", locales.EnvConfigGlobalTitle(), locales.EnvConfigGlobalDescription(), false)
+	bee := envpanel.New(h.Store, "bee", "default", locales.EnvConfigBeeTitle(), locales.EnvConfigBeeDescription(), false)
+	h.T = testkit.NewTester(func(c *ui.Context) {
+		tk := theme.Apply(c)
+		ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
+			ui.Scroll(c).Grow(1).Children(func() {
+				ui.Column(c).MaxWidth(envColumnW).Padding(envPad).Gap(envGap).Children(func() {
+					global.View(c)
+					bee.View(c)
+				})
+			})
+		})
+	}, wideW, wideH)
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+func envPanelOpen(_ *testing.T, h *testkit.Harness) {
+	envScreen(h)
+}
+
+func envAddDialog(t *testing.T, h *testkit.Harness) {
+	envScreen(h)
+	clickAndSettle(t, h, locales.EnvConfigAdd(), 0)
+	h.T.Type("aws_region")
+	if err := h.T.Click(locales.EnvConfigValue()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type("eu-west-1")
+	h.Settle()
+	clickAndSettle(t, h, locales.EnvConfigSaveAndAddAnother(), 0)
+	h.T.Type("stripe_key")
+	if err := h.T.Click(locales.EnvConfigValue()); err != nil {
+		t.Fatal(err)
+	}
+	h.T.Type("sk_live_51Hx9d2KqLm0aZ7")
+	h.Settle()
+	h.T.Advance(time.Second)
+	h.Settle()
+}
+
+var envScreens = []screen{
+	{name: "env-panel", seed: envCrew, signedIn: true, prepare: envPanelOpen, want: func() string { return "OPENAI_API_KEY" }},
+	{name: "env-add-dialog", seed: envCrew, signedIn: true, prepare: envAddDialog, want: func() string { return locales.EnvConfigAdded("AWS_REGION") }},
+	{name: "panel-env", seed: envCrew, signedIn: true, prepare: openPanel("ada", route.PanelEnv), shots: wideOnly, want: locales.EnvConfigEffectiveTitle},
+}
+
+func settingsSeed(st *fakeapi.State) {
+	envCrew(st)
+	st.Envs = append(st.Envs,
+		scopedEnv("b1", "bee", api.DefaultBeeID, "BEE_WEBHOOK_URL", "http****c3d4", 25*time.Minute),
+		scopedEnv("b2", "bee", api.DefaultBeeID, "ROUTING_HINT", "****", 4*24*time.Hour),
+	)
+	st.SystemConfigs = map[string]string{
+		"default_engine":     "claude",
+		"engine_args_global": `{"claude":"--model opus","codex":"--sandbox workspace-write"}`,
+		"engine_args_bee":    `{"claude":"--effort high"}`,
+	}
+}
+
+func openSettings(section string) func(t *testing.T, h *testkit.Harness) {
+	return func(_ *testing.T, h *testkit.Harness) {
+		h.Root.OpenSettings(section)
+		h.Settle()
+	}
+}
+
+func settingsWindow(_ *testing.T, h *testkit.Harness) {
+	h.T.SetSize(settingsNarrowW, narrowH)
+	h.Settle()
+}
+
+func scrollSettings(h *testkit.Harness, dy float32) {
+	h.T.Scroll(settingsScrollX, settingsScrollY, 0, dy)
+	h.Settle()
+}
+
+func systemSaveFailed(t *testing.T, h *testkit.Harness) {
+	h.Fake.FailNext(http.MethodPut, "/api/system-configs/engine_args_bee", http.StatusBadRequest,
+		map[string]any{"error": "engine_args_bee: --bogus is not a known flag"})
+	openSettings("system")(t, h)
+	scrollSettings(h, settingsScrollDy)
+	typeInto(t, h, locales.SystemSettingsBeeArgsSectionTitle()+": "+codexName, "--bogus")
+	if err := h.T.Click(locales.SystemSettingsSave()); err != nil {
+		t.Fatal(err)
+	}
+	h.Settle()
+	scrollSettings(h, settingsScrollDy)
+}
+
+func systemLoading(t *testing.T, h *testkit.Harness) {
+	h.Store.SystemConfigs.Reset()
+	h.Store.SystemConfigs.Loading = true
+	openSettings("system")(t, h)
+}
+
+var settingsScreens = []screen{
+	{name: "settings-env", seed: settingsSeed, signedIn: true, prepare: openSettings("env"), want: locales.EnvConfigPageDescription},
+	{name: "settings-system", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), want: locales.SystemSettingsSubtitle},
+	{name: "settings-narrow", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), narrow: settingsWindow, shots: narrowOnly,
+		want: locales.SystemSettingsSubtitle},
+	{name: "settings-system-error", seed: settingsSeed, signedIn: true, prepare: systemSaveFailed, shots: wideOnly,
+		want: locales.SystemSettingsSaveError},
+	{name: "settings-system-loading", seed: settingsSeed, signedIn: true, prepare: systemLoading, shots: wideOnly,
+		want: locales.SystemSettingsSubtitle},
+}
+
+func bilingual(en, zh string) api.LocalizedText {
+	return api.LocalizedText{"en": en, "zh": zh}
+}
+
+func catalogEntry(id, version string, official bool, name, description api.LocalizedText, tags ...string) api.CatalogPlugin {
+	return api.CatalogPlugin{Category: "channel", ID: id, Package: "@openbee/plugin-" + id, Version: version, Official: official,
+		Name: name, Description: description, Tags: tags, ProtocolVersion: 1, License: "MIT", Installable: true}
+}
+
+func installedPlugin(id, version, state, botName string, enabled bool, name api.LocalizedText) api.PluginDetail {
+	return api.PluginDetail{PluginStatus: api.PluginStatus{ID: id, Package: "@openbee/plugin-" + id, Source: "npm", Version: version,
+		Path: "/var/lib/openbee/plugins/" + id, Name: name, Enabled: enabled, BotName: botName, State: state}}
+}
+
+func pluginSeed(st *fakeapi.State) {
+	settingsSeed(st)
+	telegram := catalogEntry("telegram", "1.3.0", true, bilingual("Telegram", "Telegram"),
+		bilingual("Chat with your workers from Telegram groups and direct messages.", "在 Telegram 群组和私聊里与员工对话。"), "messaging", "global")
+	telegram.Installed, telegram.InstalledVersion, telegram.UpdateAvailable = true, "1.2.0", true
+	dingtalk := catalogEntry("dingtalk", "0.8.1", true, bilingual("DingTalk", "钉钉"),
+		bilingual("Answer DingTalk group mentions with the right worker.", "在钉钉群里由合适的员工回复 @ 消息。"), "work", "china")
+	dingtalk.Installed, dingtalk.InstalledVersion = true, "0.8.1"
+	dingtalk.Deprecated = bilingual("Superseded by the DingTalk Stream plugin.", "已由钉钉 Stream 插件取代。")
+	wechat := catalogEntry("wechat", "0.3.0", false, bilingual("WeChat", "微信"),
+		bilingual("Talk to workers from a personal WeChat account.", "用个人微信与员工对话。"), "messaging", "china")
+	wechat.Installable, wechat.MinOpenbeeVersion = false, "0.9.0"
+	discord := catalogEntry("discord", "1.1.0", true, bilingual("Discord", "Discord"),
+		bilingual("Bring workers into Discord servers, threads and DMs.", "把员工带进 Discord 服务器、话题和私信。"), "messaging", "global")
+	discord.Installed, discord.InstalledVersion = true, "1.1.0"
+	feishu := catalogEntry("feishu", "0.9.2", true, bilingual("Feishu", "飞书"),
+		bilingual("Connect workers to Feishu chats and document notifications.", "把员工接入飞书群聊与文档通知。"), "messaging", "work", "china")
+	feishu.Installed, feishu.InstalledVersion = true, "0.9.2"
+	st.Catalog = api.PluginCatalog{
+		SchemaVersion: 1,
+		Categories:    []api.CatalogTag{{ID: "channel", Name: bilingual("Channels", "渠道")}},
+		Tags: []api.CatalogTag{
+			{ID: "messaging", Name: bilingual("Messaging", "即时通讯")},
+			{ID: "work", Name: bilingual("Work", "办公协作")},
+			{ID: "china", Name: bilingual("China", "国内")},
+			{ID: "global", Name: bilingual("Global", "海外")},
+			{ID: "email", Name: bilingual("Email", "邮件")},
+		},
+		Plugins: []api.CatalogPlugin{
+			telegram,
+			dingtalk,
+			catalogEntry("wecom", "0.6.0", false, bilingual("WeCom", "企业微信"),
+				bilingual("Route WeCom messages to the right worker.", "把企业微信消息分派给合适的员工。"), "work", "china"),
+			wechat,
+			catalogEntry("linear", "0.4.0", true, bilingual("Linear", "Linear"),
+				bilingual("Turn Linear issues and comments into worker tasks.", "把 Linear 工单和评论变成员工任务。"), "work", "global"),
+			discord,
+			feishu,
+		},
+	}
+	failed := installedPlugin("discord", "1.1.0", "failed", "OpenBee#4821", true, bilingual("Discord", "Discord"))
+	failed.Error = "gateway: 4004 authentication failed, check the bot token"
+	st.Plugins = []api.PluginDetail{
+		installedPlugin("telegram", "1.2.0", "running", "openbee_bot", true, bilingual("Telegram", "Telegram")),
+		failed,
+		installedPlugin("feishu", "0.9.2", "not_configured", "", false, bilingual("Feishu", "飞书")),
+		installedPlugin("dingtalk", "0.8.1", "disabled", "OpenBee 助手", false, bilingual("DingTalk", "钉钉")),
+	}
+	st.Operations = []api.PluginOperation{{ID: "op-wecom", Kind: "install", Spec: "@openbee/plugin-wecom@0.6.0", Status: "running",
+		CreatedAt: time.Now().Add(-12 * time.Second)}}
+}
+
+func pluginsInstalled(t *testing.T, h *testkit.Harness) {
+	openSettings("plugins")(t, h)
+	clickAndSettle(t, h, locales.PluginsTabsInstalled(), 0)
+}
+
+func pluginsInstallDialog(t *testing.T, h *testkit.Harness) {
+	openSettings("plugins")(t, h)
+	clickAndSettle(t, h, locales.PluginsInstallDialogOpen(), 0)
+	h.T.Type("@acme/openbee-plugin-slack@2.0.1")
+	h.Settle()
+	clickAndSettle(t, h, locales.PluginsInstallDialogSubmit(), 0)
+}
+
+func pluginDetailSeed(st *fakeapi.State) {
+	pluginSeed(st)
+	st.Catalog.Plugins[0].Repository = "https://github.com/theopenbee/openbee-plugin-telegram"
+	st.Catalog.Plugins[5].Repository = "https://github.com/theopenbee/openbee-plugin-discord"
+	text := func(en, zh string) api.LocalizedText { return bilingual(en, zh) }
+	telegram := &st.Plugins[0]
+	telegram.Config = map[string]any{"bot_token": "****Q7wE", "allowed_chats": []any{"-1001934451200", "@openbee_ops"}, "poll_seconds": float64(30),
+		"reply_in_threads": true}
+	telegram.Fields = []api.PluginConfigField{
+		{Key: "bot_token", Type: "secret", Required: true, Label: text("Bot token", "机器人令牌"),
+			Help: text("From @BotFather; stored encrypted on the server.", "从 @BotFather 获取，加密保存在服务器上。")},
+		{Key: "allowed_chats", Type: "list", Label: text("Allowed chats", "允许的会话"),
+			Help: text("Chat IDs or @usernames, one per line. Empty allows every chat.", "会话 ID 或 @用户名，每行一个；留空表示允许所有会话。")},
+		{Key: "poll_seconds", Type: "int", Default: float64(30), Label: text("Poll interval (seconds)", "轮询间隔（秒）")},
+		{Key: "api_base", Type: "string", Default: "https://api.telegram.org", Label: text("API base URL", "API 地址")},
+		{Key: "reply_in_threads", Type: "bool", Label: text("Reply in threads", "在话题中回复"),
+			Help: text("Keep worker replies under the message that mentioned them.", "员工的回复保持在 @ 它的消息下面。")},
+	}
+	discord := &st.Plugins[1]
+	discord.Config = map[string]any{"bot_token": "****x9Lk", "guild_id": "1142087711206613032"}
+	discord.Fields = []api.PluginConfigField{
+		{Key: "bot_token", Type: "secret", Required: true, Label: text("Bot token", "机器人令牌")},
+		{Key: "guild_id", Type: "string", Required: true, Label: text("Server ID", "服务器 ID"),
+			Help: text("Right-click the server icon and copy its ID.", "右键服务器图标并复制 ID。")},
+	}
+	feishu := &st.Plugins[2]
+	feishu.HasSetup = true
+	feishu.SetupLabel = text("Sign in with Feishu", "飞书扫码登录")
+	feishu.Fields = []api.PluginConfigField{
+		{Key: "app_id", Type: "string", Required: true, Label: text("App ID", "应用 ID")},
+		{Key: "app_secret", Type: "secret", Required: true, Label: text("App secret", "应用密钥")},
+	}
+}
+
+func pluginDetail(name string) func(t *testing.T, h *testkit.Harness) {
+	return func(t *testing.T, h *testkit.Harness) {
+		pluginsInstalled(t, h)
+		clickAndSettle(t, h, name, 0)
+	}
+}
+
+func pluginSetupQR(t *testing.T, h *testkit.Harness) {
+	pluginDetail("Feishu")(t, h)
+	clickAndSettle(t, h, locales.PluginsSetupStart(), 0)
+	var sid string
+	h.Fix.Await(t, func() bool {
+		sid = h.Fake.SetupSession("feishu")
+		return sid != "" && h.Fake.SetupStreams(sid) == 1
+	})
+	for _, line := range []string{
+		"Starting the Feishu sign-in helper",
+		"Requesting a sign-in code",
+		"https://passport.feishu.cn/suite/passport/qrlogin?token=7f3c9a1e2b4d4e6f8a0b1c2d3e4f5a6b",
+		"Scan the code with the Feishu app",
+		"Waiting for the phone to confirm",
+	} {
+		h.Fake.SetupEmit(sid, api.SetupEvent{Type: "line", Text: line})
+	}
+	h.Fix.Await(t, func() bool {
+		h.T.Frame()
+		return h.T.HasText("Waiting for the phone to confirm")
+	})
+	h.Settle()
+}
+
+var pluginScreens = []screen{
+	{name: "plugins-market", seed: pluginSeed, signedIn: true, prepare: openSettings("plugins"), want: locales.PluginsActionInstallingShort},
+	{name: "plugins-installed", seed: pluginSeed, signedIn: true, prepare: pluginsInstalled, want: locales.PluginsInstalledTitle},
+	{name: "plugins-install-dialog", seed: pluginSeed, signedIn: true, prepare: pluginsInstallDialog, want: locales.PluginsInstallDialogInstalling},
+	{name: "plugin-detail", seed: pluginDetailSeed, signedIn: true, prepare: pluginDetail("Telegram"), want: locales.PluginsDetailInfo},
+	{name: "plugin-detail-failed", seed: pluginDetailSeed, signedIn: true, prepare: pluginDetail("Discord"), shots: wideOnly,
+		want: locales.PluginsDetailFailedTitle},
+	{name: "plugin-setup-qr", seed: pluginDetailSeed, signedIn: true, prepare: pluginSetupQR, shots: wideOnly, want: locales.PluginsSetupScanHint},
+}
+
+func openAccountMenu(t *testing.T, h *testkit.Harness) {
+	clickAndSettle(t, h, locales.ArcUserMenuTrigger("admin"), 0)
+}
+
+func narrowAccountMenu(t *testing.T, h *testkit.Harness) {
+	listOnly(t, h)
+	if !h.T.HasText(locales.AccountRole()) {
+		openAccountMenu(t, h)
+	}
+}
+
+func accountMenuOn(t *testing.T, h *testkit.Harness) {
+	h.Store.DismissNotificationsHint()
+	h.Store.SetNotifications(true)
+	h.Store.SetTheme("light")
+	h.Settle()
+	openAccountMenu(t, h)
+}
+
+func openPasswordDialog(t *testing.T, h *testkit.Harness) {
+	openAccountMenu(t, h)
+	clickAndSettle(t, h, locales.AccountChangePassword(), 0)
+}
+
+func fillPassword(t *testing.T, h *testkit.Harness, current, next, confirm string) {
+	for _, field := range []struct{ label, text string }{
+		{locales.AccountCurrentPassword(), current},
+		{locales.AccountNewPassword(), next},
+		{locales.AccountConfirmPassword(), confirm},
+	} {
+		typeInto(t, h, field.label, field.text)
+	}
+}
+
+func passwordInvalid(t *testing.T, h *testkit.Harness) {
+	openPasswordDialog(t, h)
+	fillPassword(t, h, "secret", "12345", "12345")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+}
+
+func passwordChanged(t *testing.T, h *testkit.Harness) {
+	openPasswordDialog(t, h)
+	fillPassword(t, h, "secret", "secret2", "secret2")
+	h.T.Key(0, ui.KeyEnter)
+	h.Settle()
+}
+
+var accountScreens = []screen{
+	{name: "account-menu", seed: staffed, signedIn: true, prepare: openAccountMenu, narrow: narrowAccountMenu, want: locales.AccountRole},
+	{name: "account-menu-on", seed: staffed, signedIn: true, hint: true, prepare: accountMenuOn, narrow: narrowAccountMenu, want: locales.AccountRole},
+	{name: "password-dialog", seed: staffed, signedIn: true, prepare: passwordInvalid, want: locales.AccountErrorTooShort},
+	{name: "password-changed", seed: staffed, signedIn: true, prepare: passwordChanged, shots: wideOnly, want: locales.AccountPasswordChangedRelogin},
+}
+
+func TestScreens(t *testing.T) {
+	if os.Getenv(testkit.ScreensEnv) == "" {
+		t.Skip(testkit.ScreensEnv + " is not set")
+	}
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens) {
+		t.Run(s.name, func(t *testing.T) {
+			open := testkit.New
+			if s.signedIn {
+				open = testkit.SignedIn
+			}
+			h := open(t, wideW, wideH, s.seed)
+			if s.signedIn && !s.hint {
+				h.Fix.Notifier.Unsupported = true
+				h.Settle()
+			}
+			if s.prepare != nil {
+				s.prepare(t, h)
+			}
+			if !h.T.HasText(s.want()) {
+				t.Fatalf("%s does not show %q; texts %q", s.name, s.want(), h.T.Texts())
+			}
+			if s.shots != narrowOnly {
+				h.Shot(s.name)
+			}
+			if s.shots == wideOnly {
+				return
+			}
+			h.T.SetSize(narrowW, narrowH)
+			h.Settle()
+			if s.narrow != nil {
+				s.narrow(t, h)
+			}
+			name := s.name + "-narrow"
+			if s.shots == narrowOnly {
+				name = s.name
+			}
+			h.Shot(name)
+		})
+	}
+}
+
+func TestWideChatKeepsPanelQuery(t *testing.T) {
+	h := testkit.SignedIn(t, narrowW, narrowH, nil)
+	nav := h.Root.Nav()
+	if got := nav.Path(); got != route.ChatPath {
+		t.Fatalf("narrow path = %q, want %s", got, route.ChatPath)
+	}
+	h.Root.NewWorker()
+	h.Settle()
+	if got := nav.Query(route.PanelQuery); got != route.PanelNew {
+		t.Fatalf("panel = %q, want %s", got, route.PanelNew)
+	}
+	h.T.SetSize(wideW, wideH)
+	h.Settle()
+	if got := nav.Path(); got != route.Chat("bee") {
+		t.Fatalf("wide path = %q, want /chat/bee", got)
+	}
+	if got := nav.Query(route.PanelQuery); got != route.PanelNew {
+		t.Fatalf("panel after the redirect = %q, want %s", got, route.PanelNew)
+	}
+}
+
+func TestMalformedConversationRedirectsToBee(t *testing.T) {
+	h := testkit.SignedIn(t, wideW, wideH, staffed)
+	h.Root.Nav().Push(route.ChatPath + "/worker:ada")
+	h.Settle()
+	if got := h.Root.Nav().Path(); got != route.Chat(api.BeeConversation) {
+		t.Fatalf("path = %q, want /chat/bee", got)
+	}
+}
+
+func TestChatTitleTogglesPanel(t *testing.T) {
+	h := testkit.SignedIn(t, wideW, wideH, func(st *fakeapi.State) {
+		staffed(st)
+		for i := range st.Conversations {
+			if st.Conversations[i].WorkerID == "ada" {
+				st.Conversations[i].Activity = api.ConversationActivity{State: "queued", QueuedAhead: 2}
+			}
+		}
+	})
+	nav := h.Root.Nav()
+	nav.Push(route.Chat("ada"))
+	h.Settle()
+	for _, want := range []string{route.PanelConstraints, ""} {
+		status, ok := h.T.Find(locales.ChatStatusQueued(2))
+		if !ok {
+			t.Fatalf("no status line; texts %q", h.T.Texts())
+		}
+		h.T.ClickAt(status.X+titleNudge, status.Y-titleNudge)
+		h.Settle()
+		h.T.Advance(time.Second)
+		h.Settle()
+		if got := nav.Query(route.PanelQuery); got != want {
+			t.Fatalf("panel = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestOpenConversationPushesChat(t *testing.T) {
+	h := testkit.SignedIn(t, wideW, wideH, func(st *fakeapi.State) { st.Workers = []api.Worker{staffWorker("w1", "Alice", "", "idle")} })
+	h.Root.OpenConversation("worker:w1")
+	h.Settle()
+	if got := h.Root.Nav().Path(); got != "/chat/w1" {
+		t.Fatalf("path = %q, want /chat/w1", got)
+	}
+	h.Store.Logout()
+	h.Settle()
+	h.Root.OpenConversation("bee")
+	h.Settle()
+	if got := h.Root.Nav().Path(); got != route.LoginPath {
+		t.Fatalf("path after sign out = %q, want %s", got, route.LoginPath)
+	}
+}

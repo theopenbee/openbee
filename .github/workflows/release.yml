@@ -24,7 +24,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -74,12 +75,12 @@ jobs:
           mkdir -p dist
           gh release download "${VERSION}" \
             --repo "${{ github.repository }}" \
-            --pattern 'openbee-*-linux-amd64.tar.gz' \
-            --pattern 'openbee-*-linux-arm64.tar.gz' \
-            --pattern 'openbee-*-darwin-amd64.tar.gz' \
-            --pattern 'openbee-*-darwin-arm64.tar.gz' \
-            --pattern 'openbee-*-windows-amd64.zip' \
-            --pattern 'openbee-*-windows-arm64.zip' \
+            --pattern 'openbee-[0-9]*-linux-amd64.tar.gz' \
+            --pattern 'openbee-[0-9]*-linux-arm64.tar.gz' \
+            --pattern 'openbee-[0-9]*-darwin-amd64.tar.gz' \
+            --pattern 'openbee-[0-9]*-darwin-arm64.tar.gz' \
+            --pattern 'openbee-[0-9]*-windows-amd64.zip' \
+            --pattern 'openbee-[0-9]*-windows-arm64.zip' \
             --dir dist/
 
       - name: Extract binaries from archives
@@ -101,3 +102,96 @@ jobs:
 
       - name: Publish to NPM
         run: bash npm/scripts/publish.sh
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platform: "darwin/universal" }
+          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: desktop/go.mod
+          cache-dependency-path: desktop/go.sum
+
+      - name: Install NSIS and osslsigncode
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis osslsigncode
+
+      - name: Set version
+        run: |
+          version="$(./scripts/set-version.sh "$GITHUB_REF_NAME")"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "ASSETS=$RUNNER_TEMP/assets" >> "$GITHUB_ENV"
+
+      - name: Set up macOS signing
+        if: matrix.name == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: ./scripts/macos-sign-setup.sh
+
+      - name: Set up Windows signing
+        if: matrix.name == 'Windows'
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: ./scripts/windows-sign-setup.sh
+
+      - name: Build
+        env:
+          MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+        run: go tool mygo build -platform "${{ matrix.platform }}"
+
+      - name: Collect macOS packages
+        if: matrix.name == 'macOS'
+        run: |
+          mkdir -p "$ASSETS"
+          ditto -c -k --keepParent build/darwin-universal/OpenBee.app "$ASSETS/openbee-desktop-$VERSION-darwin-universal.zip"
+          cp build/darwin-universal/*.dmg "$ASSETS/openbee-desktop-$VERSION-darwin-universal.dmg"
+
+      - name: Collect Windows packages
+        if: matrix.name == 'Windows'
+        run: |
+          mkdir -p "$ASSETS"
+          for arch in amd64 arm64; do
+            cp "build/windows-$arch/OpenBee.exe" "$ASSETS/openbee-desktop-$VERSION-windows-$arch.exe"
+            cp "build/windows-$arch/"openbee-desktop-setup-*.exe "$ASSETS/openbee-desktop-$VERSION-windows-$arch-setup.exe"
+          done
+
+      - name: Collect Linux packages
+        if: matrix.name == 'Linux'
+        run: |
+          mkdir -p "$ASSETS"
+          for arch in amd64 arm64; do
+            cp "build/linux-$arch/"*.deb "$ASSETS/openbee-desktop-$VERSION-linux-$arch.deb"
+            cp "build/linux-$arch/"*.tar.gz "$ASSETS/openbee-desktop-$VERSION-linux-$arch.tar.gz"
+          done
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l "$ASSETS"
+          gh release upload "$GITHUB_REF_NAME" "$ASSETS"/* --clobber --repo "$GITHUB_REPOSITORY"

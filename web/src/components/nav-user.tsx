@@ -1,125 +1,60 @@
-import { useTranslation } from "react-i18next"
-import {
-  Avatar,
-  AvatarFallback,
-} from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
-import { ChevronsUpDownIcon, ChevronDownIcon, LogOutIcon, SunIcon, MoonIcon, KeyRoundIcon } from "lucide-react"
 import { useState } from "react"
-import { useLogout } from "@/hooks/use-logout"
-import { useThemeToggle } from "@/hooks/use-theme-toggle"
+import { useTranslation } from "react-i18next"
+import { KeyRoundIcon } from "lucide-react"
+import { UserMenu } from "@/components/arc/user-menu/user-menu"
 import { ChangePasswordDialog } from "@/components/change-password-dialog"
+import { useLanguage } from "@/hooks/use-language"
+import { useLogout } from "@/hooks/use-logout"
+import { useNotificationSettings } from "@/hooks/use-notifications"
+import { useThemePreference } from "@/hooks/use-theme-toggle"
+import { getStoredUsername } from "@/lib/auth"
+import { LANGUAGES } from "@/lib/language"
 
 export function NavUser({
-  username,
-  variant = "sidebar",
+  showName = false,
+  align = "end",
+  className,
 }: {
-  username: string
-  /** `sidebar` renders a full-width sidebar row; `bar` renders a compact topbar button. */
-  variant?: "sidebar" | "bar"
+  showName?: boolean
+  align?: "start" | "center" | "end"
+  className?: string
 }) {
-  const { isMobile } = useSidebar()
-  const logout = useLogout()
   const { t } = useTranslation()
-  const { theme, toggle: toggleTheme } = useThemeToggle()
+  const logout = useLogout()
+  const { preference, setPreference } = useThemePreference()
+  const { language, setLanguage } = useLanguage()
+  const notifications = useNotificationSettings()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-
-  const initials = username.slice(0, 2).toUpperCase()
-  const avatar = (
-    <Avatar className="size-8 rounded-sm">
-      <AvatarFallback className="rounded-sm">{initials}</AvatarFallback>
-    </Avatar>
-  )
-
-  // The dropdown opens downward in the topbar and on mobile, but to the side
-  // when anchored to the desktop sidebar row.
-  const menuSide = variant === "bar" || isMobile ? "bottom" : "right"
-
-  const menuContent = (
-    <DropdownMenuContent
-      className="min-w-48 rounded-sm"
-      side={menuSide}
-      align="end"
-      sideOffset={4}
-    >
-      <DropdownMenuGroup>
-        <DropdownMenuLabel className="p-0 font-normal">
-          <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-            {avatar}
-            <span className="truncate font-medium">{username}</span>
-          </div>
-        </DropdownMenuLabel>
-      </DropdownMenuGroup>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>
-        <KeyRoundIcon className="size-4" />
-        {t("account.changePassword", "Change Password")}
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={toggleTheme}>
-        {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
-        {theme === "dark" ? t("theme.light", "Light mode") : t("theme.dark", "Dark mode")}
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={logout}>
-        <LogOutIcon className="size-4" />
-        {t("login.logout", "Log out")}
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  )
-
-  const passwordDialog = (
-    <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
-  )
-
-  if (variant === "bar") {
-    return (
-      <>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-sm px-1.5 py-1 text-sm outline-hidden transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted">
-            {avatar}
-            <span className="hidden max-w-32 truncate font-medium sm:inline-block">{username}</span>
-            <ChevronDownIcon className="size-4 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          {menuContent}
-        </DropdownMenu>
-        {passwordDialog}
-      </>
-    )
-  }
+  const username = getStoredUsername() ?? "admin"
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
-            }
-          >
-            {avatar}
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{username}</span>
-            </div>
-            <ChevronsUpDownIcon className="ml-auto size-4" />
-          </DropdownMenuTrigger>
-          {menuContent}
-        </DropdownMenu>
-      </SidebarMenuItem>
-      {passwordDialog}
-    </SidebarMenu>
+    <>
+      <UserMenu
+        className={className}
+        user={{ name: username, email: t("account.role", "Administrator") }}
+        showName={showName}
+        align={align}
+        theme={preference}
+        onThemeChange={setPreference}
+        language={language}
+        languages={LANGUAGES}
+        onLanguageChange={setLanguage}
+        notifications={{
+          enabled: notifications.active,
+          disabled: notifications.unavailable !== null,
+          note: notifications.unavailable ? t(`notifications.unavailable.${notifications.unavailable}`) : undefined,
+          onChange: (enabled) => (enabled ? void notifications.enable() : notifications.disable()),
+        }}
+        items={[
+          {
+            label: t("account.changePassword", "Change password"),
+            icon: <KeyRoundIcon size={16} strokeWidth={1.75} />,
+            onSelect: () => setChangePasswordOpen(true),
+          },
+        ]}
+        onSignOut={logout}
+      />
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+    </>
   )
 }

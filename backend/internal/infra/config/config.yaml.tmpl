@@ -1,0 +1,27 @@
+language: {{.Language}}
+
+server:
+  port: {{.ServerPort}}
+  host: {{.ServerHost}}
+  debug: {{.Debug}}
+  auth:
+    jwt_secret: "{{.AuthJWTSecret}}"
+    access_token_ttl: {{.AuthAccessTTL}}
+    refresh_token_ttl: {{.AuthRefreshTTL}}
+  env_secret: "{{.ServerEnvSecret}}"
+
+database:
+  path: {{.DBPath}}
+
+bee:
+  engine:
+    default: "{{.EngineDefault}}"
+    timeout:
+      bee: {{.EngineTimeoutBee}}
+      worker: {{.EngineTimeoutWorker}}
+  rpc:
+    token_secret: "{{.RPCTokenSecret}}"
+    token_ttl: {{.RPCTokenTTL}}
+  feeder:
+    max_concurrent_bee: {{.FeederMaxConcurrentBee}}
+  message_debounce: {{.MessageDebounce}}

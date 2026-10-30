@@ -1,0 +1,1681 @@
+package rpc_test
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	ai "github.com/theopenbee/openbee/internal/ai"
+	"github.com/theopenbee/openbee/internal/ai/aitest"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
+	"github.com/theopenbee/openbee/internal/domain/session"
+	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/config"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/infra/utils"
+	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
+	"github.com/theopenbee/openbee/internal/rpc"
+	_ "modernc.org/sqlite"
+)
+
+type mockSender struct {
+	sent []platform.OutboundMessage
+	mu   sync.Mutex
+}
+
+func (s *mockSender) Send(_ context.Context, msg platform.OutboundMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sent = append(s.sent, msg)
+	return nil
+}
+
+type combinedMockSender struct {
+	*mockSender
+}
+
+func (s *combinedMockSender) SendsTextWithMedia() bool { return true }
+
+// --- Mock implementations for clear_session ---
+
+type mockExecStopper struct {
+	mu      sync.Mutex
+	stopped []string
+}
+
+func (m *mockExecStopper) StopExecution(executionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stopped = append(m.stopped, executionID)
+	return nil
+}
+
+type mockClearDispatcher struct {
+	mu             sync.Mutex
+	cleared        []string
+	clearedWorkers []string // sessionKey + "::" + workerID
+	aborted        []string
+}
+
+func (m *mockClearDispatcher) ClearSession(sessionKey string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cleared = append(m.cleared, sessionKey)
+}
+
+func (m *mockClearDispatcher) ClearWorker(sessionKey, workerID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.clearedWorkers = append(m.clearedWorkers, sessionKey+"::"+workerID)
+}
+
+func (m *mockClearDispatcher) AbortRun(taskID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.aborted = append(m.aborted, taskID)
+}
+
+// newTestServer builds a Bee RPC server on a fresh SQLite DB with the given platform senders.
+func newTestServer(t *testing.T, senders platform.SenderMap) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	return newTestServerWithCards(t, senders, &mockSender{})
+}
+
+func newTestServerWithCleaner(t *testing.T, chats rpc.WorkerChatCleaner) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	return newTestServerFull(t, nil, &mockSender{}, chats)
+}
+
+func newTestServerWithCards(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	return newTestServerFull(t, senders, cards, nil)
+}
+
+func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter, chats rpc.WorkerChatCleaner) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	if senders == nil {
+		senders = platform.SenderMap{}
+	}
+
+	ws := store.NewWorkerStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
+	ts := store.NewTaskStore(db)
+	ss := store.NewSessionStore(db)
+	engines := aitest.NewSource(map[string]ai.EngineAdapter{"claude": &aitest.Engine{}})
+	engineCfg := enginecfg.NewStore("claude", "", engines.IDs)
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, nil, nil)
+	stopper := &mockExecStopper{}
+	disp := &mockClearDispatcher{}
+	clearSvc := session.NewClearService(session.ClearServiceDeps{
+		Sessions:      ss,
+		Tasks:         ts,
+		ExecStopper:   stopper,
+		ExecFinalizer: es,
+		Dispatcher:    disp,
+		RunningExecs:  es,
+		EngineCfg:     engineCfg,
+	})
+	ms := store.NewMessageStore(db)
+	handoff := localchat.NewHandoff(ms, ts, cards, local.NewEventPublisher(local.NewSSEHub()))
+	srv := rpc.NewBeeServer(ws, mgr, ts, ms, store.NewOutboundMessageStore(db), senders, clearSvc, es, store.NewConstraintStore(db), ss, handoff, chats)
+	return srv, db, stopper, disp
+}
+
+func setupServerWithMessaging(t *testing.T) *rpc.Server {
+	s, _, _, _ := newTestServer(t, nil)
+	return s
+}
+
+func setupServerWithSender(t *testing.T, senderID string, sender platform.PlatformSenderAdapter) (*rpc.Server, *sql.DB) {
+	s, db, _, _ := newTestServer(t, platform.SenderMap{senderID: sender})
+	return s, db
+}
+
+func setupServerWithClear(t *testing.T) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	return newTestServer(t, nil)
+}
+
+func mustMarshal(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
+}
+
+func decodeResult(t *testing.T, result any) map[string]any {
+	t.Helper()
+	b, err := json.Marshal(result)
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(b, &m))
+	return m
+}
+
+func decodeListWorkersResult(t *testing.T, result any) (items []any, total int) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(b, &m))
+	items = m["items"].([]any)
+	total = int(m["total"].(float64))
+	return
+}
+
+// mustCreateWorker creates a worker through the create_worker tool and returns it.
+func mustCreateWorker(t *testing.T, s *rpc.Server, args map[string]any) model.Worker {
+	t.Helper()
+	res, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, args))
+	require.NoError(t, err)
+	w, ok := res.(model.Worker)
+	require.True(t, ok, "create_worker returned %T", res)
+	return w
+}
+
+func TestCallTool_ListWorkers_Empty(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "list_workers", mustMarshal(t, map[string]any{}))
+	require.NoError(t, err)
+	items, total := decodeListWorkersResult(t, result)
+	assert.NotNil(t, items, "items must be an empty slice, not null")
+	assert.Empty(t, items)
+	assert.Equal(t, 0, total)
+}
+
+func TestCallTool_CreateWorker(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":        "TestBot",
+		"description": "A test bot",
+		"prompt":      "You are a test bot.",
+	}))
+	require.NoError(t, err)
+	w, ok := result.(model.Worker)
+	require.True(t, ok, "create_worker returned %T", result)
+	assert.NotEmpty(t, w.ID)
+	assert.Equal(t, "TestBot", w.Name)
+}
+
+func TestCallTool_GetWorker(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	result, err := s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	require.NoError(t, err)
+	fetched := decodeResult(t, result)
+	assert.Equal(t, w.ID, fetched["id"].(string))
+}
+
+func TestCallTool_UpdateWorker(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "OldName"})
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id":   w.ID,
+		"name":        "NewName",
+		"constraints": "New constraints",
+	}))
+	require.NoError(t, err)
+	updated := result.(model.Worker)
+	assert.Equal(t, "NewName", updated.Name)
+	assert.Equal(t, "New constraints", updated.Constraints)
+	assert.Equal(t, w.Description, updated.Description)
+}
+
+func TestCallTool_DeleteWorker(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	require.NoError(t, err)
+
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	assert.Error(t, err)
+}
+
+type recordingChatCleaner struct {
+	deleted []model.Worker
+	err     error
+}
+
+func (r *recordingChatCleaner) DeleteWorkerChats(_ context.Context, w model.Worker) error {
+	r.deleted = append(r.deleted, w)
+	return r.err
+}
+
+func TestDeleteWorkerToolCleansChats(t *testing.T) {
+	cleaner := &recordingChatCleaner{}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+
+	require.NoError(t, err)
+	require.Len(t, cleaner.deleted, 1)
+	assert.Equal(t, w.ID, cleaner.deleted[0].ID)
+	assert.Equal(t, "Bot", cleaner.deleted[0].Name)
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	assert.Error(t, err)
+}
+
+func TestDeleteWorkerToolCleanupErrorKeepsWorker(t *testing.T) {
+	cleaner := &recordingChatCleaner{err: errors.New("cleanup failed")}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+
+	require.ErrorContains(t, err, "cleanup failed")
+	_, err = s.CallTool(context.Background(), "get_worker", mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	assert.NoError(t, err)
+}
+
+func TestDeleteWorkerToolUnknownIDSkipsCleanup(t *testing.T) {
+	cleaner := &recordingChatCleaner{}
+	s, _, _, _ := newTestServerWithCleaner(t, cleaner)
+
+	_, err := s.CallTool(context.Background(), "delete_worker", mustMarshal(t, map[string]any{"worker_id": "missing"}))
+
+	require.NoError(t, err)
+	assert.Empty(t, cleaner.deleted)
+}
+
+// TestCallTool_InvalidArgs covers tool calls that must fail validation; each
+// case only asserts that an error is returned.
+func TestCallTool_InvalidArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		tool string
+		args map[string]any
+	}{
+		{"GetWorker_NotFound", "get_worker", map[string]any{"worker_id": "nonexistent"}},
+		{"UnknownTool", "nonexistent_tool", map[string]any{}},
+		{"SendMessage_MissingMessageID", "send_message", map[string]any{"content": "hello"}},
+		{"SendMessage_MissingContent", "send_message", map[string]any{"message_id": "msg-x"}},
+		{"SendMessage_MessageNotFound", "send_message", map[string]any{"message_id": "nonexistent-msg", "content": "hello"}},
+		{"SendMessage_MessageIDAndSessionKey", "send_message", map[string]any{"message_id": "msg-x", "session_key": "beta:c:u", "content": "hello"}},
+		{"SendMessage_SessionWithoutSender", "send_message", map[string]any{"session_key": "beta:c:u", "content": "hello"}},
+		{"CreateTask_MessageNotFound", "create_task", map[string]any{"message_id": "nonexistent-msg", "worker_id": "w", "instruction": "go", "type": "immediate"}},
+		{"ListTasks_BothParams_Error", "list_tasks", map[string]any{"message_id": "msg-1", "session_key": "session-X"}},
+		{"ListTasks_NoParams_Error", "list_tasks", map[string]any{}},
+		{"ListSessionContexts_MissingSessionKey", "list_session_contexts", map[string]any{}},
+		{"ClearWorkerSession_MissingSessionKey", "clear_worker_session", map[string]any{"worker_id": "some-worker"}},
+		{"ClearWorkerSession_MissingWorkerID", "clear_worker_session", map[string]any{"session_key": "sk"}},
+		{"ClearWorkerSession_RefusesBee", "clear_worker_session", map[string]any{"session_key": "sk", "worker_id": "bee"}},
+		{"CreateWorker_InvalidEngine", "create_worker", map[string]any{"name": "EngineBot", "engine": "not-a-real-engine"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := setupServerWithMessaging(t)
+			_, err := s.CallTool(context.Background(), tc.tool, mustMarshal(t, tc.args))
+			assert.Error(t, err)
+		})
+	}
+}
+
+// --- send_message ---
+
+func TestCallTool_SendMessage(t *testing.T) {
+	cases := []struct {
+		name     string
+		senderID string
+		combined bool
+		setup    func(t *testing.T, db *sql.DB) (context.Context, map[string]any)
+		check    func(t *testing.T, sent []platform.OutboundMessage)
+	}{
+		{
+			name:     "CallsSender",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-send-1", "beta:chat1:userA", "beta", "hello", //nolint
+					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+				return ctx, map[string]any{"message_id": "msg-send-1", "content": "Task done!"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.Equal(t, "Task done!", sent[0].Content)
+			},
+		},
+		{
+			name:     "WorkerPrefixesContent",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				// Create a worker and a message.
+				ws := store.NewWorkerStore(db)
+				w, err := ws.Create(model.Worker{Name: "MaoMao", Description: "test worker"})
+				require.NoError(t, err)
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-worker-prefix", "beta:chat1:userA", "beta", "hello", //nolint
+					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+				// Call with a context that carries the worker's ID.
+				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+				return workerCtx, map[string]any{"message_id": "msg-worker-prefix", "content": "task done"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.Equal(t, "MaoMao\ntask done", sent[0].Content)
+			},
+		},
+		{
+			name:     "WorkerDeletedFallsBackToWorkerID",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-deleted-worker", "beta:chat1:userA", "beta", "hello", //nolint
+					`{"event":{"message":{"chat_id":"c1","chat_type":"p2p","message_id":"m1","message_type":"text","content":"{\"text\":\"hi\"}"}}}`, "", 0)
+				// Use a worker ID that does not exist in the store.
+				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-deleted-xyz")
+				return workerCtx, map[string]any{"message_id": "msg-deleted-worker", "content": "task done"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.Equal(t, "worker-deleted-xyz\ntask done", sent[0].Content)
+			},
+		},
+		{
+			name:     "ReplyToMessage",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-reply", "beta:chat1:userA", "beta", "hello", `{"origin":true}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-reply", "content": "done"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.False(t, sent[0].Proactive)
+				assert.Equal(t, `{"origin":true}`, sent[0].ReplyTo.Raw)
+				assert.Equal(t, "msg-reply", sent[0].InboundMsgID)
+			},
+		},
+		{
+			name:     "SessionKeySendsProactivelyWithLatestContext",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-old", "beta:chat1:userA", "beta", "old", `{"seq":1}`, "", 1000) //nolint
+				ms.Create(ctx, "msg-new", "beta:chat1:userA", "beta", "new", `{"seq":2}`, "", 2000) //nolint
+				workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, "worker-x")
+				return workerCtx, map[string]any{"session_key": "beta:chat1:userA", "content": "daily report"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.True(t, sent[0].Proactive)
+				assert.Equal(t, "worker-x\ndaily report", sent[0].Content)
+				assert.Equal(t, "beta:chat1:userA", sent[0].SessionKey)
+				assert.Equal(t, "beta", sent[0].ReplyTo.Platform)
+				assert.Equal(t, `{"seq":2}`, sent[0].ReplyTo.Raw)
+				assert.Empty(t, sent[0].InboundMsgID)
+				assert.Equal(t, store.SourceTypeWorker, sent[0].SourceType)
+			},
+		},
+		{
+			name:     "SessionKeyWithoutHistoryUsesKeyPrefix",
+			senderID: "local",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				return context.Background(), map[string]any{"session_key": "local:user-1", "content": "hi"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.True(t, sent[0].Proactive)
+				assert.Equal(t, "local", sent[0].ReplyTo.Platform)
+				assert.Equal(t, "local:user-1", sent[0].ReplyTo.SessionKey)
+				assert.Empty(t, sent[0].ReplyTo.Raw)
+			},
+		},
+		{
+			name:     "CombinedSenderGetsContentAndMediaTogether",
+			senderID: "alpha",
+			combined: true,
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-combined-media", "alpha:chat1:userA", "alpha", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-combined-media", "content": "see attached", "media_path": "/tmp/snap.png"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1, "expected one combined send")
+				assert.Equal(t, "see attached", sent[0].Content)
+				assert.Equal(t, "/tmp/snap.png", sent[0].MediaPath)
+			},
+		},
+		{
+			name:     "NonCombinedSenderSplitsTextAndMedia",
+			senderID: "beta",
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-split", "beta:chat1:userA", "beta", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-split", "content": "a", "media_path": "/tmp/x.png"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 2)
+				assert.Equal(t, "a", sent[0].Content)
+				assert.Empty(t, sent[0].MediaPath)
+				assert.Equal(t, "/tmp/x.png", sent[1].MediaPath)
+				assert.Empty(t, sent[1].Content)
+			},
+		},
+		{
+			name:     "CombinedSenderOnAnyPlatform",
+			senderID: "discord",
+			combined: true,
+			setup: func(t *testing.T, db *sql.DB) (context.Context, map[string]any) {
+				ctx := context.Background()
+				ms := store.NewMessageStore(db)
+				ms.Create(ctx, "msg-discord", "discord:c1:u1", "discord", "hello", `{}`, "", 0) //nolint
+				return ctx, map[string]any{"message_id": "msg-discord", "content": "a", "media_path": "/tmp/x.png"}
+			},
+			check: func(t *testing.T, sent []platform.OutboundMessage) {
+				require.Len(t, sent, 1)
+				assert.Equal(t, "a", sent[0].Content)
+				assert.Equal(t, "/tmp/x.png", sent[0].MediaPath)
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &mockSender{}
+			var sender platform.PlatformSenderAdapter = mock
+			if tc.combined {
+				sender = &combinedMockSender{mock}
+			}
+			s, db := setupServerWithSender(t, tc.senderID, sender)
+			ctx, args := tc.setup(t, db)
+
+			result, err := s.CallTool(ctx, "send_message", mustMarshal(t, args))
+			require.NoError(t, err)
+			m := result.(map[string]string)
+			assert.Equal(t, "sent", m["status"])
+
+			mock.mu.Lock()
+			sent := append([]platform.OutboundMessage{}, mock.sent...)
+			mock.mu.Unlock()
+			tc.check(t, sent)
+		})
+	}
+}
+
+func TestSendMessageLocalWorkerNoPrefix(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "local", spy)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-local-worker", "local:user-1", "local", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-local-worker",
+		"content":    "hello",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, "hello", spy.sent[0].Content)
+	assert.Equal(t, store.SourceTypeWorker, spy.sent[0].SourceType)
+}
+
+func TestSendMessageIMWorkerKeepsPrefix(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "telegram", spy)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-telegram-worker", "telegram:chat1:userA", "telegram", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-telegram-worker",
+		"content":    "hello",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, "MaoMao\nhello", spy.sent[0].Content)
+}
+
+func TestCallTool_CreateTask_StoresSessionTarget(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-origin", "beta:chat_1:user_1", "beta", "every morning", `{}`, "", 0) //nolint
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID,
+		"instruction": "report", "type": "scheduled", "cron_expr": "0 9 * * *",
+	}))
+	require.NoError(t, err)
+	taskID := result.(map[string]string)["task_id"]
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, taskID)
+	require.NoError(t, err)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Equal(t, "beta:chat_1:user_1", got.SessionKey)
+	assert.Equal(t, "beta", got.Platform)
+}
+
+func TestCreateTaskLocalBeeHandsOff(t *testing.T) {
+	future := time.Now().Add(time.Hour).UnixMilli()
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"immediate", map[string]any{"type": "immediate"}},
+		{"countdown", map[string]any{"type": "countdown", "scheduled_at": future}},
+		{"scheduled", map[string]any{"type": "scheduled", "cron_expr": "0 9 * * *"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cards := &mockSender{}
+			s, db, _, _ := newTestServerWithCards(t, nil, cards)
+			ctx := context.Background()
+			ms := store.NewMessageStore(db)
+			require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+				ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+			}))
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			args := map[string]any{"message_id": "msg-origin", "worker_id": w.ID, "instruction": "do the thing"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			result, err := s.CallTool(ctx, "create_task", mustMarshal(t, args))
+			require.NoError(t, err)
+			res := result.(map[string]string)
+			assert.Equal(t, "pending", res["status"])
+			assert.Equal(t, "worker:"+w.ID, res["conversation_id"])
+
+			workerKey := "local:u1:worker:" + w.ID
+			got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+			require.NoError(t, err)
+			assert.Equal(t, workerKey, got.SessionKey)
+			assert.Equal(t, "local", got.Platform)
+			assert.Equal(t, tc.args["type"], got.Type)
+			assert.NotEqual(t, "msg-origin", got.MessageID)
+
+			row, err := ms.GetByID(ctx, got.MessageID)
+			require.NoError(t, err)
+			assert.Equal(t, workerKey, row.SessionKey)
+
+			sent := cards.sent
+			require.Len(t, sent, 1)
+			assert.Equal(t, "local:u1", sent[0].SessionKey)
+			assert.Equal(t, store.OutboundKindHandoff, sent[0].Kind)
+			assert.Equal(t, "msg-origin", sent[0].InboundMsgID)
+			assert.Equal(t, "do the thing", sent[0].Content)
+		})
+	}
+}
+
+func TestWorkerReplyToHandoffMessageLandsInWorkerChat(t *testing.T) {
+	localSender := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, platform.SenderMap{"local": localSender}, &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+	}))
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "do the thing", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	task, err := store.NewTaskStore(db).GetByID(ctx, result.(map[string]string)["task_id"])
+	require.NoError(t, err)
+
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": task.MessageID, "content": "done",
+	}))
+	require.NoError(t, err)
+
+	require.Len(t, localSender.sent, 1)
+	assert.Equal(t, "local:u1:worker:"+w.ID, localSender.sent[0].ReplyTo.SessionKey)
+	assert.Equal(t, store.SourceTypeWorker, localSender.sent[0].SourceType)
+}
+
+func TestCreateTaskLocalBeeInvalidCronSkipsHandoff(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, nil, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: "local:u1", Platform: "local", Content: "please help",
+	}))
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go",
+		"type": "scheduled", "cron_expr": "not a cron",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.Equal(t, "cancelled", res["status"])
+	assert.NotContains(t, res, "conversation_id")
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, "local:u1", got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Empty(t, cards.sent)
+}
+
+func TestCreateTaskLocalWorkerChatOriginSkipsHandoff(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, nil, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	workerKey := "local:u1:worker:" + w.ID
+	require.NoError(t, ms.InsertProcessed(ctx, store.ProcessedMsg{
+		ID: "msg-origin", SessionKey: workerKey, Platform: "local", Content: "please help",
+	}))
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.NotContains(t, res, "conversation_id")
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, workerKey, got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Empty(t, cards.sent)
+}
+
+func TestCreateTaskTelegramUnchanged(t *testing.T) {
+	cards := &mockSender{}
+	s, db, _, _ := newTestServerWithCards(t, platform.SenderMap{"telegram": &mockSender{}}, cards)
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-origin", "telegram:c1:u1", "telegram", "hi", `{}`, "", 0) //nolint
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	res := result.(map[string]string)
+	assert.Equal(t, map[string]string{"task_id": res["task_id"], "status": "pending"}, res)
+
+	got, err := store.NewTaskStore(db).GetByID(ctx, res["task_id"])
+	require.NoError(t, err)
+	assert.Equal(t, "telegram:c1:u1", got.SessionKey)
+	assert.Equal(t, "msg-origin", got.MessageID)
+	assert.Equal(t, "telegram", got.Platform)
+
+	var rows int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages`).Scan(&rows))
+	assert.Equal(t, 1, rows)
+	assert.Empty(t, cards.sent)
+}
+
+func TestCallTool_CreateTask_RejectsUnknownWorker(t *testing.T) {
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"Immediate", map[string]any{"type": "immediate"}},
+		{"Countdown", map[string]any{"type": "countdown", "scheduled_at": time.Now().Add(time.Minute).UnixMilli()}},
+		{"Scheduled", map[string]any{"type": "scheduled", "cron_expr": "0 9 * * *"}},
+		{"ScheduledInvalidCron", map[string]any{"type": "scheduled", "cron_expr": "not a cron"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db := setupServerWithSender(t, "beta", &mockSender{})
+			ctx := context.Background()
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, "msg-unknown-worker", "beta:chat_1:user_1", "beta", "hi", `{}`, "", 0) //nolint
+			mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			args := map[string]any{"message_id": "msg-unknown-worker", "worker_id": "worker-typo", "instruction": "go"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			_, err := s.CallTool(ctx, "create_task", mustMarshal(t, args))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "worker-typo")
+			assert.Contains(t, err.Error(), "list_workers")
+
+			count, err := store.NewTaskStore(db).CountTasks(ctx, store.TaskFilter{MessageID: "msg-unknown-worker"})
+			require.NoError(t, err)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+func TestCallTool_SendMessage_UnknownPlatform(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-unk", "alpha:c1:u1", "alpha", "hi", `{}`, "", 0) //nolint
+
+	_, err := s.CallTool(context.Background(), "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-unk",
+		"content":    "hello",
+	}))
+	assert.Error(t, err)
+}
+
+// --- list_tasks session_key tests ---
+
+func TestCallTool_ListTasks_BySessionKey(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-sk1", "session-X", "beta", "hi", `{}`, "", 0) //nolint
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	s.CallTool(context.Background(), "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-sk1", "worker_id": w.ID,
+		"instruction": "task1", "type": "immediate",
+	}))
+
+	result, err := s.CallTool(context.Background(), "list_tasks", mustMarshal(t, map[string]any{
+		"session_key": "session-X",
+	}))
+	require.NoError(t, err)
+	tasks, _ := decodePagedTaskItems(t, result)
+	assert.Len(t, tasks, 1)
+}
+
+func TestListTasksBeeKeyIncludesWorkerChats(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+	ms := store.NewMessageStore(db)
+	ts := store.NewTaskStore(db)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	keys := map[string]string{
+		"bee":      "local:u1",
+		"worker":   "local:u1:worker:" + w.ID,
+		"other":    "local:u2:worker:" + w.ID,
+		"telegram": "telegram:chat1:userA",
+	}
+	ids := map[string]string{}
+	for name, key := range keys {
+		msgID := "msg-" + name
+		ms.Create(ctx, msgID, key, "beta", "hi", `{}`, "", 0) //nolint
+		id, err := ts.Create(ctx, model.Task{
+			MessageID: msgID, SessionKey: key, WorkerID: w.ID, Instruction: name,
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+			CreatedAt: 1, UpdatedAt: 1,
+		})
+		require.NoError(t, err)
+		ids[name] = id
+	}
+
+	listIDs := func(sessionKey string) ([]string, int) {
+		result, err := s.CallTool(ctx, "list_tasks", mustMarshal(t, map[string]any{"session_key": sessionKey}))
+		require.NoError(t, err)
+		items, page := decodePagedTaskItems(t, result)
+		got := make([]string, 0, len(items))
+		for _, item := range items {
+			got = append(got, item["ID"].(string))
+		}
+		return got, int(page["total"].(float64))
+	}
+
+	got, total := listIDs("local:u1")
+	assert.ElementsMatch(t, []string{ids["bee"], ids["worker"]}, got)
+	assert.Equal(t, 2, total)
+
+	got, total = listIDs("local:u1:worker:" + w.ID)
+	assert.ElementsMatch(t, []string{ids["worker"]}, got)
+	assert.Equal(t, 1, total)
+
+	got, total = listIDs("telegram:chat1:userA")
+	assert.ElementsMatch(t, []string{ids["telegram"]}, got)
+	assert.Equal(t, 1, total)
+}
+
+func TestCallTool_ClearWorkerSession_FromBeeChatCancelsWorkerChatTask(t *testing.T) {
+	s, db, _, disp := setupServerWithClear(t)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+	workerKey := "local:u1:worker:" + w.ID
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-bee-cw", workerKey, "beta", "hi", `{}`, "", 0) //nolint
+	ts := store.NewTaskStore(db)
+	taskID, err := ts.Create(ctx, model.Task{
+		MessageID: "msg-bee-cw", SessionKey: workerKey, WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	require.NoError(t, err)
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "local:u1",
+		"worker_id":   w.ID,
+		"force":       true,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["cleared"])
+	assert.EqualValues(t, 1, m["cancelled_tasks"])
+
+	tasks, err := ts.List(ctx, store.TaskFilter{TaskID: taskID})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	assert.Equal(t, model.TaskStatusCancelled, tasks[0].Status)
+
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	assert.Equal(t, []string{workerKey + "::" + w.ID}, disp.clearedWorkers)
+}
+
+func TestCallTool_ClearSession_EmptySession_ReturnsNoContext(t *testing.T) {
+	s, _, _, clearer := setupServerWithClear(t)
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-empty",
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, false, m["cleared"])
+	assert.Equal(t, rpc.ClearReasonNoContext, m["reason"])
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	assert.Empty(t, clearer.cleared, "ClearSession must not be called when session is empty")
+}
+
+func TestCallTool_ClearSession_StopsRunningTask(t *testing.T) {
+	cases := []struct {
+		name             string
+		sessionKey       string
+		msgID            string
+		execID           string
+		extraPendingTask bool
+		check            func(t *testing.T, m map[string]any)
+	}{
+		{
+			name:             "CancelsAndStopsTasks",
+			sessionKey:       "session-Y",
+			msgID:            "msg-c1",
+			execID:           "exec-running-1",
+			extraPendingTask: true,
+			check: func(t *testing.T, m map[string]any) {
+				cancelled, ok := m["cancelled_tasks"].(int64)
+				assert.True(t, ok)
+				assert.GreaterOrEqual(t, cancelled, int64(1))
+			},
+		},
+		{
+			name:       "ForceSkipsTaskDetection",
+			sessionKey: "session-FSD",
+			msgID:      "msg-fsd1",
+			execID:     "exec-fsd-1",
+			check: func(t *testing.T, m map[string]any) {
+				assert.Equal(t, true, m["cleared"])
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db, stopper, clearer := setupServerWithClear(t)
+			ctx := context.Background()
+
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "beta", "hi", `{}`, "", 0) //nolint
+
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			// Create a running task with a running execution in bee_executions.
+			ts := store.NewTaskStore(db)
+			id, _ := ts.Create(ctx, model.Task{
+				MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "long task",
+				Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+				CreatedAt: 1, UpdatedAt: 1,
+			})
+			// Insert a corresponding execution row so GetRunningByTaskID can find it.
+			db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, tc.execID, id, w.ID, model.ExecStatusRunning) //nolint
+
+			if tc.extraPendingTask {
+				// Create a pending task.
+				ts.Create(ctx, model.Task{ //nolint
+					MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "queued task",
+					Type: model.TaskTypeImmediate, Status: model.TaskStatusPending,
+					CreatedAt: 1, UpdatedAt: 1,
+				})
+			}
+
+			result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+				"session_key": tc.sessionKey,
+				"force":       true,
+			}))
+			require.NoError(t, err)
+			m := result.(map[string]any)
+			tc.check(t, m)
+
+			// StopExecution should have been called for the running task.
+			// guard: length check protects the stopper.stopped[0] index below.
+			stopper.mu.Lock()
+			defer stopper.mu.Unlock()
+			require.Len(t, stopper.stopped, 1)
+			assert.Equal(t, tc.execID, stopper.stopped[0])
+
+			// ClearSession should have been called.
+			// guard: length check protects the clearer.cleared[0] index below.
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			require.Len(t, clearer.cleared, 1)
+			assert.Equal(t, tc.sessionKey, clearer.cleared[0])
+		})
+	}
+}
+
+func TestCallTool_ClearSession_MissingSessionKey(t *testing.T) {
+	s, _, _, _ := setupServerWithClear(t)
+	_, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{}))
+	assert.Error(t, err)
+}
+
+func TestCallTool_GetWorkerStatus(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "status-test"})
+
+	result, err := s.CallTool(context.Background(), utils.GetWorkerStatus, mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, w.ID, m["worker_id"])
+	assert.Equal(t, "idle", m["status"])
+}
+
+func TestCallTool_GetSystemOverview(t *testing.T) {
+	s := setupServerWithMessaging(t)
+
+	result, err := s.CallTool(context.Background(), utils.GetSystemOverview, nil)
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.NotNil(t, m["workers"])
+	assert.NotNil(t, m["tasks"])
+}
+
+func TestCallTool_SaveConstraint(t *testing.T) {
+	s := setupServerWithMessaging(t)
+
+	result, err := s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "test_pref",
+		"value": "user likes concise replies",
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]string)
+	assert.Equal(t, "saved", m["status"])
+}
+
+func TestCallTool_GetConstraint(t *testing.T) {
+	s := setupServerWithMessaging(t)
+
+	// Save first.
+	s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "pref1",
+		"value": "value1",
+	}))
+
+	// Get by key.
+	result, err := s.CallTool(context.Background(), utils.GetConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "pref1",
+	}))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// List by scope (no key).
+	_, err = s.CallTool(context.Background(), utils.GetConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+	}))
+	require.NoError(t, err)
+}
+
+func TestCallTool_DeleteConstraint(t *testing.T) {
+	s := setupServerWithMessaging(t)
+
+	s.CallTool(context.Background(), utils.SaveConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "to_delete",
+		"value": "temp",
+	}))
+
+	result, err := s.CallTool(context.Background(), utils.DeleteConstraint, mustMarshal(t, map[string]any{
+		"scope": "global",
+		"key":   "to_delete",
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]string)
+	assert.Equal(t, "deleted", m["status"])
+}
+
+// --- list_session_contexts ---
+
+func TestCallTool_ListSessionContexts_Empty(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "list_session_contexts", mustMarshal(t, map[string]any{
+		"session_key": "no-such-session",
+	}))
+	require.NoError(t, err)
+	agents, ok := result.([]store.SessionAgent)
+	require.True(t, ok, "expected []store.SessionAgent, got %T", result)
+	assert.Empty(t, agents)
+}
+
+// --- clear_worker_session ---
+
+func TestCallTool_ClearWorkerSession_Idempotent(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	// No session row exists; should succeed without error.
+	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+		"worker_id":   "nonexistent-worker-id",
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["cleared"])
+}
+
+func TestCallTool_ClearWorkerSession_RunningTask_RequiresConfirmation(t *testing.T) {
+	s, db, _, disp := setupServerWithClear(t)
+	ctx := context.Background()
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-cw1", "session-CW", "beta", "hi", `{}`, "", 0) //nolint
+
+	ts := store.NewTaskStore(db)
+	ts.Create(ctx, model.Task{ //nolint
+		MessageID: "msg-cw1", SessionKey: "session-CW", WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "session-CW",
+		"worker_id":   w.ID,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["requires_confirmation"])
+	assert.Equal(t, rpc.ClearReasonActiveTasks, m["reason"])
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	assert.Empty(t, disp.clearedWorkers, "ClearWorker must not be called on confirmation prompt")
+}
+
+func TestCallTool_ClearWorkerSession_Force_CancelsAndStops(t *testing.T) {
+	s, db, stopper, disp := setupServerWithClear(t)
+	ctx := context.Background()
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-cw2", "session-CW2", "beta", "hi", `{}`, "", 0) //nolint
+
+	ts := store.NewTaskStore(db)
+	taskID, _ := ts.Create(ctx, model.Task{
+		MessageID: "msg-cw2", SessionKey: "session-CW2", WorkerID: w.ID, Instruction: "long running",
+		Type: model.TaskTypeImmediate, Status: model.TaskStatusRunning,
+		CreatedAt: 1, UpdatedAt: 1,
+	})
+	db.ExecContext(ctx, `INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at) VALUES (?, ?, ?, '', '', '', ?, '', 0, 1)`, "exec-cw-1", taskID, w.ID, model.ExecStatusRunning) //nolint
+
+	result, err := s.CallTool(ctx, "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "session-CW2",
+		"worker_id":   w.ID,
+		"force":       true,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["cleared"])
+	cancelled, _ := m["cancelled_tasks"].(int64)
+	assert.GreaterOrEqual(t, cancelled, int64(1))
+
+	// guard: length check protects the stopper.stopped[0] index below.
+	stopper.mu.Lock()
+	defer stopper.mu.Unlock()
+	require.Len(t, stopper.stopped, 1)
+	assert.Equal(t, "exec-cw-1", stopper.stopped[0])
+
+	// guard: length check protects the disp.clearedWorkers[0] index below.
+	disp.mu.Lock()
+	defer disp.mu.Unlock()
+	want := "session-CW2::" + w.ID
+	require.Len(t, disp.clearedWorkers, 1)
+	assert.Equal(t, want, disp.clearedWorkers[0])
+}
+
+func TestCallTool_ClearWorkerSession_ClearsOnlyTargetWorker(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+
+	w1 := mustCreateWorker(t, s, map[string]any{"name": "W1"})
+	w2 := mustCreateWorker(t, s, map[string]any{"name": "W2"})
+
+	// Seed session contexts for both workers.
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-claude", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "sk", w1.ID, "sid-w1-codex", "codex")   //nolint
+	ss.UpsertSessionContext(ctx, "sk", w2.ID, "sid-w2", "claude")        //nolint
+
+	// Clear only w1.
+	result, err := s.CallTool(context.Background(), "clear_worker_session", mustMarshal(t, map[string]any{
+		"session_key": "sk",
+		"worker_id":   w1.ID,
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	assert.Equal(t, true, m["cleared"])
+	assert.Equal(t, "W1", m["worker_name"])
+
+	// w1 context should be gone only on the active engine (claude); its codex
+	// row stays untouched, matching /clear's active-engine semantics. w2 is
+	// untouched entirely.
+	w1Claude, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "claude")
+	w1Codex, _ := ss.GetSessionContextForEngine(ctx, "sk", w1.ID, "codex")
+	w2sid, _ := ss.GetSessionContextForEngine(ctx, "sk", w2.ID, "claude")
+	assert.Equal(t, "", w1Claude)
+	assert.Equal(t, "sid-w1-codex", w1Codex, "expected w1 codex context intact (active-engine scope)")
+	assert.Equal(t, "sid-w2", w2sid)
+}
+
+// --- clear_session confirmation ---
+
+func TestCallTool_ClearSession_Confirmation(t *testing.T) {
+	const sessionKey = "sk"
+	cases := []struct {
+		name           string
+		workers        []string
+		force          bool
+		wantCleared    bool
+		wantClearCalls []string
+		check          func(t *testing.T, m map[string]any)
+	}{
+		{
+			name:           "NoActiveTasks",
+			workers:        []string{"W"},
+			wantCleared:    true,
+			wantClearCalls: []string{sessionKey},
+		},
+		{
+			name:    "RequiresConfirmation_TwoWorkers",
+			workers: []string{"W1", "W2"},
+			check: func(t *testing.T, m map[string]any) {
+				assert.Equal(t, true, m["requires_confirmation"])
+				workerCount, _ := m["worker_count"].(int)
+				assert.Equal(t, 2, workerCount)
+				linkedWorkers, _ := m["linked_workers"].([]rpc.LinkedWorkerSummary)
+				assert.Len(t, linkedWorkers, 2)
+			},
+		},
+		{
+			name:           "ForceTrue_SkipsConfirmation",
+			workers:        []string{"W1", "W2"},
+			force:          true,
+			wantCleared:    true,
+			wantClearCalls: []string{sessionKey},
+		},
+		{
+			name:           "OneWorker_NoConfirmation",
+			workers:        []string{"W"},
+			wantCleared:    true,
+			wantClearCalls: []string{sessionKey},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db, _, clearer := setupServerWithClear(t)
+			ctx := context.Background()
+
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, "msg-1", sessionKey, "beta", "hi", `{}`, "", 0) //nolint
+
+			ss := store.NewSessionStore(db)
+			for i, name := range tc.workers {
+				w := mustCreateWorker(t, s, map[string]any{"name": name})
+				ss.UpsertSessionContext(ctx, sessionKey, w.ID, fmt.Sprintf("sid-w%d", i), "") //nolint
+			}
+
+			args := map[string]any{"session_key": sessionKey}
+			if tc.force {
+				args["force"] = true
+			}
+			result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, args))
+			require.NoError(t, err)
+			m := result.(map[string]any)
+			if tc.wantCleared {
+				assert.Equal(t, true, m["cleared"])
+			}
+			if tc.check != nil {
+				tc.check(t, m)
+			}
+
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			assert.Equal(t, tc.wantClearCalls, clearer.cleared)
+		})
+	}
+}
+
+func TestCallTool_ClearSession_DedupesWorkersAcrossEngines(t *testing.T) {
+	s, db, _, clearer := setupServerWithClear(t)
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-dedupe", "session-D", "beta", "hi", `{}`, "", 0) //nolint
+
+	w1 := mustCreateWorker(t, s, map[string]any{"name": "W1"})
+
+	ss := store.NewSessionStore(db)
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-claude", "claude") //nolint
+	ss.UpsertSessionContext(ctx, "session-D", w1.ID, "sid-codex", "codex")   //nolint
+
+	result, err := s.CallTool(context.Background(), "clear_session", mustMarshal(t, map[string]any{
+		"session_key": "session-D",
+	}))
+	require.NoError(t, err)
+	m := result.(map[string]any)
+	require.NotEqual(t, true, m["requires_confirmation"], "expected no confirmation for one worker across multiple engines")
+	require.Equal(t, true, m["cleared"])
+
+	clearer.mu.Lock()
+	defer clearer.mu.Unlock()
+	require.Len(t, clearer.cleared, 1)
+	assert.Equal(t, "session-D", clearer.cleared[0])
+}
+
+// --- clear_session task detection ---
+
+func TestCallTool_ClearSession_ActiveTask(t *testing.T) {
+	cases := []struct {
+		name        string
+		taskStatus  string
+		instruction string
+		check       func(t *testing.T, m map[string]any)
+	}{
+		{
+			name:        "RunningTaskRequiresConfirmation",
+			taskStatus:  model.TaskStatusRunning,
+			instruction: "long running task",
+			check: func(t *testing.T, m map[string]any) {
+				tasks, ok := m["running_tasks"].([]rpc.ActiveTaskSummary)
+				require.True(t, ok, "running_tasks type %T", m["running_tasks"])
+				require.Len(t, tasks, 1)
+				assert.Equal(t, "long running task", tasks[0].Instruction)
+				assert.Equal(t, model.TaskStatusRunning, tasks[0].Status)
+			},
+		},
+		{
+			name:        "PendingTaskRequiresConfirmation",
+			taskStatus:  model.TaskStatusPending,
+			instruction: "queued task",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, db, _, clearer := setupServerWithClear(t)
+			ctx := context.Background()
+
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, "msg-1", "sk", "beta", "hi", `{}`, "", 0) //nolint
+
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			ts := store.NewTaskStore(db)
+			ts.Create(ctx, model.Task{ //nolint
+				MessageID: "msg-1", SessionKey: "sk", WorkerID: w.ID, Instruction: tc.instruction,
+				Type: model.TaskTypeImmediate, Status: tc.taskStatus,
+				CreatedAt: 1, UpdatedAt: 1,
+			})
+
+			result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+				"session_key": "sk",
+			}))
+			require.NoError(t, err)
+			m := result.(map[string]any)
+			assert.Equal(t, true, m["requires_confirmation"])
+			assert.Equal(t, rpc.ClearReasonActiveTasks, m["reason"])
+			if tc.check != nil {
+				tc.check(t, m)
+			}
+
+			// ClearSession must NOT have been called.
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			assert.Empty(t, clearer.cleared, "ClearSession must not be called on confirmation prompt")
+		})
+	}
+}
+
+func TestCallTool_ClearSession_NonImmediateTaskDoesNotBlock(t *testing.T) {
+	cases := []struct {
+		taskType   string
+		msgID      string
+		sessionKey string
+	}{
+		{model.TaskTypeScheduled, "msg-sched1", "session-SCHED"},
+		{model.TaskTypeCountdown, "msg-cd1", "session-CD"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.taskType, func(t *testing.T) {
+			s, db, _, clearer := setupServerWithClear(t)
+			ctx := context.Background()
+
+			ms := store.NewMessageStore(db)
+			ms.Create(ctx, tc.msgID, tc.sessionKey, "beta", "hi", `{}`, "", 0) //nolint
+
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			// Seed a session context so the clear has something to act on; the
+			// test's intent is that non-immediate pending tasks don't gate.
+			ss := store.NewSessionStore(db)
+			ss.UpsertSessionContext(ctx, tc.sessionKey, w.ID, "sid-w", "") //nolint
+
+			ts := store.NewTaskStore(db)
+			ts.Create(ctx, model.Task{ //nolint
+				MessageID: tc.msgID, SessionKey: tc.sessionKey, WorkerID: w.ID, Instruction: "task",
+				Type: tc.taskType, Status: model.TaskStatusPending,
+				CreatedAt: 1, UpdatedAt: 1,
+			})
+
+			result, err := s.CallTool(ctx, "clear_session", mustMarshal(t, map[string]any{
+				"session_key": tc.sessionKey,
+			}))
+			require.NoError(t, err)
+			m := result.(map[string]any)
+			assert.Equal(t, true, m["cleared"], "%s pending task should not block clear", tc.taskType)
+
+			// guard: length check protects the clearer.cleared[0] index below.
+			clearer.mu.Lock()
+			defer clearer.mu.Unlock()
+			require.Len(t, clearer.cleared, 1)
+			assert.Equal(t, tc.sessionKey, clearer.cleared[0])
+		})
+	}
+}
+
+func TestToolListTasks_IncludesExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-exec1", "session-EX", "beta", "hi", `{}`, "", 0) //nolint
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W1"})
+
+	taskResult, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id":  "msg-exec1",
+		"worker_id":   w.ID,
+		"instruction": "do x",
+		"type":        "immediate",
+	}))
+	require.NoError(t, err)
+	taskID := taskResult.(map[string]string)["task_id"]
+
+	es := store.NewExecutionStore(db, t.TempDir())
+	exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: "do x", SessionID: "sess-1", Engine: "claude"})
+	require.NoError(t, err)
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	require.NoError(t, err)
+
+	b, _ := json.Marshal(result)
+	raw := string(b)
+	assert.Contains(t, raw, `"executions"`)
+	assert.Contains(t, raw, exec.ID)
+	tasks, _ := decodePagedTaskItems(t, result)
+	require.Len(t, tasks, 1)
+	execsAny, ok := tasks[0]["executions"]
+	require.True(t, ok, "task missing 'executions' field")
+	execsList, ok := execsAny.([]any)
+	require.True(t, ok, "executions is not a list, got %T", execsAny)
+	assert.Len(t, execsList, 1)
+}
+
+func decodePagedTaskItems(t *testing.T, result any) ([]map[string]any, map[string]any) {
+	t.Helper()
+	b, err := json.Marshal(result)
+	require.NoError(t, err)
+	var page map[string]any
+	require.NoError(t, json.Unmarshal(b, &page))
+	rawItems, ok := page["items"].([]any)
+	require.True(t, ok, "items missing or not array: %T", page["items"])
+	items := make([]map[string]any, 0, len(rawItems))
+	for _, raw := range rawItems {
+		item, ok := raw.(map[string]any)
+		require.True(t, ok, "item is not object: %T", raw)
+		items = append(items, item)
+	}
+	return items, page
+}
+
+func TestToolListTasks_PaginatesAndLimitsExecutions(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+
+	ms := store.NewMessageStore(db)
+	ms.Create(ctx, "msg-page", "session-PAGE", "beta", "hi", `{}`, "", 0) //nolint
+
+	w := mustCreateWorker(t, s, map[string]any{"name": "W1"})
+	ts := store.NewTaskStore(db)
+	es := store.NewExecutionStore(db, t.TempDir())
+
+	var newestExecForFirstTask string
+	for i := 0; i < 3; i++ {
+		taskID, err := ts.Create(ctx, model.Task{
+			MessageID: "msg-page", SessionKey: "session-PAGE", WorkerID: w.ID, Instruction: fmt.Sprintf("task-%d", i),
+			Type: model.TaskTypeImmediate, Status: model.TaskStatusCompleted,
+			CreatedAt: int64(i + 1), UpdatedAt: int64(i + 1),
+		})
+		require.NoError(t, err)
+		for j := 0; j < 3; j++ {
+			exec, err := es.Create(store.ExecutionCreate{WorkerID: w.ID, TaskID: taskID, TriggerInput: fmt.Sprintf("run-%d-%d", i, j), SessionID: fmt.Sprintf("sess-%d-%d", i, j), Engine: "claude"})
+			require.NoError(t, err)
+			if i == 2 && j == 2 {
+				newestExecForFirstTask = exec.ID
+			}
+		}
+	}
+
+	result, err := s.CallTool(ctx, utils.ListTasks, mustMarshal(t, map[string]any{
+		"worker_id":       w.ID,
+		"page":            1,
+		"page_size":       2,
+		"execution_limit": 1,
+	}))
+	require.NoError(t, err)
+	items, page := decodePagedTaskItems(t, result)
+	require.Len(t, items, 2)
+	require.Equal(t, float64(3), page["total"])
+	execs, ok := items[0]["executions"].([]any)
+	require.True(t, ok, "expected first item to include executions, got %#v", items[0]["executions"])
+	require.Len(t, execs, 1)
+	firstExec := execs[0].(map[string]any)
+	require.Equal(t, newestExecForFirstTask, firstExec["id"])
+}
+
+func workerCtx(workerID string, scopes []string) context.Context {
+	ctx := context.WithValue(context.Background(), rpc.CtxWorkerIDKey, workerID)
+	return context.WithValue(ctx, rpc.CtxScopesKey, scopes)
+}
+
+func TestCheckWorkerScope_WorkerWithScope_CanCallScopedTool(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:workers"})
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	assert.NoError(t, err)
+}
+
+func TestCheckWorkerScope_WorkerWithoutScope_CannotCallScopedTool(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	assert.Error(t, err)
+}
+
+func TestCheckWorkerScope_WorkerWithWrongScope_CannotCallScopedTool(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	ctx := workerCtx("wid-1", []string{"read:tasks"}) // has tasks scope, not workers
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	assert.Error(t, err)
+}
+
+func TestCheckWorkerScope_BeeToken_AlwaysAllowed(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	// Bee token: no workerID in context.
+	ctx := context.Background()
+	_, err := s.CallTool(ctx, utils.ListWorkers, mustMarshal(t, map[string]any{}))
+	assert.NoError(t, err)
+}
+
+func TestCheckWorkerScope_WorkerToken_NonScopedTool_Unchanged(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	ctx := workerCtx("wid-1", nil) // no scopes
+	// send_message has no scope requirement — existing behavior, worker can call it.
+	_, err := s.CallTool(ctx, utils.SendMessage, mustMarshal(t, map[string]any{
+		"message_id": "nonexistent",
+		"content":    "test",
+	}))
+	// Should NOT be a permission denied error.
+	if err != nil {
+		assert.NotEqual(t, "permission denied: scope read:workers required", err.Error())
+	}
+}
+
+func TestCallTool_ListOutboundMessages(t *testing.T) {
+	s, db := setupServerWithSender(t, "beta", &mockSender{})
+	ctx := context.Background()
+
+	oms := store.NewOutboundMessageStore(db)
+	require.NoError(t, oms.Create(ctx, store.OutboundMessage{
+		ID: "out-1", SessionKey: "sk1", Platform: "beta",
+		Content: "reply", Status: store.OutboundStatusSent,
+		SourceType: store.SourceTypeWorker, SourceID: "worker-X",
+		SentAt: 1000,
+	}))
+	require.NoError(t, oms.Create(ctx, store.OutboundMessage{
+		ID: "out-2", SessionKey: "sk2", Platform: "local",
+		Content: "hi", Status: store.OutboundStatusFailed,
+		SourceType: store.SourceTypeBee,
+		SentAt:     2000,
+	}))
+
+	// No filter — returns all.
+	result, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{}))
+	require.NoError(t, err)
+	m := decodeResult(t, result)
+	assert.Equal(t, float64(2), m["total"])
+
+	// Filter by source_type=worker.
+	result2, err := s.CallTool(ctx, "list_outbound_messages", mustMarshal(t, map[string]any{
+		"source_type": store.SourceTypeWorker,
+	}))
+	require.NoError(t, err)
+	m2 := decodeResult(t, result2)
+	assert.Equal(t, float64(1), m2["total"])
+}
+
+func TestCallTool_CreateWorker_WithEngine(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	result, err := s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{
+		"name":   "EngineBot",
+		"engine": "claude",
+	}))
+	require.NoError(t, err)
+	w, ok := result.(model.Worker)
+	require.True(t, ok, "expected model.Worker, got %T", result)
+	assert.Equal(t, "claude", w.Engine)
+}
+
+func TestCallTool_UpdateWorker_Engine(t *testing.T) {
+	cases := []struct {
+		name         string
+		createEngine string
+		engine       string
+		wantEngine   string
+	}{
+		{"WithEngine", "", "claude", "claude"},
+		{"ClearEngine", "claude", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := setupServerWithMessaging(t)
+			createArgs := map[string]any{"name": "Bot"}
+			if tc.createEngine != "" {
+				createArgs["engine"] = tc.createEngine
+			}
+			w := mustCreateWorker(t, s, createArgs)
+
+			result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+				"worker_id": w.ID,
+				"engine":    tc.engine,
+			}))
+			require.NoError(t, err)
+			updated, ok := result.(model.Worker)
+			require.True(t, ok, "expected model.Worker, got %T", result)
+			assert.Equal(t, tc.wantEngine, updated.Engine)
+		})
+	}
+}
+
+func TestCallTool_UpdateWorker_InvalidEngine(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})
+
+	_, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id": w.ID,
+		"engine":    "not-a-real-engine",
+	}))
+	assert.Error(t, err)
+}
+
+func TestCheckWorkerScope_WorkerToken_WriteToolDenied(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	ctx := workerCtx(w.ID, []string{"read:workers", "read:tasks", "read:messages"})
+	for _, tool := range []string{utils.UpdateWorker, utils.CreateWorker, utils.DeleteWorker, utils.CreateTask, utils.CancelTask, utils.ClearSession, utils.SaveConstraint, utils.GetSystemOverview} {
+		_, err := s.CallTool(ctx, tool, mustMarshal(t, map[string]any{"worker_id": w.ID, "name": "Hacked"}))
+		require.Error(t, err, tool)
+		assert.Contains(t, err.Error(), "not available to workers", tool)
+	}
+	got, err := s.CallTool(context.Background(), utils.GetWorker, mustMarshal(t, map[string]any{"worker_id": w.ID}))
+	require.NoError(t, err)
+	assert.Equal(t, "MaoMao", got.(model.Worker).Name)
+}
+
+func TestCallTool_CreateWorker_WithEngineArgs(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W", "engine_args": map[string]string{"claude": "--model x"}})
+	assert.JSONEq(t, `{"claude":"--model x"}`, w.EngineArgs)
+}

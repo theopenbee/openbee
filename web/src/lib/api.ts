@@ -1,4 +1,4 @@
-import type { Worker, WorkerExecution, PaginatedResponse, ChatMessage, LocalMessagesResponse, Task, Department, DepartmentTree, StatsOverview, EnvConfig, TokenTrend, AppConfig, AppVersion, Engine, SessionDetail, CurrentUser, Role, UserWithRoles, PermissionGroup, SetupStatus, TokenResponse, UserStatus } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -6,8 +6,8 @@ import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from
 const API_BASE = config.apiUrl
 
 // ApiError carries the HTTP status alongside the message so callers can tell a
-// 403 (no permission) apart from other failures. Without it the status is lost
-// and every failure reads as a generic error.
+// specific failure (e.g. a 404 or 409) apart from others. Without it the status
+// is lost and every failure reads as a generic error.
 //
 // code (when present) is a stable, machine-readable identifier for the backend
 // error that getErrorMessage maps to a localized string via the `errors` i18n
@@ -19,15 +19,11 @@ export class ApiError extends Error {
     message: string,
     public code?: string,
     public params?: Record<string, unknown>,
+    public details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = "ApiError"
   }
-}
-
-// isForbidden reports whether an unknown caught value is a 403 from the API.
-export function isForbidden(err: unknown): boolean {
-  return err instanceof ApiError && err.status === 403
 }
 
 function redirectToLogin() {
@@ -71,7 +67,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new ApiError(res.status, err.error || res.statusText, err.code, err.params)
+    throw new ApiError(res.status, err.error || res.statusText, err.code, err.params, err)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -81,13 +77,9 @@ export const api = {
   config: {
     get: () => fetchAPI<AppConfig>("/config"),
   },
-  version: {
-    get: () => fetchAPI<AppVersion>("/version"),
-  },
   workers: {
-    list: async (departmentId?: string) => {
-      const qs = departmentId ? `?department_id=${departmentId}` : ""
-      const workers = await fetchAPI<Worker[] | null>(`/workers${qs}`)
+    list: async () => {
+      const workers = await fetchAPI<Worker[] | null>("/workers")
       return Array.isArray(workers) ? workers : []
     },
     get: (id: string) => fetchAPI<Worker>(`/workers/${id}`),
@@ -104,52 +96,36 @@ export const api = {
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
-    setDepartments: (id: string, departmentIds: string[]) =>
-      fetchAPI(`/workers/${id}/departments`, {
-        method: "PUT",
-        body: JSON.stringify({ department_ids: departmentIds }),
-      }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
   },
-  executions: {
-    logs: async (id: string, since: number = 0): Promise<{ content: string; size: number; truncated: boolean }> => {
-      const qs = since > 0 ? `?since=${since}` : ""
-      const res = await fetchWithAuth(`${API_BASE}/sessions/${id}/logs${qs}`, {
-        headers: { "Accept-Language": i18n.language || "en" },
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }))
-        throw new Error(err.error || res.statusText)
-      }
-      return res.json()
+  chat: {
+    conversations: async () => {
+      const list = await fetchAPI<ConversationSummary[] | null>("/local/conversations")
+      return Array.isArray(list) ? list : []
     },
-  },
-  sessions: {
-    list: async (page: number = 1, pageSize: number = 20, workerID?: string) => {
-      const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-      if (workerID) qs.set("worker_id", workerID)
-      return fetchAPI<PaginatedResponse<WorkerExecution>>(`/sessions?${qs}`)
-    },
-    get: async (sessionId: string) => {
-      const detail = await fetchAPI<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`)
-      return {
-        executions: Array.isArray(detail?.executions) ? detail.executions : [],
-        token_stats: detail?.token_stats ?? null,
-      }
-    },
-  },
-  localChat: {
-    sendMessage: (id: string, content: string, mediaPaths?: string[]) =>
-      fetchAPI<{ id: string; ts: number }>("/local/messages", {
-        method: "POST",
-        body: JSON.stringify({ id, content, media_paths: mediaPaths }),
-      }),
-    getMessages: async (before?: number, limit = 50): Promise<LocalMessagesResponse> => {
+    messages: async (id: ConversationId, before?: number, limit = 50): Promise<ConversationMessagesResponse> => {
       const qs = new URLSearchParams({ limit: String(limit) })
       if (before) qs.set("before", String(before))
-      const res = await fetchAPI<LocalMessagesResponse>(`/local/messages?${qs}`)
+      const res = await fetchAPI<ConversationMessagesResponse>(`/local/conversations/${encodeURIComponent(id)}/messages?${qs}`)
       return { messages: Array.isArray(res?.messages) ? res.messages : [], has_more: res?.has_more ?? false }
     },
+    send: (id: ConversationId, messageId: string, content: string, mediaPaths?: string[]) =>
+      fetchAPI<{ id: string; ts: number }>(`/local/conversations/${encodeURIComponent(id)}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ id: messageId, content, media_paths: mediaPaths }),
+      }),
+    markRead: (id: ConversationId, ts?: number) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/read`, {
+        method: "POST",
+        body: JSON.stringify({ ts }),
+      }),
+    clear: (id: ConversationId, force?: boolean) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/clear`, {
+        method: "POST",
+        ...(force ? { body: JSON.stringify({ force: true }) } : {}),
+      }),
+    stop: (id: ConversationId) =>
+      fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/stop`, { method: "POST" }),
     uploadMedia: async (file: File) => {
       const form = new FormData()
       form.append("file", file)
@@ -160,40 +136,6 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
-  },
-  departments: {
-    list: async () => {
-      const tree = await fetchAPI<DepartmentTree[] | null>("/departments")
-      return Array.isArray(tree) ? tree : []
-    },
-    create: (data: { name: string; parent_id?: string | null; sort_order?: number }) =>
-      fetchAPI<Department>("/departments", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; parent_id?: string | null; sort_order?: number }) =>
-      fetchAPI<Department>(`/departments/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    delete: (id: string) =>
-      fetchAPI(`/departments/${id}`, { method: "DELETE" }),
-  },
-  tasks: {
-    list: (params: { workerID?: string; page?: number; pageSize?: number } = {}) => {
-      const { workerID, page = 1, pageSize = 20 } = params
-      const qs = new URLSearchParams({
-        type: "scheduled,countdown",
-        status: "pending,running",
-        page: String(page),
-        page_size: String(pageSize),
-      })
-      if (workerID) qs.set("worker_id", workerID)
-      return fetchAPI<PaginatedResponse<Task>>(`/tasks?${qs}`)
-    },
-    cancel: (id: string) =>
-      fetchAPI(`/tasks/${id}`, { method: "DELETE" }),
-    cancelAll: (workerID: string) =>
-      fetchAPI(`/workers/${workerID}/tasks/cancel-all`, { method: "POST" }),
-  },
-  stats: {
-    overview: () => fetchAPI<StatsOverview>("/stats/overview"),
-    tokenTrend: (days: 7 | 15 | 30) =>
-      fetchAPI<TokenTrend>(`/stats/token-trend?days=${days}`),
   },
   envs: {
     list: (scope: string, scopeId?: string) => {
@@ -225,54 +167,36 @@ export const api = {
       fetchAPI<TokenResponse>("/setup", { method: "POST", body: JSON.stringify(data) }),
   },
   me: {
-    get: () => fetchAPI<CurrentUser>("/me"),
     changePassword: (oldPassword: string, newPassword: string) =>
       fetchAPI("/me/password", {
         method: "POST",
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
       }),
   },
-  users: {
+  plugins: {
     list: async () => {
-      const users = await fetchAPI<UserWithRoles[] | null>("/users")
-      return Array.isArray(users) ? users : []
+      const res = await fetchAPI<{ plugins: PluginStatus[] | null }>("/plugins")
+      return Array.isArray(res?.plugins) ? res.plugins : []
     },
-    create: (data: { username: string; password: string; display_name?: string; role_ids?: string[] }) =>
-      fetchAPI<UserWithRoles>("/users", { method: "POST", body: JSON.stringify(data) }),
-    updateProfile: (id: string, data: { username: string; display_name?: string }) =>
-      fetchAPI<void>(`/users/${id}/profile`, { method: "PUT", body: JSON.stringify(data) }),
-    setRoles: (id: string, roleIds: string[]) =>
-      fetchAPI<UserWithRoles>(`/users/${id}/roles`, {
-        method: "PUT",
-        body: JSON.stringify({ role_ids: roleIds }),
-      }),
-    setStatus: (id: string, status: UserStatus) =>
-      fetchAPI<UserWithRoles>(`/users/${id}/status`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      }),
-    setPassword: (id: string, newPassword: string) =>
-      fetchAPI(`/users/${id}/password`, {
-        method: "POST",
-        body: JSON.stringify({ password: newPassword }),
-      }),
-    delete: (id: string) => fetchAPI(`/users/${id}`, { method: "DELETE" }),
-  },
-  roles: {
-    list: async () => {
-      const roles = await fetchAPI<Role[] | null>("/roles")
-      return Array.isArray(roles) ? roles : []
+    get: (id: string) => fetchAPI<PluginDetail>(`/plugins/${encodeURIComponent(id)}`),
+    catalog: (refresh = false) => fetchAPI<PluginCatalog>(`/plugins/catalog${refresh ? "?refresh=1" : ""}`),
+    install: (spec: string) =>
+      fetchAPI<PluginOperation>("/plugins/install", { method: "POST", body: JSON.stringify({ spec }) }),
+    operations: async () => {
+      const res = await fetchAPI<{ operations: PluginOperation[] | null }>("/plugins/operations")
+      return Array.isArray(res?.operations) ? res.operations : []
     },
-    create: (data: { name: string; description?: string; permissions?: string[] }) =>
-      fetchAPI<Role>("/roles", { method: "POST", body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; description?: string; permissions?: string[] }) =>
-      fetchAPI<Role>(`/roles/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    delete: (id: string) => fetchAPI(`/roles/${id}`, { method: "DELETE" }),
-  },
-  permissions: {
-    list: async () => {
-      const groups = await fetchAPI<PermissionGroup[] | null>("/permissions")
-      return Array.isArray(groups) ? groups : []
-    },
+    updateSettings: (id: string, data: PluginSettingsUpdate) =>
+      fetchAPI(`/plugins/${encodeURIComponent(id)}/settings`, { method: "PUT", body: JSON.stringify(data) }),
+    enable: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/enable`, { method: "POST" }),
+    disable: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/disable`, { method: "POST" }),
+    restart: (id: string) => fetchAPI(`/plugins/${encodeURIComponent(id)}/restart`, { method: "POST" }),
+    uninstall: (id: string) => fetchAPI<PluginOperation>(`/plugins/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    startSetup: (id: string) =>
+      fetchAPI<{ id: string }>(`/plugins/${encodeURIComponent(id)}/setup`, { method: "POST" }),
+    setupInput: (sid: string, text: string) =>
+      fetchAPI(`/plugins/setup/${encodeURIComponent(sid)}/input`, { method: "POST", body: JSON.stringify({ text }) }),
+    cancelSetup: (sid: string) => fetchAPI(`/plugins/setup/${encodeURIComponent(sid)}`, { method: "DELETE" }),
+    setupEventsUrl: (sid: string) => `${API_BASE}/plugins/setup/${encodeURIComponent(sid)}/events`,
   },
 }

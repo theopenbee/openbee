@@ -66,6 +66,23 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
+const TOKEN_REFRESH_MARGIN_MS = 60_000
+
+export function tokenExpiresSoon(token: string | null, now: number): boolean {
+  const payload = token?.split(".")[1]
+  if (!payload) return true
+  try {
+    const { exp } = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")))
+    return typeof exp !== "number" || exp * 1000 - TOKEN_REFRESH_MARGIN_MS <= now
+  } catch {
+    return true
+  }
+}
+
+export async function ensureFreshToken(): Promise<void> {
+  if (tokenExpiresSoon(getAccessToken(), Date.now())) await refreshAccessToken()
+}
+
 export function tokenParam(): string {
   const token = getAccessToken()
   return token ? `?token=${encodeURIComponent(token)}` : ""

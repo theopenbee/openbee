@@ -1,38 +1,38 @@
 import { useTranslation } from "react-i18next"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { EngineIcon } from "@/components/agent-icons/engine-icon"
-import type { Engine } from "@/lib/types"
+import { Input } from "@/components/arc/input/input"
+import type { EngineChoice } from "@/lib/types"
 
 interface EngineArgsSectionProps {
-  engines: readonly Engine[]
+  engines: readonly EngineChoice[]
   value: Record<string, string>
   onChange: (args: Record<string, string>) => void
-  showLabel?: boolean
+  idPrefix?: string
+  disabled?: boolean
 }
 
-export function EngineArgsSection({ engines, value, onChange, showLabel = true }: EngineArgsSectionProps) {
+export function EngineArgsSection({ engines, value, onChange, idPrefix = "engine-args", disabled }: EngineArgsSectionProps) {
   const { t } = useTranslation()
+  const single = engines.length === 1
+
+  if (engines.length === 0) {
+    return <p className="text-sm text-secondary">{t("workers.form.noEngine")}</p>
+  }
 
   return (
-    <div className="space-y-2">
-      {showLabel && <Label>{t("workers.form.engineArgs")}</Label>}
+    <div className="grid gap-4">
       {engines.map((engine) => (
-        <div key={engine} className="flex items-center gap-3">
-          <span className="flex w-16 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
-            <EngineIcon engine={engine} className="size-4 text-foreground/70" />
-            <span className="capitalize">{engine}</span>
-          </span>
-          <Input
-            id={`engine-args-${engine}`}
-            value={value[engine] ?? ""}
-            onChange={(e) =>
-              onChange({ ...value, [engine]: e.target.value })
-            }
-            placeholder={t("workers.form.engineArgsPlaceholder")}
-            className="flex-1 font-mono text-xs"
-          />
-        </div>
+        <Input
+          key={engine.id}
+          id={`${idPrefix}-${engine.id}`}
+          label={single ? t("workers.form.engineArgs") : engine.name}
+          description={single ? t("workers.form.engineArgsHelper", { engine: engine.name }) : undefined}
+          value={value[engine.id] ?? ""}
+          onChange={(e) => onChange({ ...value, [engine.id]: e.target.value })}
+          placeholder={t("workers.form.engineArgsPlaceholder")}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={disabled}
+        />
       ))}
     </div>
   )

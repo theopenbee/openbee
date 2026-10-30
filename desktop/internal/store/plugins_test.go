@@ -1,0 +1,673 @@
+package store_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
+	"github.com/theopenbee/openbee/desktop/internal/kit"
+	"github.com/theopenbee/openbee/desktop/internal/model"
+	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/store/storetest"
+	"github.com/theopenbee/openbee/desktop/locales"
+)
+
+const (
+	pluginsPath    = "/api/plugins"
+	opsPath        = "/api/plugins/operations"
+	catalogPath    = "/api/plugins/catalog"
+	installPath    = "/api/plugins/install"
+	linearPackage  = "@openbee/plugin-linear"
+	telegramPkg    = "@openbee/plugin-telegram"
+	missingPackage = "@acme/plugin-missing"
+	wakeGrace      = 20 * time.Millisecond
+)
+
+func pluginCatalog(st *fakeapi.State) {
+	st.Catalog = api.PluginCatalog{
+		SchemaVersion: 1,
+		Tags:          []api.CatalogTag{{ID: "chat", Name: api.LocalizedText{"en": "Chat"}}},
+		Plugins: []api.CatalogPlugin{
+			{ID: "linear", Package: linearPackage, Version: "0.4.0", Name: api.LocalizedText{"en": "Linear", "zh": "Linear 项目"}, Installable: true},
+			{ID: "telegram", Package: telegramPkg, Version: "1.3.0", Name: api.LocalizedText{"en": "Telegram"}, Tags: []string{"chat"},
+				Installed: true, InstalledVersion: "1.2.0", UpdateAvailable: true, Installable: true},
+		},
+	}
+	st.Plugins = []api.PluginDetail{{PluginStatus: api.PluginStatus{ID: "telegram", Package: telegramPkg, Source: "npm", Version: "1.2.0",
+		Name: api.LocalizedText{"en": "Telegram"}, Enabled: true, State: "running"}}}
+}
+
+func withPluginOps(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Operations = []api.PluginOperation{{ID: "op-seed", Kind: "install", Spec: linearPackage + "@0.4.0", Status: "running", CreatedAt: time.Now()}}
+}
+
+func withStartingPlugin(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Plugins[0].State = "starting"
+}
+
+func withRetryingPlugin(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Plugins[0].State = "retrying"
+	st.Plugins[0].Error = "telegram: 409 Conflict"
+}
+
+func activePlugins(t *testing.T, seed func(st *fakeapi.State)) (*store.PluginsState, *fakeapi.Server, *storetest.Fixture, *store.Store) {
+	t.Helper()
+	st, fake, fix := loaded(t, seed)
+	p := st.Plugins()
+	if st.Plugins() != p {
+		t.Fatal("Plugins returned a new state on the second call")
+	}
+	p.SetActive(true)
+	p.List.Ensure()
+	p.Catalog.Ensure()
+	p.Ops.Ensure()
+	fix.Settle(t)
+	return p, fake, fix, st
+}
+
+func armed(t *testing.T, fix *storetest.Fixture, timers int) {
+	t.Helper()
+	fix.Await(t, func() bool { return fix.Clock.Sleepers() == timers })
+}
+
+func tick(t *testing.T, fix *storetest.Fixture, fake *fakeapi.Server, timers int, d time.Duration, path string) {
+	t.Helper()
+	armed(t, fix, timers)
+	n := countCalls(fake, http.MethodGet, path)
+	fix.Clock.Advance(d)
+	fix.Await(t, func() bool { return countCalls(fake, http.MethodGet, path) > n })
+}
+
+func unchanged(t *testing.T, fix *storetest.Fixture, fake *fakeapi.Server, d time.Duration, paths ...string) {
+	t.Helper()
+	fix.Settle(t)
+	before := make([]int, len(paths))
+	for i, path := range paths {
+		before[i] = countCalls(fake, http.MethodGet, path)
+	}
+	fix.Clock.Advance(d)
+	time.Sleep(wakeGrace)
+	fix.Settle(t)
+	for i, path := range paths {
+		if n := countCalls(fake, http.MethodGet, path); n != before[i] {
+			t.Fatalf("GET %s ran %d more times, want none", path, n-before[i])
+		}
+	}
+}
+
+func quiet(t *testing.T, fix *storetest.Fixture, fake *fakeapi.Server, d time.Duration, paths ...string) {
+	t.Helper()
+	unchanged(t, fix, fake, d, paths...)
+	if n := fix.Clock.Sleepers(); n != 0 {
+		t.Fatalf("%d timers still sleeping after polling should have stopped", n)
+	}
+}
+
+func install(t *testing.T, fix *storetest.Fixture, p *store.PluginsState, spec string) api.PluginOperation {
+	t.Helper()
+	var op api.PluginOperation
+	var err error
+	calls := 0
+	p.Install(spec, func(o api.PluginOperation, e error) {
+		op, err = o, e
+		calls++
+	})
+	if !p.Requested(model.SpecPackage(spec)) {
+		t.Fatalf("install of %s not marked as requested while the POST runs", spec)
+	}
+	fix.Settle(t)
+	if calls != 1 || err != nil {
+		t.Fatalf("Install(%s): calls=%d err=%v", spec, calls, err)
+	}
+	if p.Requested(model.SpecPackage(spec)) {
+		t.Fatalf("install of %s still marked as requested after the POST", spec)
+	}
+	return op
+}
+
+func lastToast(t *testing.T, st *store.Store) kit.Toast {
+	t.Helper()
+	if len(st.Toasts) == 0 {
+		t.Fatal("no toast queued")
+	}
+	return st.Toasts[len(st.Toasts)-1]
+}
+
+func awaitToasts(t *testing.T, fix *storetest.Fixture, st *store.Store, n int) {
+	t.Helper()
+	fix.Await(t, func() bool { return len(st.Toasts) >= n })
+	if len(st.Toasts) != n {
+		t.Fatalf("toasts = %+v, want %d", st.Toasts, n)
+	}
+}
+
+func TestOpsPollingStopsWhenDone(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withPluginOps)
+	if n := countCalls(fake, http.MethodGet, opsPath); n != 1 {
+		t.Fatalf("operations reads = %d after Ensure, want 1", n)
+	}
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	fake.FinishOperation("op-seed", true, "")
+	lists, catalogs := countCalls(fake, http.MethodGet, pluginsPath), countCalls(fake, http.MethodGet, catalogPath)
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	fix.Settle(t)
+	if p.Ops.Data[0].Status != "succeeded" {
+		t.Fatalf("op status = %q, want succeeded", p.Ops.Data[0].Status)
+	}
+	if countCalls(fake, http.MethodGet, pluginsPath) != lists+1 || countCalls(fake, http.MethodGet, catalogPath) != catalogs+1 {
+		t.Fatal("finishing an op did not refetch the plugin list and the catalog once")
+	}
+	quiet(t, fix, fake, 5*time.Second, opsPath, pluginsPath)
+}
+
+func TestPollingOnlyWhileActive(t *testing.T) {
+	st, fake, fix := loaded(t, withPluginOps)
+	p := st.Plugins()
+	p.Ops.Ensure()
+	fix.Settle(t)
+	quiet(t, fix, fake, 3*time.Second, opsPath)
+
+	p.SetActive(true)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, opsPath); n != 2 {
+		t.Fatalf("operations reads = %d after activation, want a fresh read", n)
+	}
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	fix.Settle(t)
+
+	p.SetActive(false)
+	quiet(t, fix, fake, 3*time.Second, opsPath)
+}
+
+func TestInstallCompletionToast(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	en := locales.In("en")
+
+	op := install(t, fix, p, linearPackage+"@0.4.0")
+	var body map[string]string
+	lastBody(t, fake, http.MethodPost, installPath, &body)
+	if body["spec"] != linearPackage+"@0.4.0" {
+		t.Fatalf("install spec = %q", body["spec"])
+	}
+	if len(p.Ops.Data) == 0 || p.Ops.Data[0].ID != op.ID {
+		t.Fatalf("ops = %+v, want the new operation first", p.Ops.Data)
+	}
+	if len(st.Toasts) != 0 {
+		t.Fatalf("toasts before the op finished: %+v", st.Toasts)
+	}
+	fake.FinishOperation(op.ID, true, "")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 1)
+	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsInstallDone("Linear") {
+		t.Fatalf("toast = %+v, want install done for Linear", got)
+	}
+
+	op = install(t, fix, p, telegramPkg+"@1.3.0")
+	fake.FinishOperation(op.ID, true, "")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 2)
+	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsUpdateDone("Telegram", "1.3.0") {
+		t.Fatalf("toast = %+v, want update done for Telegram 1.3.0", got)
+	}
+
+	op = install(t, fix, p, missingPackage+"@1.0.0")
+	fake.FinishOperation(op.ID, false, "npm ERR! 404")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 3)
+	if got := lastToast(t, st); got.Tone != kit.ToneDanger || got.Title != en.PluginsInstallFailed(missingPackage, "npm ERR! 404") {
+		t.Fatalf("toast = %+v, want install failed named by the package", got)
+	}
+	quiet(t, fix, fake, 3*time.Second, opsPath)
+}
+
+func TestUninstallCompletionToast(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	en := locales.In("en")
+	var op api.PluginOperation
+	p.Uninstall("telegram", func(o api.PluginOperation, err error) {
+		if err != nil {
+			t.Errorf("Uninstall: %v", err)
+		}
+		op = o
+	})
+	if !p.Pending["telegram"] {
+		t.Fatal("uninstall request not marked pending")
+	}
+	fix.Settle(t)
+	if p.Pending["telegram"] || !p.Uninstalling("telegram") {
+		t.Fatalf("pending=%v uninstalling=%v after the DELETE, want the op tracked", p.Pending, p.Uninstalling("telegram"))
+	}
+	fake.FinishOperation(op.ID, true, "")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 1)
+	if got := lastToast(t, st); got.Title != en.PluginsUninstallDone("Telegram") {
+		t.Fatalf("toast = %+v, want uninstall done", got)
+	}
+	fix.Await(t, func() bool { return p.List.Loaded && len(p.List.Data) == 0 })
+	if p.Uninstalling("telegram") {
+		t.Fatal("still uninstalling after the op finished")
+	}
+}
+
+func TestPluginsPollWhileStarting(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withStartingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	if p.Detail("telegram") != d {
+		t.Fatal("Detail returned a new resource for the same id")
+	}
+	p.Watch("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	armed(t, fix, 1)
+	unchanged(t, fix, fake, time.Second, pluginsPath, detailPath)
+	fix.Clock.Advance(time.Second)
+	fix.Await(t, func() bool {
+		return countCalls(fake, http.MethodGet, pluginsPath) == 2 && countCalls(fake, http.MethodGet, detailPath) == 2
+	})
+	fake.Update(func(s *fakeapi.State) { s.Plugins[0].State = "running" })
+	armed(t, fix, 1)
+	fix.Clock.Advance(2 * time.Second)
+	fix.Await(t, func() bool {
+		return countCalls(fake, http.MethodGet, pluginsPath) == 3 && countCalls(fake, http.MethodGet, detailPath) == 3
+	})
+	if p.List.Data[0].State != "running" || d.Data.State != "running" {
+		t.Fatalf("states list=%q detail=%q, want running", p.List.Data[0].State, d.Data.State)
+	}
+	quiet(t, fix, fake, 6*time.Second, pluginsPath, detailPath)
+}
+
+func TestToggleIsOptimisticAndToasts(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	en := locales.In("en")
+	err := call(t, fix, func(done func(error)) {
+		p.Toggle("telegram", false, done)
+		if !p.Pending["telegram"] || !p.Acting() || p.Enabled(p.List.Data[0]) {
+			t.Errorf("toggle off: pending=%v acting=%v shown=%v, want pending and shown off", p.Pending, p.Acting(), p.Enabled(p.List.Data[0]))
+		}
+	})
+	if err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	fix.Settle(t)
+	if countCalls(fake, http.MethodPost, pluginsPath+"/telegram/disable") != 1 {
+		t.Fatal("disable not posted")
+	}
+	if got := lastToast(t, st); got.Tone != kit.ToneSuccess || got.Title != en.PluginsToastDisabled("Telegram") {
+		t.Fatalf("toast = %+v", got)
+	}
+	if p.Pending["telegram"] || p.Acting() || p.List.Data[0].State != "disabled" || p.Enabled(p.List.Data[0]) {
+		t.Fatalf("pending=%v acting=%v state=%q shown=%v after the refetch", p.Pending, p.Acting(), p.List.Data[0].State, p.Enabled(p.List.Data[0]))
+	}
+
+	fake.FailNext(http.MethodPost, pluginsPath+"/telegram/restart", http.StatusBadRequest, map[string]string{"error": "plugin is disabled"})
+	if err := call(t, fix, func(done func(error)) { p.Restart("telegram", done) }); err == nil {
+		t.Fatal("Restart error not reported")
+	}
+	if got := lastToast(t, st); got.Tone != kit.ToneDanger || got.Title != "plugin is disabled" {
+		t.Fatalf("toast = %+v, want the error message", got)
+	}
+}
+
+func TestRefreshCatalogReplacesData(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	fake.Update(func(s *fakeapi.State) { s.Catalog.Plugins = s.Catalog.Plugins[:1] })
+	if err := call(t, fix, func(done func(error)) { p.RefreshCatalog(done) }); err != nil {
+		t.Fatalf("RefreshCatalog: %v", err)
+	}
+	calls := fake.Calls(http.MethodGet, catalogPath)
+	if last := calls[len(calls)-1]; last.Query != "refresh=1" {
+		t.Fatalf("refresh query = %q", last.Query)
+	}
+	if len(p.Catalog.Data.Plugins) != 1 {
+		t.Fatalf("catalog has %d plugins after refresh, want 1", len(p.Catalog.Data.Plugins))
+	}
+	fake.FailNext(http.MethodGet, catalogPath, http.StatusBadGateway, map[string]string{"error": "registry down"})
+	if err := call(t, fix, func(done func(error)) { p.RefreshCatalog(done) }); err == nil {
+		t.Fatal("refresh error not reported")
+	}
+	if len(p.Catalog.Data.Plugins) != 1 || p.Catalog.Err != nil {
+		t.Fatalf("a failed refresh changed the cached catalog: %+v err=%v", p.Catalog.Data, p.Catalog.Err)
+	}
+}
+
+func TestSaveSettingsRefetches(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	d := p.Detail("telegram")
+	d.Ensure()
+	p.Watch("telegram")
+	fix.Settle(t)
+	lists, details := countCalls(fake, http.MethodGet, pluginsPath), countCalls(fake, http.MethodGet, pluginsPath+"/telegram")
+	name := "openbee_bot"
+	if err := call(t, fix, func(done func(error)) {
+		p.SaveSettings("telegram", api.PluginSettingsUpdate{BotName: &name}, done)
+	}); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+	fix.Settle(t)
+	var body map[string]json.RawMessage
+	lastBody(t, fake, http.MethodPut, pluginsPath+"/telegram/settings", &body)
+	if string(body["bot_name"]) != `"openbee_bot"` {
+		t.Fatalf("settings body = %s", body)
+	}
+	if countCalls(fake, http.MethodGet, pluginsPath) != lists+1 || countCalls(fake, http.MethodGet, pluginsPath+"/telegram") != details+1 {
+		t.Fatal("saving settings did not refetch the list and the detail")
+	}
+}
+
+func TestPluginsResetOnSignOut(t *testing.T) {
+	p, _, fix, st := activePlugins(t, withPluginOps)
+	if !p.Ops.Loaded || len(p.Ops.Data) != 1 {
+		t.Fatalf("ops not loaded: %+v", p.Ops.Data)
+	}
+	st.Logout()
+	fix.Settle(t)
+	if p.Ops.Loaded || p.List.Loaded || p.Catalog.Loaded || len(p.Pending) != 0 {
+		t.Fatal("plugin state survived sign-out")
+	}
+	fix.Await(t, func() bool { return fix.Clock.Sleepers() == 0 })
+}
+
+func TestPluginDetailPollsOnlyWhileWatched(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withStartingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 1 {
+		t.Fatalf("unwatched starting detail read %d times, want only its first load", n)
+	}
+
+	p.Watch("telegram")
+	tick(t, fix, fake, 1, 2*time.Second, detailPath)
+	fix.Settle(t)
+
+	fake.FailNext(http.MethodGet, detailPath, http.StatusBadGateway, map[string]string{"error": "plugin host down"})
+	tick(t, fix, fake, 1, 2*time.Second, detailPath)
+	fix.Settle(t)
+	if d.Err == nil {
+		t.Fatal("the failed detail poll did not record an error")
+	}
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 3 {
+		t.Fatalf("detail reads = %d, want polling to stop after its last load failed", n)
+	}
+
+	p.Watch("")
+	d.Invalidate()
+	fix.Settle(t)
+	tick(t, fix, fake, 1, 2*time.Second, pluginsPath)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, detailPath); n != 4 {
+		t.Fatalf("detail reads = %d after unwatching, want no poll", n)
+	}
+}
+
+func TestUninstalledDetailStopsPolling(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withRetryingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	p.Watch("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	var op api.PluginOperation
+	p.Uninstall("telegram", func(o api.PluginOperation, err error) {
+		if err != nil {
+			t.Errorf("Uninstall: %v", err)
+		}
+		op = o
+	})
+	fix.Settle(t)
+	fake.FinishOperation(op.ID, true, "")
+	tick(t, fix, fake, 2, time.Second, opsPath)
+	fix.Await(t, func() bool { return d.Err != nil && p.List.Loaded && len(p.List.Data) == 0 })
+	if !d.Loaded || d.Data.State != "retrying" {
+		t.Fatalf("detail loaded=%v state=%q, want the stale retrying data kept beside the 404", d.Loaded, d.Data.State)
+	}
+	quiet(t, fix, fake, 6*time.Second, detailPath, pluginsPath)
+}
+
+func TestDetailLeftOutOfListIsNotPolled(t *testing.T) {
+	p, fake, fix, _ := activePlugins(t, withRetryingPlugin)
+	detailPath := pluginsPath + "/telegram"
+	d := p.Detail("telegram")
+	p.Watch("telegram")
+	d.Ensure()
+	fix.Settle(t)
+	fake.Update(func(st *fakeapi.State) { st.Plugins = nil })
+	p.List.Invalidate()
+	fix.Settle(t)
+	if d.Err != nil || d.Data.State != "retrying" || len(p.List.Data) != 0 {
+		t.Fatalf("detail err=%v state=%q list=%d, want a retrying detail beside an empty list", d.Err, d.Data.State, len(p.List.Data))
+	}
+	quiet(t, fix, fake, 6*time.Second, detailPath, pluginsPath)
+}
+
+func TestToggleHoldsThroughRefetch(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+	})
+	disablePath := pluginsPath + "/telegram/disable"
+	release := fake.HoldNext(http.MethodPost, disablePath)
+	t.Cleanup(release)
+	p.Toggle("telegram", false, nil)
+	fix.Pump(t, func() bool { return countCalls(fake, http.MethodPost, disablePath) == 1 })
+	p.List.Invalidate()
+	fix.Pump(t, func() bool { return !p.List.Loading })
+	if !p.List.Data[0].Enabled {
+		t.Fatal("the refetch during the request did not land with the server's enabled state")
+	}
+	if p.Enabled(p.List.Data[0]) || !p.Acting() {
+		t.Fatalf("shown=%v acting=%v while the disable runs, want the switch kept off", p.Enabled(p.List.Data[0]), p.Acting())
+	}
+	release()
+	fix.Settle(t)
+	if p.List.Data[0].Enabled || p.Enabled(p.List.Data[0]) || p.Acting() || len(st.Toasts) != 1 {
+		t.Fatalf("enabled=%v shown=%v acting=%v toasts=%d after the request settled", p.List.Data[0].Enabled, p.Enabled(p.List.Data[0]), p.Acting(), len(st.Toasts))
+	}
+
+	enablePath := pluginsPath + "/telegram/enable"
+	fake.FailNext(http.MethodPost, enablePath, http.StatusBadRequest, map[string]string{"error": "plugin is not configured"})
+	err := call(t, fix, func(done func(error)) {
+		p.Toggle("telegram", true, done)
+		if !p.Enabled(p.List.Data[0]) {
+			t.Error("toggle on not shown while the request runs")
+		}
+	})
+	if err == nil {
+		t.Fatal("enable error not reported")
+	}
+	if p.Enabled(p.List.Data[0]) || p.Acting() {
+		t.Fatalf("shown=%v acting=%v after a failed enable, want the server state back", p.Enabled(p.List.Data[0]), p.Acting())
+	}
+}
+
+func TestReopenForgetsFinishedOperations(t *testing.T) {
+	p, fake, fix, st := activePlugins(t, func(s *fakeapi.State) {
+		team(s)
+		pluginCatalog(s)
+		s.Operations = []api.PluginOperation{
+			{ID: "op-linear", Kind: "install", Spec: linearPackage + "@0.4.0", Status: "running", CreatedAt: time.Now()},
+			{ID: "op-telegram", Kind: "uninstall", PluginID: "telegram", Status: "running", CreatedAt: time.Now()},
+		}
+	})
+	en := locales.In("en")
+	p.SetActive(false)
+	fake.FinishOperation("op-linear", true, "")
+	p.SetActive(true)
+	fix.Settle(t)
+	if len(st.Toasts) != 0 {
+		t.Fatalf("toasts on reopen = %+v, want none for an op that finished while closed", st.Toasts)
+	}
+	fake.FinishOperation("op-telegram", true, "")
+	tick(t, fix, fake, 1, time.Second, opsPath)
+	awaitToasts(t, fix, st, 1)
+	if got := lastToast(t, st); got.Title != en.PluginsUninstallDone("Telegram") {
+		t.Fatalf("toast = %+v, want uninstall done for the op seen after reopening", got)
+	}
+}
+
+const configPath = "/api/config"
+
+func withEngineOps(st *fakeapi.State) {
+	team(st)
+	pluginCatalog(st)
+	st.Operations = []api.PluginOperation{
+		{ID: "op-engine", Kind: "install", Spec: linearPackage + "@0.4.0", Status: "running", CreatedAt: time.Now()},
+	}
+}
+
+func engineIDs(st *store.Store) []string {
+	return model.EngineIDs(st.EnabledEngines())
+}
+
+func loadedEngines(t *testing.T, p seededPlugins) {
+	t.Helper()
+	p.st.Config.Ensure()
+	p.fix.Settle(t)
+	if got := engineIDs(p.st); !slices.Equal(got, []string{"pi", "claude"}) {
+		t.Fatalf("engines before the change = %v, want [pi claude]", got)
+	}
+}
+
+type seededPlugins struct {
+	*store.PluginsState
+	fake *fakeapi.Server
+	fix  *storetest.Fixture
+	st   *store.Store
+}
+
+func engineChange(t *testing.T, seed func(*fakeapi.State)) seededPlugins {
+	t.Helper()
+	p, fake, fix, st := activePlugins(t, seed)
+	out := seededPlugins{PluginsState: p, fake: fake, fix: fix, st: st}
+	loadedEngines(t, out)
+	return out
+}
+
+func (s seededPlugins) setEngines(ids ...string) {
+	s.fake.Update(func(st *fakeapi.State) { st.Engines = fakeapi.Engines(ids...) })
+}
+
+func (s seededPlugins) wantEngines(t *testing.T, want ...string) {
+	t.Helper()
+	s.fix.Await(t, func() bool { return slices.Equal(engineIDs(s.st), want) })
+}
+
+func TestInstallFinishRefreshesEngines(t *testing.T) {
+	s := engineChange(t, withEngineOps)
+	s.setEngines("pi", "claude", "codex")
+	if got := engineIDs(s.st); slices.Contains(got, "codex") {
+		t.Fatalf("engines = %v before the install finished, want the cached list", got)
+	}
+	s.fake.FinishOperation("op-engine", true, "")
+	tick(t, s.fix, s.fake, 1, time.Second, opsPath)
+	s.wantEngines(t, "pi", "claude", "codex")
+}
+
+func TestUninstallFinishRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	var op api.PluginOperation
+	s.Uninstall("telegram", func(o api.PluginOperation, err error) {
+		if err != nil {
+			t.Errorf("Uninstall: %v", err)
+		}
+		op = o
+	})
+	s.fix.Settle(t)
+	s.setEngines("pi")
+	s.fake.FinishOperation(op.ID, true, "")
+	tick(t, s.fix, s.fake, 1, time.Second, opsPath)
+	s.wantEngines(t, "pi")
+}
+
+func TestToggleRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	if err := call(t, s.fix, func(done func(error)) { s.Toggle("telegram", false, done) }); err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	s.wantEngines(t, "pi")
+
+	s.setEngines("pi", "claude")
+	if err := call(t, s.fix, func(done func(error)) { s.Toggle("telegram", true, done) }); err != nil {
+		t.Fatalf("Toggle: %v", err)
+	}
+	s.wantEngines(t, "pi", "claude")
+}
+
+func TestRestartRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("claude")
+	if err := call(t, s.fix, func(done func(error)) { s.Restart("telegram", done) }); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+	s.wantEngines(t, "claude")
+}
+
+func TestSaveSettingsRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	name := "openbee_bot"
+	if err := call(t, s.fix, func(done func(error)) {
+		s.SaveSettings("telegram", api.PluginSettingsUpdate{BotName: &name}, done)
+	}); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+	s.wantEngines(t, "pi")
+}
+
+func TestFailedActionStillRefreshesEngines(t *testing.T) {
+	s := engineChange(t, func(st *fakeapi.State) {
+		team(st)
+		pluginCatalog(st)
+	})
+	s.setEngines("pi")
+	s.fake.FailNext(http.MethodPost, pluginsPath+"/telegram/restart", http.StatusBadRequest, map[string]string{"error": "plugin is disabled"})
+	if err := call(t, s.fix, func(done func(error)) { s.Restart("telegram", done) }); err == nil {
+		t.Fatal("Restart error not reported")
+	}
+	s.wantEngines(t, "pi")
+}

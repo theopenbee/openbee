@@ -6,31 +6,11 @@
     "daysAgo": "{{count}}d ago"
   },
   "nav": {
-    "dashboard": "Overview",
-    "workers": "Workers",
-    "sessions": "Sessions",
-    "tasks": "Scheduled",
-    "departments": "Departments",
-    "users": "Users",
-    "roles": "Roles",
-    "directory": "Directory",
-    "digitalEmployees": "Digital Employees",
-    "settings": "Env Variables",
-    "systemSettings": "Settings",
-    "systemConfig": "System",
-    "collapseNav": "Collapse navigation",
-    "expandNav": "Expand navigation"
+    "settings": "Settings"
   },
   "common": {
-    "save": "Save",
-    "edit": "Edit",
     "cancel": "Cancel",
-    "delete": "Delete",
-    "view": "View",
     "copy": "Copy",
-    "copied": "Copied",
-    "copyFailed": "Copy failed",
-    "create": "Create",
     "noDescription": "No description",
     "loadError": "Failed to load data.",
     "retry": "Retry",
@@ -47,143 +27,71 @@
     "failed": "Failed",
     "cancelled": "Cancelled"
   },
-  "dashboard": {
-    "title": "Overview",
-    "tagline": "Build smarter AI teams.",
-    "basicInfo": "Basics",
-    "departments": "Departments",
-    "workers": "Workers",
-    "scheduledTasks": "Scheduled Tasks",
-    "quickAccess": "Quick Access",
-    "tokenUsage": "Token Usage",
-    "tokensToday": "Today",
-    "tokensYesterday": "Yesterday",
-    "dayOverDay": "Day over Day",
-    "noComparison": "No comparison data",
-    "tokens": "Tokens",
-    "tokensTrend": "Token Usage Trend",
-    "tokensTrendAriaLabel": "Token usage trend for the last {{days}} days",
-    "noTokenData": "No token data",
-    "noTokenDataDesc": "Token usage trend will appear here once sessions have completed.",
-    "days": "d",
-    "daysLabel": "Show last {{count}} days",
-    "supportedAgents": "Supported Agents",
-    "agentEnabled": "Enabled",
-    "agentDisabled": "Off",
-    "systemInfo": "System Info",
-    "version": "Version",
-    "commit": "Commit",
-    "buildDate": "Built",
-    "runtime": "Runtime",
-    "platform": "Platform"
-  },
   "workers": {
-    "title": "Workers",
-    "createWorker": "Create Worker",
-    "copyWorker": "Copy Worker",
-    "backToList": "Back to workers",
-    "summary_one": "{{count}} worker, {{active}} active",
-    "summary_other": "{{count}} workers, {{active}} active",
-    "columns": {
-      "name": "Name",
-      "engine": "Engine",
-      "activeTime": "Active Time",
-      "actions": "Actions"
-    },
+    "createWorker": "Create worker",
     "form": {
-      "copySuffix": "Copy",
-      "sectionBasic": "Basic Info",
-      "engine": "AI Engine",
+      "sectionBasic": "Basic info",
+      "engine": "AI engine",
       "engineHelper": "The AI agent engine this worker will use to execute tasks.",
       "engineDefault": "Select engine",
+      "engineSystemDefault": "System default",
+      "engineSystemDefaultNamed": "System default ({{engine}})",
+      "engineUnavailable": "{{engine}} (not installed)",
+      "noEngine": "No engine is installed. Install an engine plugin in Settings > Plugins first.",
       "name": "Name",
       "namePlaceholder": "e.g. sam",
-      "nameHelper": "Used for identification",
+      "nameHelper": "Used to identify and mention this worker.",
       "randomName": "Random name",
       "randomNameExhausted": "All names are in use",
       "description": "Description",
       "descriptionPlaceholder": "What does this worker do?",
-      "descriptionHelper": "Used for task dispatching",
-      "workDir": "Work Directory",
+      "descriptionHelper": "Used to decide which tasks this worker receives.",
+      "descriptionOptional": "Description (optional)",
+      "descriptionCreateHelper": "Bee uses this to decide which tasks to send here. Recommended.",
+      "workDir": "Work directory",
       "workDirPlaceholder": "/home/user/projects/my-project",
       "workDirHelper": "Absolute path where the worker reads and writes files. Leave blank to use the default.",
       "workDirEditHelper": "Created on next execution if missing. Files in the old directory are left untouched.",
-      "constraints": "Work Constraints",
+      "constraints": "Work constraints",
       "constraintsPlaceholder": "The work constraints for this worker...",
-      "engineArgs": "Engine Args",
+      "engineArgs": "Engine args",
       "engineArgsPlaceholder": "--effort high",
-      "sectionDepartment": "Department",
-      "departmentHelper": "Assign the worker to departments (optional)",
-      "searchDepartments": "Filter departments",
-      "noMatchingDepartments": "No matching departments",
-      "sectionEnhancement": "Enhancements",
-      "sectionOther": "Other settings",
+      "sectionAdvanced": "Advanced settings",
+      "advancedHelper": "All optional. Blank fields use the defaults.",
+      "advancedSet": "{{count}} set",
       "sectionPermissions": "Permissions",
-      "permissionsHelper": "When no permissions are selected, the Worker token is denied access to all system built-in tools"
+      "permissionsHelper": "With no permissions selected, the worker token cannot use any built-in system tool.",
+      "constraintsHelper": "Injected at the start of every session.",
+      "engineArgsHelper": "Extra command-line flags passed to {{engine}} on start.",
+      "createError": "Couldn't create the worker",
+      "saveError": "Couldn't save changes"
     },
     "deleteDialog": {
-      "title": "Delete Worker",
-      "stepOne": "Step 1",
-      "stepTwo": "Step 2",
-      "stepTwoDescription": "You are about to delete <strong>{{name}}</strong>. This action cannot be undone.",
-      "continue": "Next",
+      "title": "Delete {{name}}?",
       "deleteWorkDir": "Also delete work directory",
-      "confirmNameLabel": "Type {{name}} to go to the next step",
-      "confirmNamePlaceholder": "Enter worker name"
+      "confirmNameLabel": "Type {{name}} to confirm",
+      "confirmNamePlaceholder": "Enter worker name",
+      "description": "The worker and its settings are removed. This cannot be undone.",
+      "chatWarning": "This worker's chat history is deleted too.",
+      "deleteWorkDirHint": "Removes {{path}} and everything in it.",
+      "confirm": "Delete worker",
+      "error": "Couldn't delete the worker"
     },
-    "engines": {
-      "claude": "Claude Code",
-      "codex": "Codex",
-      "pi": "Pi"
-    }
-  },
-  "sessions": {
-    "title": "Sessions",
-    "noExecutions": "No sessions yet.",
-    "noTriggerContent": "No trigger content",
-    "viewSession": "View session {{id}}",
-    "turnCount_one": "{{count}} turn",
-    "turnCount_other": "{{count}} turns",
-    "summary_one": "{{count}} session",
-    "summary_other": "{{count}} sessions",
-    "summaryWithActive_one": "{{count}} session — {{active}} active",
-    "summaryWithActive_other": "{{count}} sessions — {{active}} active",
-    "columns": {
-      "session": "Session",
-      "worker": "Worker",
-      "turns": "Turns",
-      "latestStatus": "Latest Status",
-      "started": "Started",
-      "duration": "Duration",
-      "tokens": "Tokens"
-    },
-    "pagination": {
-      "page": "Page {{page}} of {{totalPages}}",
-      "previous": "Previous",
-      "next": "Next"
-    }
+    "deleteWorker": "Delete worker",
+    "rowActions": "Actions for {{name}}"
   },
   "workerDetail": {
-    "overview": "Overview",
-    "sessions": "Sessions",
-    "workerInfo": "Worker Info",
-    "id": "ID",
-    "workDir": "Work Dir",
-    "created": "Created",
-    "lastActive": "Last active",
-    "constraints": "Work Constraints",
-    "editConstraints": "Edit work constraints",
+    "editConstraints": "Edit constraints",
     "constraintsPanel": {
       "charCount": "{{count}} chars",
-      "shortcuts": "⌘↵ to save · Esc to cancel",
+      "shortcuts": "⌘↵ to save, Esc to cancel",
       "emptyTitle": "Set work constraints for {{name}}",
       "emptyDescription": "Work constraints are injected at the start of every session to set this worker's boundaries, style, and priorities.",
-      "emptyReadonly": "No work constraints set yet.",
       "add": "Add work constraints",
       "templatesLabel": "Start from a template",
       "templates": {
         "tone": {
-          "title": "Tone & address",
+          "title": "Tone and address",
           "desc": "How to address you, plus reply tone and language",
           "body": "[Tone & address]\n- Address me as \"boss\".\n- Reply in English, concise and professional, no filler.\n- Lead with the conclusion, expand details only when needed."
         },
@@ -197,294 +105,153 @@
           "desc": "Code style, commit conventions, and wrap-up actions",
           "body": "[Delivery standards]\n- Follow the project's existing code style and directory conventions.\n- Commit messages explain what changed and why.\n- Before reporting done: build passes and self-test passes, then report results."
         }
-      }
+      },
+      "save": "Save constraints",
+      "saveError": "Couldn't save work constraints"
     },
     "permissions": "Permissions",
-    "permissionsReadonly": "You don't have permission to edit. The granted permission scopes below are read-only."
+    "sectionNav": "Worker sections",
+    "editInfo": "Edit",
+    "editInfoTitle": "Edit worker info",
+    "saveInfo": "Save changes",
+    "loadError": "Couldn't load this worker",
+    "permissionsSaveError": "Couldn't update permissions",
+    "effectiveEnvDescription": "What the worker sees after global and worker values are merged."
   },
-  "executionDetail": {
-    "noResult": "No result yet.",
-    "logs": "Logs",
-    "result": "Result",
-    "session": "Session",
-    "triggerInput": "Trigger Input",
-    "pid": "PID",
-    "started": "Started",
-    "completed": "Completed"
-  },
-  "sessionDetail": {
-    "session": "Session",
-    "worker": "Worker",
-    "turn": "Turn {{index}}",
-    "noExecutions": "No sessions found for this session.",
-    "overview": "Session Overview",
-    "summary_one": "Review prompts, status changes, and logs across {{count}} turn.",
-    "summary_other": "Review prompts, status changes, and logs across {{count}} turns.",
-    "latestTurn": "Latest turn",
-    "bee": "Bee coordinator",
-    "turnNavigator": "Turn Navigator",
-    "turnNavigatorHint": "Newest activity stays at the top. Pick a turn to inspect its prompt, state, and logs.",
-    "latest": "Latest",
-    "inspectTurn": "Turn Detail",
-    "inspectTurnHint": "Jump between turns without losing the operational context for this session.",
-    "noTriggerInput": "No trigger input recorded.",
-    "execution": "Execution",
-    "metadata": "Metadata",
-    "logsHint": "Full log stream for the selected execution, isolated from the rest of the session.",
-    "live": "Live",
-    "tokens": "Tokens"
-  },
-  "logViewer": {
-    "all": "All",
-    "narrative": "Narrative",
-    "tools": "Tool calls",
-    "raw": "Raw stream",
-    "waiting": "Waiting for output...",
-    "noLogs": "No logs recorded.",
-    "noMatches": "Current filters hide every event.",
-    "input": "Input",
-    "output": "Output",
-    "expand": "Expand {{name}}",
-    "collapse": "Collapse {{name}}",
-    "result": "Result",
-    "followLive": "Following live",
-    "jumpToLatest": "Jump to latest",
-    "toolCall": "Tool call",
-    "assistant": "Assistant",
-    "rawOutput": "Raw output",
-    "failed": "Failed",
-    "commandExecution": "Command",
-    "running": "Running...",
-    "turnUsage": "Turn",
-    "inputTokens": "input",
-    "cachedTokens": "cached",
-    "outputTokens": "output",
-    "thinking": "Thinking"
-  },
-  "tasks": {
-    "title": "Scheduled",
-    "summary_one": "{{count}} task",
-    "summary_other": "{{count}} tasks",
-    "columns": {
-      "worker": "Worker",
-      "instruction": "Instruction",
-      "cron": "Cron expression",
-      "nextRunAt": "Next run",
-      "actions": "Actions"
-    },
-    "cancel": "Cancel",
-    "cancelTask": "Cancel task",
-    "cancelConfirmTitle": "Cancel task",
-    "cancelConfirmDescription": "Are you sure you want to cancel this task? This action cannot be undone.",
-    "cancelAll": "Cancel all tasks",
-    "cancelAllConfirmTitle": "Cancel all tasks",
-    "cancelAllConfirmDescription": "Are you sure you want to cancel all tasks for this worker? This action cannot be undone."
-  },
-  "localChat": {
+  "chat": {
     "title": "Chat",
-    "inputPlaceholder": "Type a message...",
+    "youPrefix": "You: ",
+    "handedOffTo": "Handed off to {{name}}",
+    "imagePreview": "[Image]",
+    "filePreview": "[File]",
+    "deletedWorker": "Deleted worker",
+    "yesterday": "Yesterday",
+    "newWorker": "New worker",
+    "search": "Search",
+    "noWorkersHint": "No digital workers yet. Click + at the top right to create one.",
+    "back": "Back",
+    "you": "You",
+    "system": "System",
+    "fromBee": "Bee handoff",
+    "status": {
+      "queued": "Queued · {{count}} ahead",
+      "running": "Working"
+    },
+    "newConversation": "New conversation",
+    "newConversationConfirm": "Start a new conversation? The worker forgets the earlier context. The chat history stays.",
+    "newConversationConfirmBee": "Start a new conversation? The Bee forgets the earlier context. The chat history stays.",
+    "newConversationActive": "These tasks are still running. Starting a new conversation stops them first:",
+    "newConversationFailed": "Couldn't start a new conversation",
+    "stopAndRestart": "Stop and start over",
+    "stop": "Stop",
+    "stopFailed": "Couldn't stop the work",
+    "openPanel": "Show worker info",
+    "closePanel": "Hide worker info",
+    "connectionLost": "Lost connection to the OpenBee server",
+    "connectionLostDescription": "Reconnecting automatically. New messages won't arrive until then.",
+    "reconnectNow": "Reconnect now",
+    "reconnecting": "Reconnecting…",
+    "reconnectFailed": "Still can't reach the server. Retrying automatically.",
+    "panelTitle": "Profile",
+    "panelClose": "Close panel",
+    "messagePlaceholder": "Message {{name}}",
+    "emptyWorker": "Say hello to {{name}} and hand over work directly.",
+    "sendFailed": "Message not sent. Your text is back in the box.",
+    "composerHintPlain": "Enter to send, Shift+Enter for a new line",
+    "composerHintTouchPlain": "Ctrl/⌘+Enter to send",
+    "beeLabel": "Bee",
     "send": "Send",
     "uploadFile": "Upload file",
-    "processing": "Processing...",
-    "uploadError_one": "{{count}} file failed to upload, please try again",
-    "uploadError_other": "{{count}} files failed to upload, please try again",
+    "uploadError_one": "{{count}} file failed to upload. Try again.",
+    "uploadError_other": "{{count}} files failed to upload. Try again.",
     "noMessagesTitle": "Start the first exchange",
     "noMessagesDescription": "Send a message or upload a file.",
-    "operatorLabel": "Operator",
-    "beeLabel": "Bee",
-    "composerHint": "Enter to send, Shift+Enter for a new line",
-    "composerHintTouch": "Ctrl/⌘+Enter to send",
-    "removeAttachment": "Remove attachment",
+    "composerHint": "Enter to send, Shift+Enter for a new line, @ to mention a worker",
+    "composerHintTouch": "Ctrl/⌘+Enter to send, @ to mention a worker",
     "loadMore": "Load earlier messages",
-    "loadingMore": "Loading…",
-    "loadMoreError": "Couldn't load earlier messages. Retry"
+    "loadMoreFailed": "Couldn't load earlier messages.",
+    "removeNamedAttachment": "Remove {{name}}",
+    "attachments": "Attachments",
+    "messageLabel": "Message",
+    "copyMessage": "Copy message",
+    "viewImage": "View image {{name}}",
+    "openOriginal": "Open original",
+    "closeImage": "Close image",
+    "taskType": {
+      "countdown": "Runs once",
+      "scheduled": "Recurring"
+    },
+    "panelTabs": {
+      "constraints": "Constraints",
+      "permissions": "Permissions",
+      "env": "Env"
+    }
   },
-  "breadcrumb": {
-    "detail": "Detail"
-  },
-  "theme": {
-    "light": "Light mode",
-    "dark": "Dark mode"
+  "notifications": {
+    "promptTitle": "Turn on desktop notifications",
+    "promptDescription": "Get notified when a reply arrives.",
+    "enable": "Turn on",
+    "blockedTitle": "Your browser is blocking notifications",
+    "blockedDescription": "Allow notifications for this site in your browser settings.",
+    "newMessage": "Sent a new message",
+    "unavailable": {
+      "insecure": "Needs HTTPS",
+      "unsupported": "Unsupported",
+      "denied": "Blocked by browser"
+    }
   },
   "account": {
-    "changePassword": "Change Password",
-    "changePasswordDescription": "Update the password for your account.",
-    "currentPassword": "Current Password",
-    "currentPasswordPlaceholder": "Enter your current password",
-    "newPassword": "New Password",
-    "newPasswordPlaceholder": "At least 6 characters",
-    "confirmPassword": "Confirm New Password",
-    "confirmPasswordPlaceholder": "Re-enter the new password",
+    "role": "Administrator",
+    "changePassword": "Change password",
+    "changePasswordDescription": "Changing it signs you out of every session.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
     "passwordChanged": "Password changed",
-    "passwordChangedRelogin": "Password changed. Please sign in again with your new password.",
-    "errorMismatch": "The two passwords do not match.",
-    "errorSameAsOld": "The new password must be different from the current one."
+    "passwordChangedRelogin": "Sign in again with your new password.",
+    "errorMismatch": "The passwords do not match",
+    "errorSameAsOld": "Choose a password different from the current one",
+    "newPasswordHint": "Use at least 6 characters.",
+    "currentRequired": "Enter your current password",
+    "errorTooShort": "Use at least 6 characters",
+    "errorTitle": "Could not change the password",
+    "signInAgain": "Sign in again"
   },
   "login": {
-    "title": "Sign In",
-    "eyebrow": "Control console access",
+    "title": "Sign in",
     "username": "Username",
-    "usernamePlaceholder": "operator",
     "password": "Password",
-    "passwordPlaceholder": "Enter your password",
-    "submit": "Sign In",
-    "submitting": "Signing in...",
-    "logout": "Log out",
-    "error401": "Invalid username or password",
-    "error429": "Too many attempts, please try again later",
-    "errorGeneric": "Login failed"
+    "submit": "Sign in",
+    "error401": "The username or password is incorrect.",
+    "error429": "Too many attempts. Wait a minute and try again.",
+    "errorGeneric": "Check your connection and try again.",
+    "description": "Use your OpenBee administrator account.",
+    "usernameRequired": "Enter your username",
+    "passwordRequired": "Enter your password",
+    "errorTitle": "Could not sign in"
   },
   "setup": {
-    "title": "Create Admin Account",
-    "description": "No account exists yet. Create the first administrator to get started.",
+    "title": "Create the admin account",
+    "description": "OpenBee has no account yet. The account you create here signs in to this console.",
     "username": "Username",
     "usernamePlaceholder": "admin",
     "displayName": "Display name",
     "displayNamePlaceholder": "Administrator",
     "displayNameOptional": "Optional",
     "password": "Password",
-    "passwordPlaceholder": "At least 6 characters",
     "passwordHint": "Use at least 6 characters.",
     "submit": "Create account",
-    "submitting": "Creating...",
-    "errorPasswordLength": "Password must be at least 6 characters",
-    "errorConflict": "An account already exists",
-    "errorGeneric": "Setup failed"
-  },
-  "departments": {
-    "title": "Departments",
-    "filter": "Filter",
-    "allWorkers": "All Workers",
-    "ungrouped": "Ungrouped",
-    "manageDescription": "Create, edit, and organize departments for your workers.",
-    "empty": "No departments yet. Create one to get started.",
-    "create": "Create Department",
-    "addChild": "Add Sub-department",
-    "rename": "Rename",
-    "rowActions": "Department actions",
-    "form": {
-      "name": "Department Name",
-      "namePlaceholder": "e.g. Engineering",
-      "parent": "Parent Department",
-      "noParent": "None (Top Level)"
-    },
-    "deleteConfirm": {
-      "title": "Delete Department",
-      "description": "Are you sure you want to delete department \"{{name}}\"? This action cannot be undone."
-    }
-  },
-  "users": {
-    "create": "New User",
-    "createDescription": "Create a user account and assign roles.",
-    "empty": "No users yet. Create one to get started.",
-    "rowActions": "User actions",
-    "editProfile": "Edit Profile",
-    "editProfileDescription": "Update the username and display name for \"{{name}}\".",
-    "editRoles": "Edit Roles",
-    "editRolesDescription": "Assign roles to \"{{name}}\".",
-    "resetPassword": "Reset Password",
-    "resetPasswordDescription": "Set a new password for \"{{name}}\".",
-    "enable": "Enable",
-    "disable": "Disable",
-    "noRoles": "No roles available. Create a role first.",
-    "created": "User created",
-    "profileUpdated": "Profile updated",
-    "rolesUpdated": "Roles updated",
-    "passwordReset": "Password reset",
-    "enabled": "User enabled",
-    "disabled": "User disabled",
-    "deleted": "User deleted",
-    "table": {
-      "username": "Username",
-      "displayName": "Display Name",
-      "roles": "Roles",
-      "status": "Status"
-    },
-    "status": {
-      "active": "Active",
-      "disabled": "Disabled"
-    },
-    "form": {
-      "username": "Username",
-      "usernamePlaceholder": "e.g. alice",
-      "password": "Password",
-      "passwordPlaceholder": "At least 6 characters",
-      "displayName": "Display Name",
-      "displayNamePlaceholder": "Optional",
-      "roles": "Roles"
-    },
-    "deleteConfirm": {
-      "title": "Delete User",
-      "description": "Are you sure you want to delete user \"{{name}}\"? This action cannot be undone."
-    }
-  },
-  "roles": {
-    "create": "New Role",
-    "edit": "Edit Role",
-    "formDescription": "Define a role name and grant permissions.",
-    "empty": "No roles yet. Create one to get started.",
-    "rowActions": "Role actions",
-    "system": "System",
-    "superadmin": {
-      "name": "Super Admin",
-      "description": "Full access; cannot be deleted or downgraded"
-    },
-    "allPermissions": "All permissions",
-    "noPermissions": "No permissions",
-    "noPermissionsAvailable": "No permissions available.",
-    "permissionGroups": {
-      "contacts": "Contacts",
-      "chat": "Chat",
-      "tasks": "Tasks",
-      "sessions": "Sessions",
-      "dashboard": "Dashboard",
-      "env": "Environment",
-      "system_config": "System Config",
-      "administration": "Administration"
-    },
-    "permissionItems": {
-      "contacts": { "read": "View contacts", "write": "Edit contacts" },
-      "chat": { "write": "Chat" },
-      "tasks": { "read": "View tasks", "write": "Create & manage tasks" },
-      "sessions": { "read": "View sessions", "write": "Manage sessions" },
-      "dashboard": { "read": "View dashboard" },
-      "env": { "read": "View environment variables", "write": "Edit environment variables" },
-      "system_config": { "read": "View system config", "write": "Edit system config" },
-      "users": { "manage": "Manage users" },
-      "roles": { "manage": "Manage roles" }
-    },
-    "created": "Role created",
-    "updated": "Role updated",
-    "deleted": "Role deleted",
-    "form": {
-      "name": "Role Name",
-      "namePlaceholder": "e.g. Editor",
-      "description": "Description",
-      "descriptionPlaceholder": "Optional",
-      "permissions": "Permissions"
-    },
-    "deleteConfirm": {
-      "title": "Delete Role",
-      "description": "Are you sure you want to delete role \"{{name}}\"? This action cannot be undone."
-    }
-  },
-  "emptyState": {
-    "noWorkers": "No workers in the hive yet",
-    "noWorkersDesc": "Create your first AI worker to get started",
-    "noWorkersInGroup": "No workers in this group",
-    "noWorkersInGroupDesc": "Switch groups or add workers to this group",
-    "noExecutions": "No sessions recorded",
-    "noExecutionsDesc": "Sessions will appear here when workers run tasks",
-    "noTasks": "No active tasks"
+    "errorPasswordLength": "Use at least 6 characters",
+    "errorConflict": "An admin account already exists. Sign in with it instead.",
+    "errorGeneric": "Check your connection and try again.",
+    "usernameRequired": "Enter a username",
+    "errorTitle": "Could not create the account",
+    "goToLogin": "Go to sign in"
   },
   "scopes": {
     "readWorkers": {
       "title": "Read Workers",
       "description": "Allows listing and viewing Worker information and status"
-    },
-    "readDepartments": {
-      "title": "Read Departments",
-      "description": "Allows listing and viewing department information"
     },
     "readTasks": {
       "title": "Read Tasks",
@@ -496,82 +263,437 @@
     }
   },
   "envConfig": {
-    "title": "Env Variables",
+    "title": "Environment variables",
+    "navTitle": "Env",
     "workerTitle": "Worker Variables",
-    "globalTitle": "Global Env Variables",
-    "add": "Add Variable",
-    "editTitle": "Edit Variable",
-    "addTitle": "Add Variable",
-    "addDescription": "Keys are automatically uppercased. Values are stored encrypted.",
+    "globalTitle": "Global variables",
+    "add": "Add variable",
+    "editTitle": "Edit {{key}}",
+    "addTitle": "Add variable",
+    "addDescription": "Keys are converted to uppercase. Values are stored encrypted.",
     "key": "Key",
-    "keyPlaceholder": "e.g. DATABASE_URL",
-    "keyExists": "A variable with this key already exists.",
+    "keyPlaceholder": "DATABASE_URL",
+    "keyExists": "{{key}} already exists here. Edit it instead.",
     "value": "Value",
     "valuePlaceholder": "Enter value",
     "showValue": "Show value",
     "hideValue": "Hide value",
-    "valueSpaceWarning": "Value has leading or trailing spaces.",
-    "saveAndAddAnother": "Save & Add Another",
+    "saveAndAddAnother": "Save and add another",
     "masked": "Value",
-    "empty": "No environment variables configured.",
-    "deleteConfirm": "Delete variable \"{{key}}\"? This action cannot be undone.",
+    "empty": "No variables yet",
+    "deleteConfirm": "Anything that uses this variable loses it on its next run. This cannot be undone.",
     "effectiveTitle": "Effective Variables",
-    "beeTitle": "Bee Env Variables",
+    "beeTitle": "Bee variables",
     "sourceGlobal": "global",
-    "sourceDepartment": "dept",
     "sourceWorker": "worker",
     "source": "Source",
     "noEffective": "No env variables configured for this worker.",
-    "depEnvTitle": "Env Variables"
+    "pageDescription": "Passed to the Bee and workers when they start. Values are encrypted and stay hidden after you save them.",
+    "globalDescription": "Available to the Bee and every worker.",
+    "beeDescription": "Only for the Bee coordinator. A key set here overrides the global value.",
+    "editDescription": "The current value stays hidden. Enter a new value to replace it.",
+    "keyHint": "Letters, digits and underscores.",
+    "newValue": "New value",
+    "multiline": "Multi-line value",
+    "valueLength_one": "{{count}} character.",
+    "valueLength_other": "{{count}} characters.",
+    "saveValue": "Save value",
+    "added": "{{key}} added",
+    "addedDescription": "Add the next variable or close this dialog.",
+    "updated": "Updated {{time}}",
+    "copyKey": "Copy {{key}}",
+    "editLabel": "Edit {{key}}",
+    "deleteLabel": "Delete {{key}}",
+    "editAction": "Edit value",
+    "deleteAction": "Delete variable",
+    "emptyGlobal": "Add a variable to pass it to the Bee and every worker.",
+    "emptyBee": "Add a variable to pass it to the Bee only.",
+    "emptyWorker": "Add a variable to pass it to this worker only.",
+    "deleteTitle": "Delete {{key}}?",
+    "deleteError": "Could not delete the variable",
+    "saveError": "Could not save the variable",
+    "loadError": "Could not load variables",
+    "valueLengthSpace_one": "{{count}} character. Starts or ends with a space.",
+    "valueLengthSpace_other": "{{count}} characters. Starts or ends with a space."
   },
   "systemSettings": {
     "title": "Settings",
-    "readonlyHint": "You don't have permission to edit. The settings below are read-only.",
     "engineSection": {
-      "title": "Default Engine"
+      "title": "Default engine",
+      "rowTitle": "Bee and new workers",
+      "description": "The Bee runs on it, and new workers start with it selected.",
+      "label": "Engine"
     },
-    "updated": "Default engine updated",
     "globalArgsSection": {
-      "title": "Global Worker Args",
-      "updated": "Global worker args updated"
+      "title": "All workers",
+      "description": "Applied to every worker."
     },
     "beeArgsSection": {
-      "title": "Bee Engine Args",
-      "updated": "Bee engine args updated"
+      "title": "Bee coordinator",
+      "description": "Applied to the Bee that routes messages to workers."
+    },
+    "subtitle": "The default engine for the Bee and new workers, and the flags each engine starts with.",
+    "loadError": "Couldn't load settings",
+    "save": "Save changes",
+    "saved": "Saved",
+    "saveError": "Couldn't save settings",
+    "argsSection": {
+      "title": "Engine args",
+      "description": "Extra command-line flags passed when an engine starts. Leave a field empty to pass none."
     }
   },
   "notFound": {
-    "code": "404",
-    "title": "Page Not Found",
-    "description": "The page you visited doesn't exist or has been removed.",
-    "backToHome": "Back to Home",
-    "goToLogin": "Go to Login"
+    "title": "Page not found",
+    "description": "The address may be mistyped, or the page was moved.",
+    "backToHome": "Go to chat",
+    "goToLogin": "Go to sign in"
   },
-  "permission": {
-    "deniedTitle": "No permission",
-    "deniedDescription": "You don't have permission to view this content. Contact an administrator if you think this is a mistake.",
-    "noAccessTitle": "No accessible features yet",
-    "noAccessDescription": "Your account hasn't been granted access to any features. Please contact an administrator to request permissions.",
-    "logout": "Log out"
+  "plugins": {
+    "title": "Plugins",
+    "subtitle": "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee",
+    "types": {
+      "channel": "Channels",
+      "engine": "Engines"
+    },
+    "refreshCatalog": "Refresh catalog",
+    "catalogError": "Could not load the plugin catalog",
+    "installedError": "Could not load installed plugins",
+    "tabs": {
+      "market": "Marketplace",
+      "installed": "Installed"
+    },
+    "search": "Search plugins",
+    "searchPlaceholder": "Name or description",
+    "tagFilter": "Filter by tag",
+    "allTags": "All",
+    "official": "Official",
+    "deprecated": "Deprecated",
+    "noResults": "No plugins match your search",
+    "noResultsHint": "Try another name, or show every tag.",
+    "clearFilters": "Clear filters",
+    "action": {
+      "install": "Install",
+      "installingShort": "Installing",
+      "configure": "Configure",
+      "update": "Update to {{version}}",
+      "incompatible": "Needs a newer OpenBee",
+      "enable": "Enable",
+      "disable": "Disable",
+      "toggle": "Enable {{name}}",
+      "restart": "Restart",
+      "uninstall": "Uninstall",
+      "moreFor": "More actions for {{name}}"
+    },
+    "installedVersion": "Installed v{{version}}",
+    "updateAvailable": "Installed v{{version}}, update available",
+    "installDone": "{{name}} installed",
+    "updateDone": "{{name}} updated to {{version}}",
+    "installFailed": "Could not install {{name}}: {{error}}",
+    "uninstallDone": "{{name}} uninstalled",
+    "uninstallFailed": "Could not uninstall {{name}}: {{error}}",
+    "state": {
+      "running": "Running",
+      "ready": "Ready",
+      "disabled": "Disabled",
+      "not_configured": "Not configured",
+      "starting": "Starting",
+      "retrying": "Retrying",
+      "failed": "Failed",
+      "uninstalling": "Uninstalling"
+    },
+    "columns": {
+      "plugin": "Plugin",
+      "version": "Version",
+      "status": "Status",
+      "botName": "Bot name"
+    },
+    "installedTitle": "Installed plugins",
+    "installedSummary_one": "{{count}} plugin, {{active}} active",
+    "installedSummary_other": "{{count}} plugins, {{active}} active",
+    "emptyInstalled": {
+      "title": "No plugins installed",
+      "description": "Install a plugin from the marketplace to connect a chat platform or add an AI engine.",
+      "action": "Open marketplace"
+    },
+    "installDialog": {
+      "open": "Install from package",
+      "title": "Install from package",
+      "description": "Install a plugin that is not in the catalog.",
+      "spec": "Package or path",
+      "specHelp": "An npm package, optionally with @version, or a plugin directory on the OpenBee server.",
+      "placeholder": "@scope/openbee-plugin@1.0.0",
+      "submit": "Install plugin",
+      "installing": "Installing",
+      "done": "Plugin installed",
+      "doneHint": "Configure it, then turn it on.",
+      "doneHintEngine": "The engine is enabled. Pick it when you create or edit a worker.",
+      "failed": "Could not install the plugin",
+      "configure": "Configure plugin",
+      "view": "View plugin",
+      "close": "Close"
+    },
+    "uninstallDialog": {
+      "title": "Uninstall {{name}}?",
+      "description": "The plugin, its settings and its data are deleted. The channel stops right away; other channels keep running.",
+      "descriptionEngine": "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again.",
+      "confirm": "Uninstall",
+      "error": "Could not uninstall the plugin"
+    },
+    "toast": {
+      "enabled": "{{name}} enabled",
+      "disabled": "{{name}} disabled",
+      "restarted": "{{name}} restarted",
+      "saved": "Settings saved",
+      "savedRestarting": "Settings saved, {{name}} is restarting",
+      "savedEnableHint": "Settings saved. Enable the plugin to start it."
+    },
+    "detail": {
+      "back": "Plugins",
+      "loadError": "Could not load this plugin",
+      "failedTitle": "The plugin stopped with an error",
+      "retryingTitle": "The plugin hit an error and is retrying",
+      "restartNow": "Restart plugin",
+      "settings": "Settings",
+      "settingsHint": "Saving restarts only {{name}}; other channels are not affected",
+      "settingsHintEngine": "Saved settings apply to the next run",
+      "info": "Plugin info",
+      "package": "Package",
+      "version": "Version",
+      "source": "Source",
+      "sourceNpm": "Plugin catalog (npm)",
+      "sourcePath": "Local directory",
+      "path": "Path",
+      "repository": "Repository",
+      "license": "License",
+      "latest": "Latest in the catalog",
+      "newer": "{{version}} is available",
+      "botName": "Bot name",
+      "botNameHelp": "Name used to @mention the bot in group chats; it cannot match a worker name",
+      "secretSaved": "Saved {{mask}}, leave empty to keep it",
+      "defaultValue": "Default {{value}}",
+      "listHelp": "One value per line",
+      "requiredLabel": "{{label}} (required)",
+      "intInvalid": "Enter a whole number for {{label}}",
+      "noChanges": "Nothing to save",
+      "reset": "Reset changes",
+      "save": "Save settings",
+      "saved": "Saved",
+      "notFound": "This plugin is not installed",
+      "notFoundHint": "It may have been uninstalled. Install it again from the marketplace."
+    },
+    "setup": {
+      "defaultLabel": "Sign in",
+      "cardHint": "After signing in, the settings it returns are saved automatically",
+      "start": "Start",
+      "waiting": "Starting…",
+      "scanHint": "Scan the QR code with your phone and confirm on the phone",
+      "refreshHint": "An expired code is replaced automatically",
+      "output": "Sign-in output",
+      "inputLabel": "Reply to the sign-in session",
+      "inputPlaceholder": "Type here when asked",
+      "send": "Send",
+      "again": "Get a new code",
+      "reconnecting": "Reconnecting…",
+      "success": "Signed in, settings saved",
+      "stopped": "No code right now",
+      "stoppedTitle": "Sign-in stopped",
+      "failed": "Sign-in failed: {{error}}",
+      "lost": "Lost the connection to the sign-in session. Get a new code to try again."
+    }
   },
   "errors": {
-    "last_super_admin": "Cannot remove or disable the last active super-admin",
-    "username_taken": "Username is already taken",
-    "username_required": "Username is required",
-    "user_not_found": "User not found",
-    "system_role_undeletable": "System roles cannot be deleted",
-    "department_not_found": "Department not found",
-    "department_parent_not_found": "Parent department not found",
-    "department_has_sub": "This department has sub-departments. Please remove them first.",
-    "department_has_workers": "This department has associated workers. Please move them to another department first.",
-    "department_circular_reference": "Cannot set a descendant as the parent department.",
-    "department_invalid_parent": "Invalid parent_id",
-    "departments_not_found": "One or more departments not found",
     "worker_not_found": "Worker not found",
     "env_not_found": "Env config not found",
-    "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, department, worker",
+    "env_invalid_scope": "Invalid scope {{scope}}: must be one of global, bee, worker",
     "env_reserved_key": "{{key}} is reserved and cannot be set",
     "env_scope_id_required": "scope_id is required for scope {{scope}}",
-    "old_password_incorrect": "The current password is incorrect."
+    "old_password_incorrect": "The current password is incorrect.",
+    "plugin_not_found": "Plugin {{id}} is not installed",
+    "plugin_config_invalid": "Invalid plugin settings: {{reason}}",
+    "plugin_unknown_field": "{{key}} is not a setting of this plugin",
+    "plugin_env_secret_missing": "Set server.env_secret in config.yaml before saving plugin settings",
+    "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
+    "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
+    "plugin_bot_name_not_supported": "Engine plugins don't have a bot name.",
+    "plugin_operation_not_found": "Plugin operation not found",
+    "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
+    "plugin_no_setup": "Plugin {{id}} has no login step",
+    "plugin_setup_not_found": "The login session has ended, start again",
+    "plugin_setup_finished": "The login session has already finished"
+  },
+  "arc": {
+    "alert": {
+      "dismiss": "Dismiss: {{title}}"
+    },
+    "avatar": {
+      "withStatus": "{{name}}, {{status}}",
+      "online": "online",
+      "offline": "offline"
+    },
+    "barChart": {
+      "average": "Daily average",
+      "value": "Total",
+      "category": "Day",
+      "averageTick": "Avg {{value}}",
+      "empty": "No data",
+      "summary": "{{label}}, {{period}}. {{averageLabel}} {{average}}.",
+      "highest": "Highest {{label}}, {{value}}.",
+      "lowest": "Lowest {{label}}, {{value}}.",
+      "explore": "{{label}}, explore by {{category}}",
+      "update": "{{period}}. {{averageLabel}} {{average}}."
+    },
+    "breadcrumb": {
+      "label": "Breadcrumb"
+    },
+    "card": {
+      "close": "Close quick look"
+    },
+    "checkbox": {
+      "label": "Checkbox"
+    },
+    "codeBlock": {
+      "expand": "Show all {{count}} lines",
+      "collapse": "Show fewer lines",
+      "region": "{{name}} source code",
+      "sourceCode": "Source code",
+      "copy": "Copy code",
+      "selectable": "Selectable source code"
+    },
+    "combobox": {
+      "placeholder": "Search or select…",
+      "empty": "No matches found",
+      "clear": "Clear selection",
+      "options": "{{label}} options"
+    },
+    "confirmMorph": {
+      "confirm": "Delete",
+      "cancel": "Cancel",
+      "pending": "Deleting",
+      "done": "Deleted",
+      "error": "Couldn’t finish",
+      "retry": "Retry",
+      "undo": "Undo",
+      "undoing": "Restoring",
+      "countdown": "{{pending}} in",
+      "undone": "Undone",
+      "undoAvailable": "{{done}}. {{undo}} is available.",
+      "cancelled": "Cancelled",
+      "keepHolding": "Keep holding to {{action}}",
+      "countdownAnnouncement": "{{label}} {{seconds}} seconds",
+      "question": "?",
+      "holdHint": "Press and hold"
+    },
+    "copyButton": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "failed": "Failed",
+      "failedAnnouncement": "{{label}}: Could not copy",
+      "copiedAnnouncement": "{{label}}: Copied"
+    },
+    "dialog": {
+      "close": "Close dialog"
+    },
+    "drawer": {
+      "close": "Close drawer"
+    },
+    "expandableText": {
+      "more": "Read more",
+      "less": "Show less"
+    },
+    "lineChart": {
+      "empty": "No data for this range",
+      "category": "Date",
+      "seriesShown": "{{visible}} of {{total}} series shown",
+      "emptySummary": "{{label}}. {{message}}.",
+      "summary": "{{label}}, {{from}} to {{to}}.",
+      "latest": "{{series}}, latest {{value}}.",
+      "legend": "{{label}} series",
+      "explore": "{{label}}, explore by {{category}}",
+      "allHidden": "Choose a series to show",
+      "loading": "Loading"
+    },
+    "numberField": {
+      "increase": "Increase {{label}}",
+      "decrease": "Decrease {{label}}",
+      "atMaximum": "{{value}}, maximum",
+      "atMinimum": "{{value}}, minimum",
+      "max": "Max {{value}}",
+      "min": "Min {{value}}"
+    },
+    "pagination": {
+      "label": "Pagination",
+      "previous": "Previous page",
+      "page": "Page {{number}}",
+      "next": "Next page"
+    },
+    "passwordField": {
+      "show": "Show password",
+      "hide": "Hide password"
+    },
+    "searchField": {
+      "clear": "Clear search"
+    },
+    "select": {
+      "placeholder": "Select an option"
+    },
+    "skeleton": {
+      "label": "Loading content"
+    },
+    "sortableDataTable": {
+      "caption": "Data table",
+      "empty": "No rows to show",
+      "row": "row",
+      "rows": "rows",
+      "selected": "selected",
+      "sortedAscending": "Sorted by {{column}}, ascending",
+      "sortedDescending": "Sorted by {{column}}, descending",
+      "selectedCount": "{{selected}} of {{total}} selected",
+      "selectionCleared": "Selection cleared",
+      "selectAll": "Select all rows",
+      "sortBy": "Sort by {{column}}",
+      "sortByAscending": "Sort by {{column}}, currently ascending",
+      "sortByDescending": "Sort by {{column}}, currently descending",
+      "selectRow": "Select {{row}}",
+      "clear": "Clear selection"
+    },
+    "tabs": {
+      "scrollLeft": "Scroll tabs left",
+      "scrollRight": "Scroll tabs right"
+    },
+    "themeSwitch": {
+      "toDark": "Switch to dark mode",
+      "toLight": "Switch to light mode",
+      "label": "Switch theme"
+    },
+    "toast": {
+      "dismiss": "Dismiss notification"
+    },
+    "treeView": {
+      "label": "File tree"
+    },
+    "userMenu": {
+      "status": "Status",
+      "theme": "Theme",
+      "language": "Language",
+      "notifications": "Notifications",
+      "signOut": "Sign out",
+      "signingOut": "Signing out",
+      "triggerWithStatus": "Account menu, {{name}}, {{status}}",
+      "trigger": "Account menu, {{name}}",
+      "statuses": {
+        "available": "Available",
+        "busy": "Busy",
+        "away": "Away"
+      },
+      "themes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "toggles": {
+        "off": "Off",
+        "on": "On"
+      }
+    }
   }
 }

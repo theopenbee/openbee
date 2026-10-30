@@ -1,0 +1,243 @@
+package plugin
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const validManifest = `{
+  "protocol_version": 1,
+  "id": "discord",
+  "name": {"en": "Discord", "zh": "Discord"},
+  "description": "Discord bot channel",
+  "command": ["node", "dist/index.js"],
+  "config": [
+    {"key": "token", "type": "secret", "required": true, "label": {"en": "Bot token", "zh": "机器人 Token"}},
+    {"key": "allowed_guilds", "type": "list"},
+    {"key": "max_media_size", "type": "int", "default": 10485760}
+  ]
+}`
+
+func writePlugin(t *testing.T, dir, manifest string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ManifestFile), []byte(manifest), 0o644))
+}
+
+func TestLoadManifest_Valid(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, validManifest)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"version":"0.3.1"}`), 0o644))
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "discord", m.ID)
+	assert.Equal(t, "0.3.1", m.Version)
+	assert.Equal(t, "Discord", m.Name.Get("zh"))
+	assert.Equal(t, []string{"node", "dist/index.js"}, m.Command)
+	assert.True(t, filepath.IsAbs(m.Dir))
+	require.Len(t, m.Config, 3)
+	assert.Equal(t, FieldSecret, m.Config[0].Type)
+	assert.True(t, m.Config[0].Required)
+	assert.Equal(t, "机器人 Token", m.Config[0].Label.Get("zh"))
+}
+
+func TestLoadManifest_Setup(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(validManifest), &raw))
+	raw["setup"] = map[string]any{"command": []string{"node", "dist/setup.js"}, "label": map[string]string{"en": "QR code login", "zh": "扫码登录"}}
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	require.NotNil(t, m.Setup)
+	assert.Equal(t, []string{"node", "dist/setup.js"}, m.Setup.Command)
+	assert.Equal(t, "扫码登录", m.Setup.Label.Get("zh"))
+}
+
+func TestLoadManifest_VersionFromManifestWithoutPackageJSON(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(validManifest), &raw))
+	raw["version"] = "1.2.3"
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3", m.Version)
+}
+
+func TestLoadManifest_Missing(t *testing.T) {
+	_, err := LoadManifest(t.TempDir())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), ManifestFile)
+}
+
+func TestLocalizedText_StringOrObject(t *testing.T) {
+	var a LocalizedText
+	require.NoError(t, json.Unmarshal([]byte(`"Bot token"`), &a))
+	assert.Equal(t, "Bot token", a.Get("zh"))
+
+	var b LocalizedText
+	require.NoError(t, json.Unmarshal([]byte(`{"en":"A","zh":"甲"}`), &b))
+	assert.Equal(t, "甲", b.Get("zh"))
+	assert.Equal(t, "A", b.Get("fr"))
+
+	var empty LocalizedText
+	assert.Equal(t, "", empty.Get("en"))
+}
+
+func TestManifest_DisplayName(t *testing.T) {
+	m := Manifest{ID: "discord"}
+	assert.Equal(t, "discord", m.DisplayName("zh"))
+	m.Name = LocalizedText{"en": "Discord"}
+	assert.Equal(t, "Discord", m.DisplayName("zh"))
+}
+
+func TestManifestValidate(t *testing.T) {
+	base := func() Manifest {
+		return Manifest{
+			ProtocolVersion: 1,
+			ID:              "discord",
+			Command:         []string{"node", "index.js"},
+			Config:          []ConfigField{{Key: "token", Type: FieldSecret}},
+		}
+	}
+	cases := []struct {
+		name    string
+		mutate  func(m *Manifest)
+		wantErr string
+	}{
+		{"valid", func(m *Manifest) {}, ""},
+		{"protocol version", func(m *Manifest) { m.ProtocolVersion = 2 }, "protocol_version"},
+		{"uppercase id", func(m *Manifest) { m.ID = "Discord" }, "id"},
+		{"reserved id", func(m *Manifest) { m.ID = "local" }, "reserved"},
+		{"empty command", func(m *Manifest) { m.Command = nil }, "command"},
+		{"setup", func(m *Manifest) { m.Setup = &Setup{Command: []string{"node", "setup.js"}} }, ""},
+		{"empty setup command", func(m *Manifest) { m.Setup = &Setup{} }, "setup"},
+		{"reserved key enabled", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "enabled", Type: FieldBool}) }, "enabled"},
+		{"reserved key bot_name", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "bot_name", Type: FieldString}) }, "bot_name"},
+		{"duplicate key", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "token", Type: FieldString}) }, "duplicate"},
+		{"unknown type", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "ratio", Type: "float"}) }, "float"},
+		{"empty key", func(m *Manifest) { m.Config = append(m.Config, ConfigField{Key: "", Type: FieldString}) }, "key"},
+		{"random default on secret", func(m *Manifest) {
+			m.Config = append(m.Config, ConfigField{Key: "code", Type: FieldSecret, RandomDefault: true})
+		}, "random_default"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := base()
+			tc.mutate(&m)
+			err := m.Validate()
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateID(t *testing.T) {
+	for _, ok := range []string{"discord", "slack-bot", "qq_2", "ab", "weixin"} {
+		assert.NoError(t, ValidateID(ok), ok)
+	}
+	for _, bad := range []string{"", "a", "2fa", "has:colon", "UPPER", "local", "abcdefghijklmnopqrstuvwxyz0123456"} {
+		assert.Error(t, ValidateID(bad), bad)
+	}
+}
+
+func TestLoadManifest_RandomDefault(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, `{"protocol_version":1,"id":"chat","command":["node","x.js"],"config":[{"key":"code","type":"string","random_default":true}]}`)
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	require.Len(t, m.Config, 1)
+	assert.True(t, m.Config[0].RandomDefault)
+}
+
+const engineManifest = `{
+  "protocol_version": 1,
+  "type": "engine",
+  "id": "claude",
+  "name": { "en": "Claude Code", "zh": "Claude Code" },
+  "description": { "en": "Runs tasks with Claude Code", "zh": "用 Claude Code 执行任务" },
+  "command": ["node", "dist/index.js"],
+  "config": [
+    { "key": "path", "type": "string", "label": { "en": "Claude Code path", "zh": "Claude Code 路径" }, "help": { "en": "Leave empty to use claude on PATH", "zh": "留空则使用 PATH 里的 claude" } }
+  ]
+}`
+
+func TestManifest_TypeDefaultsToChannel(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, validManifest)
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "", m.Type)
+	assert.Equal(t, TypeChannel, m.Kind())
+	assert.Equal(t, "channel", m.Kind())
+	assert.Equal(t, TypeEngine, Manifest{Type: TypeEngine}.Kind())
+}
+
+func TestManifest_UnknownTypeRejected(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(validManifest), &raw))
+	raw["type"] = "agent"
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	_, err := LoadManifest(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "type")
+	assert.Contains(t, err.Error(), "agent")
+}
+
+func TestManifest_EngineRejectsSetup(t *testing.T) {
+	dir := t.TempDir()
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal([]byte(engineManifest), &raw))
+	raw["setup"] = map[string]any{"command": []string{"node", "dist/setup.js"}}
+	b, _ := json.Marshal(raw)
+	writePlugin(t, dir, string(b))
+
+	_, err := LoadManifest(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "setup")
+}
+
+func TestManifest_EngineValid(t *testing.T) {
+	dir := t.TempDir()
+	writePlugin(t, dir, engineManifest)
+
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+	assert.Equal(t, TypeEngine, m.Type)
+	assert.Equal(t, TypeEngine, m.Kind())
+	assert.Equal(t, "claude", m.ID)
+	assert.Equal(t, "用 Claude Code 执行任务", m.Description.Get("zh"))
+	require.Len(t, m.Config, 1)
+	assert.Equal(t, "path", m.Config[0].Key)
+}
+
+func TestManifest_ProtocolVersionPerType(t *testing.T) {
+	assert.Equal(t, 1, EngineProtocolVersion)
+
+	engine := Manifest{ProtocolVersion: EngineProtocolVersion, Type: TypeEngine, ID: "claude", Command: []string{"node", "index.js"}}
+	require.NoError(t, engine.Validate())
+
+	engine.ProtocolVersion = EngineProtocolVersion + 1
+	err := engine.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "protocol_version")
+}

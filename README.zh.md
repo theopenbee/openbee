@@ -1,4 +1,4 @@
-<img src="docs/logo-full.svg" alt="OpenBee" width="220" />
+<img src="docs/images/logo-full.svg" alt="OpenBee" width="220" />
 
 # OpenBee — Build smarter AI teams.
 
@@ -16,7 +16,7 @@
 
 ## 📸 产品截图
 
-<img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
+<img src="docs/images/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## 🚀 快速开始
 
@@ -72,8 +72,8 @@ openbee config
 ```
 
 向导将引导你完成以下配置：
-- agent 可执行文件路径
-- 启用的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）及对应凭证
+- 语言
+- Bee 和 Worker 的超时时间
 - 高级选项（可跳过，使用默认值）
 
 配置文件默认写入当前目录的 `config.yaml`，如需指定路径，使用 `-o` 参数：
@@ -88,10 +88,53 @@ openbee config -o /path/to/config.yaml
 openbee server -d
 ```
 
-### 第四步：开始使用
+### 第四步：安装引擎
+
+OpenBee 不内置 AI 引擎。引擎是驱动编程 CLI 的插件，所以请先自行安装想用的 CLI（Claude Code、Codex 或 pi）并登录，再用命令行或 Web 控制台的插件页面安装对应的插件：
+
+```bash
+openbee plugin install claude   # 或 codex、pi
+openbee plugin list             # 找到 CLI 后，引擎状态显示为 ready
+```
+
+新装的引擎插件会立即启用，不需要重启 OpenBee。如果 CLI 不在 `PATH` 里，用 `openbee plugin configure claude --set path=/path/to/claude` 指定它的位置。详见[引擎插件协议](docs/engine-plugin-protocol.md)。
+
+### 第五步：开始使用
 
 - 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
-- 在已配置的平台（飞书 / 钉钉 / 企微 / 微信 / Telegram / Linear）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+- 在已配置的平台（微信、飞书、钉钉、企微、Telegram、Linear 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+
+### 渠道插件
+
+聊天平台通过插件接入，无需重新编译 OpenBee；运行中的 OpenBee 安装、配置、启用和卸载插件都不需要重启：
+
+```bash
+openbee plugin search              # 浏览插件目录，选择要安装的插件
+openbee plugin configure telegram  # 按提示填写插件配置，然后启用
+openbee plugin list                # 查看所有插件及其运行状态
+```
+
+另有 `openbee plugin install <id>`、`enable`、`disable`、`restart`、`update`、`remove`；`configure --set key=value` 可以不经问答直接配置。插件运行在 Bun 或 Node.js 上；两者都没有时，OpenBee 会把 Bun 下载到 `~/.openbee/runtime`。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
+
+## 🖥️ 桌面版
+
+基于 [MyGo](https://github.com/egoist/mygo) 构建的原生桌面客户端，支持 macOS、Windows 和 Linux，连接你已经运行的 OpenBee 服务。
+
+1. 前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-universal.dmg`（或 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
+2. 打开应用，输入 OpenBee 服务地址（默认 `http://localhost:8080`）。
+3. 使用 OpenBee 账号登录。
+
+发布包暂未做代码签名，首次打开需要手动放行：
+
+- **macOS：** 右键点击应用并选择“打开”（macOS 15 及以上请在“系统设置 > 隐私与安全性”中点击“仍要打开”），或运行 `xattr -dr com.apple.quarantine /Applications/OpenBee.app`。
+- **Windows：** SmartScreen 提示“Windows 已保护你的电脑”时，点击“更多信息”，再点击“仍要运行”。
+
+从源码构建需要先安装 `jq`（会自动下载 Go 1.27）：
+
+```bash
+make desktop       # 当前平台，产物在 desktop/build/
+make desktop-all   # macOS、Windows 和 Linux
+```
 
 ## 🌟 Star History
 

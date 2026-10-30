@@ -1,5 +1,4 @@
 export type WorkerStatus = "idle" | "working" | "error"
-export type ExecutionStatus = "pending" | "running" | "completed" | "failed"
 
 export interface Worker {
   id: string
@@ -11,120 +10,72 @@ export interface Worker {
   engine_args?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
-  departments?: DepartmentBrief[]
   created_at: number
   updated_at: number
 }
 
-export interface Department {
-  id: string
-  name: string
-  parent_id: string | null
-  sort_order: number
-  created_at: number
-  updated_at: number
+export type ConversationId = "bee" | `worker:${string}`
+
+export interface ChatSender {
+  type: "user" | "bee" | "worker" | "system"
+  id?: string
 }
 
-export interface DepartmentTree extends Department {
-  children: DepartmentTree[]
+export interface HandoffInfo {
+  worker_id: string
+  task_id: string
+  task_type: "immediate" | "countdown" | "scheduled"
+  cron_expr?: string
+  scheduled_at?: number
+  conversation_id: ConversationId
 }
 
-export interface DepartmentBrief {
-  id: string
-  name: string
-}
-
-export interface WorkerExecution {
-  id: string
-  worker_id?: string
-  worker_name?: string
-  session_id: string
-  trigger_input: string
-  status: ExecutionStatus
-  result: string
-  logs: string | null
-  ai_process_pid: number
-  started_at: number | null
-  completed_at: number | null
-}
-
-export interface ModelTokenStats {
-  model: string
-  total_tokens: number
-  input_tokens: number
-  output_tokens: number
-  cache_creation_tokens: number
-  cache_read_tokens: number
-}
-
-export interface SessionTokenStats {
-  total_tokens: number
-  by_model: ModelTokenStats[]
-}
-
-export interface SessionDetail {
-  executions: WorkerExecution[]
-  token_stats: SessionTokenStats | null
-}
-
-export interface PaginatedResponse<T> {
-  items: T[]
-  total: number
-  page: number
-  page_size: number
-  token_stats?: Record<string, SessionTokenStats | null>
-}
+export type ChatMessageKind = "message" | "handoff" | "reset"
 
 export interface ChatMessage {
   id: string
-  role: "user" | "bee"
+  sender: ChatSender
+  kind: ChatMessageKind
+  handoff?: HandoffInfo
   content: string
   media_paths?: string[]
   ts: number
   pending?: boolean
 }
 
-export interface LocalMessagesResponse {
+export interface ConversationActivity {
+  state: "idle" | "queued" | "running"
+  queued_ahead?: number
+}
+
+export interface ConversationSummary {
+  id: ConversationId
+  kind: "bee" | "worker"
+  worker_id?: string
+  last_message?: {
+    sender: ChatSender
+    kind: ChatMessageKind
+    preview: string
+    media_paths?: string[]
+    handoff_worker_id?: string
+    ts: number
+  }
+  unread: number
+  activity: ConversationActivity
+}
+
+export interface ActiveTask {
+  id: string
+  instruction: string
+  type: string
+}
+
+export interface ConversationMessagesResponse {
   messages: ChatMessage[]
   has_more: boolean
 }
 
-export type TaskType = "immediate" | "countdown" | "scheduled"
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled"
-
-export interface Task {
-  id: string
-  worker_id: string
-  worker_name: string
-  instruction: string
-  type: TaskType
-  status: TaskStatus
-  scheduled_at: number | null
-  cron_expr: string
-  next_run_at: number | null
-  created_at: number
-  updated_at: number
-}
-
-export interface StatsOverview {
-  departments: number
-  workers: number
-  scheduled_tasks: number
-  tokens_today_total: number
-  tokens_yesterday_total: number
-}
-
-export interface TokenTrendPoint {
-  date: string
-  total_tokens: number
-}
-
-export interface TokenTrend {
-  days: number
-  data: TokenTrendPoint[]
-}
-
-export type EnvScope = "global" | "bee" | "department" | "worker"
+export type EnvScope = "global" | "bee" | "worker"
 
 // Matches the backend constant defaultBeeID in internal/domain/bee/bee_process.go.
 export const DEFAULT_BEE_ID = "default"
@@ -134,17 +85,19 @@ export const SYSTEM_CONFIG_KEY_DEFAULT_ENGINE = "default_engine"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL = "engine_args_global"
 export const SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE = "engine_args_bee"
 
-// Mirrors ai.AllEngines in Go — keep in sync.
-export const ENGINES = ["claude", "codex", "pi"] as const
-export type Engine = (typeof ENGINES)[number]
-export const DEFAULT_ENGINE: Engine = ENGINES[0]
+export type Engine = string
 
-// pickDefaultEngine returns the most appropriate engine to seed a form with:
-// the worker's current engine if set, else the first server-enabled engine,
-// else the global default. Shared by create/edit worker sheets so the rule
-// stays in one place.
-export function pickDefaultEngine(current: Engine | undefined, enabled: readonly Engine[]): Engine {
-  return current ?? enabled[0] ?? DEFAULT_ENGINE
+export interface EngineChoice {
+  id: Engine
+  name: string
+}
+
+export function newWorkerEngine(systemDefault: string | undefined, enabled: readonly Engine[]): Engine {
+  return enabled.find((engine) => engine === systemDefault) ?? enabled[0] ?? ""
+}
+
+export function availableEngine(engine: Engine, enabled: readonly Engine[]): Engine {
+  return enabled.includes(engine) ? engine : (enabled[0] ?? engine)
 }
 
 export interface EnvConfig {
@@ -157,47 +110,15 @@ export interface EnvConfig {
   updated_at: number
 }
 
+export interface EngineInfo {
+  id: Engine
+  name: LocalizedText
+}
+
 export interface AppConfig {
   language: string
   enabled_engines: Engine[]
-}
-
-export interface AppVersion {
-  version: string
-  commit: string
-  date: string
-  go_version: string
-  os: string
-  arch: string
-}
-
-// RBAC --------------------------------------------------------------------
-
-export type UserStatus = "active" | "disabled"
-
-export interface Role {
-  id: string
-  name: string
-  description: string
-  is_system: boolean
-  permissions?: string[]
-}
-
-export interface UserWithRoles {
-  id: string
-  username: string
-  display_name: string
-  status: UserStatus
-  roles: Role[]
-}
-
-export interface CurrentUser extends UserWithRoles {
-  permissions: string[]
-}
-
-export interface PermissionGroup {
-  resource: string
-  permissions: string[]
+  engines: EngineInfo[]
 }
 
 export interface SetupStatus {
@@ -208,4 +129,103 @@ export interface TokenResponse {
   access_token: string
   refresh_token: string
   expires_in: number
+}
+
+export type LocalizedText = Record<string, string>
+
+export type PluginType = "channel" | "engine"
+
+export type PluginState = "not_configured" | "disabled" | "starting" | "running" | "ready" | "retrying" | "failed"
+
+export type PluginFieldType = "string" | "secret" | "bool" | "int" | "list"
+
+export interface PluginConfigField {
+  key: string
+  type: PluginFieldType
+  required?: boolean
+  default?: unknown
+  random_default?: boolean
+  label?: LocalizedText
+  help?: LocalizedText
+}
+
+export interface PluginStatus {
+  id: string
+  type: PluginType
+  package?: string
+  source: string
+  version?: string
+  path: string
+  name: LocalizedText
+  description?: LocalizedText
+  enabled: boolean
+  bot_name: string
+  state: PluginState
+  error?: string
+  has_setup: boolean
+}
+
+export interface PluginDetail extends PluginStatus {
+  config: Record<string, unknown>
+  fields: PluginConfigField[]
+  setup_label?: LocalizedText
+}
+
+export interface CatalogVocab {
+  id: string
+  name: LocalizedText
+}
+
+export interface CatalogPlugin {
+  category: string
+  id: string
+  package: string
+  version: string
+  official: boolean
+  name: LocalizedText
+  description?: LocalizedText
+  protocol_version: number
+  license: string
+  repository: string
+  maintainers: string[]
+  tags: string[]
+  min_openbee_version?: string
+  deprecated?: LocalizedText
+  published_at?: string
+  installed: boolean
+  installed_version?: string
+  update_available: boolean
+  installable: boolean
+}
+
+export interface PluginCatalog {
+  schema_version: number
+  categories: CatalogVocab[]
+  tags: CatalogVocab[]
+  plugins: CatalogPlugin[]
+}
+
+export type PluginOperationStatus = "queued" | "running" | "succeeded" | "failed"
+
+export interface PluginOperation {
+  id: string
+  kind: "install" | "uninstall"
+  spec?: string
+  plugin_id?: string
+  status: PluginOperationStatus
+  error?: string
+  created_at: string
+  finished_at?: string
+}
+
+export interface PluginSetupEvent {
+  type: "line" | "done"
+  text?: string
+  ok?: boolean
+  error?: string
+}
+
+export interface PluginSettingsUpdate {
+  bot_name?: string
+  config: Record<string, unknown>
 }

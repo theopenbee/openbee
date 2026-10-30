@@ -1,0 +1,58 @@
+package auth
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+
+	"github.com/theopenbee/openbee/internal/infra/model"
+)
+
+type fakeAuthenticator struct {
+	user model.User
+	err  error
+}
+
+func (f fakeAuthenticator) Authenticate(string, string) (model.User, error) {
+	return f.user, f.err
+}
+func (f fakeAuthenticator) GetByID(string) (model.User, error) { return f.user, f.err }
+func (f fakeAuthenticator) SetPassword(string, string) error   { return nil }
+func (f fakeAuthenticator) PasswordChangedAt(string) (int64, error) {
+	return f.user.PasswordChangedAt, f.err
+}
+
+func serveRefresh(h *AuthHandler, refreshToken string) *httptest.ResponseRecorder {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/auth/refresh", h.Refresh)
+	rec := httptest.NewRecorder()
+	body := `{"refresh_token":"` + refreshToken + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestRefresh_RejectsRefreshTokenIssuedBeforePasswordChange(t *testing.T) {
+	jwt := NewJWTService("s", time.Hour, time.Hour)
+	pair, _ := jwt.GenerateUserTokenPair("u1")
+
+	// Password changed after the refresh token was minted -> refresh must fail so
+	// the stale session cannot keep minting access tokens.
+	changed := model.User{ID: "u1", PasswordChangedAt: time.Now().Add(time.Hour).UnixMilli()}
+	h := NewAuthHandler(fakeAuthenticator{user: changed}, jwt, nil)
+	rec := serveRefresh(h, pair.RefreshToken)
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// Password change in the past -> the refresh token still works.
+	ok := model.User{ID: "u1", PasswordChangedAt: time.Now().Add(-time.Hour).UnixMilli()}
+	h2 := NewAuthHandler(fakeAuthenticator{user: ok}, jwt, nil)
+	rec2 := serveRefresh(h2, pair.RefreshToken)
+	require.Equal(t, http.StatusOK, rec2.Code)
+}
