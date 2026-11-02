@@ -1024,23 +1024,16 @@ func TestMalformedConversationRedirectsToBee(t *testing.T) {
 }
 
 func TestChatTitleTogglesPanel(t *testing.T) {
-	h := testkit.SignedIn(t, wideW, wideH, func(st *fakeapi.State) {
-		staffed(st)
-		for i := range st.Conversations {
-			if st.Conversations[i].WorkerID == "ada" {
-				st.Conversations[i].Activity = api.ConversationActivity{State: "queued", QueuedAhead: 2}
-			}
-		}
-	})
+	h := testkit.SignedIn(t, wideW, wideH, staffed)
 	nav := h.Root.Nav()
 	nav.Push(route.Chat("ada"))
 	h.Settle()
 	for _, want := range []string{route.PanelConstraints, ""} {
-		status, ok := h.T.Find(locales.ChatStatusQueued(2))
+		subtitle, ok := h.T.Find("Claude Code · Data analysis and monthly reports")
 		if !ok {
-			t.Fatalf("no status line; texts %q", h.T.Texts())
+			t.Fatalf("no subtitle line; texts %q", h.T.Texts())
 		}
-		h.T.ClickAt(status.X+titleNudge, status.Y-titleNudge)
+		h.T.ClickAt(subtitle.X+titleNudge, subtitle.Y-titleNudge)
 		h.Settle()
 		h.T.Advance(time.Second)
 		h.Settle()

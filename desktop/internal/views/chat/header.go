@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
@@ -21,9 +22,10 @@ const (
 	backBox         = 40
 	backGlyph       = 20
 	titleSize       = 16
-	statusSize      = 12
+	subtitleSize    = 12
 	titlePadX       = 8
 	actionsGap      = 4
+	subtitleJoin    = " · "
 )
 
 func (v *View) headerBar(c *ui.Context, tk theme.Tokens, content func()) {
@@ -74,7 +76,9 @@ func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 			} else {
 				v.panelToggle(c, tk, p, panelOpen)
 			}
-			ui.Text(c, statusText(kind, ahead)).FontSize(statusSize).TextColor(tk.TextSecondary).SingleLine().MaxWidthPercent(100)
+			if sub := v.subtitle(p, kind, ahead); sub != "" {
+				ui.Text(c, sub).FontSize(subtitleSize).TextColor(tk.TextSecondary).SingleLine().MaxWidthPercent(100)
+			}
 		})
 		ui.Row(c).Shrink(0).Gap(actionsGap).Children(func() {
 			if p.worker != nil && busy {
@@ -112,6 +116,20 @@ func (v *View) stop(p pane) {
 		}
 		v.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: locales.ChatStopFailed(), Description: l10n.ErrorText(err)})
 	})
+}
+
+func (v *View) subtitle(p pane, kind model.StatusKind, ahead int) string {
+	if p.worker == nil {
+		return statusText(kind, ahead)
+	}
+	parts := make([]string, 0, 2)
+	if p.worker.Engine != "" {
+		parts = append(parts, l10n.EngineName(model.FindEngine(v.s.EnabledEngines(), p.worker.Engine)))
+	}
+	if description := strings.Join(strings.Fields(p.worker.Description), " "); description != "" {
+		parts = append(parts, description)
+	}
+	return strings.Join(parts, subtitleJoin)
 }
 
 func statusText(kind model.StatusKind, ahead int) string {

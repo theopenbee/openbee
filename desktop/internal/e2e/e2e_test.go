@@ -197,7 +197,7 @@ func TestLiveStopAndReset(t *testing.T) {
 
 	f.click(locales.ChatStop())
 	f.await("the stopped chat back to idle", startWait, func() bool {
-		return f.summary(cid).Activity.State == stateIdle && !f.shows(locales.ChatStop()) && f.shows(locales.StatusesIdle())
+		return f.summary(cid).Activity.State == stateIdle && !f.shows(locales.ChatStop())
 	})
 	if m, ok := f.message(cid, func(m model.Message) bool { return m.Sender.Type == senderWorker && containsFold(m.Content, finished) }); ok {
 		t.Fatalf("the stopped task still finished: %q", m.Content)

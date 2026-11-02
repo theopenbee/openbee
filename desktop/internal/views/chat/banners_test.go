@@ -73,11 +73,11 @@ func (f *fixture) activityOf(cid string) string {
 	return ""
 }
 
-func (f *fixture) wantActivityAboveComposer(status, composerHint string) {
+func (f *fixture) wantActivityAboveComposer(status, composerHint string, times int) {
 	f.t.Helper()
 	texts := f.T.Texts()
-	if n := occurrences(texts, status); n != 2 {
-		f.t.Fatalf("%q shown %d times, want the header and the activity indicator; texts %q", status, n, texts)
+	if n := occurrences(texts, status); n != times {
+		f.t.Fatalf("%q shown %d times, want %d; texts %q", status, n, times, texts)
 	}
 	at := lastIndex(texts, status)
 	hint := slices.Index(texts, composerHint)
@@ -178,12 +178,12 @@ func TestActivityWhileBusy(t *testing.T) {
 	f.Fake.Emit(api.ChatEvent{Type: "task", WorkerID: "w1", State: "running"})
 	f.Fix.Await(t, func() bool { return f.activityOf(workerCID) == "running" })
 	f.settleMotion()
-	f.wantActivityAboveComposer(locales.ChatStatusRunning(), locales.ChatComposerHintPlain())
+	f.wantActivityAboveComposer(locales.ChatStatusRunning(), locales.ChatComposerHintPlain(), 1)
 
 	f.Fake.Emit(api.ChatEvent{Type: "task", WorkerID: "w1", State: "queued", QueuedAhead: 2})
 	f.Fix.Await(t, func() bool { return f.activityOf(workerCID) == "queued" })
 	f.settleMotion()
-	f.wantActivityAboveComposer(locales.ChatStatusQueued(2), locales.ChatComposerHintPlain())
+	f.wantActivityAboveComposer(locales.ChatStatusQueued(2), locales.ChatComposerHintPlain(), 1)
 
 	f.Fake.Emit(api.ChatEvent{Type: "task", WorkerID: "w1", State: "idle"})
 	f.Fix.Await(t, func() bool { return f.activityOf(workerCID) == "idle" })
@@ -197,7 +197,7 @@ func TestBeeBusyActivity(t *testing.T) {
 
 	f.Store.Chat(api.BeeConversation).BeeBusy = true
 	f.settleMotion()
-	f.wantActivityAboveComposer(locales.ChatStatusRunning(), locales.ChatComposerHint())
+	f.wantActivityAboveComposer(locales.ChatStatusRunning(), locales.ChatComposerHint(), 2)
 
 	f.Fake.Reply(api.BeeConversation, api.ChatMessage{ID: "b1", Sender: api.ChatSender{Type: "bee"}, Content: "On it"})
 	f.Fix.Await(t, func() bool { return !f.Store.Chat(api.BeeConversation).BeeBusy })

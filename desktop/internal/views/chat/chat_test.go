@@ -436,8 +436,7 @@ func TestStopButtonOnlyWhenBusy(t *testing.T) {
 	}
 
 	idle := newFixture(t, wideW, wideH, "w1", both(seedChat(team(), workerCID), activity("idle")))
-	idle.wantHidden(locales.ChatStop())
-	idle.wantShown(locales.StatusesIdle())
+	idle.wantHidden(locales.ChatStop(), locales.ChatStatusRunning())
 
 	bee := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation))
 	bee.Store.Chat(api.BeeConversation).BeeBusy = true
@@ -451,6 +450,62 @@ func TestStopFailureToast(t *testing.T) {
 	f.Fake.FailNext(http.MethodPost, "/api/local/conversations/"+workerCID+"/stop", http.StatusInternalServerError, map[string]string{"error": "engine stuck"})
 	f.click(locales.ChatStop())
 	f.wantShown(locales.ChatStopFailed())
+}
+
+func (f *fixture) underTitle(title string) []string {
+	f.t.Helper()
+	texts := f.T.Texts()
+	end := slices.Index(texts, locales.ChatNewConversation())
+	at := lastIndex(texts[:max(end, 0)], title)
+	if at < 0 {
+		f.t.Fatalf("no header title %q; texts %q", title, texts)
+	}
+	var out []string
+	for _, text := range texts[at+1 : end] {
+		if text != locales.ChatStop() {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func TestHeaderSubtitle(t *testing.T) {
+	plain := func(engine, description, status string) api.Worker {
+		w := worker("w1", "Alice", description)
+		w.Engine, w.Status = engine, status
+		return w
+	}
+	cases := []struct {
+		name   string
+		worker api.Worker
+		state  string
+		want   []string
+	}{
+		{"engine and description", plain("claude", "Writes the release notes", "idle"), "idle", []string{"Claude Code · Writes the release notes"}},
+		{"no engine", plain("", "Writes the release notes", "idle"), "idle", []string{"Writes the release notes"}},
+		{"no description", plain("pi", "", "idle"), "idle", []string{"Pi"}},
+		{"engine not installed", plain("gemini", "Writes the release notes", "idle"), "idle", []string{"gemini · Writes the release notes"}},
+		{"multi-line description", plain("claude", "  Writes the\nrelease   notes\n", "idle"), "idle", []string{"Claude Code · Writes the release notes"}},
+		{"neither", plain("", " \n ", "idle"), "idle", nil},
+		{"error worker", plain("claude", "Writes the release notes", "error"), "idle", []string{"Claude Code · Writes the release notes"}},
+		{"running", plain("claude", "Writes the release notes", "working"), "running", []string{"Claude Code · Writes the release notes"}},
+		{"queued", plain("claude", "Writes the release notes", "working"), "queued", []string{"Claude Code · Writes the release notes"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, wideW, wideH, "w1", both(seedChat([]api.Worker{tc.worker}, workerCID), activity(tc.state)))
+			if got := f.underTitle("Alice"); !slices.Equal(got, tc.want) {
+				t.Fatalf("header subtitle = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBeeHeaderKeepsStatus(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation))
+	if got, want := f.underTitle(locales.ChatBeeLabel()), []string{locales.StatusesIdle()}; !slices.Equal(got, want) {
+		t.Fatalf("Bee header subtitle = %q, want %q", got, want)
+	}
 }
 
 func TestQueuedStatus(t *testing.T) {
