@@ -144,6 +144,30 @@ func TestDialogFlushFillsTheFixedHeight(t *testing.T) {
 	}
 }
 
+func TestDialogClearsWindowControls(t *testing.T) {
+	const controlsHeight, controlsLeft, inset = 28, 70, 16
+	for _, window := range []int{500, 900} {
+		open := true
+		tt := newTester(900, window, func(c *ui.Context, tk theme.Tokens) {
+			kit.Dialog(c, tk, &open, kit.DialogOpts{Title: "Settings", Width: 1152, Height: 832, Flush: true}, func() {
+				ui.Text(c, "Body")
+			})
+		})
+		tt.SetTitleBar(ui.TitleBar{Height: controlsHeight, Left: controlsLeft})
+		settle(tt)
+		panel := mustFind(t, tt, "Settings")
+		if panel.X >= controlsLeft {
+			t.Fatalf("window %d: panel at x=%v, want it under the %v px of window controls for this test", window, panel.X, controlsLeft)
+		}
+		if panel.Y < controlsHeight+inset-1 {
+			t.Errorf("window %d: panel top at y=%v, want it %v px below the %v px of window controls", window, panel.Y, inset, controlsHeight)
+		}
+		if bottom := panel.Y + panel.H; bottom > float32(window-inset)+1 {
+			t.Errorf("window %d: panel bottom at y=%v, want it %v px above the window bottom %d", window, bottom, inset, window)
+		}
+	}
+}
+
 func mustFind(t *testing.T, tt *ui.Tester, text string) ui.Rect {
 	t.Helper()
 	r, ok := tt.Find(text)

@@ -63,6 +63,7 @@
 - Keep engine args when creating a worker through the API.
 - Label image and file messages in chat list previews.
 - Show your own sent messages in chat list previews immediately.
+- Desktop: keep dialogs clear of the macOS window buttons.
 
 ## [0.0.46] - 2026-10-25
 

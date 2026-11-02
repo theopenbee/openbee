@@ -43,19 +43,21 @@ func Dialog(c *ui.Context, tk theme.Tokens, open *bool, o DialogOpts, body func(
 		width = theme.DialogWidth
 	}
 	width = min(width, w-2*dialogInset)
+	top := c.TitleBar().Height
+	maxHeight := h - top - 2*dialogInset
 	return ui.DialogBase(c, open, func(backdrop, panel ui.Element) {
 		if o.Locked && panel.Dismissed() {
 			*open = true
 		}
-		backdrop.Background(tk.Scrim.Alpha(fadeIn(backdrop)))
+		backdrop.Background(tk.Scrim.Alpha(fadeIn(backdrop))).Padding(top, 0, 0, 0)
 		rise := panel.Keyframes("rise", []ui.Keyframe{{At: 0, Value: 0}, {At: dialogRiseTime, Value: 1, Ease: easeEnter}})
 		scale := dialogScale + (1-dialogScale)*rise
 		frame := floatingPanel(panel, tk, theme.RadiusSurface).Label(o.Title).Description(o.Description).
-			Width(width).MaxHeight(h-2*dialogInset).Clip().
+			Width(width).MaxHeight(maxHeight).Clip().
 			Opacity(panel.Keyframes("fade", []ui.Keyframe{{At: 0, Value: 0}, {At: durationFast, Value: 1, Ease: easeEnter}})).
 			Translate(0, dialogRise*(1-rise)).Scale(scale, scale)
 		if o.Height > 0 {
-			frame.Height(min(o.Height, h-2*dialogInset))
+			frame.Height(min(o.Height, maxHeight))
 		}
 		header := func() {
 			overlayHeader(c, tk, o.Title, o.Description, func() {
