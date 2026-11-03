@@ -38,6 +38,7 @@ type App struct {
 	prefs    prefs.Store
 	tokens   prefs.TokenStore
 	cache    string
+	download string
 	theme    mygo.ThemeSource
 	notifier *Notifier
 	tray     *Tray
@@ -70,6 +71,7 @@ func (a *App) Run() error {
 	a.prefs = prefs.NewFileStore(filepath.Join(data, prefsFile))
 	a.tokens = prefs.NewFileTokenStore(data)
 	a.cache = cache
+	a.download, _ = mygo.App.Path(mygo.PathDownloads)
 	a.theme = themeSource(a.prefs.Load().Theme)
 	mygo.Theme.SetSource(a.theme)
 	mygo.App.OnNotificationClick(a.notifier.Click)
@@ -121,6 +123,7 @@ func (a *App) start() {
 		Tokens:         a.tokens,
 		Notifier:       a.notifier,
 		CacheDir:       a.cache,
+		DownloadDir:    a.download,
 		SetLocale:      l10n.SetLang,
 		SetThemeSource: a.setTheme,
 	})

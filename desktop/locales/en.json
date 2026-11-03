@@ -346,6 +346,7 @@
   "@errorsPluginUnknownField": { "placeholders": { "key": { "type": "String" } } },
   "errorsWorkerNotFound": "Worker not found",
   "fileOpenFailed": "Couldn't open the file",
+  "fileSavedToDownloads": "Saved to Downloads",
   "linkCopy": "Copy link",
   "linkDialogDescription": "You're about to visit an external website.",
   "linkDialogTitle": "Open external link?",

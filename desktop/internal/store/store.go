@@ -33,6 +33,7 @@ type Options struct {
 	Now            func() time.Time
 	Sleep          func(ctx context.Context, d time.Duration, wake <-chan struct{}) error
 	CacheDir       string
+	DownloadDir    string
 	StreamIdle     time.Duration
 	SetLocale      func(lang string)
 	SetThemeSource func(pref string)

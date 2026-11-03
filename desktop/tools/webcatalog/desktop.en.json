@@ -19,6 +19,7 @@
   "notificationsBlockedDesktopTitle": "Notifications are turned off for OpenBee",
   "notificationsBlockedDesktopDescription": "Turn on notifications for OpenBee in System Settings.",
   "notificationsEnabledTitle": "Notifications are on",
+  "fileSavedToDownloads": "Saved to Downloads",
   "fileOpenFailed": "Couldn't open the file",
   "linkDialogTitle": "Open external link?",
   "linkDialogDescription": "You're about to visit an external website.",

@@ -2892,6 +2892,16 @@ func (msgs Messages) FileOpenFailed() string {
 	return Catalog.Format(msgs.locale, "fileOpenFailed", nil)
 }
 
+// FileSavedToDownloads says "Saved to Downloads"
+// in the language the app shows.
+func FileSavedToDownloads() string { return In(i18n.Locale()).FileSavedToDownloads() }
+
+// FileSavedToDownloads says "Saved to Downloads"
+// in the language of msgs.
+func (msgs Messages) FileSavedToDownloads() string {
+	return Catalog.Format(msgs.locale, "fileSavedToDownloads", nil)
+}
+
 // LinkCopy says "Copy link"
 // in the language the app shows.
 func LinkCopy() string { return In(i18n.Locale()).LinkCopy() }

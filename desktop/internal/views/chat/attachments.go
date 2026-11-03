@@ -3,6 +3,7 @@ package chat
 import (
 	"log"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -269,7 +270,7 @@ func (v *View) openMedia(name string) {
 	}
 	v.opening[name] = true
 	gen := v.mediaGen
-	v.s.MediaFile(name, func(localPath string, err error) {
+	v.s.SaveMedia(name, func(localPath string, err error) {
 		if v.mediaGen != gen {
 			return
 		}
@@ -280,7 +281,9 @@ func (v *View) openMedia(name string) {
 		if err != nil {
 			log.Printf("chat: open attachment %s: %v", name, err)
 			v.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: locales.FileOpenFailed()})
+			return
 		}
+		v.s.Toast(kit.Toast{Tone: kit.ToneSuccess, Title: locales.FileSavedToDownloads(), Description: filepath.Base(localPath)})
 	})
 }
 

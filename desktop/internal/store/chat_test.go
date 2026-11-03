@@ -757,3 +757,79 @@ func TestMediaFileCached(t *testing.T) {
 		t.Fatalf("cache entries = %v, want only m1_a.png", entries)
 	}
 }
+
+func TestSaveMediaToDownloads(t *testing.T) {
+	st, fake, fix := loaded(t, func(st *fakeapi.State) {
+		team(st)
+		st.Media["m1_clip.mp4"] = []byte("video bytes")
+	})
+	type result struct {
+		path string
+		err  error
+	}
+	var got []result
+	collect := func(p string, err error) { got = append(got, result{p, err}) }
+
+	st.SaveMedia("uploads/m1_clip.mp4", collect)
+	st.SaveMedia("m1_clip.mp4", collect)
+	fix.Settle(t)
+	want := filepath.Join(fix.DownloadDir, "m1_clip.mp4")
+	if len(got) != 2 || got[0] != (result{want, nil}) || got[1] != got[0] {
+		t.Fatalf("results = %+v, want two saves to %s", got, want)
+	}
+	if data, err := os.ReadFile(want); err != nil || string(data) != "video bytes" {
+		t.Fatalf("saved file = %q, %v", data, err)
+	}
+	if n := countCalls(fake, "GET", "/api/local/media/m1_clip.mp4"); n != 1 {
+		t.Fatalf("download calls = %d, want 1 for concurrent requests", n)
+	}
+	if entries, _ := os.ReadDir(fix.DownloadDir); len(entries) != 1 {
+		t.Fatalf("downloads entries = %v, want only m1_clip.mp4", entries)
+	}
+	if entries, _ := os.ReadDir(fix.CacheDir); len(entries) != 0 {
+		t.Fatalf("cache entries = %v, want a save to leave the cache alone", entries)
+	}
+
+	if err := os.WriteFile(want, []byte("edited by the user"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st.SaveMedia("m1_clip.mp4", collect)
+	fix.Settle(t)
+	if len(got) != 3 || got[2] != got[0] {
+		t.Fatalf("second save = %+v, want %+v", got[len(got)-1], got[0])
+	}
+	if n := countCalls(fake, "GET", "/api/local/media/m1_clip.mp4"); n != 1 {
+		t.Fatalf("download calls = %d, want the saved file reused", n)
+	}
+	if data, _ := os.ReadFile(want); string(data) != "edited by the user" {
+		t.Fatalf("saved file = %q, want the user's copy kept", data)
+	}
+
+	st.SaveMedia("gone.mp4", collect)
+	fix.Settle(t)
+	var apiErr *api.Error
+	if len(got) != 4 || got[3].path != "" || !errors.As(got[3].err, &apiErr) || apiErr.Status != http.StatusNotFound {
+		t.Fatalf("missing media result = %+v, want a 404", got[len(got)-1])
+	}
+	if entries, _ := os.ReadDir(fix.DownloadDir); len(entries) != 1 {
+		t.Fatalf("downloads entries = %v, want no leftovers from the failed save", entries)
+	}
+}
+
+func TestSaveMediaWithoutDownloadsDir(t *testing.T) {
+	st, fake, fix := storetest.New(t, func(st *fakeapi.State) {
+		team(st)
+		st.Media["m1_clip.mp4"] = []byte("video bytes")
+	}, func(o *store.Options) { o.DownloadDir = "" })
+	var path string
+	var err error
+	calls := 0
+	st.SaveMedia("m1_clip.mp4", func(p string, e error) { path, err, calls = p, e, calls+1 })
+	fix.Settle(t)
+	if calls != 1 || path != "" || err == nil {
+		t.Fatalf("save without a downloads directory: %d calls, path %q, err %v; want one error", calls, path, err)
+	}
+	if n := countCalls(fake, "GET", "/api/local/media/m1_clip.mp4"); n != 0 {
+		t.Fatalf("download calls = %d, want none", n)
+	}
+}

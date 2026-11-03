@@ -23,7 +23,10 @@ const (
 	mediaCacheDir   = "media"
 )
 
-var errNoCacheDir = errors.New("media cache directory is not set")
+var (
+	errNoCacheDir    = errors.New("media cache directory is not set")
+	errNoDownloadDir = errors.New("downloads directory is not set")
+)
 
 type mediaFetch struct {
 	waiters []func(localPath string, err error)
@@ -67,32 +70,44 @@ func (s *Store) UploadBytes(name string, data []byte, done func(path string, err
 }
 
 func (s *Store) MediaFile(mediaPath string, done func(localPath string, err error)) {
+	dir := ""
+	if s.o.CacheDir != "" {
+		dir = filepath.Join(s.o.CacheDir, mediaCacheDir)
+	}
+	s.fetchMedia(mediaPath, dir, errNoCacheDir, done)
+}
+
+func (s *Store) SaveMedia(mediaPath string, done func(localPath string, err error)) {
+	s.fetchMedia(mediaPath, s.o.DownloadDir, errNoDownloadDir, done)
+}
+
+func (s *Store) fetchMedia(mediaPath, dir string, errNoDir error, done func(localPath string, err error)) {
 	if done == nil {
 		done = func(string, error) {}
 	}
 	name, err := mediaName(mediaPath)
-	if err == nil && s.o.CacheDir == "" {
-		err = errNoCacheDir
+	if err == nil && dir == "" {
+		err = errNoDir
 	}
 	if err != nil {
 		s.o.Post(func() { done("", err) })
 		return
 	}
-	if f, ok := s.media[name]; ok {
+	key := filepath.Join(dir, name)
+	if f, ok := s.media[key]; ok {
 		f.waiters = append(f.waiters, done)
 		return
 	}
 	f := &mediaFetch{waiters: []func(string, error){done}}
-	s.media[name] = f
+	s.media[key] = f
 	finish := func(localPath string, err error) {
-		if s.media[name] == f {
-			delete(s.media, name)
+		if s.media[key] == f {
+			delete(s.media, key)
 		}
 		for _, w := range f.waiters {
 			w(localPath, err)
 		}
 	}
-	dir := filepath.Join(s.o.CacheDir, mediaCacheDir)
 	s.async(func(ctx context.Context, c *api.Client) func() {
 		localPath, err := cacheMedia(ctx, c, dir, name)
 		return func() { finish(localPath, err) }

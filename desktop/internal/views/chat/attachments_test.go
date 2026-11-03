@@ -139,6 +139,16 @@ func (f *fixture) press(key ui.Key) {
 	f.settleMotion()
 }
 
+func (f *fixture) countText(text string) int {
+	n := 0
+	for _, s := range f.T.Texts() {
+		if s == text {
+			n++
+		}
+	}
+	return n
+}
+
 func (f *fixture) lightboxShown() bool {
 	return f.shows(locales.ChatCloseImage())
 }
@@ -270,11 +280,15 @@ func TestLightboxOpenOriginal(t *testing.T) {
 	o := &opener{}
 	f.view.SetOpener(o.open)
 	f.click(locales.ChatViewImage(photoName))
+	f.wantShown(locales.ChatOpenOriginal())
+	if entries, _ := os.ReadDir(f.Fix.DownloadDir); len(entries) != 0 {
+		t.Fatalf("downloads entries = %v before opening the original, want previews kept out of Downloads", entries)
+	}
 	f.click(locales.ChatOpenOriginal())
 	f.Fix.Await(t, func() bool { return len(o.paths()) == 1 })
 	got := o.paths()[0]
-	if filepath.Base(got) != photoName || filepath.Base(filepath.Dir(got)) != "media" {
-		t.Fatalf("opened %q, want the cached %s", got, photoName)
+	if want := filepath.Join(f.Fix.DownloadDir, photoName); got != want {
+		t.Fatalf("opened %q, want %s", got, want)
 	}
 	if _, err := os.Stat(got); err != nil {
 		t.Fatal(err)
@@ -284,27 +298,33 @@ func TestLightboxOpenOriginal(t *testing.T) {
 	}
 }
 
-func TestFileChipOpensWithShell(t *testing.T) {
+func TestFileChipSavesToDownloadsAndOpens(t *testing.T) {
 	m := withAttachments(message("m1", "worker", "w1", "The report is attached.", time.Now().Add(-time.Hour)), "uploads/"+reportName)
 	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{reportName: []byte(reportContent)}, m))
 	o := &opener{}
 	f.view.SetOpener(o.open)
 	f.wantShown(reportName)
+	f.wantHidden(locales.FileSavedToDownloads())
+	before := f.countText(reportName)
 	f.click(reportName)
 	f.Fix.Await(t, func() bool { return len(o.paths()) == 1 })
 	got := o.paths()[0]
-	if filepath.Base(got) != reportName || filepath.Base(filepath.Dir(got)) != "media" {
-		t.Fatalf("opened %q, want the cached %s", got, reportName)
+	if want := filepath.Join(f.Fix.DownloadDir, reportName); got != want {
+		t.Fatalf("opened %q, want %s", got, want)
 	}
 	if data, err := os.ReadFile(got); err != nil || string(data) != reportContent {
-		t.Fatalf("cached file = %q, %v; want %q", data, err, reportContent)
+		t.Fatalf("saved file = %q, %v; want %q", data, err, reportContent)
 	}
 	f.settleMotion()
 	f.wantHidden(locales.FileOpenFailed())
+	f.wantShown(locales.FileSavedToDownloads())
+	if n := f.countText(reportName); n <= before {
+		t.Fatalf("%q shown %d times after the save, want more than the chip's %d", reportName, n, before)
+	}
 	f.click(reportName)
 	f.Fix.Await(t, func() bool { return len(o.paths()) == 2 })
 	if n := f.mediaGets(reportName); n != 1 {
-		t.Fatalf("%d downloads of %s, want the second open to use the cache", n, reportName)
+		t.Fatalf("%d downloads of %s, want the second open to reuse the saved file", n, reportName)
 	}
 }
 
@@ -318,6 +338,7 @@ func TestFileChipOpenFailureToasts(t *testing.T) {
 	f.Fix.Await(t, func() bool { return len(o.paths()) == 1 })
 	f.settleMotion()
 	f.wantShown(locales.FileOpenFailed())
+	f.wantHidden(locales.FileSavedToDownloads())
 }
 
 func TestFileChipDownloadFailureToasts(t *testing.T) {
@@ -330,6 +351,7 @@ func TestFileChipDownloadFailureToasts(t *testing.T) {
 	f.Fix.Await(t, func() bool { return f.mediaGets("gone.zip") == 1 })
 	f.settleMotion()
 	f.wantShown(locales.FileOpenFailed())
+	f.wantHidden(locales.FileSavedToDownloads())
 	if n := len(o.paths()); n != 0 {
 		t.Fatalf("%d files opened after a failed download, want none", n)
 	}
@@ -522,8 +544,8 @@ func TestOnlyKnownSafeAttachmentsOpenDirectly(t *testing.T) {
 			t.Fatalf("%s: handed to the wrong launcher; opened %q, revealed %q", name, opened.paths(), revealed.paths())
 		}
 		last := got[len(got)-1]
-		if filepath.Base(last) != name || filepath.Base(filepath.Dir(last)) != "media" {
-			t.Fatalf("%s: launcher got %q, want the cached file", name, last)
+		if want := filepath.Join(f.Fix.DownloadDir, name); last != want {
+			t.Fatalf("%s: launcher got %q, want %s", name, last, want)
 		}
 	}
 	if got := opened.paths(); len(got) != len(opens) {
@@ -580,7 +602,7 @@ func TestUppercaseImageOpensFromLightbox(t *testing.T) {
 	f.click(locales.ChatOpenOriginal())
 	f.Fix.Await(t, func() bool { return len(opened.paths()) == 1 })
 	if got := opened.paths()[0]; filepath.Base(got) != name {
-		t.Fatalf("opened %q, want the cached %s", got, name)
+		t.Fatalf("opened %q, want the saved %s", got, name)
 	}
 	if got := revealed.paths(); len(got) != 0 {
 		t.Fatalf("revealed %q, want none", got)

@@ -2,6 +2,7 @@ package storetest
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 )
 
 const (
+	downloadsDir  = "Downloads"
 	settleTimeout = 3 * time.Second
 	liveTimeout   = 2 * time.Minute
 )
@@ -117,13 +119,15 @@ func (c *Clock) AwaitSleepers(t testing.TB, n int) {
 }
 
 type Fixture struct {
-	Clock    *Clock
-	Notifier *FakeNotifier
-	Prefs    prefs.Store
-	Tokens   prefs.TokenStore
-	Locales  []string
-	Themes   []string
-	OnLocale func(lang string)
+	Clock       *Clock
+	Notifier    *FakeNotifier
+	Prefs       prefs.Store
+	Tokens      prefs.TokenStore
+	CacheDir    string
+	DownloadDir string
+	Locales     []string
+	Themes      []string
+	OnLocale    func(lang string)
 
 	store   *store.Store
 	queue   *queue
@@ -195,12 +199,14 @@ func build(t testing.TB, timeout time.Duration, now func() time.Time, sleep func
 		Now:            now,
 		Sleep:          sleep,
 		CacheDir:       t.TempDir(),
+		DownloadDir:    filepath.Join(t.TempDir(), downloadsDir),
 		SetLocale:      fix.setLocale,
 		SetThemeSource: func(pref string) { fix.Themes = append(fix.Themes, pref) },
 	}
 	for _, opt := range opts {
 		opt(&o)
 	}
+	fix.CacheDir, fix.DownloadDir = o.CacheDir, o.DownloadDir
 	fix.store = store.New(o)
 	return fix
 }

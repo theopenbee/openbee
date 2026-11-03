@@ -19,6 +19,7 @@
   "notificationsBlockedDesktopTitle": "OpenBee 的通知已关闭",
   "notificationsBlockedDesktopDescription": "请在系统设置中允许 OpenBee 发送通知。",
   "notificationsEnabledTitle": "通知已开启",
+  "fileSavedToDownloads": "已保存到“下载”文件夹",
   "fileOpenFailed": "无法打开文件",
   "linkDialogTitle": "打开外部链接？",
   "linkDialogDescription": "你将访问一个外部网站。",

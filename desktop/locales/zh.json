@@ -346,6 +346,7 @@
   "@errorsPluginUnknownField": { "placeholders": { "key": { "type": "String" } } },
   "errorsWorkerNotFound": "数字员工不存在",
   "fileOpenFailed": "无法打开文件",
+  "fileSavedToDownloads": "已保存到“下载”文件夹",
   "linkCopy": "复制链接",
   "linkDialogDescription": "你将访问一个外部网站。",
   "linkDialogTitle": "打开外部链接？",

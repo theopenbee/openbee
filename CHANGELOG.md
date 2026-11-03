@@ -33,6 +33,7 @@
 - Engines are now plugins installed with openbee plugin install.
 - Desktop chat header shows worker engine and description, not status.
 - Relicense OpenBee from MIT to AGPL-3.0.
+- Desktop saves opened attachments to the Downloads folder.
 
 ### Removed
 - Remove user and role management; keep one admin account.
