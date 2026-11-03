@@ -8,7 +8,7 @@ Thank you for your interest in contributing to the Openbee project. Before submi
 
 - **"Project"** refers to the Openbee open-source project and all related repositories.
 - **"Contribution"** refers to any content you submit to the Project in any form, including but not limited to source code, documentation, configuration files, design assets, Issues, Pull Requests, and suggestions in related discussions.
-- **"Maintainer"** refers to the copyright holder, 滕勇志, and their authorized project managers.
+- **"Maintainer"** refers to the copyright holder, TENGYONGZHI, and their authorized project managers.
 
 ### 2. Grant of License
 
@@ -40,4 +40,4 @@ By submitting a Contribution to the Project (including but not limited to submit
 
 ---
 
-Copyright (c) 2026 滕勇志
+Copyright (c) 2026 TENGYONGZHI
