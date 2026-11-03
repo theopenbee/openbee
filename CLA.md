@@ -28,7 +28,7 @@ You represent and warrant that:
 
 - Your Contribution is your original work, or you have the legal right to submit the Contribution.
 - Your Contribution does not infringe any third party's intellectual property rights, patent rights, trademark rights, or other legal rights.
-- If your Contribution contains content subject to third-party licenses, you have clearly identified such content and ensured its compatibility with the Project's license (MIT License).
+- If your Contribution contains content subject to third-party licenses, you have clearly identified such content and ensured its compatibility with the Project's license (GNU Affero General Public License v3.0).
 
 ### 5. No Warranty
 

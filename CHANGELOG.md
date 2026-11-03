@@ -32,6 +32,7 @@
 - Workers can only send messages and read; writes are refused.
 - Engines are now plugins installed with openbee plugin install.
 - Desktop chat header shows worker engine and description, not status.
+- Relicense OpenBee from MIT to AGPL-3.0.
 
 ### Removed
 - Remove user and role management; keep one admin account.

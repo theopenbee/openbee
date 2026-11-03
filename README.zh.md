@@ -148,3 +148,9 @@ make desktop-all   # macOS、Windows 和 Linux
 
 - 🐛 **问题反馈 / 功能建议** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
 - 🤝 **贡献代码** → 请阅读 [贡献指南](CONTRIBUTING.md)，提交前需同意 [贡献者许可协议（CLA）](CLA.md)
+
+## 📄 License
+
+OpenBee 基于 [GNU Affero 通用公共许可证 v3.0（AGPL-3.0）](LICENSE) 开源。
+
+Copyright (c) 2026 杭州万训科技有限公司 (Hangzhou Wanxun Technology Co., Ltd.)

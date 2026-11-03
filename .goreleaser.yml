@@ -73,7 +73,7 @@ scoops:
       token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
     homepage: "https://github.com/theopenbee/openbee"
     description: "OpenBee core service"
-    license: ""
+    license: "AGPL-3.0-only"
 
 nfpms:
   - id: openbee
@@ -82,7 +82,7 @@ nfpms:
     homepage: "https://github.com/theopenbee/openbee"
     maintainer: "OpenBee Team"
     description: "OpenBee core service"
-    license: ""
+    license: "AGPL-3.0-only"
     formats:
       - deb
       - rpm

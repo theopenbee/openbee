@@ -136,4 +136,4 @@ openbee/
 
 ## License
 
-By contributing to OpenBee, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing to OpenBee, you agree that your contributions will be licensed under the [GNU Affero General Public License v3.0](LICENSE).

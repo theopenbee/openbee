@@ -148,3 +148,9 @@ make desktop-all   # macOS, Windows and Linux
 
 - 🐛 **Bug reports / Feature requests** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
 - 🤝 **Contributing** → Please read the [Contributing Guide](CONTRIBUTING.md). You must agree to the [Contributor License Agreement (CLA)](CLA.md) before submitting.
+
+## 📄 License
+
+OpenBee is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Copyright (c) 2026 杭州万训科技有限公司 (Hangzhou Wanxun Technology Co., Ltd.)
