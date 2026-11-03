@@ -16,6 +16,7 @@ import (
 	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
+	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/config"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -154,6 +155,25 @@ func TestExecuteWorker_OtherStartErrorsStayWrapped(t *testing.T) {
 	_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s1"})
 	require.EqualError(t, err, "start runtime: spawn failed")
 	assert.False(t, ai.IsEngineMissing(err))
+}
+
+func TestExecuteWorker_TokenOutlivesWorkerTimeout(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	mgr.tokenSecret = "test-secret"
+	mgr.tokenTTL = 2 * time.Hour
+	mgr.workerTimeout = 24 * time.Hour
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "helper"})
+	require.NoError(t, err)
+
+	_, err = mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s1"})
+	require.NoError(t, err)
+
+	require.Len(t, pi.Runs(), 1)
+	claims, err := auth.ValidateToken(pi.Runs()[0].APIKey, "test-secret")
+	require.NoError(t, err)
+	assert.True(t, claims.ExpiresAt.After(time.Now().Add(24*time.Hour)), "token expires at %s", claims.ExpiresAt)
 }
 
 func TestResolveEngine_NoEngine(t *testing.T) {

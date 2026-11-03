@@ -64,6 +64,7 @@
 - Label image and file messages in chat list previews.
 - Show your own sent messages in chat list previews immediately.
 - Desktop: keep dialogs clear of the macOS window buttons.
+- Keep worker tokens valid until the worker timeout ends.
 
 ## [0.0.46] - 2026-10-25
 

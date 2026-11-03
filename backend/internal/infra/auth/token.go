@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -12,6 +13,8 @@ const (
 	TokenTypeWorker = "worker"
 	TokenTypeAdmin  = "admin"
 )
+
+const runTokenGrace = 10 * time.Minute
 
 // RPCClaims are the JWT claims embedded in every RPC token.
 type RPCClaims struct {
@@ -48,6 +51,14 @@ func GenerateAdminToken(secret string, ttl time.Duration) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},
 	}, secret)
+}
+
+func RunTokenTTL(ctx context.Context, ttl time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return ttl
+	}
+	return max(ttl, time.Until(deadline)+runTokenGrace)
 }
 
 func ValidateToken(tokenStr, secret string) (*RPCClaims, error) {

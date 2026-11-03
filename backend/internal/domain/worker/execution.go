@@ -77,11 +77,6 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		return fmt.Errorf("prepare log path: %w", err)
 	}
 
-	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), m.tokenTTL)
-	if err != nil {
-		return fmt.Errorf("generate worker token: %w", err)
-	}
-
 	// execCtx inherits the caller's context so dispatcher-side cancellation
 	// (task cancel, /clear, shutdown) actually kills the worker process.
 	var execCtx context.Context
@@ -90,6 +85,12 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		execCtx, cancel = context.WithTimeout(ctx, timeout)
 	} else {
 		execCtx, cancel = context.WithCancel(ctx)
+	}
+
+	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), auth.RunTokenTTL(execCtx, m.tokenTTL))
+	if err != nil {
+		cancel()
+		return fmt.Errorf("generate worker token: %w", err)
 	}
 
 	extraEnv, err := m.envService.ResolveWorkerEnv(worker.ID)

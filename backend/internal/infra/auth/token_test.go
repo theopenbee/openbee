@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -78,4 +79,18 @@ func TestGenerateWorkerToken_NoScopes(t *testing.T) {
 	claims, err := auth.ValidateToken(tok, "test-secret")
 	require.NoError(t, err)
 	assert.Empty(t, claims.Scopes)
+}
+
+func TestRunTokenTTL(t *testing.T) {
+	assert.Equal(t, 2*time.Hour, auth.RunTokenTTL(context.Background(), 2*time.Hour))
+
+	short, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	assert.Equal(t, 2*time.Hour, auth.RunTokenTTL(short, 2*time.Hour))
+
+	long, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
+	defer cancel()
+	got := auth.RunTokenTTL(long, 2*time.Hour)
+	assert.Greater(t, got, 24*time.Hour)
+	assert.LessOrEqual(t, got, 24*time.Hour+15*time.Minute)
 }
