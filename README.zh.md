@@ -153,4 +153,4 @@ make desktop-all   # macOS、Windows 和 Linux
 
 OpenBee 基于 [GNU Affero 通用公共许可证 v3.0（AGPL-3.0）](LICENSE) 开源。
 
-Copyright (c) 2026 杭州万训科技有限公司 (Hangzhou Wanxun Technology Co., Ltd.)
+Copyright (c) 2026 滕勇志

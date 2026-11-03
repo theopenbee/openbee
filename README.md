@@ -153,4 +153,4 @@ make desktop-all   # macOS, Windows and Linux
 
 OpenBee is licensed under the [GNU Affero General Public License v3.0](LICENSE).
 
-Copyright (c) 2026 杭州万训科技有限公司 (Hangzhou Wanxun Technology Co., Ltd.)
+Copyright (c) 2026 滕勇志
