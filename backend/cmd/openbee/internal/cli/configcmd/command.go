@@ -51,7 +51,6 @@ func defaultValues() configValues {
 		DBPath:                 "./data/openbee.db",
 		EngineTimeoutBee:       "5m",
 		EngineTimeoutWorker:    "30m",
-		RPCTokenTTL:            "48h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		AuthAccessTTL:          "2h",

@@ -74,11 +74,9 @@ func newTestManagerWithSource(t *testing.T, src *aitest.Source, defaultEngine st
 	envSvc, err := env.NewService(store.NewEnvConfigStore(db), testKey)
 	require.NoError(t, err)
 	bc := config.BeeConfig{}
-	bc.RPC.TokenTTL = time.Minute
 	m := &Manager{
 		workerBaseDir:   dir,
 		tokenSecret:     bc.RPC.TokenSecret,
-		tokenTTL:        bc.RPC.TokenTTL,
 		workerTimeout:   30 * time.Minute,
 		workerStore:     ws,
 		executionStore:  es,
@@ -162,7 +160,6 @@ func TestExecuteWorker_TokenOutlivesWorkerTimeout(t *testing.T) {
 	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi})
 	mgr := newTestManagerWithSource(t, src, "pi", nil)
 	mgr.tokenSecret = "test-secret"
-	mgr.tokenTTL = 2 * time.Hour
 	mgr.workerTimeout = 24 * time.Hour
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "helper"})
 	require.NoError(t, err)

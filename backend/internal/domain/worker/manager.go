@@ -26,7 +26,6 @@ var log = logger.With(zap.String("component", "worker"))
 type Manager struct {
 	workerBaseDir  string
 	tokenSecret    string
-	tokenTTL       time.Duration
 	workerTimeout  time.Duration
 	workerStore    *store.WorkerStore
 	executionStore *store.ExecutionStore
@@ -55,7 +54,6 @@ func NewManager(
 	return &Manager{
 		workerBaseDir:   workerBaseDir,
 		tokenSecret:     bc.RPC.TokenSecret,
-		tokenTTL:        bc.RPC.TokenTTL,
 		workerTimeout:   bc.WorkerTimeout(),
 		workerStore:     ws,
 		executionStore:  es,

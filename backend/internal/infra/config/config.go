@@ -83,9 +83,8 @@ type FeederConfig struct {
 }
 
 type RPCConfig struct {
-	TokenSecret          string        `yaml:"token_secret"`
-	TokenTTL             time.Duration `yaml:"token_ttl"`
-	TokenSecretGenerated bool          `yaml:"-"`
+	TokenSecret          string `yaml:"token_secret"`
+	TokenSecretGenerated bool   `yaml:"-"`
 }
 
 type AuthConfig struct {
@@ -153,9 +152,6 @@ func applyDefaults(cfg *Config) error {
 	if cfg.Server.EnvSecret == "" {
 		cfg.Server.EnvSecret = GenerateRandomSecret()
 		cfg.Server.EnvSecretGenerated = true
-	}
-	if cfg.Bee.RPC.TokenTTL == 0 {
-		cfg.Bee.RPC.TokenTTL = 48 * time.Hour
 	}
 	return nil
 }

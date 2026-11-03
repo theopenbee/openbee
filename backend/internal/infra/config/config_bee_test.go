@@ -71,19 +71,7 @@ bee:
 	assert.Equal(t, 30*time.Minute, cfg.Bee.Engine.Timeout.Worker)
 }
 
-func TestBeeConfig_TokenTTLDefault(t *testing.T) {
-	f, _ := os.CreateTemp("", "*.yaml")
-	f.WriteString(`server:
-  port: 8080`)
-	f.Close()
-	defer os.Remove(f.Name())
-
-	cfg, err := Load(f.Name())
-	require.NoError(t, err)
-	assert.Equal(t, 48*time.Hour, cfg.Bee.RPC.TokenTTL)
-}
-
-func TestBeeConfig_TokenSecretAndTTLExplicit(t *testing.T) {
+func TestBeeConfig_TokenSecretExplicitIgnoresLegacyTokenTTL(t *testing.T) {
 	f, _ := os.CreateTemp("", "*.yaml")
 	f.WriteString(`
 server:
@@ -99,7 +87,6 @@ bee:
 	cfg, err := Load(f.Name())
 	require.NoError(t, err)
 	assert.Equal(t, "my-secret", cfg.Bee.RPC.TokenSecret)
-	assert.Equal(t, 4*time.Hour, cfg.Bee.RPC.TokenTTL)
 }
 
 func TestLoad_LegacyEnginesWarnsOnce(t *testing.T) {

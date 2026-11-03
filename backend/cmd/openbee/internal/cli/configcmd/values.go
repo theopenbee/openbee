@@ -13,7 +13,6 @@ type configValues struct {
 	Debug           bool
 	DBPath          string
 	RPCTokenSecret  string
-	RPCTokenTTL     string
 	ServerEnvSecret string
 
 	EngineDefault       string
@@ -42,7 +41,6 @@ func loadExistingConfig(path string) *configValues {
 		Debug:                  cfg.Server.Debug,
 		DBPath:                 cfg.Database.Path,
 		RPCTokenSecret:         cfg.Bee.RPC.TokenSecret,
-		RPCTokenTTL:            cfg.Bee.RPC.TokenTTL.String(),
 		ServerEnvSecret:        cfg.Server.EnvSecret,
 		EngineDefault:          cfg.Bee.Engine.Default,
 		EngineTimeoutBee:       cfg.Bee.Engine.Timeout.Bee.String(),

@@ -87,7 +87,7 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		execCtx, cancel = context.WithCancel(ctx)
 	}
 
-	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), auth.RunTokenTTL(execCtx, m.tokenTTL))
+	token, err := auth.GenerateWorkerToken(m.tokenSecret, worker.ID, utils.SplitAndTrim(worker.PermissionScopes), auth.RunTokenTTL(execCtx))
 	if err != nil {
 		cancel()
 		return fmt.Errorf("generate worker token: %w", err)

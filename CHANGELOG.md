@@ -46,6 +46,7 @@
 - Drop unused legacy local chat tables from the database.
 - Drop unused accordion and popover web dependencies.
 - Remove `openbee ctl` and the `/rpc/bee/call` endpoint.
+- Remove `bee.rpc.token_ttl`; run timeouts now bound agent tokens.
 
 ### Fixed
 - Stopping a task no longer leaves pi bash commands running.

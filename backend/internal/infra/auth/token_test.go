@@ -82,15 +82,17 @@ func TestGenerateWorkerToken_NoScopes(t *testing.T) {
 }
 
 func TestRunTokenTTL(t *testing.T) {
-	assert.Equal(t, 2*time.Hour, auth.RunTokenTTL(context.Background(), 2*time.Hour))
+	assert.Equal(t, 48*time.Hour, auth.RunTokenTTL(context.Background()))
 
 	short, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	assert.Equal(t, 2*time.Hour, auth.RunTokenTTL(short, 2*time.Hour))
+	got := auth.RunTokenTTL(short)
+	assert.Greater(t, got, 14*time.Minute)
+	assert.LessOrEqual(t, got, 15*time.Minute)
 
 	long, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()
-	got := auth.RunTokenTTL(long, 2*time.Hour)
-	assert.Greater(t, got, 24*time.Hour)
-	assert.LessOrEqual(t, got, 24*time.Hour+15*time.Minute)
+	got = auth.RunTokenTTL(long)
+	assert.Greater(t, got, 24*time.Hour+9*time.Minute)
+	assert.LessOrEqual(t, got, 24*time.Hour+10*time.Minute)
 }
