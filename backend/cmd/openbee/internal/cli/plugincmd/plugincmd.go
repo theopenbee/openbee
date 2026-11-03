@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/theopenbee/openbee/internal/infra/config"
 )
 
 const cliLang = "en"
@@ -44,7 +46,7 @@ func newCommand(dd deps) *cobra.Command {
 		Short:        "Manage plugins",
 		SilenceUsage: true,
 	}
-	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	root.PersistentFlags().StringVarP(&cfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	client := func() (*Client, error) {
 		if d.Getenv("OPENBEE_API_KEY") != "" {
 			return nil, errAgentEnvironment

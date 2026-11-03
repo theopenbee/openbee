@@ -22,7 +22,7 @@ func NewBackupCommand(appVersion string) *cobra.Command {
 			return runBackup(args, appVersion, cfgPath, backupPassword)
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	cmd.Flags().StringVar(&backupPassword, "password", "", "encrypt the backup with this password")
 	return cmd
 }

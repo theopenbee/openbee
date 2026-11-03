@@ -21,6 +21,9 @@ func NewServerCommand() *cobra.Command {
 		Use:   "server",
 		Short: "Start the OpenBee server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := prepareConfig(cmd.OutOrStdout(), cfgPath); err != nil {
+				return err
+			}
 			// --- Daemon dispatch ---
 			child := isDaemonChild()
 			if daemonMode && !child {
@@ -64,6 +67,7 @@ func NewServerCommand() *cobra.Command {
 			if err := i18n.Load(cfg.Language); err != nil {
 				return fmt.Errorf("load locale: %w", err)
 			}
+			installBuiltinSkills()
 
 			a, err := app.BuildApp(cfg)
 			if err != nil {
@@ -74,7 +78,7 @@ func NewServerCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	cmd.Flags().BoolVarP(&daemonMode, "daemon", "d", false, "run as background daemon")
 	return cmd
 }

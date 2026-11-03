@@ -12,6 +12,9 @@ func NewRestartCommand() *cobra.Command {
 		Use:   "restart",
 		Short: "Restart the OpenBee daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := prepareConfig(cmd.OutOrStdout(), restartCfgPath); err != nil {
+				return err
+			}
 			pidFile, err := config.DaemonPIDFile()
 			if err != nil {
 				return err
@@ -24,6 +27,6 @@ func NewRestartCommand() *cobra.Command {
 			return daemonize(restartCfgPath)
 		},
 	}
-	cmd.Flags().StringVarP(&restartCfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVarP(&restartCfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	return cmd
 }

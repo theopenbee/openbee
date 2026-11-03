@@ -23,6 +23,7 @@ E2E = Path(os.environ.get("OPENBEE_E2E_HOME", "~/.openbee-e2e")).expanduser()
 ENVS = E2E / "envs"
 TOOLS = E2E / "tools"
 PORT_RANGE = range(12360, 12380)
+AUTO_CONFIG_PORT = 8080
 DEFAULT_NAME = "e2e"
 LINEAR_LABEL = "openbee-e2e"
 STATE_DIR = ".openbee"
@@ -99,6 +100,8 @@ def state_dir(meta):
 
 
 def db_path(meta):
+    if meta.get("db"):
+        return Path(meta["db"])
     return state_dir(meta) / "openbee.db"
 
 
@@ -266,6 +269,25 @@ def render_config(meta):
     p.chmod(0o600)
 
 
+def adopt_generated_config(meta):
+    p = Path(meta["config"])
+    if not p.exists():
+        die(f"server did not create {p}")
+    text = p.read_text()
+
+    def value(key):
+        m = re.search(rf"^\s*{key}:\s*\"?([^\"\n]*)\"?\s*$", text, re.M)
+        if not m or not m.group(1):
+            die(f"generated config has no {key}")
+        return m.group(1)
+
+    meta["jwt_secret"] = value("jwt_secret")
+    meta["env_secret"] = value("env_secret")
+    meta["rpc_secret"] = value("token_secret")
+    meta["db"] = value("path")
+    log(f"server created {p} (mode {oct(p.stat().st_mode & 0o777)}, language {value('language')}, db {meta['db']})")
+
+
 def git(src, *args):
     return run(["git", "-C", src, *args], capture=True, check=False).stdout.strip()
 
@@ -332,7 +354,10 @@ def start(meta):
     if port_open(meta["port"]):
         die(f"port {meta['port']} is in use by pid {listener_pid(meta['port'])}")
     (env_dir(meta["name"]) / "tmp").mkdir(exist_ok=True)
-    openbee(meta, "server", "-d", "-c", meta["config"], capture=True)
+    args = ["server", "-d"] if meta.get("auto_config") else ["server", "-d", "-c", meta["config"]]
+    r = openbee(meta, *args, capture=True)
+    if r.stdout.strip():
+        log(r.stdout.strip())
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
@@ -610,7 +635,12 @@ def cmd_up(a):
         m = load_meta(name)
         state = f"running on port {m['port']}" if pid_of(m) else "stopped"
         die(f"env '{name}' already exists ({state}); use restart, or down first")
-    port = a.port or pick_port()
+    if a.auto_config:
+        if a.port and a.port != AUTO_CONFIG_PORT:
+            die(f"--auto-config always uses the generated port {AUTO_CONFIG_PORT}")
+        if any(m.get("auto_config") for m in all_metas()):
+            die("another --auto-config env exists; it owns port 8080")
+    port = AUTO_CONFIG_PORT if a.auto_config else a.port or pick_port()
     if port_open(port):
         die(f"port {port} is in use by pid {listener_pid(port)}")
     src = Path(a.src or git(Path.cwd(), "rev-parse", "--show-toplevel") or Path.cwd()).expanduser().resolve()
@@ -642,7 +672,8 @@ def cmd_up(a):
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "home": str(d / "home"),
         "bin": str(d / "bin" / "openbee"),
-        "config": str(d / "config.yaml"),
+        "config": str(d / "home" / STATE_DIR / "config.yaml") if a.auto_config else str(d / "config.yaml"),
+        "auto_config": a.auto_config,
         "model": a.model,
         "admin_user": "admin",
         "admin_password": secrets.token_urlsafe(12),
@@ -659,12 +690,16 @@ def cmd_up(a):
     try:
         build(meta, a.skip_web)
         write_pi_settings(meta)
-        install_skills(meta)
-        render_config(meta)
+        if not a.auto_config:
+            install_skills(meta)
+            render_config(meta)
         save_meta(meta)
         if not a.skip_pi_check:
             check_pi(meta)
         start(meta)
+        if a.auto_config:
+            adopt_generated_config(meta)
+            save_meta(meta)
         code, body = http(meta, "POST", "/api/setup", {"username": meta["admin_user"], "password": meta["admin_password"], "display_name": "E2E Admin"})
         if code != 200:
             die(f"/api/setup failed: {code} {body}")
@@ -835,7 +870,8 @@ def cmd_restart(a):
         if a.src:
             meta["src"] = str(src)
         build(meta, a.skip_web)
-        install_skills(meta)
+        if not meta.get("auto_config"):
+            install_skills(meta)
         save_meta(meta)
     start(meta)
     print_status(meta)
@@ -1001,6 +1037,7 @@ def main():
     p.add_argument("--env", action="append")
     p.add_argument("--engine", action="append", metavar="NAME[=DIR]")
     p.add_argument("--engine-src", metavar="DIR")
+    p.add_argument("--auto-config", action="store_true")
 
     p = cmd("engine", cmd_engine)
     p.add_argument("engine", metavar="NAME[=DIR]")

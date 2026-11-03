@@ -18,7 +18,7 @@ const (
 )
 
 //go:embed config.yaml.tmpl
-var ConfigTemplate string
+var configTemplate string
 
 func DefaultBeeWorkDir() string {
 	home, _ := os.UserHomeDir()

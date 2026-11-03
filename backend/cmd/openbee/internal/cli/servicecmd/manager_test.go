@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,13 @@ func TestResolveInstallOptions_ExplicitConfig(t *testing.T) {
 func TestResolveInstallOptions_MissingConfig(t *testing.T) {
 	_, _, err := resolveInstallOptions("/nonexistent/path.yaml", "", currentUsername(t), false, false)
 	require.Error(t, err, "expected error for missing config")
+}
+
+func TestResolveInstallOptions_MissingDefaultConfigIsCreatedByServer(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	opts, _, err := resolveInstallOptions("", "", currentUsername(t), false, false)
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(opts.ConfigPath, filepath.Join(".openbee", "config.yaml")), opts.ConfigPath)
 }
 
 // Regression: passing a directory as --config (e.g. `--config ~/openbee`)

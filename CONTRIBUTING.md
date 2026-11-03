@@ -31,11 +31,7 @@ The binary will be output to `dist/openbee`.
 
 ### Configuration
 
-```bash
-./dist/openbee config
-```
-
-Run `openbee config` to interactively generate `config.yaml` with all available options.
+`./dist/openbee server` creates `~/.openbee/config.yaml` with defaults on first start. Pass `-c /path/to/config.yaml` to run against another config.
 
 ### Running Tests
 

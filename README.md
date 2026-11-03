@@ -65,30 +65,15 @@ Visit [GitHub Releases](https://github.com/theopenbee/openbee/releases), downloa
 
 </details>
 
-### Step 2: Generate a config file
-
-```bash
-openbee config
-```
-
-The wizard will guide you through:
-- Language
-- Bee and worker timeouts
-- Advanced options (can be skipped to use defaults)
-
-The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
-
-```bash
-openbee config -o /path/to/config.yaml
-```
-
-### Step 3: Start the service
+### Step 2: Start the service
 
 ```bash
 openbee server -d
 ```
 
-### Step 4: Install an engine
+On first start OpenBee writes `~/.openbee/config.yaml` with defaults and random secrets, and keeps its database at `~/.openbee/data/openbee.db`. Edit that file and restart to change the port or other settings, or pass `-c /path/to/config.yaml` to use a different file.
+
+### Step 3: Install an engine
 
 OpenBee does not bundle an AI engine. Engines are plugins that drive a coding CLI, so first install the CLI you want (Claude Code, Codex or pi) and log in to it yourself. Then install its plugin, either with the command line or from the plugin page of the Web Console:
 
@@ -99,7 +84,7 @@ openbee plugin list             # the engine shows as ready once the CLI is foun
 
 A new engine plugin is enabled right away and takes effect without restarting OpenBee. If the CLI is not on `PATH`, set its location with `openbee plugin configure claude --set path=/path/to/claude`. See the [engine plugin protocol](docs/engine-plugin-protocol.md).
 
-### Step 5: Start using
+### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
 - Send messages directly in any configured platform (a channel plugin such as WeChat, Lark, DingTalk, WeCom, Telegram or Linear) to interact with OpenBee

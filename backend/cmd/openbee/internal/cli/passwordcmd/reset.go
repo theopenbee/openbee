@@ -39,7 +39,7 @@ func NewResetCommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	cmd.Flags().StringVar(&password, "password", "", "new password (prompted when omitted)")
 	return cmd
 }

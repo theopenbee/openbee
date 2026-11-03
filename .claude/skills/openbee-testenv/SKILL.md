@@ -58,6 +58,7 @@ Options:
 - `--engine-src <dir>` installs the pi plugin from a built checkout (`openbee.plugin.json` and `dist/` present). Without it the script looks `pi` up in the plugin catalog and stops with a clear error if the catalog does not list it (engines may not be published yet).
 - `--engine NAME[=DIR]` (repeatable) installs another engine plugin the same way, e.g. `--engine claude=<engine-claude checkout>`; without `=DIR` it comes from the catalog. If the plugin has a `path` setting and `NAME` is on PATH, the script sets it. pi stays the default and the only engine that can run under the mock HOME.
 - `--env KEY=VALUE` (extra server env, e.g. `OPENBEE_PLUGIN_CATALOG=<catalog.json>`, or a `PATH` override for runtime tests)
+- `--auto-config` writes no config and starts the server without `-c`, so the server creates `~/.openbee/config.yaml` in the mock HOME itself. The env takes the generated port 8080, so only one such env can exist; the script reads the secrets and DB path back from the generated file.
 
 ### 2. Engines
 

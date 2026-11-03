@@ -34,6 +34,8 @@
 - Desktop chat header shows worker engine and description, not status.
 - Relicense OpenBee from MIT to AGPL-3.0.
 - Desktop saves opened attachments to the Downloads folder.
+- First server start creates `~/.openbee/config.yaml` with defaults.
+- Install built-in agent skills on every server start.
 
 ### Removed
 - Remove user and role management; keep one admin account.
@@ -49,6 +51,7 @@
 - Drop unused accordion and popover web dependencies.
 - Remove `openbee ctl` and the `/rpc/bee/call` endpoint.
 - Remove `bee.rpc.token_ttl`; run timeouts now bound agent tokens.
+- Remove the `openbee config` setup wizard.
 
 ### Fixed
 - Stopping a task no longer leaves pi bash commands running.

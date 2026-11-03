@@ -126,11 +126,11 @@ func TestLoad_NoLegacyWarnings(t *testing.T) {
 }
 
 func TestTemplate_NoEnginesSection(t *testing.T) {
-	assert.NotContains(t, ConfigTemplate, "engines:")
-	assert.NotContains(t, ConfigTemplate, "Enabled}}")
-	assert.Contains(t, ConfigTemplate, "default: \"{{.EngineDefault}}\"")
-	assert.Contains(t, ConfigTemplate, "bee: {{.EngineTimeoutBee}}")
-	assert.Contains(t, ConfigTemplate, "worker: {{.EngineTimeoutWorker}}")
+	assert.NotContains(t, configTemplate, "engines:")
+	assert.NotContains(t, configTemplate, "Enabled}}")
+	assert.Contains(t, configTemplate, "default: \"{{.EngineDefault}}\"")
+	assert.Contains(t, configTemplate, "bee: {{.EngineTimeoutBee}}")
+	assert.Contains(t, configTemplate, "worker: {{.EngineTimeoutWorker}}")
 }
 
 func TestLoad_LegacyPlatformsIgnored(t *testing.T) {

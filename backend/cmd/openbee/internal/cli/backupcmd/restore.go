@@ -23,7 +23,7 @@ func NewRestoreCommand(appVersion string) *cobra.Command {
 			return runRestore(args, appVersion, cfgPath, restorePassword, restoreForce)
 		},
 	}
-	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.yaml", "path to config file")
+	cmd.Flags().StringVarP(&cfgPath, "config", "c", config.DefaultConfigPath(), "path to config file")
 	cmd.Flags().StringVar(&restorePassword, "password", "", "password to decrypt the backup archive")
 	cmd.Flags().BoolVar(&restoreForce, "force", false, "overwrite existing data")
 	return cmd

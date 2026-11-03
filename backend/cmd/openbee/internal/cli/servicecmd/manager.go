@@ -109,13 +109,13 @@ func resolveInstallOptions(configFlag, workingDirFlag, runAsFlag string, noStart
 		cfgPath = filepath.Join(openbeeHome, "config.yaml")
 	}
 	cfgInfo, err := os.Stat(cfgPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return InstallOptions{}, nil, fmt.Errorf("config file not found at %s, run 'openbee config' first", cfgPath)
-		}
+	switch {
+	case errors.Is(err, os.ErrNotExist) && configFlag == "":
+	case errors.Is(err, os.ErrNotExist):
+		return InstallOptions{}, nil, fmt.Errorf("config file not found at %s", cfgPath)
+	case err != nil:
 		return InstallOptions{}, nil, fmt.Errorf("stat config: %w", err)
-	}
-	if cfgInfo.IsDir() {
+	case cfgInfo.IsDir():
 		return InstallOptions{}, nil, fmt.Errorf(
 			"--config must point to a config file, not a directory: %s (try %s)",
 			cfgPath,
