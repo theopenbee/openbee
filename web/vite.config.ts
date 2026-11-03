@@ -18,6 +18,8 @@ export default defineConfig({
   },
   build: {
     target: "es2020",
+    outDir: "../backend/internal/webui/dist",
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -32,8 +34,9 @@ export default defineConfig({
           if (pkg === "react-router-dom" || pkg === "react-router") return "vendor-router";
           if (pkg === "@tanstack/react-query") return "vendor-query";
           if (pkg === "i18next" || pkg === "react-i18next") return "vendor-i18n";
-          if (pkg === "@base-ui/react") return "vendor-ui";
           if (pkg === "lucide-react") return "vendor-icons";
+          if (pkg.startsWith("@radix-ui/")) return "vendor-ui";
+          if (pkg === "motion" || pkg === "motion-dom" || pkg === "motion-utils" || pkg === "framer-motion") return "vendor-motion";
         },
       },
     },

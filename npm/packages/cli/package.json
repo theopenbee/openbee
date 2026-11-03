@@ -19,7 +19,7 @@
     "@theopenbee/cli-win32-x64": "0.0.15",
     "@theopenbee/cli-win32-arm64": "0.0.15"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=14"
   },

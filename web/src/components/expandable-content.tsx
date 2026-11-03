@@ -57,7 +57,7 @@ export function ExpandableContent({
             onToggle?.()
             setCollapsed((prev) => !prev)
           }}
-          className="mt-1 py-1 text-xs font-medium text-primary/80 transition-colors hover:text-primary"
+          className="mt-1 rounded-control py-1 text-xs font-medium text-secondary transition-colors hover:text-foreground"
         >
           {collapsed ? t("common.showMore") : t("common.showLess")}
         </button>

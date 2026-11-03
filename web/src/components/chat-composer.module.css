@@ -1,0 +1,50 @@
+.composer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "files files files"
+    "attach input send";
+  align-items: end;
+  column-gap: var(--space-1);
+}
+
+.files {
+  grid-area: files;
+}
+
+.input {
+  grid-area: input;
+  min-width: 0;
+}
+
+.attach {
+  grid-area: attach;
+  display: inline-flex;
+}
+
+.hint {
+  display: none;
+  grid-area: hint;
+  min-width: 0;
+}
+
+.send {
+  grid-area: send;
+  display: inline-flex;
+  justify-self: end;
+}
+
+@media (min-width: 40rem) {
+  .composer {
+    grid-template-areas:
+      "files files files"
+      "input input input"
+      "attach hint send";
+    align-items: center;
+    column-gap: var(--space-2);
+  }
+
+  .hint {
+    display: block;
+  }
+}

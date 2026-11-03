@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
-import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { EYEBROW_LABEL } from "@/lib/styles"
+import { FIELD_LABEL } from "@/lib/styles"
 
 export function DetailHero({
   children,
@@ -11,8 +10,7 @@ export function DetailHero({
   className?: string
 }) {
   return (
-    <section className={cn("relative overflow-hidden rounded-sm border border-border/70 bg-card", className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
+    <section className={cn("min-w-0 overflow-hidden rounded-surface border border-border bg-surface", className)}>
       {children}
     </section>
   )
@@ -26,36 +24,9 @@ export function DetailSection({
   className?: string
 }) {
   return (
-    <section className={cn("overflow-hidden rounded-sm border border-border/70 bg-card", className)}>
+    <section className={cn("min-w-0 overflow-hidden rounded-surface border border-border bg-surface", className)}>
       {children}
     </section>
-  )
-}
-
-export function DetailOverviewStat({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  className,
-  valueClassName,
-}: {
-  icon?: LucideIcon
-  label: string
-  value: ReactNode
-  hint?: ReactNode
-  className?: string
-  valueClassName?: string
-}) {
-  return (
-    <div className={cn("min-w-0 rounded-sm border border-border/70 bg-background/80 p-4", className)}>
-      <div className={cn(EYEBROW_LABEL, "flex items-center gap-2")}>
-        {Icon ? <Icon className="size-3.5" /> : null}
-        <span>{label}</span>
-      </div>
-      <div className={cn("mt-3 text-base font-medium text-foreground wrap-anywhere", valueClassName)}>{value}</div>
-      {hint ? <div className="mt-2 text-xs text-muted-foreground wrap-anywhere">{hint}</div> : null}
-    </div>
   )
 }
 
@@ -69,8 +40,8 @@ export function DetailField({
   mono?: boolean
 }) {
   return (
-    <div className="space-y-1">
-      <p className={EYEBROW_LABEL}>{label}</p>
+    <div className="grid gap-1">
+      <p className={FIELD_LABEL}>{label}</p>
       <div className={cn("text-sm text-foreground", mono && "font-mono break-all")}>{value}</div>
     </div>
   )

@@ -8,9 +8,10 @@
     <title>OpenBee - Digital Worker Dispatch</title>
     <script>
       (function() {
-        var theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
-        document.documentElement.classList.remove('dark', 'light');
-        document.documentElement.classList.add(theme);
+        var stored = localStorage.getItem('theme');
+        var dark = stored === 'light' ? false : stored === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true;
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        document.documentElement.dataset.accent = 'orange';
       })();
     </script>
   </head>

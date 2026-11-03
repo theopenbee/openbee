@@ -1,26 +1,41 @@
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { SelectItem } from "@/components/ui/select"
-import { EngineIcon } from "@/components/agent-icons/engine-icon"
-import { formatEngineLabel } from "@/lib/format"
-import { ENGINES } from "@/lib/types"
-import type { Engine } from "@/lib/types"
+import { Select } from "@/components/arc/select/select"
+import { engineSelectOptions, type EngineSelectOption } from "@/lib/engines"
+import type { EngineChoice } from "@/lib/types"
 
-interface EngineSelectItemsProps {
-  engines?: readonly Engine[]
+export function useEngineOptions(engines: readonly EngineChoice[], stored?: string): EngineSelectOption[] {
+  const { t } = useTranslation()
+  return useMemo(
+    () => engineSelectOptions(engines, stored, (id) => t("workers.form.engineUnavailable", { engine: id })),
+    [engines, stored, t],
+  )
 }
 
-export function EngineSelectItems({ engines = ENGINES }: EngineSelectItemsProps) {
+interface EngineSelectProps {
+  id?: string
+  label: string
+  description?: string
+  placeholder?: string
+  engines: readonly EngineChoice[]
+  value: string
+  onValueChange: (value: string) => void
+  disabled?: boolean
+}
+
+export function EngineSelect({ engines, value, description, disabled, onValueChange, ...rest }: EngineSelectProps) {
   const { t } = useTranslation()
+  const options = useEngineOptions(engines, value)
+  const empty = options.length === 0
+
   return (
-    <>
-      {engines.map((e) => (
-        <SelectItem key={e} value={e}>
-          <span className="flex items-center gap-2">
-            <EngineIcon engine={e} className="size-4" />
-            {formatEngineLabel(e, t)}
-          </span>
-        </SelectItem>
-      ))}
-    </>
+    <Select
+      {...rest}
+      description={empty ? t("workers.form.noEngine") : description}
+      options={options}
+      value={value}
+      onValueChange={(next) => next && onValueChange(next)}
+      disabled={disabled || empty}
+    />
   )
 }

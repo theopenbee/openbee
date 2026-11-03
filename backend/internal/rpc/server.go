@@ -1,0 +1,77 @@
+package rpc
+
+import (
+	"context"
+
+	"github.com/theopenbee/openbee/internal/domain/delivery"
+	"github.com/theopenbee/openbee/internal/domain/localchat"
+	"github.com/theopenbee/openbee/internal/domain/session"
+	"github.com/theopenbee/openbee/internal/domain/worker"
+	"github.com/theopenbee/openbee/internal/infra/logger"
+	"github.com/theopenbee/openbee/internal/infra/model"
+	"github.com/theopenbee/openbee/internal/infra/store"
+	"github.com/theopenbee/openbee/internal/platform"
+	"go.uber.org/zap"
+)
+
+var log = logger.With(zap.String("component", "rpc"))
+
+type ctxKey string
+
+// Uses the same string value as CtxKeyWorkerID (auth middleware on gin.Context)
+// so the two stay in sync without a hard import dependency between packages.
+// Exported so tests can construct contexts that simulate worker calls.
+const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
+
+// Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
+const CtxScopesKey ctxKey = CtxKeyScopes
+
+type WorkerChatCleaner interface {
+	DeleteWorkerChats(ctx context.Context, w model.Worker) error
+}
+
+// Server dispatches tool calls.
+type Server struct {
+	workerStore          *store.WorkerStore
+	manager              *worker.Manager
+	taskStore            *store.TaskStore
+	messageStore         *store.MessageStore
+	outboundMessageStore *store.OutboundMessageStore
+	delivery             *delivery.Resolver
+	clearSvc             *session.ClearService
+	executionStore       *store.ExecutionStore
+	constraintStore      *store.ConstraintStore
+	sessionStore         *store.SessionStore
+	handoff              *localchat.Handoff
+	chats                WorkerChatCleaner
+}
+
+func NewBeeServer(
+	ws *store.WorkerStore,
+	mgr *worker.Manager,
+	ts *store.TaskStore,
+	ms *store.MessageStore,
+	oms *store.OutboundMessageStore,
+	senders platform.Senders,
+	clearSvc *session.ClearService,
+	es *store.ExecutionStore,
+	constraintStore *store.ConstraintStore,
+	sessionStore *store.SessionStore,
+	handoff *localchat.Handoff,
+	chats WorkerChatCleaner,
+) *Server {
+	return &Server{
+		workerStore:          ws,
+		manager:              mgr,
+		taskStore:            ts,
+		messageStore:         ms,
+		outboundMessageStore: oms,
+		delivery:             delivery.NewResolver(ms, senders),
+		clearSvc:             clearSvc,
+		executionStore:       es,
+		constraintStore:      constraintStore,
+		sessionStore:         sessionStore,
+		handoff:              handoff,
+		chats:                chats,
+	}
+}

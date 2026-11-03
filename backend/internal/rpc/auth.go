@@ -1,0 +1,70 @@
+package rpc
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/theopenbee/openbee/internal/infra/auth"
+)
+
+const (
+	CtxKeyTokenType = "rpc.token.type"
+	CtxKeyWorkerID  = "rpc.token.worker_id"
+	CtxKeyScopes    = "rpc.token.scopes"
+)
+
+// JWTAuthMiddleware validates the RPC JWT and writes claims to gin.Context.
+// Reads the token from the X-API-Key header, a Bearer Authorization header or the api_key query param.
+// Returns 401 on missing, invalid, or expired token.
+func JWTAuthMiddleware(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenStr := c.GetHeader("X-API-Key")
+		if tokenStr == "" {
+			if scheme, token, ok := strings.Cut(c.GetHeader("Authorization"), " "); ok && strings.EqualFold(scheme, "Bearer") {
+				tokenStr = strings.TrimSpace(token)
+			}
+		}
+		if tokenStr == "" {
+			tokenStr = c.Query("api_key")
+		}
+		if tokenStr == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		claims, err := auth.ValidateToken(tokenStr, secret)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		c.Set(CtxKeyTokenType, claims.Type)
+		c.Set(CtxKeyWorkerID, claims.WorkerID)
+		c.Set(CtxKeyScopes, claims.Scopes)
+		c.Next()
+	}
+}
+
+// RequireBeeOrWorker accepts tokens of either type.
+func RequireBeeOrWorker() gin.HandlerFunc {
+	allowed := requireTypeIn(auth.TokenTypeBee, auth.TokenTypeWorker)
+	return func(c *gin.Context) {
+		if tokenType, _ := c.Get(CtxKeyTokenType); tokenType == auth.TokenTypeWorker && c.GetString(CtxKeyWorkerID) == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		allowed(c)
+	}
+}
+
+func requireTypeIn(allowed ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenType, _ := c.Get(CtxKeyTokenType)
+		for _, t := range allowed {
+			if tokenType == t {
+				c.Next()
+				return
+			}
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	}
+}

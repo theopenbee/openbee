@@ -2,14 +2,23 @@
 
 ## Design System
 
+The web UI (`web/src`) is built on [Arc](https://uiarc.dev) (agent index: `https://uiarc.dev/llms.txt`). Arc items install with `pnpm arc:add <id>` (run in `web/`; it wraps the shadcn CLI and strips comments) into `web/src/components/arc/`, and the design tokens live in `web/src/components/arc/foundation.css`. Use an existing Arc component before writing UI, and style with Arc semantic tokens (`--background`, `--surface`, `--foreground`, `--text-secondary`, `--border`, `--accent`, `--success`, `--warning`, `--danger`) instead of raw colors.
+
 ### Border radius (STRICT)
 
-Corner radius must be **at most `sm`**. The graduated radius scale above `sm` is **forbidden** across all web UI (`web/src`).
+Corner radius follows **Arc's concentric radius tokens**. Never hard-code a radius.
 
-- ❌ **Do NOT use:** `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-2xl`, `rounded-3xl`, `rounded-4xl` — nor their tokens (`--radius-md/lg/xl/2xl/3xl/4xl`, `var(--radius)` at `md` or above) or arbitrary radii larger than `sm` (e.g. `rounded-[10px]`).
-- ✅ **Allowed:** `rounded-none`, `rounded-sm`, and `rounded-full` (reserved for true circles/pills only — avatars, status dots, icon chips).
+| Token | Tailwind | Value | Use |
+| --- | --- | --- | --- |
+| `--radius-control` | `rounded-control` | 18px | Buttons, inputs, selects, small controls |
+| `--radius-panel` | `rounded-panel` | 26px | Menus, popovers, nested panels |
+| `--radius-surface` | `rounded-surface` | 34px | Cards, dialogs, drawers, large surfaces |
+| `--radius-inset` | `rounded-inset` | surface − 24px (10px) | A surface nested inside a 24px-padded card |
+| `--radius-pill` | `rounded-full` | 9999px | Tags, badges, status marks, avatars, dots |
 
-When a component needs rounding, default to `rounded-sm`. This keeps the interface visually serious and squared.
+- **Nested corners are concentric:** inner radius = outer radius − the padding between them, clamped at a small positive value, e.g. `max(6px, calc(var(--radius-surface) - 24px))`. Never repeat the outer radius on an inner surface.
+- ❌ **Do NOT use:** the Tailwind radius scale (`rounded-sm`, `rounded-md`, `rounded-lg`, `rounded-xl`, `rounded-2xl`, `rounded-3xl`, `rounded-4xl`), raw radii (`border-radius: 12px`, `rounded-[10px]`), or restyled radii inside Arc components.
+- ✅ **Use:** `var(--radius-*)` in CSS modules, and `rounded-control`, `rounded-panel`, `rounded-surface`, `rounded-inset`, `rounded-full` or `rounded-none` in Tailwind. `pnpm lint` enforces this.
 
 ## Code Style
 

@@ -1,26 +1,31 @@
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import { ENGINES } from "@/lib/types"
-import type { Engine } from "@/lib/types"
+import { listEnabledEngines } from "@/lib/engines"
+import type { EngineChoice } from "@/lib/types"
 
-function useAppConfig() {
+const CONFIG_STALE_MS = 30_000
+
+export function useSystemConfigs() {
   return useQuery({
-    queryKey: ["config"],
-    queryFn: () => api.config.get(),
-    staleTime: Infinity, // static deployment setting
+    queryKey: ["system-configs"],
+    queryFn: () => api.systemConfigs.get(),
   })
 }
 
-export function useEnabledEngines(): readonly Engine[] {
-  const { data } = useAppConfig()
-
-  return useMemo(() => {
-    if (!data?.enabled_engines?.length) {
-      return ENGINES
-    }
-    // Preserve canonical ordering from ENGINES constant
-    return ENGINES.filter((e) => data.enabled_engines.includes(e))
-  }, [data?.enabled_engines])
+export function useAppConfig() {
+  return useQuery({
+    queryKey: ["config"],
+    queryFn: () => api.config.get(),
+    staleTime: CONFIG_STALE_MS,
+  })
 }
 
+export function useEnabledEngines(): EngineChoice[] {
+  const { data } = useAppConfig()
+  const { i18n } = useTranslation()
+  const lang = i18n.language
+
+  return useMemo(() => listEnabledEngines(data, lang), [data, lang])
+}

@@ -4,7 +4,8 @@ import { chatReducer, createMessageId, EMPTY_CHAT, type ChatState } from "../cha
 
 const msg = (id: string, ts: number, extra: Partial<ChatMessage> = {}): ChatMessage => ({
   id,
-  role: "user",
+  sender: { type: "user" },
+  kind: "message",
   content: id,
   ts,
   ...extra,
@@ -40,11 +41,11 @@ describe("chatReducer latest", () => {
 
     const next = chatReducer(prev, {
       type: "latest",
-      messages: [msg("u", 1005), msg("r", 1010, { role: "bee" })],
+      messages: [msg("u", 1005), msg("r", 1010, { sender: { type: "bee" } })],
       hasMore: true,
     })
 
-    expect(next.messages).toEqual([msg("u", 1005), msg("r", 1010, { role: "bee" })])
+    expect(next.messages).toEqual([msg("u", 1005), msg("r", 1010, { sender: { type: "bee" } })])
   })
 
   it("drops disconnected older history instead of leaving a hidden gap", () => {

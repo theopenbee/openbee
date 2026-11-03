@@ -1,5 +1,6 @@
+import { useId } from "react"
 import { useTranslation } from "react-i18next"
-import { Switch } from "@/components/ui/switch"
+import { Switch } from "@/components/arc/switch/switch"
 import type { ScopeDef } from "@/lib/scopes"
 
 interface ScopeToggleCardProps {
@@ -11,19 +12,25 @@ interface ScopeToggleCardProps {
 
 export function ScopeToggleCard({ scope, checked, onToggle, disabled }: ScopeToggleCardProps) {
   const { t } = useTranslation()
+  const id = useId()
 
   return (
-    <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{t(scope.titleKey)}</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{t(scope.descriptionKey)}</p>
+    <div className="flex min-h-16 items-center justify-between gap-4 px-4 py-4 sm:px-6">
+      <div className="grid min-w-0 gap-0.5">
+        <span id={`${id}-title`} className="text-sm font-medium text-foreground">
+          {t(scope.titleKey)}
+        </span>
+        <span id={`${id}-hint`} className="text-sm text-secondary">
+          {t(scope.descriptionKey)}
+        </span>
       </div>
       <Switch
         checked={checked}
         onCheckedChange={(val) => onToggle(scope.id, val)}
         disabled={disabled}
-        aria-label={t(scope.titleKey)}
-        className="mt-0.5 shrink-0"
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-hint`}
+        className="shrink-0"
       />
     </div>
   )

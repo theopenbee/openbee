@@ -1,0 +1,15 @@
+.tooltip { --tooltip-y: 3px; z-index: 90; max-width: 15rem; padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in oklab, var(--background) 14%, var(--foreground)); border-radius: var(--radius-control); background: var(--foreground); color: var(--background); box-shadow: var(--shadow-raised); font-size: var(--text-sm); font-weight: 400; line-height: var(--leading-body); transform-origin: var(--radix-tooltip-content-transform-origin); transition: opacity var(--duration-fast) var(--ease-enter), transform var(--duration-fast) var(--ease-enter); }
+.tooltip[data-side="bottom"] { --tooltip-y: -3px; }
+@starting-style {
+  .tooltip[data-state$="-open"] { opacity: 0; transform: translateY(var(--tooltip-y)) scale(.97); }
+  .tooltip[data-instant][data-state$="-open"] { transform: none; }
+}
+.tooltip[data-instant][data-state$="-open"] { transition: opacity var(--duration-instant) var(--ease-standard), transform var(--duration-instant) var(--ease-standard); }
+.tooltip[data-state="closed"] { opacity: 0; transform: scale(.98); transition: opacity var(--duration-instant) var(--ease-standard), transform var(--duration-instant) var(--ease-standard); animation: tooltip-exit var(--duration-instant) linear both; }
+.text { position: relative; display: block; overflow: clip; overflow-clip-margin: var(--space-2); }
+.measure { position: absolute; top: 0; left: 0; width: max-content; max-width: calc(15rem - 2 * var(--space-4) - 2px); visibility: hidden; pointer-events: none; }
+.line { display: block; width: max-content; max-width: calc(15rem - 2 * var(--space-4) - 2px); }
+@keyframes tooltip-exit { to { --tooltip-exit: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .tooltip, .tooltip[data-state="closed"], .tooltip[data-instant][data-state$="-open"] { transform: none; transition: opacity var(--duration-instant) var(--ease-standard); }
+}

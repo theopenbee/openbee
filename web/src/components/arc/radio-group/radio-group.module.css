@@ -1,0 +1,22 @@
+.group { display: grid; min-width: 0; margin: 0; border: 0; padding: 0; }
+.group legend { margin-bottom: var(--space-2); padding: 0; font-size: var(--text-sm); font-weight: 500; }
+.options { position: relative; display: grid; gap: var(--space-2); }
+.highlight { position: absolute; top: 0; right: 0; left: 0; z-index: 1; box-sizing: border-box; border: 1px solid var(--control-on); border-radius: var(--radius-control); background: color-mix(in oklab, var(--control-on) 5%, transparent); opacity: 0; pointer-events: none; }
+.option { position: relative; display: flex; align-items: center; gap: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); padding: var(--space-3); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard); }
+@media (hover: hover) and (pointer: fine) { .option:hover { background: var(--surface-muted); } }
+.option:active { background: var(--surface-muted); }
+.options:not([data-ready]) .option:has(input:checked) { border-color: var(--control-on); background: color-mix(in oklab, var(--control-on) 5%, transparent); }
+.option input { position: absolute; opacity: 0; }
+.option > span { position: relative; z-index: 2; }
+.mark { display: grid; width: 17px; height: 17px; flex: 0 0 auto; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform var(--duration-spring) var(--ease-spring); }
+.mark::after, .dot { grid-area: 1 / 1; width: 7px; height: 7px; border-radius: 50%; background: var(--foreground); }
+.mark::after { content: ""; opacity: 0; transition: opacity var(--duration-instant) var(--ease-standard); }
+.option:active:not(:has(input:checked)) .mark::after { opacity: .22; }
+.option:active .mark { transform: scale(.88); transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform 100ms var(--ease-standard); }
+.option:has(input:checked) .mark { border-color: var(--control-on); background: var(--control-on); }
+.option:has(input:checked) .dot { background: var(--control-glyph); }
+.option strong, .option small { display: block; }
+.option strong { color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; transition: color var(--duration-standard) var(--ease-standard); }
+.option:has(input:checked) strong { color: var(--foreground); }
+.option small { margin-top: 2px; color: var(--text-muted); font-size: var(--text-xs); }
+@media (prefers-reduced-motion: reduce) { .option, .mark, .mark::after, .option strong { transition: none; } .option:active .mark { transform: none; } }

@@ -1,4 +1,4 @@
-<img src="docs/logo-full.svg" alt="OpenBee" width="220" />
+<img src="docs/images/logo-full.svg" alt="OpenBee" width="220" />
 
 # OpenBee — Build smarter AI teams.
 
@@ -16,7 +16,7 @@ To learn more about the project, visit [docs.theopenbee.com](https://docs.theope
 
 ## 📸 Screenshots
 
-<img src="docs/openbee-dashboard.png" alt="OpenBee Dashboard" />
+<img src="docs/images/openbee-dashboard.png" alt="OpenBee Dashboard" />
 
 ## 🚀 Quick Start
 
@@ -65,33 +65,61 @@ Visit [GitHub Releases](https://github.com/theopenbee/openbee/releases), downloa
 
 </details>
 
-### Step 2: Generate a config file
-
-```bash
-openbee config
-```
-
-The wizard will guide you through:
-- Agent executable path
-- Platform(s) to enable (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) and their credentials
-- Advanced options (can be skipped to use defaults)
-
-The config file is written to `config.yaml` in the current directory by default. Use `-o` to specify a custom path:
-
-```bash
-openbee config -o /path/to/config.yaml
-```
-
-### Step 3: Start the service
+### Step 2: Start the service
 
 ```bash
 openbee server -d
 ```
 
+On first start OpenBee writes `~/.openbee/config.yaml` with defaults and random secrets, and keeps its database at `~/.openbee/data/openbee.db`. Edit that file and restart to change the port or other settings, or pass `-c /path/to/config.yaml` to use a different file.
+
+### Step 3: Install an engine
+
+OpenBee does not bundle an AI engine. Engines are plugins that drive a coding CLI, so first install the CLI you want (Claude Code, Codex or pi) and log in to it yourself. Then install its plugin, either with the command line or from the plugin page of the Web Console:
+
+```bash
+openbee plugin install claude   # or codex, or pi
+openbee plugin list             # the engine shows as ready once the CLI is found
+```
+
+A new engine plugin is enabled right away and takes effect without restarting OpenBee. If the CLI is not on `PATH`, set its location with `openbee plugin configure claude --set path=/path/to/claude`. See the [engine plugin protocol](docs/engine-plugin-protocol.md).
+
 ### Step 4: Start using
 
 - Open the Web Console (default [http://localhost:8080](http://localhost:8080)) to manage Workers and view task status
-- Send messages directly in any configured platform (Lark / DingTalk / WeCom / WeChat / Telegram / Linear) to interact with OpenBee
+- Send messages directly in any configured platform (a channel plugin such as WeChat, Lark, DingTalk, WeCom, Telegram or Linear) to interact with OpenBee
+
+### Channel plugins
+
+Chat platforms are added as plugins without rebuilding OpenBee, and a running OpenBee installs, configures, enables and removes them without restarting:
+
+```bash
+openbee plugin search              # browse the plugin catalog and pick plugins to install
+openbee plugin configure telegram  # answer the plugin's questions, then enable it
+openbee plugin list                # see every plugin and whether it is running
+```
+
+`openbee plugin install <id>`, `enable`, `disable`, `restart`, `update` and `remove` cover the rest; `configure --set key=value` works without prompts. Plugins run on Bun or Node.js; if neither is installed, OpenBee downloads Bun into `~/.openbee/runtime`. See the [channel plugin protocol](docs/channel-plugin-protocol.md).
+
+## 🖥️ Desktop app
+
+A native desktop client for macOS, Windows and Linux, built with [MyGo](https://github.com/egoist/mygo). It connects to an OpenBee server you already run.
+
+1. Download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-universal.dmg` (or `.zip`) for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
+2. Open it and enter your OpenBee server address (default `http://localhost:8080`).
+3. Sign in with your OpenBee account.
+
+Release builds are not code signed yet, so the first launch needs a manual approval:
+
+- **macOS:** right-click the app and choose Open (on macOS 15 and later, use Open Anyway in System Settings > Privacy & Security), or run `xattr -dr com.apple.quarantine /Applications/OpenBee.app`.
+- **Windows:** when SmartScreen shows "Windows protected your PC", click More info, then Run anyway.
+
+To build it from source, install `jq` first (Go 1.27 is downloaded automatically):
+
+```bash
+make desktop       # current platform, output in desktop/build/
+make desktop-all   # macOS, Windows and Linux
+```
 
 ## 🌟 Star History
 
@@ -105,3 +133,9 @@ openbee server -d
 
 - 🐛 **Bug reports / Feature requests** → [GitHub Issues](https://github.com/theopenbee/openbee/issues)
 - 🤝 **Contributing** → Please read the [Contributing Guide](CONTRIBUTING.md). You must agree to the [Contributor License Agreement (CLA)](CLA.md) before submitting.
+
+## 📄 License
+
+OpenBee is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Copyright (c) 2026 TENGYONGZHI

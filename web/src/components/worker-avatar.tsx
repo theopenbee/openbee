@@ -1,15 +1,15 @@
 import { useTranslation } from "react-i18next"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { cn } from "@/lib/utils"
+import { Avatar } from "@/components/arc/avatar/avatar"
+import { avatarColorClass } from "@/lib/avatar-color"
 import { statusLabel } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
 export const presenceColor: Record<string, string> = {
-  idle: "bg-status-idle",
-  working: "bg-status-working",
-  error: "bg-status-error",
+  idle: "bg-success",
+  working: "bg-accent",
+  error: "bg-danger",
 }
 
-// First glyph for CJK names, first letters of the first two words otherwise.
 export function initials(name: string): string {
   const trimmed = name.trim()
   if (!trimmed) return "?"
@@ -19,25 +19,40 @@ export function initials(name: string): string {
   return trimmed.slice(0, 2).toUpperCase()
 }
 
+export type AvatarSize = "sm" | "default" | "lg" | "xl"
+
 interface WorkerAvatarProps {
+  workerId: string
   name: string
   status: string
-  size?: "default" | "sm" | "lg"
+  size?: AvatarSize
   className?: string
 }
 
-export function WorkerAvatar({ name, status, size = "default", className }: WorkerAvatarProps) {
+const sizes = { sm: "sm", default: "md", lg: "lg", xl: "xl" } as const
+
+const dotPlacement: Record<AvatarSize, string> = {
+  sm: "-right-0.5 -bottom-0.5 size-2.5",
+  default: "-right-0.5 -bottom-0.5 size-2.5",
+  lg: "-right-0.5 -bottom-0.5 size-2.5",
+  xl: "right-1 bottom-1 size-3.5",
+}
+
+export function WorkerAvatar({ workerId, name, status, size = "default", className }: WorkerAvatarProps) {
   const { t } = useTranslation()
-  const color = presenceColor[status] ?? "bg-muted-foreground"
+  const color = presenceColor[status] ?? "bg-border-strong"
   const label = statusLabel(status, t)
 
   return (
-    <span className={cn("relative inline-flex shrink-0", className)}>
-      <Avatar size={size}>
-        <AvatarFallback className="font-medium uppercase">{initials(name)}</AvatarFallback>
-      </Avatar>
+    <span className={cn("relative inline-flex shrink-0 rounded-full", avatarColorClass(workerId), className)}>
+      <Avatar
+        name={Array.from(initials(name)).join(" ")}
+        size={sizes[size]}
+        className="bg-transparent! text-avatar-foreground!"
+        aria-hidden="true"
+      />
       <span
-        className="absolute -right-0.5 -bottom-0.5 inline-flex size-2.5 items-center justify-center rounded-full ring-2 ring-card"
+        className={cn("absolute inline-flex items-center justify-center rounded-full ring-2 ring-surface", dotPlacement[size])}
         title={label}
         role="img"
         aria-label={label}

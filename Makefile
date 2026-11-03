@@ -13,7 +13,7 @@ PLATFORMS := \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish
+.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-test desktop-all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -23,11 +23,11 @@ web: ## Build frontend assets
 
 build: ## Build binary for the current platform
 	@mkdir -p $(OUTDIR)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY) ./cmd/openbee/
+	CGO_ENABLED=0 go -C backend build -ldflags "$(LDFLAGS)" -o ../$(OUTDIR)/$(BINARY) ./cmd/openbee/
 
 build-linux-amd64: ## Build binary for linux/amd64
 	@mkdir -p $(OUTDIR)
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(OUTDIR)/$(BINARY)-linux-amd64 ./cmd/openbee/
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go -C backend build -ldflags "$(LDFLAGS)" -o ../$(OUTDIR)/$(BINARY)-linux-amd64 ./cmd/openbee/
 
 release: web ## Build binaries for all platforms
 	@mkdir -p $(OUTDIR)
@@ -37,7 +37,7 @@ release: web ## Build binaries for all platforms
 		out=$(OUTDIR)/$(BINARY)-$$os-$$arch; \
 		if [ "$$os" = "windows" ]; then out=$$out.exe; fi; \
 		echo "  Building $$out..."; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $$out ./cmd/openbee/ || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go -C backend build -ldflags "$(LDFLAGS)" -o ../$$out ./cmd/openbee/ || exit 1; \
 	done
 	@echo "Done. Artifacts in $(OUTDIR)/"
 
@@ -75,3 +75,19 @@ npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set ver
 
 npm-publish: npm-prepare  ## Publish all npm packages to registry
 	bash npm/scripts/publish.sh
+
+DESKTOP_BUILD = cd desktop && \
+	backup=$$(mktemp) && \
+	cp mygo.json "$$backup" && \
+	trap 'cat "$$backup" > mygo.json; rm -f "$$backup"' EXIT && \
+	./scripts/set-version.sh "$(VERSION)" > /dev/null && \
+	go tool mygo build
+
+desktop: ## Build the desktop app for the current platform
+	$(DESKTOP_BUILD)
+
+desktop-test: ## Vet, test and cross-compile the desktop app
+	cd desktop && go vet ./... && go tool mygo vet . && CGO_ENABLED=0 go test ./... && GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./...
+
+desktop-all: ## Build the desktop app for all platforms
+	$(DESKTOP_BUILD) -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64

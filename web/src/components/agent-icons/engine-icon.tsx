@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react"
+import { CpuIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -57,19 +58,17 @@ const ICONS = {
 } as const
 
 interface EngineIconProps extends SvgProps {
-  /** Engine key. Unknown / nullish values render nothing. */
   engine?: string | null
-  /**
-   * Accessible name. When provided the icon is exposed as an image with this
-   * label (use for icon-only contexts); otherwise it is hidden from a11y and
-   * the adjacent text label carries the meaning.
-   */
   title?: string
 }
 
+function GenericEngineIcon(props: SvgProps) {
+  return <CpuIcon strokeWidth={1.75} {...props} />
+}
+
 export function EngineIcon({ engine, title, className, ...props }: EngineIconProps) {
-  const Icon = engine ? ICONS[engine as keyof typeof ICONS] : undefined
-  if (!Icon) return null
+  if (!engine) return null
+  const Icon = Object.prototype.hasOwnProperty.call(ICONS, engine) ? ICONS[engine as keyof typeof ICONS] : GenericEngineIcon
 
   const a11y = title ? { role: "img" as const, "aria-label": title } : { "aria-hidden": true }
 
