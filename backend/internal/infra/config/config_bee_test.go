@@ -190,3 +190,17 @@ func TestLoad_TokenSecretGeneratedFlag(t *testing.T) {
 	assert.False(t, cfg.Bee.RPC.TokenSecretGenerated)
 	assert.Equal(t, "abc", cfg.Bee.RPC.TokenSecret)
 }
+
+func TestLoad_PortDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  host: localhost\n"), 0o644))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, 19876, cfg.Server.Port)
+	assert.Equal(t, "http://localhost:19876", cfg.Bee.RPCBaseURL)
+
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  port: 12345\n"), 0o644))
+	cfg, err = Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, 12345, cfg.Server.Port)
+}

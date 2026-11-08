@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -97,7 +98,7 @@ func DetectLanguage(getenv func(string) string) string {
 func defaultTemplateValues(dir, lang string) templateValues {
 	return templateValues{
 		Language:               lang,
-		ServerPort:             "19876",
+		ServerPort:             strconv.Itoa(DefaultPort),
 		ServerHost:             "localhost",
 		DBPath:                 filepath.Join(dir, "data", "openbee.db"),
 		RPCTokenSecret:         GenerateRandomSecret(),

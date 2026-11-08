@@ -32,7 +32,6 @@ const (
 	logFile      = "server.log"
 	logMaxBytes  = 10 << 20
 	probeTimeout = time.Second
-	defaultPort  = 19876
 	unsetVersion = "0.0.0"
 )
 
@@ -81,7 +80,7 @@ func (s *Server) URL() string {
 	case "", "0.0.0.0", "::", "[::]":
 		host = "localhost"
 	}
-	port := cmp.Or(s.cfg.Server.Port, defaultPort)
+	port := cmp.Or(s.cfg.Server.Port, config.DefaultPort)
 	return "http://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port))
 }
 

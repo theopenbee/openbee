@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	MCPPath = ai.MCPPath
+	MCPPath     = ai.MCPPath
+	DefaultPort = 19876
 )
 
 //go:embed config.yaml.tmpl
@@ -127,6 +128,9 @@ func Load(path string) (Config, error) {
 }
 
 func applyDefaults(cfg *Config) error {
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = DefaultPort
+	}
 	if cfg.Bee.MessageDebounce == 0 {
 		cfg.Bee.MessageDebounce = 300 * time.Millisecond
 	}

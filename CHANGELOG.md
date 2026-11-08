@@ -4,6 +4,7 @@
 
 ### Changed
 - Change the default server port from 8080 to 19876.
+- Use port 19876 when config.yaml sets no port.
 
 ## [1.0.1] - 2026-11-07
 
