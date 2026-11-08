@@ -10,7 +10,7 @@ OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or *
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 
-<sub><a href="README.zh.md">中文</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 Docs</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
+<sub><a href="README.zh.md">中文</a> &nbsp;·&nbsp; <a href="https://theopenbee.com/docs/">📖 Docs</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
 <img src="docs/images/openbee-desktop.png" alt="Bee splits a release across three workers in the OpenBee desktop app" />
 
@@ -64,7 +64,7 @@ Bee creates the worker. Hand it a task the same way. To chat from Lark, Telegram
 - [Desktop app](docs/desktop.md): downloads, first launch, the built-in server, the client-only build, building from source
 - [Server and CLI](docs/server.md): install methods, config and data files, everyday commands
 - [Plugins](docs/plugins.md): engines and chat channels, from the app or the command line
-- [docs.theopenbee.com](https://docs.theopenbee.com): guides for workers, tasks and constraints
+- [theopenbee.com/docs](https://theopenbee.com/docs/): guides for workers, tasks, constraints and chat apps
 - Write a plugin: [channel protocol](docs/channel-plugin-protocol.md), [engine protocol](docs/engine-plugin-protocol.md)
 
 ## 🤝 Community

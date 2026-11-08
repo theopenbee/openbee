@@ -10,7 +10,7 @@ OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 *
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 
-<sub><a href="README.md">English</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 文档</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
+<sub><a href="README.md">English</a> &nbsp;·&nbsp; <a href="https://theopenbee.com/zh/docs/">📖 文档</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
 <img src="docs/images/openbee-desktop.png" alt="在 OpenBee 桌面版中，Bee 把一次发版拆给三名员工" />
 
@@ -64,7 +64,7 @@ Bee 会创建这个员工。派任务也是一样，直接说。想在飞书、T
 - [桌面版](docs/desktop.zh.md)：下载、首次打开、内置服务端、纯客户端版、从源码构建
 - [服务端与命令行](docs/server.zh.md)：安装方式、配置与数据文件、常用命令
 - [插件](docs/plugins.zh.md)：引擎与聊天渠道，在应用里或用命令行管理
-- [docs.theopenbee.com](https://docs.theopenbee.com)：员工、任务与约束的使用指南
+- [theopenbee.com/zh/docs](https://theopenbee.com/zh/docs/)：员工、任务、约束与聊天软件接入的使用指南
 - 开发插件：[渠道插件协议](docs/channel-plugin-protocol.md)、[引擎插件协议](docs/engine-plugin-protocol.md)
 
 ## 🤝 Community
