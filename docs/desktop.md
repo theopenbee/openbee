@@ -31,6 +31,14 @@ Then create the admin account. Later launches sign in automatically.
 - If an OpenBee server already answers on that port, the app uses it instead of starting its own.
 - Logs go to `~/Library/Logs/OpenBee/server.log` on macOS, and to the `logs` folder of the app data directory elsewhere.
 
+## Updates
+
+The app checks GitHub Releases for a new version 10 seconds after launch and then once a day. When one is out, it shows the release notes and offers to install it, remind you later or skip that version. Tick "Automatically download and install updates in the future" to stop being asked. **Check for Updates…** checks right away: it is in the app menu on macOS and in the File menu on Windows and Linux.
+
+An update downloads in the background and takes effect when the app restarts. With the built-in server, restarting the app restarts the server too.
+
+The app only updates itself where it was installed from a release file or Homebrew. Scoop, the `.deb` package and the single-file `openbee-desktop-<version>-windows-<arch>.exe` are updated by downloading the new version.
+
 ## Use another server
 
 To connect to a remote server, choose **Change Server** in the app menu.

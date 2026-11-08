@@ -3092,6 +3092,16 @@ func (msgs Messages) MenuChangeServer() string {
 	return Catalog.Format(msgs.locale, "menuChangeServer", nil)
 }
 
+// MenuCheckUpdates says "Check for Updates…"
+// in the language the app shows.
+func MenuCheckUpdates() string { return In(i18n.Locale()).MenuCheckUpdates() }
+
+// MenuCheckUpdates says "Check for Updates…"
+// in the language of msgs.
+func (msgs Messages) MenuCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "menuCheckUpdates", nil)
+}
+
 // MenuFile says "File"
 // in the language the app shows.
 func MenuFile() string { return In(i18n.Locale()).MenuFile() }

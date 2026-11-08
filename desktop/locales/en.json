@@ -368,6 +368,7 @@
   "loginUsername": "Username",
   "loginUsernameRequired": "Enter your username",
   "menuChangeServer": "Change Server…",
+  "menuCheckUpdates": "Check for Updates…",
   "menuFile": "File",
   "menuNewWorker": "New Worker",
   "menuSettings": "Settings…",

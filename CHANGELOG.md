@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Desktop app updates itself from GitHub Releases.
+
 ### Changed
 - Change the default server port from 8080 to 19876.
 - Use port 19876 when config.yaml sets no port.

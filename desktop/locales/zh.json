@@ -368,6 +368,7 @@
   "loginUsername": "用户名",
   "loginUsernameRequired": "请输入用户名",
   "menuChangeServer": "更换服务器…",
+  "menuCheckUpdates": "检查更新…",
   "menuFile": "文件",
   "menuNewWorker": "新建数字员工",
   "menuSettings": "设置…",

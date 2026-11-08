@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
@@ -38,6 +39,7 @@ const (
 
 type App struct {
 	debug    bool
+	updates  bool
 	prefs    prefs.Store
 	tokens   prefs.TokenStore
 	cache    string
@@ -119,6 +121,7 @@ func (a *App) Run() error {
 			a.server.Stop(serverStop)
 		}
 	})
+	a.updates = useUpdater()
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
 }
@@ -331,6 +334,9 @@ func (a *App) setMenu() {
 		ChangeServer: func() { a.act(func() { a.st.ChangeServer() }) },
 		NewWorker:    func() { a.act(func() { a.root.NewWorker() }) },
 		Inspector:    a.debug,
+	}
+	if a.updates {
+		actions.CheckUpdates = updater.CheckForUpdates
 	}
 	mygo.App.SetMenu(mygo.NewMenu(Menu(actions, runtime.GOOS)))
 }
