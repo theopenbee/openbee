@@ -2112,6 +2112,16 @@ func (msgs Messages) ConnectErrorInvalid() string {
 	return Catalog.Format(msgs.locale, "connectErrorInvalid", nil)
 }
 
+// ConnectErrorLocal says "Couldn't start the built-in server: {reason}"
+// in the language the app shows.
+func ConnectErrorLocal(reason string) string { return In(i18n.Locale()).ConnectErrorLocal(reason) }
+
+// ConnectErrorLocal says "Couldn't start the built-in server: {reason}"
+// in the language of msgs.
+func (msgs Messages) ConnectErrorLocal(reason string) string {
+	return Catalog.Format(msgs.locale, "connectErrorLocal", map[string]any{"reason": reason})
+}
+
 // ConnectErrorNotOpenBee says "{url} is not an OpenBee server."
 // in the language the app shows.
 func ConnectErrorNotOpenBee(url string) string { return In(i18n.Locale()).ConnectErrorNotOpenBee(url) }
@@ -4862,6 +4872,26 @@ func SetupUsernameRequired() string { return In(i18n.Locale()).SetupUsernameRequ
 // in the language of msgs.
 func (msgs Messages) SetupUsernameRequired() string {
 	return Catalog.Format(msgs.locale, "setupUsernameRequired", nil)
+}
+
+// StartingDescription says "Getting the built-in server ready…"
+// in the language the app shows.
+func StartingDescription() string { return In(i18n.Locale()).StartingDescription() }
+
+// StartingDescription says "Getting the built-in server ready…"
+// in the language of msgs.
+func (msgs Messages) StartingDescription() string {
+	return Catalog.Format(msgs.locale, "startingDescription", nil)
+}
+
+// StartingTitle says "Starting OpenBee"
+// in the language the app shows.
+func StartingTitle() string { return In(i18n.Locale()).StartingTitle() }
+
+// StartingTitle says "Starting OpenBee"
+// in the language of msgs.
+func (msgs Messages) StartingTitle() string {
+	return Catalog.Format(msgs.locale, "startingTitle", nil)
 }
 
 // StatusesCancelled says "Cancelled"

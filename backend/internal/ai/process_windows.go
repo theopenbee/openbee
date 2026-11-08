@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strconv"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/infra/sysproc"
 )
 
 func (p *CmdProcess) Stop() error {
@@ -16,6 +18,7 @@ func (p *CmdProcess) Stop() error {
 	}
 	pid := p.cmd.Process.Pid
 	kill := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
+	sysproc.HideConsole(kill)
 	if err := kill.Run(); err != nil {
 		return err
 	}
@@ -27,4 +30,6 @@ func (p *CmdProcess) Terminate(time.Duration) error {
 	return p.Stop()
 }
 
-func ConfigureCmd(cmd *exec.Cmd) {}
+func ConfigureCmd(cmd *exec.Cmd) {
+	sysproc.HideConsole(cmd)
+}

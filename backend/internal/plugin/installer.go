@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/theopenbee/openbee/internal/infra/sysproc"
 )
 
 var ErrNotInstalled = errors.New("plugin not installed")
@@ -19,6 +21,7 @@ type Runner func(ctx context.Context, dir string, env []string, name string, arg
 
 func ExecRunner(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	sysproc.HideConsole(cmd)
 	cmd.Dir = dir
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)

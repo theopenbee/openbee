@@ -803,7 +803,7 @@ def print_status(meta):
     pid = pid_of(meta)
     print(json.dumps({
         "name": meta["name"],
-        "state": f"running (pid {pid})" if pid else "stopped",
+        "state": f"running (pid {pid})" if pid else f"desktop (pid {desktop_pid(meta)})" if desktop_pid(meta) else "stopped",
         "web": f"http://127.0.0.1:{meta['port']}",
         "admin": f"{meta['admin_user']} / {meta['admin_password']}",
         "src": meta["src"],
@@ -828,7 +828,7 @@ def cmd_status(a):
         pid = pid_of(m)
         if pid:
             managed.add(pid)
-        print(f"{m['name']:<12} {'running' if pid else 'stopped':<8} :{m['port']:<6} {m.get('branch')}@{m.get('commit')} engines={','.join(m.get('engines', [])) or '-'} channels={','.join(m.get('channels', [])) or '-'}")
+        print(f"{m['name']:<12} {'running' if pid else 'desktop' if desktop_pid(m) else 'stopped':<8} :{m['port']:<6} {m.get('branch')}@{m.get('commit')} engines={','.join(m.get('engines', [])) or '-'} channels={','.join(m.get('channels', [])) or '-'}")
     if not metas:
         print("no test envs")
     for pid, _, cmd in process_table():
@@ -875,6 +875,108 @@ def cmd_restart(a):
         save_meta(meta)
     start(meta)
     print_status(meta)
+
+
+def desktop_pid(meta):
+    pid = meta.get("desktop_pid")
+    return pid if pid and alive(pid) else None
+
+
+def desktop_binary(app):
+    macos = app / "Contents" / "MacOS"
+    if macos.is_dir():
+        bins = [p for p in macos.iterdir() if p.is_file() and os.access(p, os.X_OK)]
+        if len(bins) != 1:
+            die(f"{macos} holds {len(bins)} executables, want 1")
+        return bins[0]
+    if app.is_file() and os.access(app, os.X_OK):
+        return app
+    die(f"{app} is neither an app bundle nor an executable")
+
+
+def quit_desktop(meta):
+    pid = desktop_pid(meta)
+    if pid:
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.time() + 30
+        while time.time() < deadline and alive(pid):
+            time.sleep(0.2)
+        if alive(pid):
+            die(f"desktop pid {pid} did not quit within 30s")
+        log(f"desktop pid {pid} quit")
+    meta.pop("desktop_pid", None)
+    save_meta(meta)
+    for _ in range(20):
+        if not port_open(meta["port"]):
+            break
+        time.sleep(0.5)
+    if port_open(meta["port"]):
+        die(f"port {meta['port']} still in use by pid {listener_pid(meta['port'])} after the desktop quit")
+    left = env_processes(meta, process_table())
+    if left:
+        die(f"processes still running inside the env after the desktop quit: {sorted(left)}")
+
+
+def cmd_desktop(a):
+    meta = load_meta(a.name)
+    if a.quit:
+        quit_desktop(meta)
+        return
+    if not a.app:
+        die("pass --app <OpenBee.app or binary>, or --quit")
+    if not meta.get("auto_config"):
+        die("the desktop's built-in server reads ~/.openbee/config.yaml; use an env made with up --auto-config")
+    if desktop_pid(meta):
+        die(f"desktop already running (pid {desktop_pid(meta)}); use desktop --quit first")
+    stop(meta)
+    if a.reset:
+        for p in [Path(meta["config"]), db_path(meta), Path(f"{db_path(meta)}-wal"), Path(f"{db_path(meta)}-shm")]:
+            p.unlink(missing_ok=True)
+        home = Path(meta["home"])
+        for d in [home / "Library" / "Application Support" / "OpenBee", home / ".config" / "OpenBee"]:
+            shutil.rmtree(d, ignore_errors=True)
+        log("removed config, database and desktop sign-in: the desktop starts as on a first launch")
+    profile = Path(meta["home"]) / ".zprofile"
+    profile.write_text(f'export PATH="{node_bin()}:$PATH"\n')
+    src = Path(a.app).expanduser().resolve()
+    dest = env_dir(meta["name"]) / "desktop" / src.name
+    shutil.rmtree(dest.parent, ignore_errors=True)
+    dest.parent.mkdir(parents=True)
+    if src.is_dir():
+        shutil.copytree(src, dest, symlinks=True)
+    else:
+        shutil.copy2(src, dest)
+    binary = desktop_binary(dest)
+    out = open(env_dir(meta["name"]) / "desktop" / "desktop.log", "ab")
+    proc = subprocess.Popen([str(binary)], cwd=meta["home"], env=instance_env(meta), stdin=subprocess.DEVNULL, stdout=out, stderr=out, start_new_session=True)
+    meta["desktop_pid"] = proc.pid
+    meta["desktop_app"] = str(dest)
+    save_meta(meta)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            die(f"desktop exited with {proc.returncode}; see {out.name}")
+        try:
+            code, _ = http(meta, "GET", "/api/setup/status", timeout=2)
+            if code == 200:
+                break
+        except (urllib.error.URLError, ConnectionError, socket.timeout):
+            pass
+        time.sleep(0.5)
+    else:
+        die(f"the desktop's built-in server did not answer on port {meta['port']}; see {out.name}")
+    if a.reset:
+        adopt_generated_config(meta)
+        save_meta(meta)
+    _, setup = http(meta, "GET", "/api/setup/status")
+    print(json.dumps({
+        "desktop_pid": proc.pid,
+        "listener_pid": listener_pid(meta["port"]),
+        "app": str(dest),
+        "initialized": setup.get("initialized") if isinstance(setup, dict) else setup,
+        "server_log": str(Path(meta["home"]) / "Library" / "Logs" / "OpenBee" / "server.log"),
+        "desktop_log": out.name,
+    }, indent=2))
 
 
 def cmd_ctl(a):
@@ -1069,6 +1171,11 @@ def main():
 
     p = cmd("js", cmd_js)
     p.add_argument("code")
+
+    p = cmd("desktop", cmd_desktop)
+    p.add_argument("--app")
+    p.add_argument("--reset", action="store_true")
+    p.add_argument("--quit", action="store_true")
 
     p = cmd("ctl", cmd_ctl)
     p.add_argument("args", nargs=argparse.REMAINDER)

@@ -1,6 +1,8 @@
 package auth_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -114,6 +116,21 @@ func TestConnectShowsUnreachable(t *testing.T) {
 	h.T.Key(0, ui.KeyEnter)
 	h.Settle()
 	wantText(t, h, locales.ConnectErrorInvalid())
+}
+
+func TestConnectShowsLocalServerError(t *testing.T) {
+	const local = "http://localhost:8080"
+	h := testkit.WithOptions(t, width, height, nil, func(o *store.Options) {
+		o.LocalServer = local
+		o.StartLocal = func(context.Context) error { return errors.New("address already in use") }
+	})
+	if h.Store.Phase != store.PhaseConnect {
+		t.Fatalf("Phase = %v, want PhaseConnect", h.Store.Phase)
+	}
+	wantText(t, h, locales.ConnectErrorLocal("address already in use"))
+	if got := value(t, h, locales.ConnectServerLabel()); got != local {
+		t.Fatalf("server address = %q, want %s", got, local)
+	}
 }
 
 func TestConnectShowsNotOpenBee(t *testing.T) {

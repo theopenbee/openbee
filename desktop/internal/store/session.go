@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,18 @@ import (
 )
 
 var ErrInvalidURL = errors.New("invalid server address")
+
+type LocalServerError struct {
+	Err error
+}
+
+func (e *LocalServerError) Error() string {
+	return "start the built-in server: " + e.Err.Error()
+}
+
+func (e *LocalServerError) Unwrap() error {
+	return e.Err
+}
 
 type session struct {
 	gen    uint64
@@ -110,24 +123,42 @@ func (s *Store) Client() *api.Client {
 	return s.sess.client
 }
 
+func (s *Store) LocalServer() string {
+	return s.local
+}
+
 func (s *Store) Start() {
 	s.Prefs = s.o.Prefs.Load()
 	s.o.SetThemeSource(s.ThemePref())
-	server := s.Prefs.ServerURL
+	server := cmp.Or(s.Prefs.ServerURL, s.local)
+	local := server != "" && server == s.local
 	s.switchSession(server, prefs.Tokens{})
-	s.resolveLanguage()
+	if _, chosen := normalizeLanguage(s.Prefs.Language); chosen || !local {
+		s.resolveLanguage()
+	}
 	if server == "" {
 		s.Phase = PhaseConnect
 		return
 	}
 	s.Phase = PhaseBoot
+	s.StartingLocal = local
 	ts := s.sess.tokens
-	s.async(func(context.Context, *api.Client) func() {
+	s.async(func(ctx context.Context, _ *api.Client) func() {
+		startErr := s.startLocal(ctx, server)
 		tokens, err := s.o.Tokens.Load(server)
 		if err != nil {
 			log.Printf("store: load tokens: %v", err)
 		}
 		return func() {
+			s.StartingLocal = false
+			if local {
+				s.resolveLanguage()
+			}
+			if startErr != nil {
+				s.LocalErr = startErr
+				s.Phase = PhaseConnect
+				return
+			}
 			if tokens == (prefs.Tokens{}) {
 				s.checkSetup(nil)
 				return
@@ -148,26 +179,55 @@ func (s *Store) Connect(rawURL string, done func(error)) {
 		return
 	}
 	hc := s.o.HTTP
+	current := s.Server
 	s.async(func(ctx context.Context, _ *api.Client) func() {
-		cfg, err := api.Probe(ctx, hc, base)
+		err := s.startLocal(ctx, base)
+		var cfg api.Config
+		if err == nil {
+			cfg, err = api.Probe(ctx, hc, base)
+		}
+		var tokens prefs.Tokens
+		if err == nil && base == current {
+			var loadErr error
+			if tokens, loadErr = s.o.Tokens.Load(base); loadErr != nil {
+				log.Printf("store: load tokens: %v", loadErr)
+			}
+		}
 		return func() {
 			if err != nil {
 				done(err)
 				return
 			}
+			s.LocalErr = nil
 			previous := s.Server
 			s.Prefs.ServerURL = base
 			s.Prefs.LastServer = ""
 			s.savePrefs()
-			s.switchSession(base, prefs.Tokens{})
-			if previous != "" {
+			s.switchSession(base, tokens)
+			if previous != "" && previous != base {
 				s.clearTokens(previous)
 			}
 			s.Config.Set(cfg)
 			s.configSettled()
+			if tokens != (prefs.Tokens{}) {
+				s.Phase = PhaseReady
+				s.startStream()
+				done(nil)
+				return
+			}
 			s.checkSetup(done)
 		}
 	}, canceledBy(done))
+}
+
+func (s *Store) startLocal(ctx context.Context, server string) error {
+	if s.o.StartLocal == nil || server != s.local {
+		return nil
+	}
+	if err := s.o.StartLocal(ctx); err != nil {
+		return &LocalServerError{Err: err}
+	}
+	return nil
 }
 
 func (s *Store) checkSetup(done func(error)) {
@@ -246,6 +306,7 @@ func (s *Store) signOut(next string) {
 		s.Phase = PhaseConnect
 	} else {
 		s.Phase = PhaseLogin
+		s.checkSetup(nil)
 	}
 }
 

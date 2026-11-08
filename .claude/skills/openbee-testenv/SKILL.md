@@ -94,6 +94,15 @@ $T channel <telegram|discord|feishu|dingtalk|wecom|linear|weixin> [--src <plugin
    - `$T logs [--lines N] [-f]` for the server log
 4. Drive Linear and web-UI checks yourself; don't ask the user to do them.
 
+### Desktop with the built-in server
+
+```bash
+$T desktop --app <OpenBee.app or binary> [--reset]
+$T desktop --quit
+```
+
+Runs a desktop build that bundles the server (`make desktop`) inside an `--auto-config` env, since the built-in server reads `~/.openbee/config.yaml` of the mock HOME. It stops the env's daemon, copies the app into `envs/<name>/desktop/`, launches it with the env's HOME, PATH and TMPDIR, and waits until the built-in server answers on port 8080. `--reset` deletes the config, the database and the desktop's saved sign-in first, so the launch behaves like a first one (the desktop writes a new config and shows the admin setup). The desktop reads PATH from a login shell, so the script writes a `.zprofile` into the mock HOME that keeps the pinned Node first. `$T api`, `$T js`, `$T mcp` and `$T db` then work against the desktop's server. Its server log is `home/Library/Logs/OpenBee/server.log` on macOS, and the app's own output goes to `envs/<name>/desktop/desktop.log`. `--quit` sends SIGTERM and checks that the port is free and no process is left; `down` also stops it.
+
 ### 5. Change code mid-test
 
 `$T restart --rebuild [--skip-web]` rebuilds from the same `--src` and restarts, keeping DB and plugins (installed engines included). Add `--src <checkout>` to rebuild from another checkout, e.g. to upgrade an env started from an older build and test its migrations. It refuses while a message or task is in flight, because restarting then breaks the reply the user is waiting for. Wait, or pass `--force` only if the user agrees.

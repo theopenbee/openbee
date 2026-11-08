@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"io/fs"
+	"net"
 	"net/http"
 
 	"github.com/gin-contrib/gzip"
@@ -43,6 +44,7 @@ func NewServer(p ServerParams) (*Server, error) {
 
 	s := &Server{
 		router:       router,
+		httpServer:   &http.Server{Handler: router},
 		ServerParams: p,
 	}
 	if err := s.setupRoutes(); err != nil {
@@ -68,12 +70,8 @@ func (s *Server) setupRoutes() error {
 	return s.registerStaticRoutes()
 }
 
-func (s *Server) Run(addr string) error {
-	s.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: s.router,
-	}
-	return s.httpServer.ListenAndServe()
+func (s *Server) Serve(ln net.Listener) error {
+	return s.httpServer.Serve(ln)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

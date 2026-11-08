@@ -131,6 +131,20 @@ jobs:
           go-version-file: desktop/go.mod
           cache-dependency-path: desktop/go.sum
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Build web
+        working-directory: web
+        run: pnpm install --frozen-lockfile && pnpm build
+
       - name: Install NSIS and osslsigncode
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis osslsigncode
@@ -161,6 +175,7 @@ jobs:
 
       - name: Build
         env:
+          GOFLAGS: -tags=embedserver
           MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: go tool mygo build -platform "${{ matrix.platform }}"
 

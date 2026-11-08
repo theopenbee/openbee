@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -46,7 +47,11 @@ func Init(cfg Config) error {
 		enc = zapcore.NewJSONEncoder(encCfg)
 	}
 
-	core := zapcore.NewCore(enc, zapcore.AddSync(os.Stderr), atomicLevel)
+	var out io.Writer = os.Stderr
+	if cfg.Output != nil {
+		out = cfg.Output
+	}
+	core := zapcore.NewCore(enc, zapcore.AddSync(out), atomicLevel)
 
 	if s := cfg.Sampling; s != nil {
 		tick := s.Tick

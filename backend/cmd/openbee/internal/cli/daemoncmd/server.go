@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/theopenbee/openbee/internal/app"
 	"github.com/theopenbee/openbee/internal/infra/config"
-	"github.com/theopenbee/openbee/internal/infra/i18n"
 	"github.com/theopenbee/openbee/internal/infra/logger"
 )
 
@@ -64,14 +63,9 @@ func NewServerCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
-			if err := i18n.Load(cfg.Language); err != nil {
-				return fmt.Errorf("load locale: %w", err)
-			}
-			installBuiltinSkills()
-
-			a, err := app.BuildApp(cfg)
+			a, err := app.Boot(cfg)
 			if err != nil {
-				return fmt.Errorf("build app: %w", err)
+				return err
 			}
 
 			a.Run()

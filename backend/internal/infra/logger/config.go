@@ -1,6 +1,9 @@
 package logger
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 // Config controls logger initialization.
 type Config struct {
@@ -12,6 +15,7 @@ type Config struct {
 	Sampling *SamplingConfig
 	// StacktraceLevel is the level at which stack traces are attached. Default: "error".
 	StacktraceLevel string
+	Output          io.Writer
 }
 
 // SamplingConfig controls high-frequency log noise reduction.

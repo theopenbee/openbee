@@ -13,7 +13,7 @@ PLATFORMS := \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-test desktop-all
+.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-client desktop-test desktop-all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -76,18 +76,27 @@ npm-prepare:  ## Copy extracted dist/ binaries into npm package dirs and set ver
 npm-publish: npm-prepare  ## Publish all npm packages to registry
 	bash npm/scripts/publish.sh
 
+DESKTOP_GOFLAGS := -tags=embedserver
+
 DESKTOP_BUILD = cd desktop && \
 	backup=$$(mktemp) && \
 	cp mygo.json "$$backup" && \
 	trap 'cat "$$backup" > mygo.json; rm -f "$$backup"' EXIT && \
 	./scripts/set-version.sh "$(VERSION)" > /dev/null && \
-	go tool mygo build
+	GOFLAGS="$(DESKTOP_GOFLAGS)" go tool mygo build
 
-desktop: ## Build the desktop app for the current platform
+desktop: web ## Build the desktop app with the built-in server for the current platform
 	$(DESKTOP_BUILD)
 
-desktop-test: ## Vet, test and cross-compile the desktop app
-	cd desktop && go vet ./... && go tool mygo vet . && CGO_ENABLED=0 go test ./... && GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./...
+desktop-client: DESKTOP_GOFLAGS :=
+desktop-client: ## Build the desktop app without the built-in server for the current platform
+	$(DESKTOP_BUILD)
 
-desktop-all: ## Build the desktop app for all platforms
+desktop-test: web ## Vet, test and cross-compile the desktop app
+	cd desktop && go vet ./... && go vet -tags=embedserver ./... && go tool mygo vet . && \
+		CGO_ENABLED=0 go test ./... && CGO_ENABLED=0 go test -tags=embedserver ./internal/localserver/ && \
+		GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./... && \
+		GOOS=windows GOARCH=amd64 go build -tags=embedserver ./... && GOOS=linux GOARCH=amd64 go build -tags=embedserver ./...
+
+desktop-all: web ## Build the desktop app with the built-in server for all platforms
 	$(DESKTOP_BUILD) -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64

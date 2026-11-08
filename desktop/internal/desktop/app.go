@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
+	"github.com/theopenbee/openbee/desktop/internal/localserver"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/prefs"
 	"github.com/theopenbee/openbee/desktop/internal/store"
@@ -31,6 +33,7 @@ const (
 	minHeight    = 480
 	flushTimeout = 2 * time.Second
 	overlayDelay = time.Second
+	serverStop   = 20 * time.Second
 )
 
 type App struct {
@@ -42,6 +45,7 @@ type App struct {
 	theme    mygo.ThemeSource
 	notifier *Notifier
 	tray     *Tray
+	server   *localserver.Server
 	st       *store.Store
 	root     *views.Root
 	win      atomic.Pointer[mygo.Window]
@@ -111,13 +115,16 @@ func (a *App) Run() error {
 		if !a.quitting {
 			a.flush()
 		}
+		if a.server != nil {
+			a.server.Stop(serverStop)
+		}
 	})
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
 }
 
 func (a *App) start() {
-	a.st = store.New(store.Options{
+	opts := store.Options{
 		Post:           a.post,
 		Prefs:          a.prefs,
 		Tokens:         a.tokens,
@@ -126,12 +133,46 @@ func (a *App) start() {
 		DownloadDir:    a.download,
 		SetLocale:      l10n.SetLang,
 		SetThemeSource: a.setTheme,
-	})
+	}
+	a.server = a.localServer()
+	if a.server != nil {
+		opts.LocalServer = a.server.URL()
+		opts.StartLocal = a.server.Start
+	}
+	a.st = store.New(opts)
 	a.root = views.NewRoot(a.st)
 	a.setMenu()
 	a.startTray()
 	a.openWindow()
 	a.st.Start()
+}
+
+func (a *App) localServer() *localserver.Server {
+	if !localserver.Bundled {
+		return nil
+	}
+	logs, err := mygo.App.Path(mygo.PathLogs)
+	if err != nil {
+		log.Printf("desktop: logs directory: %v", err)
+	}
+	return localserver.New(localserver.Options{
+		Version:  mygo.App.Version(),
+		Language: serverLanguage(a.prefs.Load().Language, mygo.App.PreferredLanguages()),
+		LogDir:   logs,
+	})
+}
+
+func serverLanguage(pref string, preferred []string) string {
+	if pref == "en" || pref == "zh" {
+		return pref
+	}
+	if len(preferred) == 0 {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(preferred[0]), "zh") {
+		return "zh"
+	}
+	return "en"
 }
 
 func (a *App) window() *mygo.Window {

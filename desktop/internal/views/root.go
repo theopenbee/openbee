@@ -52,6 +52,9 @@ func (r *Root) View(c *ui.Context) {
 	r.follow(c)
 	ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
 		if r.s.Phase == store.PhaseBoot {
+			if r.s.StartingLocal {
+				r.auth.Starting(c, tk)
+			}
 			return
 		}
 		r.router.View(c, func(rt *ui.Route) { r.page(c, tk, rt) }).Grow(1)

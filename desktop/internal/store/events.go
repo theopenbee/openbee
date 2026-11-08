@@ -184,6 +184,9 @@ func (s *Store) runStream(sess *session, wake, restart chan struct{}) {
 	}
 	_ = sse.Run(sess.ctx, sse.Options{
 		Open: func(ctx context.Context) (io.ReadCloser, error) {
+			if err := s.startLocal(ctx, sess.tokens.server); err != nil {
+				return nil, err
+			}
 			return openStream(ctx, sess.client, api.ChatStreamPath)
 		},
 		OnOpen: func() {

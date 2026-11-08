@@ -37,6 +37,8 @@ type Options struct {
 	StreamIdle     time.Duration
 	SetLocale      func(lang string)
 	SetThemeSource func(pref string)
+	LocalServer    string
+	StartLocal     func(ctx context.Context) error
 }
 
 type Phase int
@@ -69,9 +71,12 @@ type Store struct {
 	Offline         bool
 	Reconnecting    bool
 	ReconnectFailed bool
+	StartingLocal   bool
+	LocalErr        error
 	Toasts          []kit.Toast
 
 	o      Options
+	local  string
 	sess   *session
 	resets []func()
 	busy   atomic.Int64
@@ -129,6 +134,9 @@ func New(o Options) *Store {
 		o.SetThemeSource = func(string) {}
 	}
 	s := &Store{o: o, foreground: true}
+	if base, err := api.NormalizeBaseURL(o.LocalServer); err == nil {
+		s.local = base
+	}
 	s.Config = NewResource(s, func(ctx context.Context, c *api.Client) (api.Config, error) {
 		return c.Config(ctx)
 	})

@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/cpu"
+
+	"github.com/theopenbee/openbee/internal/infra/sysproc"
 )
 
 const BunVersion = "1.4.4"
@@ -130,7 +132,9 @@ func downloadBun(ctx context.Context, client *http.Client, mirror, target, dest 
 		return err
 	}
 	defer os.Remove(exe)
-	out, err := exec.CommandContext(ctx, exe, "--version").Output()
+	check := exec.CommandContext(ctx, exe, "--version")
+	sysproc.HideConsole(check)
+	out, err := check.Output()
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()

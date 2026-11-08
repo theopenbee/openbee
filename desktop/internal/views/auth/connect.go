@@ -27,7 +27,13 @@ type connectKey struct{}
 
 func (a *Screens) Connect(c *ui.Context, tk theme.Tokens, page ui.Element) {
 	previous := a.s.Prefs.LastServer
-	f := ui.Local(page, connectKey{}, func() connectForm { return connectForm{address: cmp.Or(previous, defaultServer)} })
+	f := ui.Local(page, connectKey{}, func() connectForm {
+		local := a.s.LocalServer()
+		if a.s.LocalErr != nil {
+			return connectForm{address: local, tried: local, err: a.s.LocalErr}
+		}
+		return connectForm{address: cmp.Or(previous, local, defaultServer)}
+	})
 	submit := func() { a.connect(f) }
 	back := func() {
 		f.address = previous
@@ -77,9 +83,12 @@ func shownAddress(raw string) string {
 }
 
 func connectError(f *connectForm) string {
+	var local *store.LocalServerError
 	switch {
 	case f.err == nil:
 		return ""
+	case errors.As(f.err, &local):
+		return locales.ConnectErrorLocal(local.Err.Error())
 	case errors.Is(f.err, store.ErrInvalidURL):
 		return locales.ConnectErrorInvalid()
 	case errors.Is(f.err, api.ErrNotOpenBee):

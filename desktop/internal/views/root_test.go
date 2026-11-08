@@ -1,13 +1,20 @@
 package views_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
+	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/store/storetest"
+	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
+	"github.com/theopenbee/openbee/desktop/locales"
 )
 
 func TestSignOutDoesNotBuildTheChatShell(t *testing.T) {
@@ -40,5 +47,39 @@ func TestExpiredToastsAreNotShown(t *testing.T) {
 	}
 	if h.T.HasText("Saved while the window was closed") {
 		t.Fatal("a toast older than its timeout was shown")
+	}
+}
+
+func TestStartingScreenWhileLocalServerStarts(t *testing.T) {
+	if err := theme.RegisterFonts(); err != nil {
+		t.Fatalf("register fonts: %v", err)
+	}
+	local := fakeapi.New(t)
+	local.Update(func(st *fakeapi.State) { st.Initialized = false })
+	release := make(chan struct{})
+	st, _, fix := storetest.New(t, nil, func(o *store.Options) {
+		o.LocalServer = local.URL
+		o.StartLocal = func(context.Context) error {
+			<-release
+			return nil
+		}
+	})
+	root := views.NewRoot(st)
+	tt := testkit.NewTester(root.View, wideW, wideH)
+	st.Start()
+	tt.Frame()
+	if !tt.HasText(locales.StartingTitle()) {
+		t.Fatalf("starting screen not shown; texts %q", tt.Texts())
+	}
+	close(release)
+	fix.Settle(t)
+	tt.Frame()
+	fix.Settle(t)
+	tt.Frame()
+	if !tt.HasText(locales.SetupTitle()) {
+		t.Fatalf("setup screen not shown after the server started; texts %q", tt.Texts())
+	}
+	if tt.HasText(locales.StartingTitle()) {
+		t.Fatal("starting screen still shown after the server started")
 	}
 }

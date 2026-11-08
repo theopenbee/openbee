@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -48,45 +49,51 @@ import (
 
 // App holds all wired-up components and runs the server.
 type App struct {
-	db       *sql.DB
-	server   *routes.Server
-	localHub *local.SSEHub
-	runners  []func(ctx context.Context)
-	plugins  *pluginmgr.Manager
-	addr     string
-	ctx      context.Context
-	cancel   context.CancelFunc
+	db        *sql.DB
+	server    *routes.Server
+	localHub  *local.SSEHub
+	runners   []func(ctx context.Context)
+	plugins   *pluginmgr.Manager
+	addr      string
+	ln        net.Listener
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 // Run starts all goroutines, waits for a signal, then shuts down gracefully.
 func (a *App) Run() {
-	ctx, cancel := a.ctx, a.cancel
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := a.Serve(ctx); err != nil {
+		logger.Error("server error", zap.Error(err))
+	}
+}
 
+func (a *App) Serve(ctx context.Context) error {
 	for _, r := range a.runners {
-		r := r
-		go r(ctx)
+		go r(a.ctx)
 	}
 
 	serverErr := make(chan error, 1)
 	go func() {
 		logger.Info("OpenBee Core starting", zap.String("addr", a.addr))
-		if err := a.server.Run(a.addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := a.server.Serve(a.ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+	var err error
 	select {
-	case <-quit:
+	case <-ctx.Done():
 		logger.Info("Shutting down...")
-	case err := <-serverErr:
-		logger.Error("server error", zap.Error(err))
+	case err = <-serverErr:
 	}
+	a.shutdown()
+	return err
+}
 
-	cancel()
+func (a *App) shutdown() {
+	a.cancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
@@ -106,14 +113,23 @@ func (a *App) Run() {
 
 // BuildApp wires all components together. Returns a ready-to-run App.
 func BuildApp(cfg config.Config) (*App, error) {
+	ln, err := net.Listen("tcp", serverAddr(cfg))
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a, err := buildApp(ctx, cfg)
 	if err != nil {
 		cancel()
+		ln.Close()
 		return nil, err
 	}
-	a.ctx, a.cancel = ctx, cancel
+	a.ln, a.ctx, a.cancel = ln, ctx, cancel
 	return a, nil
+}
+
+func serverAddr(cfg config.Config) string {
+	return fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 }
 
 func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
@@ -251,9 +267,7 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building API server: %w", err)
 	}
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-
-	return &App{db: db, server: srv, localHub: localHub, runners: runners, plugins: pluginMgr, addr: addr}, nil
+	return &App{db: db, server: srv, localHub: localHub, runners: runners, plugins: pluginMgr, addr: serverAddr(cfg)}, nil
 }
 
 // appStores groups all store instances for passing to sub-builders.

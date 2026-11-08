@@ -12,6 +12,7 @@
 - Add a native desktop app for macOS, Windows and Linux.
 - Desktop: show unread counts in menu bar and tray.
 - Agents reach openbee through an MCP server with codemode.
+- Desktop app bundles the OpenBee server.
 
 ### Changed
 - Redesign the web console on the Arc UI library.

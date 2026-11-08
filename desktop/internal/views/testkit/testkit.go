@@ -48,8 +48,13 @@ type Harness struct {
 
 func New(t testing.TB, w, h int, seed func(st *fakeapi.State)) *Harness {
 	t.Helper()
+	return WithOptions(t, w, h, seed)
+}
+
+func WithOptions(t testing.TB, w, h int, seed func(st *fakeapi.State), opts ...func(o *store.Options)) *Harness {
+	t.Helper()
 	prepare(t)
-	st, fake, fix := storetest.New(t, seed)
+	st, fake, fix := storetest.New(t, seed, opts...)
 	return mount(t, st, fake, fix, w, h)
 }
 

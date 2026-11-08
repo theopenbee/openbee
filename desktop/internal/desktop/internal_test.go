@@ -93,3 +93,22 @@ func TestIconPixels(t *testing.T) {
 		}
 	}
 }
+
+func TestServerLanguage(t *testing.T) {
+	cases := []struct {
+		pref      string
+		preferred []string
+		want      string
+	}{
+		{"zh", []string{"en-US"}, "zh"},
+		{"en", []string{"zh-Hans-CN"}, "en"},
+		{"", []string{"zh-Hans-CN", "en-US"}, "zh"},
+		{"system", []string{"en-GB"}, "en"},
+		{"", nil, ""},
+	}
+	for _, c := range cases {
+		if got := serverLanguage(c.pref, c.preferred); got != c.want {
+			t.Errorf("serverLanguage(%q, %q) = %q, want %q", c.pref, c.preferred, got, c.want)
+		}
+	}
+}
