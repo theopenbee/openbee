@@ -3,7 +3,6 @@ language: {{.Language}}
 server:
   port: {{.ServerPort}}
   host: {{.ServerHost}}
-  debug: {{.Debug}}
   auth:
     jwt_secret: "{{.AuthJWTSecret}}"
     access_token_ttl: {{.AuthAccessTTL}}
@@ -15,7 +14,6 @@ database:
 
 bee:
   engine:
-    default: "{{.EngineDefault}}"
     timeout:
       bee: {{.EngineTimeoutBee}}
       worker: {{.EngineTimeoutWorker}}

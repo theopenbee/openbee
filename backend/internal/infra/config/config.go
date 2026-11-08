@@ -134,10 +134,10 @@ func applyDefaults(cfg *Config) error {
 		cfg.Bee.Feeder.MaxConcurrentBee = 5
 	}
 	if cfg.Bee.Engine.Timeout.Bee == 0 {
-		cfg.Bee.Engine.Timeout.Bee = 5 * time.Minute
+		cfg.Bee.Engine.Timeout.Bee = 10 * time.Minute
 	}
 	if cfg.Bee.Engine.Timeout.Worker == 0 {
-		cfg.Bee.Engine.Timeout.Worker = 30 * time.Minute
+		cfg.Bee.Engine.Timeout.Worker = 24 * time.Hour
 	}
 	if cfg.Server.Auth.AccessTokenTTL == 0 {
 		cfg.Server.Auth.AccessTokenTTL = 2 * time.Hour

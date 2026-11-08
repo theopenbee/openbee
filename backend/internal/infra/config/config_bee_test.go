@@ -67,8 +67,8 @@ bee:
 	cfg, err := Load(f.Name())
 	require.NoError(t, err)
 
-	assert.Equal(t, 5*time.Minute, cfg.Bee.Engine.Timeout.Bee)
-	assert.Equal(t, 30*time.Minute, cfg.Bee.Engine.Timeout.Worker)
+	assert.Equal(t, 10*time.Minute, cfg.Bee.Engine.Timeout.Bee)
+	assert.Equal(t, 24*time.Hour, cfg.Bee.Engine.Timeout.Worker)
 }
 
 func TestBeeConfig_TokenSecretExplicitIgnoresLegacyTokenTTL(t *testing.T) {
@@ -128,7 +128,8 @@ func TestLoad_NoLegacyWarnings(t *testing.T) {
 func TestTemplate_NoEnginesSection(t *testing.T) {
 	assert.NotContains(t, configTemplate, "engines:")
 	assert.NotContains(t, configTemplate, "Enabled}}")
-	assert.Contains(t, configTemplate, "default: \"{{.EngineDefault}}\"")
+	assert.NotContains(t, configTemplate, "default:")
+	assert.NotContains(t, configTemplate, "debug:")
 	assert.Contains(t, configTemplate, "bee: {{.EngineTimeoutBee}}")
 	assert.Contains(t, configTemplate, "worker: {{.EngineTimeoutWorker}}")
 }

@@ -36,6 +36,8 @@
 - Desktop saves opened attachments to the Downloads folder.
 - First server start creates `~/.openbee/config.yaml` with defaults.
 - Install built-in agent skills on every server start.
+- Raise default timeouts: Bee 10 minutes, workers 24 hours.
+- Generated config omits `server.debug` and `bee.engine.default`.
 
 ### Removed
 - Remove user and role management; keep one admin account.

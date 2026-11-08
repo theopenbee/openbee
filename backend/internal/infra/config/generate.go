@@ -14,12 +14,10 @@ type templateValues struct {
 	Language        string
 	ServerPort      string
 	ServerHost      string
-	Debug           bool
 	DBPath          string
 	RPCTokenSecret  string
 	ServerEnvSecret string
 
-	EngineDefault       string
 	EngineTimeoutBee    string
 	EngineTimeoutWorker string
 
@@ -104,8 +102,8 @@ func defaultTemplateValues(dir, lang string) templateValues {
 		DBPath:                 filepath.Join(dir, "data", "openbee.db"),
 		RPCTokenSecret:         GenerateRandomSecret(),
 		ServerEnvSecret:        GenerateRandomSecret(),
-		EngineTimeoutBee:       "5m",
-		EngineTimeoutWorker:    "30m",
+		EngineTimeoutBee:       "10m",
+		EngineTimeoutWorker:    "24h",
 		FeederMaxConcurrentBee: 5,
 		MessageDebounce:        "300ms",
 		AuthJWTSecret:          GenerateRandomSecret(),
