@@ -105,7 +105,7 @@ openbee plugin list                # 查看所有插件及其运行状态
 
 基于 [MyGo](https://github.com/egoist/mygo) 构建的原生桌面应用，支持 macOS、Windows 和 Linux。应用内置 OpenBee 服务，无需另外安装。
 
-1. 用 Homebrew 或 Scoop 安装，或前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-universal.dmg`（或 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
+1. 用 Homebrew 或 Scoop 安装，或前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-arm64.dmg`（M 系列芯片）或 `darwin-amd64.dmg`（Intel 芯片）（或对应的 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
    ```bash
    brew install --cask theopenbee/tap/openbee-desktop
 

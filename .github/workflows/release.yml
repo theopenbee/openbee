@@ -116,7 +116,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - { name: macOS, os: macos-latest, platform: "darwin/universal" }
+          - { name: macOS, os: macos-latest, platform: "darwin/amd64,darwin/arm64" }
           - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
         variant:
@@ -192,8 +192,10 @@ jobs:
         if: matrix.target.name == 'macOS'
         run: |
           mkdir -p "$ASSETS"
-          ditto -c -k --keepParent build/darwin-universal/OpenBee.app "$ASSETS/$PREFIX-$VERSION-darwin-universal.zip"
-          cp build/darwin-universal/*.dmg "$ASSETS/$PREFIX-$VERSION-darwin-universal.dmg"
+          for arch in amd64 arm64; do
+            ditto -c -k --keepParent "build/darwin-$arch/OpenBee.app" "$ASSETS/$PREFIX-$VERSION-darwin-$arch.zip"
+            cp "build/darwin-$arch/"*.dmg "$ASSETS/$PREFIX-$VERSION-darwin-$arch.dmg"
+          done
 
       - name: Collect Windows packages
         if: matrix.target.name == 'Windows'
@@ -243,7 +245,8 @@ jobs:
           version="$(./scripts/set-version.sh "$GITHUB_REF_NAME")"
           assets="$RUNNER_TEMP/assets"
           gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$assets" \
-            --pattern "openbee-desktop-$version-darwin-universal.zip" \
+            --pattern "openbee-desktop-$version-darwin-amd64.zip" \
+            --pattern "openbee-desktop-$version-darwin-arm64.zip" \
             --pattern "openbee-desktop-$version-windows-amd64.exe" \
             --pattern "openbee-desktop-$version-windows-arm64.exe"
           ./scripts/package-managers.sh "$GITHUB_REF_NAME" "$version" "$assets" "$RUNNER_TEMP/packages"

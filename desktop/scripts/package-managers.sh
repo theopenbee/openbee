@@ -11,7 +11,8 @@ version="$2"
 assets="$3"
 out="$4"
 base="https://github.com/theopenbee/openbee/releases/download/$tag"
-mac="openbee-desktop-$version-darwin-universal.zip"
+macintel="openbee-desktop-$version-darwin-amd64.zip"
+macarm="openbee-desktop-$version-darwin-arm64.zip"
 win64="openbee-desktop-$version-windows-amd64.exe"
 winarm="openbee-desktop-$version-windows-arm64.exe"
 
@@ -27,7 +28,8 @@ sha() {
   fi
 }
 
-mac_sha="$(sha "$mac")"
+macintel_sha="$(sha "$macintel")"
+macarm_sha="$(sha "$macarm")"
 win64_sha="$(sha "$win64")"
 winarm_sha="$(sha "$winarm")"
 mkdir -p "$out"
@@ -44,10 +46,13 @@ fi
 
 cat > "$out/openbee-desktop.rb" <<RUBY
 cask "openbee-desktop" do
-  version "$version"
-  sha256 "$mac_sha"
+  arch arm: "arm64", intel: "amd64"
 
-  url "$base/$mac"
+  version "$version"
+  sha256 arm:   "$macarm_sha",
+         intel: "$macintel_sha"
+
+  url "$base/openbee-desktop-$version-darwin-#{arch}.zip"
   name "OpenBee"
   desc "Desktop app with the OpenBee server built in"
   homepage "https://github.com/theopenbee/openbee"

@@ -105,7 +105,7 @@ openbee plugin list                # see every plugin and whether it is running
 
 A native desktop app for macOS, Windows and Linux, built with [MyGo](https://github.com/egoist/mygo). It ships with the OpenBee server built in, so there is nothing else to install.
 
-1. Install it with Homebrew or Scoop, or download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-universal.dmg` (or `.zip`) for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
+1. Install it with Homebrew or Scoop, or download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-arm64.dmg` (Apple silicon) or `darwin-amd64.dmg` (Intel), or the `.zip`, for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
    ```bash
    brew install --cask theopenbee/tap/openbee-desktop
 

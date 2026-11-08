@@ -98,7 +98,7 @@ desktop-test: web ## Vet, test and cross-compile the desktop app
 		GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./... && \
 		GOOS=windows GOARCH=amd64 go build -tags=embedserver ./... && GOOS=linux GOARCH=amd64 go build -tags=embedserver ./...
 
-DESKTOP_PLATFORMS := darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64
+DESKTOP_PLATFORMS := darwin/amd64,darwin/arm64,windows/amd64,windows/arm64,linux/amd64,linux/arm64
 
 desktop-all: web ## Build the desktop app with the built-in server for all platforms
 	$(DESKTOP_BUILD) -platform $(DESKTOP_PLATFORMS)
