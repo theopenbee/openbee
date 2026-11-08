@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0-beta1] - 2026-11-07
+## [1.0.1] - 2026-11-07
 
 ### Added
 - Add `openbee reset-password` to reset the admin password.
