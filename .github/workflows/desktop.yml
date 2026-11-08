@@ -115,4 +115,6 @@ jobs:
       - name: Build
         env:
           GOFLAGS: -tags=embedserver
-        run: go tool mygo build -platform windows/amd64,linux/amd64 -skip-dmg
+        run: |
+          ./scripts/enable-updates.sh bundled
+          go tool mygo build -platform windows/amd64,linux/amd64 -skip-dmg

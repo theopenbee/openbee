@@ -61,6 +61,7 @@ cask "openbee-desktop" do
     skip "Auto-generated on release."
   end
 
+  auto_updates true
   depends_on :macos
 
   app "OpenBee.app"

@@ -45,6 +45,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
 
@@ -120,8 +121,8 @@ jobs:
           - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
         variant:
-          - { label: "", goflags: "-tags=embedserver", prefix: openbee-desktop }
-          - { label: ", client", goflags: "", prefix: openbee-desktop-client }
+          - { label: "", goflags: "-tags=embedserver", prefix: openbee-desktop, channel: bundled }
+          - { label: ", client", goflags: "", prefix: openbee-desktop-client, channel: client }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -158,9 +159,11 @@ jobs:
       - name: Set version
         run: |
           version="$(./scripts/set-version.sh "$GITHUB_REF_NAME")"
+          ./scripts/enable-updates.sh "${{ matrix.variant.channel }}"
           {
             echo "VERSION=$version"
             echo "ASSETS=$RUNNER_TEMP/assets"
+            echo "UPDATES=$RUNNER_TEMP/updates"
             echo "PREFIX=${{ matrix.variant.prefix }}"
           } >> "$GITHUB_ENV"
 
@@ -185,6 +188,7 @@ jobs:
       - name: Build
         env:
           GOFLAGS: ${{ matrix.variant.goflags }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
           MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.target.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
         run: go tool mygo build -platform "${{ matrix.target.platform }}"
 
@@ -215,12 +219,91 @@ jobs:
             cp "build/linux-$arch/"*.tar.gz "$ASSETS/$PREFIX-$VERSION-linux-$arch.tar.gz"
           done
 
+      - name: Collect updates
+        run: |
+          mkdir -p "$UPDATES"
+          find build -mindepth 2 -maxdepth 2 \( -name "openbee-desktop-$VERSION-*.tar.gz" -o -name 'update-*.json' \) -exec cp {} "$UPDATES/" \;
+          if ! compgen -G "$UPDATES/update-*.json" > /dev/null; then
+            echo "::warning::MYGO_UPDATER_PRIVATE_KEY is not set, so this build publishes no updates"
+            rm -f "${UPDATES:?}"/*
+          fi
+          ls -l "$UPDATES"
+
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -l "$ASSETS"
           gh release upload "$GITHUB_REF_NAME" "$ASSETS"/* --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Upload updates to the release
+        if: matrix.variant.channel == 'bundled'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! compgen -G "$UPDATES/update-*.json" > /dev/null; then
+            exit 0
+          fi
+          archives=()
+          for f in "$UPDATES"/*.tar.gz; do
+            if [ ! -e "$ASSETS/$(basename "$f")" ]; then
+              archives+=("$f")
+            fi
+          done
+          if [ "${#archives[@]}" -gt 0 ]; then
+            gh release upload "$GITHUB_REF_NAME" "${archives[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$UPDATES"/update-*.json --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Keep the client updates
+        if: matrix.variant.channel == 'client'
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-updates-${{ matrix.target.name }}
+          path: ${{ runner.temp }}/updates
+          if-no-files-found: ignore
+
+  desktop-client-updates:
+    name: Desktop client updates
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the client updates
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: client-updates-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/updates
+
+      - name: Publish the client release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATES: ${{ runner.temp }}/updates
+        run: |
+          if ! compgen -G "$UPDATES/update-*.json" > /dev/null; then
+            echo "::warning::no client updates were built, so desktop-client-$GITHUB_REF_NAME is not published"
+            exit 0
+          fi
+          tag="desktop-client-$GITHUB_REF_NAME"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" "$UPDATES"/*.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$tag" "$UPDATES"/update-*.json --clobber --repo "$GITHUB_REPOSITORY"
+            exit 0
+          fi
+          flags=(
+            --repo "$GITHUB_REPOSITORY"
+            --target "$GITHUB_SHA"
+            --latest=false
+            --title "OpenBee Desktop client $GITHUB_REF_NAME"
+            --notes "Update files of the client-only desktop app. Download the app from [$GITHUB_REF_NAME](https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME)."
+          )
+          case "$GITHUB_REF_NAME" in
+            *-*) flags+=(--prerelease) ;;
+          esac
+          gh release create "$tag" "${flags[@]}" "$UPDATES"/*
 
   desktop-packages:
     name: Desktop Homebrew and Scoop
