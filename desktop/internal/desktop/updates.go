@@ -2,17 +2,14 @@ package desktop
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/egoist/mygo"
 	nativeupdater "github.com/egoist/mygo/plugins/updater/native"
 )
 
-const (
-	windowsExe = "openbee.exe"
-	scoopDir   = `\apps\openbee-desktop\`
-)
+const windowsUninstaller = "Uninstall.exe"
 
 func useUpdater() bool {
 	exe, err := os.Executable()
@@ -27,7 +24,6 @@ func SelfUpdates(goos, exe string) bool {
 	if goos != "windows" {
 		return true
 	}
-	path := strings.ToLower(strings.ReplaceAll(exe, "/", `\`))
-	name := path[strings.LastIndex(path, `\`)+1:]
-	return name == windowsExe && !strings.Contains(path, scoopDir)
+	_, err := os.Stat(filepath.Join(filepath.Dir(exe), windowsUninstaller))
+	return err == nil
 }

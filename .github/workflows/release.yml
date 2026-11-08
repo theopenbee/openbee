@@ -291,6 +291,7 @@ jobs:
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$tag" "$UPDATES"/*.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
             gh release upload "$tag" "$UPDATES"/update-*.json --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --draft=false --latest=false --repo "$GITHUB_REPOSITORY"
             exit 0
           fi
           flags=(

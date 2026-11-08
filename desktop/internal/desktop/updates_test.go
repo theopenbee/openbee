@@ -1,6 +1,8 @@
 package desktop_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -52,17 +54,20 @@ func TestMenuWithoutUpdates(t *testing.T) {
 }
 
 func TestSelfUpdates(t *testing.T) {
+	installed := t.TempDir()
+	if err := os.WriteFile(filepath.Join(installed, "Uninstall.exe"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	portable := t.TempDir()
 	for _, tc := range []struct {
 		goos, exe string
 		want      bool
 	}{
 		{"darwin", "/Applications/OpenBee.app/Contents/MacOS/OpenBee", true},
 		{"linux", "/home/me/.local/openbee-desktop.app/openbee-desktop", true},
-		{"windows", `C:\Users\me\AppData\Local\Programs\OpenBee\OpenBee.exe`, true},
-		{"windows", `D:\Tools\OpenBee\openbee.EXE`, true},
-		{"windows", `C:\Users\me\Downloads\openbee-desktop-1.0.1-windows-amd64.exe`, false},
-		{"windows", `C:\Users\me\scoop\apps\openbee-desktop\current\OpenBee.exe`, false},
-		{"windows", `D:\Scoop\apps\openbee-desktop\1.0.1\OpenBee.exe`, false},
+		{"windows", filepath.Join(installed, "OpenBee.exe"), true},
+		{"windows", filepath.Join(portable, "OpenBee.exe"), false},
+		{"windows", filepath.Join(portable, "openbee-desktop-1.0.1-windows-amd64.exe"), false},
 	} {
 		if got := desktop.SelfUpdates(tc.goos, tc.exe); got != tc.want {
 			t.Errorf("SelfUpdates(%s, %s) = %v, want %v", tc.goos, tc.exe, got, tc.want)
