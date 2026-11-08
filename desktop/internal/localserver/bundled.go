@@ -32,7 +32,7 @@ const (
 	logFile      = "server.log"
 	logMaxBytes  = 10 << 20
 	probeTimeout = time.Second
-	defaultPort  = 8080
+	defaultPort  = 19876
 	unsetVersion = "0.0.0"
 )
 

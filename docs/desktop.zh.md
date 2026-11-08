@@ -26,7 +26,7 @@
 
 ## 内置服务端
 
-- 它使用 `~/.openbee/config.yaml` 在 `http://localhost:8080` 启动，与 `openbee server` 用的是同一套文件。这个地址同样可以打开 Web 控制台。
+- 它使用 `~/.openbee/config.yaml` 在 `http://localhost:19876` 启动，与 `openbee server` 用的是同一套文件。这个地址同样可以打开 Web 控制台。
 - 应用运行时它一直运行，退出应用后停止。在 macOS 和 Windows 上关闭窗口，应用仍留在菜单栏或托盘；在 Linux 上关闭窗口即退出。
 - 如果该端口上已有 OpenBee 服务在运行，应用会直接使用它，不再自己启动。
 - 日志在 macOS 上位于 `~/Library/Logs/OpenBee/server.log`，其他平台位于应用数据目录的 `logs` 文件夹。

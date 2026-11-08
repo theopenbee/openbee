@@ -2,7 +2,7 @@
   "connectTitle": "Connect to OpenBee",
   "connectDescription": "Enter the address of your OpenBee server.",
   "connectServerLabel": "Server address",
-  "connectServerHelp": "For example http://localhost:8080",
+  "connectServerHelp": "For example http://localhost:19876",
   "connectSubmit": "Connect",
   "connectErrorInvalid": "Enter an http:// or https:// address.",
   "connectErrorUnreachable": "Couldn't reach {url}.",

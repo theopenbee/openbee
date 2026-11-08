@@ -51,7 +51,7 @@ openbee server -d
 openbee plugin install claude   # or codex, pi
 ```
 
-Open <http://localhost:8080> and create the admin account. Other install methods are in [Server and CLI](docs/server.md).
+Open <http://localhost:19876> and create the admin account. Other install methods are in [Server and CLI](docs/server.md).
 
 ### 💬 Then talk to Bee
 

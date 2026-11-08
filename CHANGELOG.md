@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Change the default server port from 8080 to 19876.
+
 ## [1.0.1] - 2026-11-07
 
 ### Added

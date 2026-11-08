@@ -97,7 +97,7 @@ func DetectLanguage(getenv func(string) string) string {
 func defaultTemplateValues(dir, lang string) templateValues {
 	return templateValues{
 		Language:               lang,
-		ServerPort:             "8080",
+		ServerPort:             "19876",
 		ServerHost:             "localhost",
 		DBPath:                 filepath.Join(dir, "data", "openbee.db"),
 		RPCTokenSecret:         GenerateRandomSecret(),

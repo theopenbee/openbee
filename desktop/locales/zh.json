@@ -254,7 +254,7 @@
   "@connectErrorNotOpenBee": { "placeholders": { "url": { "type": "String" } } },
   "connectErrorUnreachable": "无法连接 {url}。",
   "@connectErrorUnreachable": { "placeholders": { "url": { "type": "String" } } },
-  "connectServerHelp": "例如 http://localhost:8080",
+  "connectServerHelp": "例如 http://localhost:19876",
   "connectServerLabel": "服务器地址",
   "connectSubmit": "连接",
   "connectTitle": "连接 OpenBee",

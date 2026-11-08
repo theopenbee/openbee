@@ -23,7 +23,7 @@ E2E = Path(os.environ.get("OPENBEE_E2E_HOME", "~/.openbee-e2e")).expanduser()
 ENVS = E2E / "envs"
 TOOLS = E2E / "tools"
 PORT_RANGE = range(12360, 12380)
-AUTO_CONFIG_PORT = 8080
+AUTO_CONFIG_PORT = 19876
 DEFAULT_NAME = "e2e"
 LINEAR_LABEL = "openbee-e2e"
 STATE_DIR = ".openbee"
@@ -639,7 +639,7 @@ def cmd_up(a):
         if a.port and a.port != AUTO_CONFIG_PORT:
             die(f"--auto-config always uses the generated port {AUTO_CONFIG_PORT}")
         if any(m.get("auto_config") for m in all_metas()):
-            die("another --auto-config env exists; it owns port 8080")
+            die("another --auto-config env exists; it owns port 19876")
     port = AUTO_CONFIG_PORT if a.auto_config else a.port or pick_port()
     if port_open(port):
         die(f"port {port} is in use by pid {listener_pid(port)}")

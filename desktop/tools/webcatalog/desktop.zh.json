@@ -2,7 +2,7 @@
   "connectTitle": "连接 OpenBee",
   "connectDescription": "输入你的 OpenBee 服务器地址。",
   "connectServerLabel": "服务器地址",
-  "connectServerHelp": "例如 http://localhost:8080",
+  "connectServerHelp": "例如 http://localhost:19876",
   "connectSubmit": "连接",
   "connectErrorInvalid": "请输入 http:// 或 https:// 开头的地址。",
   "connectErrorUnreachable": "无法连接 {url}。",

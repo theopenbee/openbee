@@ -11,9 +11,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:8080",
-      "/rpc": "http://localhost:8080",
-      "/internal": "http://localhost:8080",
+      "/api": "http://localhost:19876",
+      "/rpc": "http://localhost:19876",
+      "/internal": "http://localhost:19876",
     },
   },
   build: {

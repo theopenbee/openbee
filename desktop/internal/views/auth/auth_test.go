@@ -95,8 +95,8 @@ func TestConnectScreenDefaultsLocalhost(t *testing.T) {
 	if !h.T.Focused(locales.ConnectServerLabel()) {
 		t.Error("server address input does not have the focus")
 	}
-	if got := value(t, h, locales.ConnectServerLabel()); got != "http://localhost:8080" {
-		t.Fatalf("server address = %q, want http://localhost:8080", got)
+	if got := value(t, h, locales.ConnectServerLabel()); got != "http://localhost:19876" {
+		t.Fatalf("server address = %q, want http://localhost:19876", got)
 	}
 }
 
@@ -119,7 +119,7 @@ func TestConnectShowsUnreachable(t *testing.T) {
 }
 
 func TestConnectShowsLocalServerError(t *testing.T) {
-	const local = "http://localhost:8080"
+	const local = "http://localhost:19876"
 	h := testkit.WithOptions(t, width, height, nil, func(o *store.Options) {
 		o.LocalServer = local
 		o.StartLocal = func(context.Context) error { return errors.New("address already in use") }

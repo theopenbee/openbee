@@ -26,7 +26,7 @@ func TestEnsureFile_CreatesLoadableConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "zh", cfg.Language)
 	assert.Equal(t, filepath.Join(dir, "data", "openbee.db"), cfg.Database.Path)
-	assert.Equal(t, 8080, cfg.Server.Port)
+	assert.Equal(t, 19876, cfg.Server.Port)
 	assert.Equal(t, "localhost", cfg.Server.Host)
 	assert.False(t, cfg.Server.Debug)
 	assert.Empty(t, cfg.Bee.Engine.Default)

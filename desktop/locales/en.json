@@ -254,7 +254,7 @@
   "@connectErrorNotOpenBee": { "placeholders": { "url": { "type": "String" } } },
   "connectErrorUnreachable": "Couldn't reach {url}.",
   "@connectErrorUnreachable": { "placeholders": { "url": { "type": "String" } } },
-  "connectServerHelp": "For example http://localhost:8080",
+  "connectServerHelp": "For example http://localhost:19876",
   "connectServerLabel": "Server address",
   "connectSubmit": "Connect",
   "connectTitle": "Connect to OpenBee",

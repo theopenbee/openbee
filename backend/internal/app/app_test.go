@@ -38,7 +38,7 @@ func testConfig(t *testing.T, port int) config.Config {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = []byte(strings.Replace(string(data), "port: 8080", fmt.Sprintf("port: %d", port), 1))
+	data = []byte(strings.Replace(string(data), "port: 19876", fmt.Sprintf("port: %d", port), 1))
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -26,7 +26,7 @@ Then create the admin account. Later launches sign in automatically.
 
 ## The built-in server
 
-- It starts on `http://localhost:8080` with `~/.openbee/config.yaml`, the same files `openbee server` uses. The web console works at that address too.
+- It starts on `http://localhost:19876` with `~/.openbee/config.yaml`, the same files `openbee server` uses. The web console works at that address too.
 - It runs while the app runs and stops when you quit. On macOS and Windows, closing the window keeps the app in the menu bar or tray. On Linux, closing the window quits.
 - If an OpenBee server already answers on that port, the app uses it instead of starting its own.
 - Logs go to `~/Library/Logs/OpenBee/server.log` on macOS, and to the `logs` folder of the app data directory elsewhere.

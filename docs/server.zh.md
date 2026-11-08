@@ -55,7 +55,7 @@ openbee server -d
 
 这会在后台启动 OpenBee。如果还想开机登录后自动启动，改用 `openbee service install`：它会注册服务并立即启动。
 
-打开 <http://localhost:8080> 并创建管理员账号，然后安装引擎，见[插件](plugins.zh.md)。
+打开 <http://localhost:19876> 并创建管理员账号，然后安装引擎，见[插件](plugins.zh.md)。
 
 ## 配置与数据
 

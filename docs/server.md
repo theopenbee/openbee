@@ -55,7 +55,7 @@ openbee server -d
 
 This starts OpenBee in the background. To also start it at every login, run `openbee service install` instead: it registers the service and starts it right away.
 
-Open <http://localhost:8080> and create the admin account. Then install an engine, see [Plugins](plugins.md).
+Open <http://localhost:19876> and create the admin account. Then install an engine, see [Plugins](plugins.md).
 
 ## Config and data
 

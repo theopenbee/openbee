@@ -51,7 +51,7 @@ openbee server -d
 openbee plugin install claude   # 或 codex、pi
 ```
 
-打开 <http://localhost:8080> 并创建管理员账号。其他安装方式见[服务端与命令行](docs/server.zh.md)。
+打开 <http://localhost:19876> 并创建管理员账号。其他安装方式见[服务端与命令行](docs/server.zh.md)。
 
 ### 💬 然后，和 Bee 说话
 

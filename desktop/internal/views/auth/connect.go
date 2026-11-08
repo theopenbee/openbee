@@ -14,7 +14,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
-const defaultServer = "http://localhost:8080"
+const defaultServer = "http://localhost:19876"
 
 type connectForm struct {
 	address string

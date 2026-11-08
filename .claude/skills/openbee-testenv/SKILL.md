@@ -58,7 +58,7 @@ Options:
 - `--engine-src <dir>` installs the pi plugin from a built checkout (`openbee.plugin.json` and `dist/` present). Without it the script looks `pi` up in the plugin catalog and stops with a clear error if the catalog does not list it (engines may not be published yet).
 - `--engine NAME[=DIR]` (repeatable) installs another engine plugin the same way, e.g. `--engine claude=<engine-claude checkout>`; without `=DIR` it comes from the catalog. If the plugin has a `path` setting and `NAME` is on PATH, the script sets it. pi stays the default and the only engine that can run under the mock HOME.
 - `--env KEY=VALUE` (extra server env, e.g. `OPENBEE_PLUGIN_CATALOG=<catalog.json>`, or a `PATH` override for runtime tests)
-- `--auto-config` writes no config and starts the server without `-c`, so the server creates `~/.openbee/config.yaml` in the mock HOME itself. The env takes the generated port 8080, so only one such env can exist; the script reads the secrets and DB path back from the generated file.
+- `--auto-config` writes no config and starts the server without `-c`, so the server creates `~/.openbee/config.yaml` in the mock HOME itself. The env takes the generated port 19876, so only one such env can exist; the script reads the secrets and DB path back from the generated file.
 
 ### 2. Engines
 
@@ -101,7 +101,7 @@ $T desktop --app <OpenBee.app or binary> [--reset]
 $T desktop --quit
 ```
 
-Runs a desktop build that bundles the server (`make desktop`) inside an `--auto-config` env, since the built-in server reads `~/.openbee/config.yaml` of the mock HOME. It stops the env's daemon, copies the app into `envs/<name>/desktop/`, launches it with the env's HOME, PATH and TMPDIR, and waits until the built-in server answers on port 8080. `--reset` deletes the config, the database and the desktop's saved sign-in first, so the launch behaves like a first one (the desktop writes a new config and shows the admin setup). The desktop reads PATH from a login shell, so the script writes a `.zprofile` into the mock HOME that keeps the pinned Node first. `$T api`, `$T js`, `$T mcp` and `$T db` then work against the desktop's server. Its server log is `home/Library/Logs/OpenBee/server.log` on macOS, and the app's own output goes to `envs/<name>/desktop/desktop.log`. `--quit` sends SIGTERM and checks that the port is free and no process is left; `down` also stops it.
+Runs a desktop build that bundles the server (`make desktop`) inside an `--auto-config` env, since the built-in server reads `~/.openbee/config.yaml` of the mock HOME. It stops the env's daemon, copies the app into `envs/<name>/desktop/`, launches it with the env's HOME, PATH and TMPDIR, and waits until the built-in server answers on port 19876. `--reset` deletes the config, the database and the desktop's saved sign-in first, so the launch behaves like a first one (the desktop writes a new config and shows the admin setup). The desktop reads PATH from a login shell, so the script writes a `.zprofile` into the mock HOME that keeps the pinned Node first. `$T api`, `$T js`, `$T mcp` and `$T db` then work against the desktop's server. Its server log is `home/Library/Logs/OpenBee/server.log` on macOS, and the app's own output goes to `envs/<name>/desktop/desktop.log`. `--quit` sends SIGTERM and checks that the port is free and no process is left; `down` also stops it.
 
 ### 5. Change code mid-test
 

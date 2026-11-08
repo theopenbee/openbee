@@ -43,7 +43,7 @@ func withPort(t *testing.T, port int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = []byte(strings.Replace(string(data), "port: 8080", fmt.Sprintf("port: %d", port), 1))
+	data = []byte(strings.Replace(string(data), "port: 19876", fmt.Sprintf("port: %d", port), 1))
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -120,8 +120,8 @@ func TestStartReportsBrokenConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(Options{Language: "en", LogDir: t.TempDir()})
-	if s.URL() != "http://localhost:8080" {
-		t.Fatalf("URL() with a broken config = %q, want the default http://localhost:8080", s.URL())
+	if s.URL() != "http://localhost:19876" {
+		t.Fatalf("URL() with a broken config = %q, want the default http://localhost:19876", s.URL())
 	}
 	err := s.Start(context.Background())
 	if err == nil || !strings.Contains(err.Error(), path) {

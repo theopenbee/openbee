@@ -2144,11 +2144,11 @@ func (msgs Messages) ConnectErrorUnreachable(url string) string {
 	return Catalog.Format(msgs.locale, "connectErrorUnreachable", map[string]any{"url": url})
 }
 
-// ConnectServerHelp says "For example http://localhost:8080"
+// ConnectServerHelp says "For example http://localhost:19876"
 // in the language the app shows.
 func ConnectServerHelp() string { return In(i18n.Locale()).ConnectServerHelp() }
 
-// ConnectServerHelp says "For example http://localhost:8080"
+// ConnectServerHelp says "For example http://localhost:19876"
 // in the language of msgs.
 func (msgs Messages) ConnectServerHelp() string {
 	return Catalog.Format(msgs.locale, "connectServerHelp", nil)
