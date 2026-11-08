@@ -2,9 +2,7 @@
 
 # OpenBee — Build smarter AI teams.
 
-**OpenBee** 是一款全天候的数字员工解决方案，致力于让 AI Agent 成为您 7×24 小时在线的得力助手。
-
-了解更多请访问 [docs.theopenbee.com](https://docs.theopenbee.com)。
+OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 **pi** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工，并在同一个对话里把结果带回来。
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -14,134 +12,60 @@
 
 <sub><a href="README.md">English</a> &nbsp;·&nbsp; <a href="https://docs.theopenbee.com">📖 文档</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
 
-## 📸 产品截图
+<img src="docs/images/openbee-desktop.png" alt="在 OpenBee 桌面版中，Bee 把一次发版拆给三名员工" />
 
-<img src="docs/images/openbee-dashboard.png" alt="OpenBee Dashboard" />
+## 适合你吗？
 
-## 🚀 快速开始
+如果你想要这些，OpenBee 适合你：
 
-### 第一步：安装
+- **聊天就能派活。** 说出需求，员工在你的机器上完成，并在同一个对话里回复。
+- **多个 Agent 同时干活。** 每个员工有自己的引擎、工作目录和规则。
+- **定时任务。** 任务可以立即执行、延时执行，或按 cron 周期执行。
+- **随处可用。** 桌面应用、Web 控制台，或飞书、钉钉、企业微信、微信、Telegram、Discord、Linear。
+- **自托管。** 跑在你自己的电脑或服务器上，数据都在 `~/.openbee`。
 
-<details open>
-<summary>📦 npm（推荐）</summary>
+**前提：** 装好并登录一个 Agent CLI —— Claude Code、Codex 或 pi。OpenBee 负责驱动它，本身不带模型。
+
+## 快速开始
+
+### 🖥️ 桌面版 —— 装在自己的电脑上
+
+内置服务端，装这一个就够了。
+
+```bash
+brew install --cask theopenbee/tap/openbee-desktop             # macOS
+
+scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
+scoop install theopenbee/openbee-desktop                       # Windows
+```
+
+Linux 用户，或不想用包管理器，可以从 [Releases](https://github.com/theopenbee/openbee/releases) 下载。打开应用，创建管理员账号，然后在 **设置 → 插件 → 插件市场** 里安装你所用 CLI 对应的引擎。
+
+发布包暂未做代码签名，首次打开被系统拦截时，见[首次打开](docs/desktop.zh.md#首次打开)。
+
+### 🌐 服务端 —— 装在常开的机器上
 
 ```bash
 npm install -g @theopenbee/cli
-```
-
-安装时会自动下载当前平台对应的二进制文件，支持 Linux / macOS / Windows（amd64 & arm64）。
-
-</details>
-
-<details>
-<summary>🔧 一键安装脚本</summary>
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/theopenbee/openbee/main/install.sh | bash
-```
-
-</details>
-
-<details>
-<summary>🍺 brew（macOS）/ scoop（Windows）</summary>
-
-**macOS（Homebrew）：**
-```bash
-brew install theopenbee/tap/openbee
-```
-
-**Windows（Scoop）：**
-```bash
-scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
-scoop install theopenbee/openbee
-```
-
-</details>
-
-<details>
-<summary>📥 手动下载二进制</summary>
-
-前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 页面，下载对应平台的压缩包，解压后将 `openbee` 可执行文件放入 PATH 即可。
-
-</details>
-
-### 第二步：启动服务
-
-```bash
 openbee server -d
-```
-
-首次启动时，OpenBee 会自动生成 `~/.openbee/config.yaml`（默认配置加随机密钥），数据库放在 `~/.openbee/data/openbee.db`。要改端口等设置，编辑这个文件后重启即可；也可以用 `-c /path/to/config.yaml` 指定其他配置文件。
-
-### 第三步：安装引擎
-
-OpenBee 不内置 AI 引擎。引擎是驱动编程 CLI 的插件，所以请先自行安装想用的 CLI（Claude Code、Codex 或 pi）并登录，再用命令行或 Web 控制台的插件页面安装对应的插件：
-
-```bash
 openbee plugin install claude   # 或 codex、pi
-openbee plugin list             # 找到 CLI 后，引擎状态显示为 ready
 ```
 
-新装的引擎插件会立即启用，不需要重启 OpenBee。如果 CLI 不在 `PATH` 里，用 `openbee plugin configure claude --set path=/path/to/claude` 指定它的位置。详见[引擎插件协议](docs/engine-plugin-protocol.md)。
+打开 <http://localhost:8080> 并创建管理员账号。其他安装方式见[服务端与命令行](docs/server.zh.md)。
 
-### 第四步：开始使用
+### 💬 然后，和 Bee 说话
 
-- 打开 Web 控制台（默认 [http://localhost:8080](http://localhost:8080)）管理 Worker 和查看任务状态
-- 在已配置的平台（微信、飞书、钉钉、企微、Telegram、Linear 等渠道插件）中直接发送消息，或创建、评论 Linear issue 与 OpenBee 交互
+> 帮我建一个员工，叫 Maya，负责后端修复，工作目录是 ~/code/api。
 
-### 渠道插件
+Bee 会创建这个员工。派任务也是一样，直接说。想在飞书、Telegram 等应用里聊天，装一个[渠道插件](docs/plugins.zh.md)即可。
 
-聊天平台通过插件接入，无需重新编译 OpenBee；运行中的 OpenBee 安装、配置、启用和卸载插件都不需要重启：
+## 文档
 
-```bash
-openbee plugin search              # 浏览插件目录，选择要安装的插件
-openbee plugin configure telegram  # 按提示填写插件配置，然后启用
-openbee plugin list                # 查看所有插件及其运行状态
-```
-
-另有 `openbee plugin install <id>`、`enable`、`disable`、`restart`、`update`、`remove`；`configure --set key=value` 可以不经问答直接配置。插件运行在 Bun 或 Node.js 上；两者都没有时，OpenBee 会把 Bun 下载到 `~/.openbee/runtime`。详见[渠道插件协议](docs/channel-plugin-protocol.md)。
-
-## 🖥️ 桌面版
-
-基于 [MyGo](https://github.com/egoist/mygo) 构建的原生桌面应用，支持 macOS、Windows 和 Linux。应用内置 OpenBee 服务，无需另外安装。
-
-1. 用 Homebrew 或 Scoop 安装，或前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-arm64.dmg`（M 系列芯片）或 `darwin-amd64.dmg`（Intel 芯片）（或对应的 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
-   ```bash
-   brew install --cask theopenbee/tap/openbee-desktop
-
-   scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
-   scoop install theopenbee/openbee-desktop
-   ```
-2. 打开应用。内置服务使用 `~/.openbee/config.yaml` 在 `http://localhost:8080` 启动，与 `openbee server` 使用同一套文件。
-3. 首次打开时创建管理员账号，之后会自动登录。
-
-应用运行期间内置服务一直运行，退出应用后停止。在 macOS 和 Windows 上关闭窗口后应用仍在菜单栏或托盘中运行；在 Linux 上关闭窗口即退出。如果该端口上已有 OpenBee 服务在运行，应用会直接使用它，不再自己启动。要连接远程服务器，在应用菜单中选择“更换服务器”。服务日志在 macOS 上位于 `~/Library/Logs/OpenBee/server.log`，其他平台位于应用数据目录的 `logs` 文件夹。
-
-发布页还提供不含内置服务的纯客户端版 `openbee-desktop-client-<version>-…`，用于连接你自己运行的服务。Homebrew 和 Scoop 安装的是内置服务版。
-
-发布包暂未做代码签名，首次打开需要手动放行：
-
-- **macOS：** 右键点击应用并选择“打开”（macOS 15 及以上请在“系统设置 > 隐私与安全性”中点击“仍要打开”），或运行 `xattr -dr com.apple.quarantine /Applications/OpenBee.app`。
-- **Windows：** SmartScreen 提示“Windows 已保护你的电脑”时，点击“更多信息”，再点击“仍要运行”。
-
-从源码构建需要先安装 `jq`（会自动下载 Go 1.27）：
-
-```bash
-make desktop              # 当前平台，内置服务，产物在 desktop/build/
-make desktop-all          # macOS、Windows 和 Linux，内置服务
-make desktop-client       # 当前平台，纯客户端：连接你自己运行的服务
-make desktop-client-all   # macOS、Windows 和 Linux，纯客户端
-```
-
-`make desktop` 和 `make desktop-all` 会先构建 Web 界面（pnpm），因为 `openbee server` 内嵌了它。
-
-## 🌟 Star History
-
-<div align="center">
-
-[![Star History Chart](https://api.star-history.com/svg?repos=theopenbee/openbee&type=Date)](https://star-history.com/#theopenbee/openbee&Date)
-
-</div>
+- [桌面版](docs/desktop.zh.md)：下载、首次打开、内置服务端、纯客户端版、从源码构建
+- [服务端与命令行](docs/server.zh.md)：安装方式、配置与数据文件、常用命令
+- [插件](docs/plugins.zh.md)：引擎与聊天渠道，在应用里或用命令行管理
+- [docs.theopenbee.com](https://docs.theopenbee.com)：员工、任务与约束的使用指南
+- 开发插件：[渠道插件协议](docs/channel-plugin-protocol.md)、[引擎插件协议](docs/engine-plugin-protocol.md)
 
 ## 🤝 Community
 
