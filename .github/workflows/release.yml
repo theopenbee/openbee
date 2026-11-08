@@ -104,9 +104,9 @@ jobs:
         run: bash npm/scripts/publish.sh
 
   desktop:
-    name: Desktop (${{ matrix.name }})
+    name: Desktop (${{ matrix.target.name }}${{ matrix.variant.label }})
     needs: release
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.target.os }}
     permissions:
       contents: write
     defaults:
@@ -115,10 +115,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        target:
           - { name: macOS, os: macos-latest, platform: "darwin/universal" }
           - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+        variant:
+          - { label: "", goflags: "-tags=embedserver", prefix: openbee-desktop }
+          - { label: ", client", goflags: "", prefix: openbee-desktop-client }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -132,31 +135,37 @@ jobs:
           cache-dependency-path: desktop/go.sum
 
       - name: Set up Node.js
+        if: matrix.variant.goflags != ''
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
       - name: Install pnpm
+        if: matrix.variant.goflags != ''
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Build web
+        if: matrix.variant.goflags != ''
         working-directory: web
         run: pnpm install --frozen-lockfile && pnpm build
 
       - name: Install NSIS and osslsigncode
-        if: matrix.name == 'Windows'
+        if: matrix.target.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis osslsigncode
 
       - name: Set version
         run: |
           version="$(./scripts/set-version.sh "$GITHUB_REF_NAME")"
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          echo "ASSETS=$RUNNER_TEMP/assets" >> "$GITHUB_ENV"
+          {
+            echo "VERSION=$version"
+            echo "ASSETS=$RUNNER_TEMP/assets"
+            echo "PREFIX=${{ matrix.variant.prefix }}"
+          } >> "$GITHUB_ENV"
 
       - name: Set up macOS signing
-        if: matrix.name == 'macOS'
+        if: matrix.target.name == 'macOS'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -167,7 +176,7 @@ jobs:
         run: ./scripts/macos-sign-setup.sh
 
       - name: Set up Windows signing
-        if: matrix.name == 'Windows'
+        if: matrix.target.name == 'Windows'
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -175,33 +184,33 @@ jobs:
 
       - name: Build
         env:
-          GOFLAGS: -tags=embedserver
-          MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
-        run: go tool mygo build -platform "${{ matrix.platform }}"
+          GOFLAGS: ${{ matrix.variant.goflags }}
+          MYGO_WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.target.name == 'Windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+        run: go tool mygo build -platform "${{ matrix.target.platform }}"
 
       - name: Collect macOS packages
-        if: matrix.name == 'macOS'
+        if: matrix.target.name == 'macOS'
         run: |
           mkdir -p "$ASSETS"
-          ditto -c -k --keepParent build/darwin-universal/OpenBee.app "$ASSETS/openbee-desktop-$VERSION-darwin-universal.zip"
-          cp build/darwin-universal/*.dmg "$ASSETS/openbee-desktop-$VERSION-darwin-universal.dmg"
+          ditto -c -k --keepParent build/darwin-universal/OpenBee.app "$ASSETS/$PREFIX-$VERSION-darwin-universal.zip"
+          cp build/darwin-universal/*.dmg "$ASSETS/$PREFIX-$VERSION-darwin-universal.dmg"
 
       - name: Collect Windows packages
-        if: matrix.name == 'Windows'
+        if: matrix.target.name == 'Windows'
         run: |
           mkdir -p "$ASSETS"
           for arch in amd64 arm64; do
-            cp "build/windows-$arch/OpenBee.exe" "$ASSETS/openbee-desktop-$VERSION-windows-$arch.exe"
-            cp "build/windows-$arch/"openbee-desktop-setup-*.exe "$ASSETS/openbee-desktop-$VERSION-windows-$arch-setup.exe"
+            cp "build/windows-$arch/OpenBee.exe" "$ASSETS/$PREFIX-$VERSION-windows-$arch.exe"
+            cp "build/windows-$arch/"openbee-desktop-setup-*.exe "$ASSETS/$PREFIX-$VERSION-windows-$arch-setup.exe"
           done
 
       - name: Collect Linux packages
-        if: matrix.name == 'Linux'
+        if: matrix.target.name == 'Linux'
         run: |
           mkdir -p "$ASSETS"
           for arch in amd64 arm64; do
-            cp "build/linux-$arch/"*.deb "$ASSETS/openbee-desktop-$VERSION-linux-$arch.deb"
-            cp "build/linux-$arch/"*.tar.gz "$ASSETS/openbee-desktop-$VERSION-linux-$arch.tar.gz"
+            cp "build/linux-$arch/"*.deb "$ASSETS/$PREFIX-$VERSION-linux-$arch.deb"
+            cp "build/linux-$arch/"*.tar.gz "$ASSETS/$PREFIX-$VERSION-linux-$arch.tar.gz"
           done
 
       - name: Upload to the release
@@ -210,3 +219,63 @@ jobs:
         run: |
           ls -l "$ASSETS"
           gh release upload "$GITHUB_REF_NAME" "$ASSETS"/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  desktop-packages:
+    name: Desktop Homebrew and Scoop
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Render the cask and the manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTARIZED: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        run: |
+          version="$(./scripts/set-version.sh "$GITHUB_REF_NAME")"
+          assets="$RUNNER_TEMP/assets"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$assets" \
+            --pattern "openbee-desktop-$version-darwin-universal.zip" \
+            --pattern "openbee-desktop-$version-windows-amd64.exe" \
+            --pattern "openbee-desktop-$version-windows-arm64.exe"
+          ./scripts/package-managers.sh "$GITHUB_REF_NAME" "$version" "$assets" "$RUNNER_TEMP/packages"
+          {
+            echo "PACKAGES=$RUNNER_TEMP/packages"
+            echo "VERSION=$version"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish to the tap and the bucket
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+        run: |
+          publish() {
+            local token="$1" repo="$2" file="$3" dest="$4"
+            if [ -z "$token" ]; then
+              echo "::warning::no token for $repo, so $dest is not published"
+              return
+            fi
+            local dir
+            dir="$RUNNER_TEMP/$(basename "$repo")"
+            git clone --depth 1 "https://x-access-token:$token@github.com/$repo.git" "$dir"
+            mkdir -p "$dir/$(dirname "$dest")"
+            cp "$PACKAGES/$file" "$dir/$dest"
+            git -C "$dir" add "$dest"
+            if git -C "$dir" diff --cached --quiet; then
+              echo "$repo already has $dest for $VERSION"
+              return
+            fi
+            git -C "$dir" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "openbee-desktop $VERSION"
+            git -C "$dir" push
+          }
+          publish "$HOMEBREW_TAP_TOKEN" theopenbee/homebrew-tap openbee-desktop.rb Casks/openbee-desktop.rb
+          publish "$SCOOP_BUCKET_TOKEN" theopenbee/scoop-bucket openbee-desktop.json openbee-desktop.json

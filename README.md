@@ -105,11 +105,19 @@ openbee plugin list                # see every plugin and whether it is running
 
 A native desktop app for macOS, Windows and Linux, built with [MyGo](https://github.com/egoist/mygo). It ships with the OpenBee server built in, so there is nothing else to install.
 
-1. Download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-universal.dmg` (or `.zip`) for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
+1. Install it with Homebrew or Scoop, or download the package for your platform from [GitHub Releases](https://github.com/theopenbee/openbee/releases): `openbee-desktop-<version>-darwin-universal.dmg` (or `.zip`) for macOS, `openbee-desktop-<version>-windows-<arch>-setup.exe` for Windows, `openbee-desktop-<version>-linux-<arch>.deb` (or `.tar.gz`) for Linux.
+   ```bash
+   brew install --cask theopenbee/tap/openbee-desktop
+
+   scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
+   scoop install theopenbee/openbee-desktop
+   ```
 2. Open it. The built-in server starts on `http://localhost:8080` with `~/.openbee/config.yaml`, the same files `openbee server` uses.
 3. On the first launch, create the admin account; later launches sign in automatically.
 
 The built-in server runs while the app runs and stops when you quit it. On macOS and Windows, closing the window keeps the app running in the menu bar or tray; on Linux, closing the window quits. If an OpenBee server already answers on that port, the app uses it instead of starting its own. To use a remote server, choose Change Server in the app menu. Server logs go to `~/Library/Logs/OpenBee/server.log` on macOS and to the `logs` folder of the app data directory elsewhere.
+
+Releases also carry a client-only build, `openbee-desktop-client-<version>-…`, without the built-in server; it connects to a server you run. Homebrew and Scoop install the build with the server.
 
 Release builds are not code signed yet, so the first launch needs a manual approval:
 
@@ -119,9 +127,10 @@ Release builds are not code signed yet, so the first launch needs a manual appro
 To build it from source, install `jq` first (Go 1.27 is downloaded automatically):
 
 ```bash
-make desktop          # current platform with the built-in server, output in desktop/build/
-make desktop-all      # macOS, Windows and Linux with the built-in server
-make desktop-client   # current platform, client only: connects to a server you run
+make desktop              # current platform with the built-in server, output in desktop/build/
+make desktop-all          # macOS, Windows and Linux with the built-in server
+make desktop-client       # current platform, client only: connects to a server you run
+make desktop-client-all   # macOS, Windows and Linux, client only
 ```
 
 `make desktop` and `make desktop-all` build the web UI first (pnpm), as `openbee server` embeds it.

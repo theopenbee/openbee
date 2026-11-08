@@ -13,7 +13,7 @@ PLATFORMS := \
 	windows/amd64 \
 	windows/arm64
 
-.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-client desktop-test desktop-all
+.PHONY: help web build build-linux-amd64 release clean npm-prepare npm-publish desktop desktop-client desktop-test desktop-all desktop-client-all
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -98,5 +98,11 @@ desktop-test: web ## Vet, test and cross-compile the desktop app
 		GOOS=windows GOARCH=amd64 go build ./... && GOOS=linux GOARCH=amd64 go build ./... && \
 		GOOS=windows GOARCH=amd64 go build -tags=embedserver ./... && GOOS=linux GOARCH=amd64 go build -tags=embedserver ./...
 
+DESKTOP_PLATFORMS := darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64
+
 desktop-all: web ## Build the desktop app with the built-in server for all platforms
-	$(DESKTOP_BUILD) -platform darwin/universal,windows/amd64,windows/arm64,linux/amd64,linux/arm64
+	$(DESKTOP_BUILD) -platform $(DESKTOP_PLATFORMS)
+
+desktop-client-all: DESKTOP_GOFLAGS :=
+desktop-client-all: ## Build the desktop app without the built-in server for all platforms
+	$(DESKTOP_BUILD) -platform $(DESKTOP_PLATFORMS)

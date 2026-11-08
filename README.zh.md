@@ -105,11 +105,19 @@ openbee plugin list                # 查看所有插件及其运行状态
 
 基于 [MyGo](https://github.com/egoist/mygo) 构建的原生桌面应用，支持 macOS、Windows 和 Linux。应用内置 OpenBee 服务，无需另外安装。
 
-1. 前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-universal.dmg`（或 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
+1. 用 Homebrew 或 Scoop 安装，或前往 [GitHub Releases](https://github.com/theopenbee/openbee/releases) 下载对应平台的安装包：macOS 下载 `openbee-desktop-<version>-darwin-universal.dmg`（或 `.zip`），Windows 下载 `openbee-desktop-<version>-windows-<arch>-setup.exe`，Linux 下载 `openbee-desktop-<version>-linux-<arch>.deb`（或 `.tar.gz`）。
+   ```bash
+   brew install --cask theopenbee/tap/openbee-desktop
+
+   scoop bucket add theopenbee https://github.com/theopenbee/scoop-bucket
+   scoop install theopenbee/openbee-desktop
+   ```
 2. 打开应用。内置服务使用 `~/.openbee/config.yaml` 在 `http://localhost:8080` 启动，与 `openbee server` 使用同一套文件。
 3. 首次打开时创建管理员账号，之后会自动登录。
 
 应用运行期间内置服务一直运行，退出应用后停止。在 macOS 和 Windows 上关闭窗口后应用仍在菜单栏或托盘中运行；在 Linux 上关闭窗口即退出。如果该端口上已有 OpenBee 服务在运行，应用会直接使用它，不再自己启动。要连接远程服务器，在应用菜单中选择“更换服务器”。服务日志在 macOS 上位于 `~/Library/Logs/OpenBee/server.log`，其他平台位于应用数据目录的 `logs` 文件夹。
+
+发布页还提供不含内置服务的纯客户端版 `openbee-desktop-client-<version>-…`，用于连接你自己运行的服务。Homebrew 和 Scoop 安装的是内置服务版。
 
 发布包暂未做代码签名，首次打开需要手动放行：
 
@@ -119,9 +127,10 @@ openbee plugin list                # 查看所有插件及其运行状态
 从源码构建需要先安装 `jq`（会自动下载 Go 1.27）：
 
 ```bash
-make desktop          # 当前平台，内置服务，产物在 desktop/build/
-make desktop-all      # macOS、Windows 和 Linux，内置服务
-make desktop-client   # 当前平台，纯客户端：连接你自己运行的服务
+make desktop              # 当前平台，内置服务，产物在 desktop/build/
+make desktop-all          # macOS、Windows 和 Linux，内置服务
+make desktop-client       # 当前平台，纯客户端：连接你自己运行的服务
+make desktop-client-all   # macOS、Windows 和 Linux，纯客户端
 ```
 
 `make desktop` 和 `make desktop-all` 会先构建 Web 界面（pnpm），因为 `openbee server` 内嵌了它。

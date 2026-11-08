@@ -13,6 +13,7 @@
 - Desktop: show unread counts in menu bar and tray.
 - Agents reach openbee through an MCP server with codemode.
 - Desktop app bundles the OpenBee server.
+- Release client-only desktop builds and desktop Homebrew/Scoop packages.
 
 ### Changed
 - Redesign the web console on the Arc UI library.
