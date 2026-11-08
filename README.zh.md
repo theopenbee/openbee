@@ -2,7 +2,7 @@
 
 # OpenBee — Build smarter AI teams.
 
-OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 **pi** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工，并在同一个对话里把结果带回来。
+OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 **pi** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工。在聊天软件里，结果回到同一个对话；在桌面应用和浏览器里，每个任务有自己的员工对话，点 Bee 的交接卡片就能进去。
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -18,7 +18,7 @@ OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 *
 
 如果你想要这些，OpenBee 适合你：
 
-- **聊天就能派活。** 说出需求，员工在你的机器上完成，并在同一个对话里回复。
+- **聊天就能派活。** 说出需求，员工在你的机器上完成。在聊天软件里，员工在同一个对话里回复；在桌面应用和浏览器里，员工在自己的对话里回报。
 - **多个 Agent 同时干活。** 每个员工有自己的引擎、工作目录和规则。
 - **定时任务。** 任务可以立即执行、延时执行，或按 cron 周期执行。
 - **随处可用。** 桌面应用、Web 控制台，或飞书、钉钉、企业微信、微信、Telegram、Discord、Linear。

@@ -2,7 +2,7 @@
 
 # OpenBee — Build smarter AI teams.
 
-OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or **pi** — into a team of always-on workers. Message **Bee**, the coordinator, from the desktop app, the browser or your chat app. Bee hands the job to the right worker and brings the result back to the same chat.
+OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or **pi** — into a team of always-on workers. Message **Bee**, the coordinator, from the desktop app, the browser or your chat app, and Bee hands the job to the right worker. In a chat app, the result comes back to the same chat. In the desktop app and the browser, each task gets its own worker chat, opened from Bee's handoff card.
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -18,7 +18,7 @@ OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or *
 
 OpenBee fits if you want to:
 
-- **Delegate by chatting.** Say what you need; a worker does it on your machine and replies in the same chat.
+- **Delegate by chatting.** Say what you need; a worker does it on your machine. In a chat app it replies in the same chat; in the desktop app and the browser it reports in its own chat.
 - **Run several agents at once.** Each worker has its own engine, working folder and rules.
 - **Schedule work.** Run tasks now, after a delay, or on a cron schedule.
 - **Reach it from anywhere.** Use the desktop app, the web console, or Lark, DingTalk, WeCom, WeChat, Telegram, Discord and Linear.
