@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.2] - 2026-11-08
 
 ### Added
 - Desktop app updates itself from GitHub Releases.
