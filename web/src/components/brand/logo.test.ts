@@ -23,6 +23,12 @@ describe("brand logo components", () => {
     expect(rendered(LogoFull)).toEqual(publicFile("logo-full.svg"))
   })
 
+  it("keep the mark clear of the wordmark in the lockup", () => {
+    const [markPath] = rendered(LogoFull)
+    const xs = [...markPath.matchAll(/[LA][^LAMZ]*?(-?[\d.]+) (-?[\d.]+)(?=[LAMZ])/g)].map((m) => Number(m[1]))
+    expect(Math.max(...xs)).toBeLessThanOrEqual(404)
+  })
+
   it("paint every shape with the brand token", () => {
     for (const component of [LogoMark, LogoMarkSmall, LogoFull]) {
       const fills = [...renderToStaticMarkup(createElement(component)).matchAll(/ fill="([^"]+)"/g)].map((m) => m[1])
