@@ -1,6 +1,6 @@
 <img src="docs/images/logo-full.svg" alt="OpenBee" width="220" />
 
-# OpenBee — Build smarter AI teams.
+# OpenBee — Build reliable AI teams.
 
 OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or **pi** — into a team of always-on workers. Message **Bee**, the coordinator, from the desktop app, the browser or your chat app, and Bee hands the job to the right worker. In a chat app, the result comes back to the same chat. In the desktop app and the browser, each task gets its own worker chat, opened from Bee's handoff card.
 

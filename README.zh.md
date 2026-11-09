@@ -1,6 +1,6 @@
 <img src="docs/images/logo-full.svg" alt="OpenBee" width="220" />
 
-# OpenBee — Build smarter AI teams.
+# OpenBee — Build reliable AI teams.
 
 OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 **pi** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工。在聊天软件里，结果回到同一个对话；在桌面应用和浏览器里，每个任务有自己的员工对话，点 Bee 的交接卡片就能进去。
 
