@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/icons"
 )
 
 const (
-	canvasSize   = 1024
 	markFraction = 0.8
 	cornerRatio  = 0.224
 	brandColor   = "#ec7b35"
@@ -24,14 +24,16 @@ const (
 func main() {
 	svgPath := flag.String("svg", "../web/public/logo-mark.svg", "path to the logo mark SVG")
 	outPath := flag.String("out", "resources/icon.png", "path of the PNG to write")
+	size := flag.Int("size", 1024, "width and height of the PNG in pixels")
+	tile := flag.Bool("tile", true, "draw the mark on a white rounded square")
 	flag.Parse()
-	if err := run(*svgPath, *outPath); err != nil {
+	if err := run(*svgPath, *outPath, *size, *tile); err != nil {
 		fmt.Fprintln(os.Stderr, "icon:", err)
 		os.Exit(1)
 	}
 }
 
-func run(svgPath, outPath string) error {
+func run(svgPath, outPath string, size int, tile bool) error {
 	data, err := os.ReadFile(svgPath)
 	if err != nil {
 		return err
@@ -41,18 +43,7 @@ func run(svgPath, outPath string) error {
 	if err != nil {
 		return err
 	}
-	white := ui.Color{R: 255, G: 255, B: 255, A: 255}
-	corner := float32(canvasSize) * cornerRatio
-	markSize := float32(canvasSize) * markFraction
-	view := func(c *ui.Context) {
-		ui.Box(c).Fill().Center().Children(func() {
-			ui.Box(c).Size(canvasSize, canvasSize).Center().Background(white).Radius(corner).Children(func() {
-				ui.Image(c, mark).Size(markSize, markSize)
-			})
-		})
-	}
-	img := ui.Render(view, canvasSize, canvasSize, 1)
-	clearOutsideRoundedSquare(img, float64(corner))
+	img := render(mark, size, tile)
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return err
@@ -61,6 +52,26 @@ func run(svgPath, outPath string) error {
 		return err
 	}
 	return os.WriteFile(outPath, buf.Bytes(), 0o644)
+}
+
+func render(mark *ui.SVG, size int, tile bool) image.Image {
+	s := float32(size)
+	if !tile {
+		return icons.RenderTransparent(size, func(c *ui.Context) {
+			ui.Image(c, mark).Size(s, s)
+		})
+	}
+	white := ui.Color{R: 255, G: 255, B: 255, A: 255}
+	corner := s * cornerRatio
+	img := ui.Render(func(c *ui.Context) {
+		ui.Box(c).Fill().Center().Children(func() {
+			ui.Box(c).Size(s, s).Center().Background(white).Radius(corner).Children(func() {
+				ui.Image(c, mark).Size(s*markFraction, s*markFraction)
+			})
+		})
+	}, size, size, 1)
+	clearOutsideRoundedSquare(img, float64(corner))
+	return img
 }
 
 func clearOutsideRoundedSquare(img *image.RGBA, radius float64) {

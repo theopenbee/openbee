@@ -26,7 +26,7 @@ var (
 func MenuBarIcon(size int) []byte {
 	s := float32(size)
 	mark := LogoMarkSmall(theme.Light())
-	img := renderTransparent(size, func(c *ui.Context) {
+	img := RenderTransparent(size, func(c *ui.Context) {
 		ui.Image(c, mark).Size(s, s)
 	})
 	ink := make([]float64, len(img.Pix)/4)
@@ -53,7 +53,7 @@ func MenuBarIcon(size int) []byte {
 func AppIcon(size int, badge string) []byte {
 	s := float32(size)
 	mark := LogoMarkSmall(theme.Light())
-	img := renderTransparent(size, func(c *ui.Context) {
+	img := RenderTransparent(size, func(c *ui.Context) {
 		ui.Box(c).Size(s, s).Center().Background(white).Radius(s * appIconCorner).Children(func() {
 			ui.Image(c, mark).Size(s*appIconMark, s*appIconMark)
 		})
@@ -65,7 +65,7 @@ func AppIcon(size int, badge string) []byte {
 }
 
 func CountBadge(size int, badge string) []byte {
-	img := renderTransparent(size, func(c *ui.Context) {
+	img := RenderTransparent(size, func(c *ui.Context) {
 		countBadge(c, badge, float32(size))
 	})
 	return encode(img)
@@ -83,7 +83,7 @@ func countBadge(c *ui.Context, badge string, d float32) {
 	})
 }
 
-func renderTransparent(size int, content func(c *ui.Context)) *image.NRGBA {
+func RenderTransparent(size int, content func(c *ui.Context)) *image.NRGBA {
 	s := float32(size)
 	over := func(bg ui.Color) *image.RGBA {
 		return ui.Render(func(c *ui.Context) {
