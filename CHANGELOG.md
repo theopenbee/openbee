@@ -4,6 +4,7 @@
 
 ### Changed
 - Replace the mascot logo with an abstract hive mark.
+- Open settings as a full page on web and desktop.
 
 ## [1.0.2] - 2026-11-08
 
