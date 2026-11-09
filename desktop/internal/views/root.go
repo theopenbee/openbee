@@ -158,7 +158,12 @@ func (r *Root) OpenConversation(cid string) {
 }
 
 func (r *Root) NewWorker() {
-	if r.s.Phase == store.PhaseReady {
-		r.router.Push(route.ChatPanel(conversationParam(r.router.Path()), route.PanelNew))
+	if r.s.Phase != store.PhaseReady {
+		return
 	}
+	path := r.router.Path()
+	if route.IsSettings(path) {
+		path, _, _ = strings.Cut(r.chatLoc, "?")
+	}
+	r.router.Push(route.ChatPanel(conversationParam(path), route.PanelNew))
 }

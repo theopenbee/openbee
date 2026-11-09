@@ -993,6 +993,23 @@ func TestScreens(t *testing.T) {
 	}
 }
 
+func TestNewWorkerFromSettingsOpensInTheChatLeft(t *testing.T) {
+	h := testkit.SignedIn(t, wideW, wideH, staffed)
+	nav := h.Root.Nav()
+	nav.Push(route.Chat("ada"))
+	h.Settle()
+	h.Root.OpenSettings("env")
+	h.Settle()
+	h.Root.NewWorker()
+	h.Settle()
+	if got := nav.Path(); got != route.Chat("ada") {
+		t.Fatalf("path = %q, want %q", got, route.Chat("ada"))
+	}
+	if got := nav.Query(route.PanelQuery); got != route.PanelNew {
+		t.Fatalf("panel = %q, want %s", got, route.PanelNew)
+	}
+}
+
 func TestWideChatKeepsPanelQuery(t *testing.T) {
 	h := testkit.SignedIn(t, narrowW, narrowH, nil)
 	nav := h.Root.Nav()
