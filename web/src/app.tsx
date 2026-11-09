@@ -52,6 +52,7 @@ export function App() {
               </Route>
               <Route path="/settings/:section" element={<SettingsPage />} />
               <Route path="/settings/plugins/:plugin" element={<SettingsPage />} />
+              <Route path="/settings/*" element={<SettingsRedirect section="env" />} />
               <Route path="/workers" element={<LegacyRedirect />} />
               <Route path="/workers/create" element={<LegacyRedirect />} />
               <Route path="/workers/:id" element={<LegacyRedirect />} />
