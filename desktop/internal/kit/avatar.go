@@ -88,8 +88,15 @@ func BeeAvatar(c *ui.Context, tk theme.Tokens, size AvatarSize) ui.Element {
 	return ui.Box(c).Size(d, d).Shrink(0).Center().Padding(pad).Radius(theme.RadiusPill).
 		Background(tk.AvatarBee).Border(1, tk.Border).Children(func() {
 		inner := d - 2*(pad+1)
-		ui.Image(c, icons.LogoMark(tk)).Size(inner, inner)
+		ui.Image(c, beeMark(tk, inner)).Size(inner, inner)
 	})
+}
+
+func beeMark(tk theme.Tokens, inner float32) *ui.SVG {
+	if inner < 24 {
+		return icons.LogoMarkSmall(tk)
+	}
+	return icons.LogoMark(tk)
 }
 
 func UnknownAvatar(c *ui.Context, tk theme.Tokens, size AvatarSize) ui.Element {

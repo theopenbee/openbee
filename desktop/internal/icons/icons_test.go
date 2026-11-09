@@ -60,7 +60,7 @@ func TestGetUnknownPanics(t *testing.T) {
 
 func TestLogoUsesBrand(t *testing.T) {
 	for _, tk := range []theme.Tokens{theme.Light(), theme.Dark()} {
-		for _, name := range []string{"logo-mark", "logo-full"} {
+		for _, name := range []string{"logo-mark", "logo-mark-small", "logo-full"} {
 			src := brandSource(name, tk)
 			if bytes.Contains(src, []byte("var(")) {
 				t.Errorf("%s (dark=%v) still contains var(", name, tk.Dark)
@@ -115,5 +115,18 @@ func TestLucideLicenseShips(t *testing.T) {
 	}
 	if !bytes.Equal(shipped, source) {
 		t.Fatal("resources/licenses/lucide-LICENSE.txt differs from the Lucide license of the icons")
+	}
+}
+
+func TestLogoMarkSmallIsDistinct(t *testing.T) {
+	tk := theme.Light()
+	if LogoMarkSmall(tk) == nil {
+		t.Fatal("LogoMarkSmall is nil")
+	}
+	if LogoMarkSmall(tk) == LogoMark(tk) {
+		t.Error("LogoMarkSmall returns the standard mark")
+	}
+	if bytes.Equal(brandData("logo-mark-small"), brandData("logo-mark")) {
+		t.Error("logo-mark-small.svg is identical to logo-mark.svg")
 	}
 }

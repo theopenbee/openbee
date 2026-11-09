@@ -25,7 +25,7 @@ var (
 
 func MenuBarIcon(size int) []byte {
 	s := float32(size)
-	mark := LogoMark(theme.Light())
+	mark := LogoMarkSmall(theme.Light())
 	img := renderTransparent(size, func(c *ui.Context) {
 		ui.Image(c, mark).Size(s, s)
 	})
@@ -52,7 +52,7 @@ func MenuBarIcon(size int) []byte {
 
 func AppIcon(size int, badge string) []byte {
 	s := float32(size)
-	mark := LogoMark(theme.Light())
+	mark := LogoMarkSmall(theme.Light())
 	img := renderTransparent(size, func(c *ui.Context) {
 		ui.Box(c).Size(s, s).Center().Background(white).Radius(s * appIconCorner).Children(func() {
 			ui.Image(c, mark).Size(s*appIconMark, s*appIconMark)

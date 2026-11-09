@@ -92,12 +92,13 @@ func Light() Tokens {
 }
 
 func Dark() Tokens {
+	surfaceMuted := ui.Oklch(0.26, 0, 0)
 	return Tokens{
 		Dark:              true,
 		Background:        ui.Oklch(0.19, 0, 0),
 		Surface:           ui.Oklch(0.215, 0, 0),
 		SurfaceRaised:     ui.Oklch(0.24, 0, 0),
-		SurfaceMuted:      ui.Oklch(0.26, 0, 0),
+		SurfaceMuted:      surfaceMuted,
 		Foreground:        ui.Oklch(0.96, 0, 0),
 		TextSecondary:     ui.Oklch(0.77, 0, 0),
 		TextMuted:         ui.Oklch(0.64, 0, 0),
@@ -116,7 +117,7 @@ func Dark() Tokens {
 		ControlTrack:      ui.Oklch(0.33, 0, 0),
 		ControlThumb:      ui.Oklch(0.97, 0, 0),
 		ControlTrackHover: ui.Oklch(0.37, 0, 0),
-		AvatarBee:         ui.Oklch(0.62, 0, 0),
+		AvatarBee:         surfaceMuted,
 		AvatarForeground:  ui.Oklch(0.15, 0, 0),
 		Avatars:           avatarPalette(0.58),
 		Scrim:             scrim(0.46),

@@ -35,6 +35,10 @@ func LogoMark(t theme.Tokens) *ui.SVG {
 	return logo("logo-mark", t)
 }
 
+func LogoMarkSmall(t theme.Tokens) *ui.SVG {
+	return logo("logo-mark-small", t)
+}
+
 func LogoFull(t theme.Tokens) *ui.SVG {
 	return logo("logo-full", t)
 }
