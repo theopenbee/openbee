@@ -284,6 +284,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       <ActivityIndicator label={busy ? status : null} avatar={avatar} />
 
       <Composer
+        draftKey={conversation}
         placeholder={t("chat.messagePlaceholder", { name })}
         disabled={composerDisabled(activity)}
         mentions={isBee ? workerList : undefined}

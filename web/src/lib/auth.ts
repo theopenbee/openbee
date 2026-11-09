@@ -1,4 +1,5 @@
 import { config } from "./config"
+import { clearDrafts } from "./drafts"
 
 const API_BASE = config.apiUrl
 
@@ -31,6 +32,7 @@ export function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
+  clearDrafts()
 }
 
 // Concurrent refresh dedup — multiple 401s only trigger one refresh call

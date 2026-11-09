@@ -8,6 +8,7 @@ import { MentionTextarea } from "@/components/mention-textarea"
 import composerStyles from "@/components/chat-composer.module.css"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { api } from "@/lib/api"
+import { readDraft, saveDraft } from "@/lib/drafts"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type { Worker } from "@/lib/types"
 import { basename, cn, isImeComposing } from "@/lib/utils"
@@ -20,21 +21,26 @@ const TEXTAREA_CLASS =
   "block max-h-40 min-h-11 w-full resize-none bg-transparent px-2 py-2.5 text-base leading-6 text-foreground placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-12 sm:px-3 sm:py-3 sm:text-sm"
 
 interface ComposerProps {
+  draftKey: string
   placeholder: string
   disabled?: boolean
   mentions?: Worker[]
   onSend: (text: string, mediaPaths: string[]) => Promise<void>
 }
 
-export function Composer({ placeholder, disabled, mentions, onSend }: ComposerProps) {
+export function Composer({ draftKey, placeholder, disabled, mentions, onSend }: ComposerProps) {
   const { t } = useTranslation()
 
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState(() => readDraft(draftKey).text)
   const [isSending, setIsSending] = useState(false)
-  const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>([])
+  const [pendingMediaPaths, setPendingMediaPaths] = useState<string[]>(() => readDraft(draftKey).media)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    saveDraft(draftKey, { text: input, media: pendingMediaPaths })
+  }, [draftKey, input, pendingMediaPaths])
 
   useEffect(() => {
     const textarea = textareaRef.current
