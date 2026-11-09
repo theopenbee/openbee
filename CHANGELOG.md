@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Replace the mascot logo with an abstract hive mark.
+
 ## [1.0.2] - 2026-11-08
 
 ### Added
