@@ -288,7 +288,7 @@ func TestLiveEnvCrud(t *testing.T) {
 
 func (f *flow) openSystem() {
 	f.t.Helper()
-	if !f.shows(locales.ArcDialogClose()) {
+	if !f.shows(locales.NavBackToChat()) {
 		f.click(locales.NavSettings())
 	}
 	if !f.shows(locales.SystemSettingsSubtitle()) {

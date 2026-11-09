@@ -127,3 +127,41 @@ func TestIsTabSwitch(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsPaths(t *testing.T) {
+	cases := []struct{ got, want string }{
+		{route.Settings("env", ""), "/settings/env"},
+		{route.Settings("plugins", ""), "/settings/plugins"},
+		{route.Settings("plugins", "lark"), "/settings/plugins/lark"},
+		{route.Settings("plugins", "a b"), "/settings/plugins/a%20b"},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("path = %q, want %q", c.got, c.want)
+		}
+	}
+}
+
+func TestPathKinds(t *testing.T) {
+	cases := []struct {
+		path           string
+		chat, settings bool
+	}{
+		{"/chat", true, false},
+		{"/chat/w1", true, false},
+		{"/chatter", false, false},
+		{"/settings", false, true},
+		{"/settings/env", false, true},
+		{"/settings/plugins/lark", false, true},
+		{"/settingsx", false, false},
+		{"/login", false, false},
+	}
+	for _, c := range cases {
+		if got := route.IsChat(c.path); got != c.chat {
+			t.Errorf("IsChat(%q) = %v, want %v", c.path, got, c.chat)
+		}
+		if got := route.IsSettings(c.path); got != c.settings {
+			t.Errorf("IsSettings(%q) = %v, want %v", c.path, got, c.settings)
+		}
+	}
+}

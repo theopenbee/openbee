@@ -90,7 +90,7 @@ func (st *systemState) dirty(saved values) (engine, global, bee bool) {
 		st.bee != nil && !maps.Equal(model.CleanEngineArgs(st.bee), saved.bee)
 }
 
-func (d *Dialog) system(c *ui.Context, tk theme.Tokens) {
+func (d *Page) system(c *ui.Context, tk theme.Tokens) {
 	r := d.s.SystemConfigs
 	r.Ensure()
 	root := ui.Column(c).Key(SectionSystem).MinWidth(0)
@@ -112,7 +112,7 @@ func (d *Dialog) system(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) systemForm(c *ui.Context, tk theme.Tokens, st *systemState, saved values) {
+func (d *Page) systemForm(c *ui.Context, tk theme.Tokens, st *systemState, saved values) {
 	engines := d.s.EnabledEngines()
 	saving := st.status == statusSaving
 	engine := saved.engine
@@ -172,7 +172,7 @@ func argsJSON(args map[string]string) string {
 	return string(out)
 }
 
-func (d *Dialog) saveButton(c *ui.Context, tk theme.Tokens, st *systemState, dirty bool, submit func()) {
+func (d *Page) saveButton(c *ui.Context, tk theme.Tokens, st *systemState, dirty bool, submit func()) {
 	showSaved := false
 	if st.status == statusSaved {
 		if st.savedAt.IsZero() {
@@ -193,7 +193,7 @@ func (d *Dialog) saveButton(c *ui.Context, tk theme.Tokens, st *systemState, dir
 	})
 }
 
-func (d *Dialog) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, engine *string, saved string, engines []api.EngineInfo, saving bool) {
+func (d *Page) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, engine *string, saved string, engines []api.EngineInfo, saving bool) {
 	options := kit.EngineOptions(engines, saved)
 	help := ""
 	if len(options) == 0 {
@@ -215,7 +215,7 @@ func (d *Dialog) engineGroup(c *ui.Context, tk theme.Tokens, st *systemState, en
 	})
 }
 
-func (d *Dialog) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engines []api.EngineInfo, global, bee map[string]string, saving bool, submit func()) {
+func (d *Page) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engines []api.EngineInfo, global, bee map[string]string, saving bool, submit func()) {
 	ui.Column(c).MinWidth(0).Gap(groupGap).Children(func() {
 		ui.Column(c).MinWidth(0).Gap(headingGap).Children(func() {
 			heading(c, locales.SystemSettingsArgsSectionTitle())
@@ -238,7 +238,7 @@ func (d *Dialog) argsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engi
 	})
 }
 
-func (d *Dialog) engineArgs(c *ui.Context, tk theme.Tokens, group string, engines []api.EngineInfo, args map[string]string, saving bool, submit func(), changed func(map[string]string)) {
+func (d *Page) engineArgs(c *ui.Context, tk theme.Tokens, group string, engines []api.EngineInfo, args map[string]string, saving bool, submit func(), changed func(map[string]string)) {
 	ui.Column(c).MinWidth(0).Gap(argsGap).Children(func() {
 		if len(engines) == 0 {
 			ui.Text(c, locales.WorkersFormNoEngine()).TextColor(tk.TextSecondary)
@@ -276,7 +276,7 @@ func card(c *ui.Context, tk theme.Tokens, rows func()) ui.Element {
 	return ui.Column(c).MinWidth(0).Clip().Radius(theme.RadiusInset).Border(cardBorder, tk.Border).Background(tk.Surface).Children(rows)
 }
 
-func (d *Dialog) row(c *ui.Context, tk theme.Tokens, first bool, title, description string, control func()) {
+func (d *Page) row(c *ui.Context, tk theme.Tokens, first bool, title, description string, control func()) {
 	cw := d.contentWidth()
 	padX := float32(rowPadXNarrow)
 	if cw >= containerLG {
@@ -305,7 +305,7 @@ func (d *Dialog) row(c *ui.Context, tk theme.Tokens, first bool, title, descript
 	})
 }
 
-func (d *Dialog) systemSkeleton(c *ui.Context, tk theme.Tokens) {
+func (d *Page) systemSkeleton(c *ui.Context, tk theme.Tokens) {
 	wide := d.contentWidth() >= container2XL
 	ui.Column(c).MinWidth(0).Gap(formGap).Children(func() {
 		for rows := 1; rows <= 2; rows++ {
@@ -321,7 +321,7 @@ func (d *Dialog) systemSkeleton(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) skeletonRow(c *ui.Context, tk theme.Tokens, index int, wide bool) {
+func (d *Page) skeletonRow(c *ui.Context, tk theme.Tokens, index int, wide bool) {
 	var row ui.Element
 	gap := float32(rowGapNarrow)
 	if wide {

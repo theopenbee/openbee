@@ -13,7 +13,7 @@ const (
 	scopeBee    = "bee"
 )
 
-func (d *Dialog) env(c *ui.Context) {
+func (d *Page) env(c *ui.Context) {
 	ui.Column(c).MinWidth(0).Gap(panelsGap).Children(func() {
 		envpanel.New(d.s, scopeGlobal, "", locales.EnvConfigGlobalTitle(), locales.EnvConfigGlobalDescription(), true).View(c)
 		envpanel.New(d.s, scopeBee, api.DefaultBeeID, locales.EnvConfigBeeTitle(), locales.EnvConfigBeeDescription(), true).View(c)

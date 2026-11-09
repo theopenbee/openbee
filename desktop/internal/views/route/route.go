@@ -20,11 +20,12 @@ const (
 )
 
 const (
-	ConnectPath = "/connect"
-	SetupPath   = "/setup"
-	LoginPath   = "/login"
-	ChatPath    = "/chat"
-	PanelQuery  = "panel"
+	ConnectPath  = "/connect"
+	SetupPath    = "/setup"
+	LoginPath    = "/login"
+	ChatPath     = "/chat"
+	SettingsPath = "/settings"
+	PanelQuery   = "panel"
 )
 
 type Nav interface {
@@ -51,6 +52,22 @@ func ChatPanel(conversationParam, panel string) string {
 		return Chat(conversationParam)
 	}
 	return Chat(conversationParam) + "?" + url.Values{PanelQuery: {panel}}.Encode()
+}
+
+func Settings(section, plugin string) string {
+	path := SettingsPath + "/" + url.PathEscape(section)
+	if plugin == "" {
+		return path
+	}
+	return path + "/" + url.PathEscape(plugin)
+}
+
+func IsSettings(path string) bool {
+	return path == SettingsPath || strings.HasPrefix(path, SettingsPath+"/")
+}
+
+func IsChat(path string) bool {
+	return path == ChatPath || strings.HasPrefix(path, ChatPath+"/")
 }
 
 func ConversationID(param string) string {

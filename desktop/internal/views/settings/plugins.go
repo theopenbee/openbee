@@ -44,7 +44,7 @@ type pluginsState struct {
 
 type pluginsKey struct{}
 
-func (d *Dialog) plugins(c *ui.Context, tk theme.Tokens) {
+func (d *Page) plugins(c *ui.Context, tk theme.Tokens) {
 	if d.pluginID != "" {
 		d.pluginDetail(c, tk, d.pluginID)
 		return
@@ -67,7 +67,7 @@ func (d *Dialog) plugins(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) pluginsBar(c *ui.Context, tk theme.Tokens, st *pluginsState) {
+func (d *Page) pluginsBar(c *ui.Context, tk theme.Tokens, st *pluginsState) {
 	list := d.s.Plugins().List
 	count := ""
 	if list.Loaded {
@@ -96,7 +96,7 @@ func typeName(t string, categories []api.CatalogTag) string {
 	return t
 }
 
-func (d *Dialog) showPlugins(tab int) {
+func (d *Page) showPlugins(tab int) {
 	d.choose(SectionPlugins)
 	d.pluginsTab = tab
 }
@@ -136,7 +136,7 @@ func failure(err error) error {
 	return err
 }
 
-func (d *Dialog) toastError(err error) {
+func (d *Page) toastError(err error) {
 	if err = failure(err); err != nil {
 		d.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: l10n.ErrorText(err)})
 	}

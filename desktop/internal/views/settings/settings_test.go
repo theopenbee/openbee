@@ -10,6 +10,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
 	"github.com/theopenbee/openbee/desktop/locales"
@@ -26,8 +27,8 @@ const (
 	defaultEngine  = "default_engine"
 	navStep        = 38
 	paneX, paneY   = 900, 500
-	paneTop        = 200
-	paneBottom     = 910
+	paneTop        = 64
+	paneBottom     = wideH
 	scrollStep     = 300
 	scrollTries    = 8
 	savedFlash     = 2400 * time.Millisecond
@@ -175,13 +176,15 @@ func globalInput(engine string) string {
 func TestSettingsOpensAtSection(t *testing.T) {
 	f := open(t, wideW, settings.SectionEnv, configured)
 	f.wantShown(locales.EnvConfigTitle(), locales.EnvConfigPageDescription(), locales.EnvConfigGlobalTitle(), locales.EnvConfigBeeTitle(),
-		"DATABASE_URL", "BEE_TOKEN", locales.EnvConfigNavTitle(), locales.PluginsTitle(), locales.ArcDialogClose())
-	f.wantHidden(locales.SystemSettingsSubtitle())
+		"DATABASE_URL", "BEE_TOKEN", locales.EnvConfigNavTitle(), locales.PluginsTitle(), locales.NavBackToChat())
+	f.wantHidden(locales.SystemSettingsSubtitle(), locales.ArcDialogClose(), locales.ChatSearch())
+	f.wantPath(route.Settings(settings.SectionEnv, ""))
 
 	f.Root.OpenSettings(settings.SectionSystem)
 	f.settle()
 	f.wantShown(locales.SystemSettingsSubtitle(), locales.SystemSettingsEngineSectionTitle(), locales.SystemSettingsArgsSectionTitle())
 	f.wantHidden(locales.EnvConfigPageDescription(), "DATABASE_URL")
+	f.wantPath(route.Settings(settings.SectionSystem, ""))
 
 	f.Root.OpenSettings(settings.SectionPlugins)
 	f.settle()
@@ -191,25 +194,68 @@ func TestSettingsOpensAtSection(t *testing.T) {
 	f.Root.OpenSettings("unknown")
 	f.settle()
 	f.wantShown(locales.EnvConfigPageDescription())
+	f.wantPath(route.Settings(settings.SectionEnv, ""))
 }
 
-func TestSettingsEscapeCloses(t *testing.T) {
-	f := open(t, wideW, settings.SectionEnv, configured)
+func TestSettingsUnknownPathFallsBackToEnv(t *testing.T) {
+	f := open(t, wideW, settings.SectionSystem, configured)
+	for _, path := range []string{route.SettingsPath, "/settings/billing", "/settings/env/extra", "/settings/plugins/a/b"} {
+		f.Root.Nav().Push(path)
+		f.settle()
+		f.wantPath(route.Settings(settings.SectionEnv, ""))
+		f.wantShown(locales.EnvConfigPageDescription())
+	}
+}
+
+func fromWorkerChat(t *testing.T, w int) *fixture {
+	t.Helper()
+	hs := testkit.SignedIn(t, w, wideH, configured)
+	f := &fixture{Harness: hs, t: t}
+	f.Root.Nav().Push(route.ChatPanel("w1", route.PanelConstraints))
+	f.settle()
+	f.Root.OpenSettings(settings.SectionEnv)
+	f.settle()
 	f.wantShown(locales.EnvConfigPageDescription())
+	return f
+}
+
+func (f *fixture) wantPath(path string) {
+	f.t.Helper()
+	if got := f.Root.Nav().Path(); got != path {
+		f.t.Fatalf("path = %q, want %q", got, path)
+	}
+}
+
+func (f *fixture) wantChat(param, panel string) {
+	f.t.Helper()
+	f.wantPath(route.Chat(param))
+	if got := f.Root.Nav().Query(route.PanelQuery); got != panel {
+		f.t.Fatalf("panel = %q, want %q", got, panel)
+	}
+	f.wantHidden(locales.EnvConfigPageDescription(), locales.NavBackToChat())
+}
+
+func TestSettingsBackReturnsToTheChat(t *testing.T) {
+	f := fromWorkerChat(t, wideW)
+	f.click(locales.PluginsTitle())
+	f.wantShown(locales.PluginsSubtitle())
+	f.click(locales.NavBackToChat())
+	f.wantChat("w1", route.PanelConstraints)
+}
+
+func TestSettingsEscapeReturnsToTheChat(t *testing.T) {
+	f := fromWorkerChat(t, wideW)
 	f.T.Key(0, ui.KeyEscape)
 	f.settle()
-	f.wantHidden(locales.EnvConfigPageDescription(), locales.ArcDialogClose())
+	f.wantChat("w1", route.PanelConstraints)
+}
 
-	f.Root.OpenSettings(settings.SectionEnv)
-	f.settle()
-	f.click(locales.ArcDialogClose())
-	f.wantHidden(locales.EnvConfigPageDescription())
-
-	f.Root.OpenSettings(settings.SectionEnv)
-	f.settle()
-	f.T.ClickAt(5, 5)
-	f.settle()
-	f.wantHidden(locales.EnvConfigPageDescription())
+func TestSettingsNarrowBackReturnsToTheList(t *testing.T) {
+	f := open(t, 700, settings.SectionEnv, configured)
+	f.wantHidden(locales.ChatSearch())
+	f.click(locales.NavBackToChat())
+	f.wantPath(route.ChatPath)
+	f.wantShown(locales.ChatSearch())
 }
 
 func TestSettingsEscapeClosesOnlyTheTopOverlay(t *testing.T) {
@@ -220,6 +266,32 @@ func TestSettingsEscapeClosesOnlyTheTopOverlay(t *testing.T) {
 	f.settle()
 	f.wantHidden(locales.EnvConfigEditDescription())
 	f.wantShown(locales.EnvConfigPageDescription(), "DATABASE_URL")
+}
+
+func TestSettingsEscapeClosesOnlyTheSelect(t *testing.T) {
+	f := open(t, wideW, settings.SectionSystem, configured)
+	closed := f.count(codexName)
+	f.click(claudeName)
+	if open := f.count(codexName); open <= closed {
+		t.Fatalf("%q shows %d times with the select open, %d closed", codexName, open, closed)
+	}
+	f.T.Key(0, ui.KeyEscape)
+	f.settle()
+	f.wantPath(route.Settings(settings.SectionSystem, ""))
+	f.wantShown(locales.SystemSettingsSubtitle())
+	if got := f.count(codexName); got != closed {
+		t.Fatalf("%q shows %d times after Escape, want %d with the select closed", codexName, got, closed)
+	}
+}
+
+func (f *fixture) count(text string) int {
+	n := 0
+	for _, shown := range f.T.Texts() {
+		if shown == text {
+			n++
+		}
+	}
+	return n
 }
 
 func TestSettingsNavSwitchesSections(t *testing.T) {
@@ -285,7 +357,10 @@ func TestSettingsClosesOnSignOut(t *testing.T) {
 	snap := f.Fake.Snapshot()
 	f.Store.Login(snap.Username, snap.Password, func(error) {})
 	f.settle()
-	f.wantHidden(locales.EnvConfigPageDescription(), locales.ArcDialogClose())
+	f.wantHidden(locales.EnvConfigPageDescription(), locales.NavBackToChat())
+	if path := f.Root.Nav().Path(); !route.IsChat(path) {
+		t.Fatalf("path = %q after signing back in, want a chat", path)
+	}
 }
 
 func TestSystemShowsSavedValues(t *testing.T) {
@@ -489,7 +564,7 @@ func TestSystemRowsFollowTheContentWidth(t *testing.T) {
 	for _, tc := range []struct {
 		window int
 		side   bool
-	}{{1000, true}, {960, false}} {
+	}{{1080, true}, {1040, false}} {
 		f := open(t, tc.window, settings.SectionSystem, configured)
 		title := f.rect(locales.SystemSettingsEngineSectionRowTitle())
 		field := f.rect(locales.SystemSettingsEngineSectionLabel())

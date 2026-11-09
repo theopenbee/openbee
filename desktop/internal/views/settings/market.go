@@ -58,7 +58,7 @@ type marketState struct {
 
 type marketKey struct{}
 
-func (d *Dialog) marketTab(c *ui.Context, tk theme.Tokens) {
+func (d *Page) marketTab(c *ui.Context, tk theme.Tokens) {
 	r := d.s.Plugins().Catalog
 	r.Ensure()
 	root := ui.Column(c).MinWidth(0).Gap(marketGap)
@@ -77,7 +77,7 @@ func (d *Dialog) marketTab(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) marketToolbar(c *ui.Context, tk theme.Tokens, st *marketState, r *store.Resource[api.PluginCatalog]) {
+func (d *Page) marketToolbar(c *ui.Context, tk theme.Tokens, st *marketState, r *store.Resource[api.PluginCatalog]) {
 	ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.End).GapX(toolbarGap).GapY(toolbarGap).Children(func() {
 		field := kit.Field(c, tk, locales.PluginsSearch(), "", "", func() {
 			kit.SearchField(c, tk, &st.query, locales.PluginsSearch(), locales.PluginsSearchPlaceholder()).Disabled(!r.Loaded)
@@ -97,7 +97,7 @@ func (d *Dialog) marketToolbar(c *ui.Context, tk theme.Tokens, st *marketState, 
 	})
 }
 
-func (d *Dialog) refreshCatalog(st *marketState) {
+func (d *Page) refreshCatalog(st *marketState) {
 	if st.refreshing {
 		return
 	}
@@ -108,7 +108,7 @@ func (d *Dialog) refreshCatalog(st *marketState) {
 	})
 }
 
-func (d *Dialog) tagFilter(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
+func (d *Page) tagFilter(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
 	tags := model.UsedTags(catalog)
 	items := []kit.SegmentItem{{Text: locales.PluginsAllTags()}}
 	selected := 0
@@ -131,7 +131,7 @@ func (d *Dialog) tagFilter(c *ui.Context, tk theme.Tokens, st *marketState, cata
 	})
 }
 
-func (d *Dialog) gridColumns() int {
+func (d *Page) gridColumns() int {
 	switch w := d.contentWidth(); {
 	case w >= container4XL:
 		return 3
@@ -141,7 +141,7 @@ func (d *Dialog) gridColumns() int {
 	return 1
 }
 
-func (d *Dialog) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
+func (d *Page) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
 	list := model.FilterCatalog(catalog, st.tag, st.query)
 	if len(list) == 0 {
 		insetCard(c, tk).Children(func() {
@@ -174,7 +174,7 @@ func (d *Dialog) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, cat
 	})
 }
 
-func (d *Dialog) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool, tagNames map[string]string) {
+func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool, tagNames map[string]string) {
 	lang := i18n.Locale()
 	name := displayName(plugin.Name, plugin.ID)
 	insetCard(c, tk).Key(plugin.ID).Padding(cardPad).Children(func() {
@@ -234,7 +234,7 @@ func installedNote(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin) {
 	})
 }
 
-func (d *Dialog) marketAction(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool) {
+func (d *Page) marketAction(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool) {
 	secondary := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM}
 	install := func() {
 		d.s.Plugins().Install(plugin.Package+specJoin+plugin.Version, func(_ api.PluginOperation, err error) { d.toastError(err) })
@@ -254,7 +254,7 @@ func (d *Dialog) marketAction(c *ui.Context, tk theme.Tokens, plugin api.Catalog
 	}
 }
 
-func (d *Dialog) marketSkeleton(c *ui.Context, tk theme.Tokens) {
+func (d *Page) marketSkeleton(c *ui.Context, tk theme.Tokens) {
 	ui.Grid(c).Columns(d.gridColumns()).GapX(gridGap).GapY(gridGap).MinWidth(0).Children(func() {
 		for i := range skeletonCards {
 			insetCard(c, tk).Key(i).Padding(cardPad+skeletonLineTop, cardPad, cardPad, cardPad).Gap(skeletonLineGap).Children(func() {

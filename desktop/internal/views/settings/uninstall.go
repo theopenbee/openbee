@@ -7,6 +7,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
@@ -27,7 +28,7 @@ func (u *uninstallState) showLeaving(id, name, kind string) {
 	*u = uninstallState{open: true, id: id, name: name, leave: true, engine: model.IsEngine(kind)}
 }
 
-func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState) {
+func (d *Page) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState) {
 	confirm := func() {
 		if u.pending {
 			return
@@ -44,8 +45,9 @@ func (d *Dialog) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallSta
 				return
 			}
 			u.open = false
-			if u.leave {
-				d.showPlugins(tabInstalled)
+			if u.leave && d.shown && d.pluginID == id {
+				d.pluginsTab = tabInstalled
+				d.router.Replace(route.Settings(SectionPlugins, ""))
 			}
 		})
 	}

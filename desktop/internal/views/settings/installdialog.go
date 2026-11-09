@@ -32,7 +32,7 @@ func (s *installState) reset() {
 	*s = installState{gen: s.gen + 1}
 }
 
-func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
+func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 	if !st.open && (st.spec != "" || st.opID != "" || st.err != nil || st.sending) {
 		st.reset()
 	}
@@ -121,7 +121,7 @@ func (d *Dialog) installDialog(c *ui.Context, tk theme.Tokens, st *installState)
 	})
 }
 
-func (d *Dialog) installedEngine(id string) bool {
+func (d *Page) installedEngine(id string) bool {
 	if id == "" {
 		return false
 	}

@@ -32,8 +32,8 @@ const (
 	apiTimeout       = 30 * time.Second
 	besideGap        = 40
 	paneX, paneY     = 900, 500
-	paneTop          = 200
-	paneBottom       = 840
+	paneTop          = 64
+	paneBottom       = windowH
 	navStep          = 38
 	chatTop          = 80
 	chatBottom       = 180

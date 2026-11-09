@@ -60,7 +60,7 @@ type detailState struct {
 
 type detailKey struct{}
 
-func (d *Dialog) pluginDetail(c *ui.Context, tk theme.Tokens, id string) {
+func (d *Page) pluginDetail(c *ui.Context, tk theme.Tokens, id string) {
 	p := d.s.Plugins()
 	p.Watch(id)
 	p.List.Ensure()
@@ -88,7 +88,7 @@ func (d *Dialog) pluginDetail(c *ui.Context, tk theme.Tokens, id string) {
 	})
 }
 
-func (d *Dialog) backLink(c *ui.Context, tk theme.Tokens) {
+func (d *Page) backLink(c *ui.Context, tk theme.Tokens) {
 	back := ui.ButtonBase(c).Label(locales.PluginsDetailBack()).Role(ui.RoleLink).AlignSelf(ui.Start).
 		MinHeight(theme.ControlSM).Gap(backGap).AlignItems(ui.Center).FontSize(textSize).Margin(0, 0, backBottom, 0)
 	fg := tk.TextSecondary
@@ -101,7 +101,7 @@ func (d *Dialog) backLink(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) detailError(c *ui.Context, tk theme.Tokens, r *store.Resource[api.PluginDetail]) {
+func (d *Page) detailError(c *ui.Context, tk theme.Tokens, r *store.Resource[api.PluginDetail]) {
 	if api.IsStatus(r.Err, http.StatusNotFound) {
 		insetCard(c, tk).Children(func() {
 			kit.EmptyState(c, tk, "package-x", locales.PluginsDetailNotFound(), locales.PluginsDetailNotFoundHint(), func() {
@@ -127,7 +127,7 @@ func detailSkeleton(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) detailPage(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail) {
+func (d *Page) detailPage(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail) {
 	p := d.s.Plugins()
 	name := displayName(detail.Name, detail.ID)
 	entry, listed := catalogEntry(p.Catalog.Data, detail.ID)
@@ -189,7 +189,7 @@ func catalogEntry(catalog api.PluginCatalog, id string) (api.CatalogPlugin, bool
 	return api.CatalogPlugin{}, false
 }
 
-func (d *Dialog) detailHeader(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string, official, removing bool) {
+func (d *Page) detailHeader(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string, official, removing bool) {
 	meta := detail.ID
 	if detail.Package != "" {
 		meta = detail.Package + metaJoin + detail.ID
@@ -210,7 +210,7 @@ func (d *Dialog) detailHeader(c *ui.Context, tk theme.Tokens, st *detailState, d
 	})
 }
 
-func (d *Dialog) detailActions(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string, removing bool) {
+func (d *Page) detailActions(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string, removing bool) {
 	p := d.s.Plugins()
 	id := detail.ID
 	busy := p.Acting() || p.Pending[id]
@@ -234,7 +234,7 @@ func (d *Dialog) detailActions(c *ui.Context, tk theme.Tokens, st *detailState, 
 	})
 }
 
-func (d *Dialog) detailBanner(c *ui.Context, tk theme.Tokens, detail api.PluginDetail) {
+func (d *Page) detailBanner(c *ui.Context, tk theme.Tokens, detail api.PluginDetail) {
 	p := d.s.Plugins()
 	id := detail.ID
 	o := kit.AlertOpts{Tone: kit.ToneWarning, Title: locales.PluginsDetailRetryingTitle(), Body: detail.Error, Mono: true}
@@ -250,7 +250,7 @@ func (d *Dialog) detailBanner(c *ui.Context, tk theme.Tokens, detail api.PluginD
 	kit.Alert(c, tk, o).Margin(0, 0, detailSectionGap, 0)
 }
 
-func (d *Dialog) setupCard(c *ui.Context, tk theme.Tokens, id, label string) {
+func (d *Page) setupCard(c *ui.Context, tk theme.Tokens, id, label string) {
 	insetCard(c, tk).Padding(setupCardPadY, setupCardPadX).Children(func() {
 		ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Gap(setupCardGap).Children(func() {
 			ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
@@ -263,7 +263,7 @@ func (d *Dialog) setupCard(c *ui.Context, tk theme.Tokens, id, label string) {
 	})
 }
 
-func (d *Dialog) infoPanel(c *ui.Context, tk theme.Tokens, detail api.PluginDetail, entry api.CatalogPlugin, listed bool) ui.Element {
+func (d *Page) infoPanel(c *ui.Context, tk theme.Tokens, detail api.PluginDetail, entry api.CatalogPlugin, listed bool) ui.Element {
 	return kit.Panel(c, tk, locales.PluginsDetailInfo(), "", nil, func() {
 		ui.Column(c).MinWidth(0).Gap(infoFieldGap).Children(func() {
 			if detail.Package != "" {
@@ -309,7 +309,7 @@ func sourceLabel(source string) string {
 	return source
 }
 
-func (d *Dialog) versionValue(c *ui.Context, tk theme.Tokens, detail api.PluginDetail, entry api.CatalogPlugin, listed bool) {
+func (d *Page) versionValue(c *ui.Context, tk theme.Tokens, detail api.PluginDetail, entry api.CatalogPlugin, listed bool) {
 	p := d.s.Plugins()
 	version := detail.Version
 	if version == "" {

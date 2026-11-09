@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
+	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/locales"
 	"rsc.io/qr"
@@ -237,6 +238,24 @@ func TestDetailActions(t *testing.T) {
 	f.clickBeside(locales.CommonCancel(), confirmOffset)
 	f.wantShown(locales.PluginsInstalledTitle(), locales.PluginsStateUninstalling())
 	f.wantHidden(locales.PluginsUninstallDialogTitle("Telegram"), locales.PluginsDetailInfo())
+	f.wantPath(route.Settings(settings.SectionPlugins, ""))
+}
+
+func TestUninstallFinishingAfterLeavingKeepsTheChat(t *testing.T) {
+	f := openDetail(t, withSettings)
+	release := f.Fake.HoldNext(http.MethodDelete, telegramAPI)
+	t.Cleanup(release)
+	f.click(locales.PluginsActionUninstall())
+	cancel := f.rect(locales.CommonCancel())
+	f.T.ClickAt(cancel.X+cancel.W+confirmOffset, cancel.Y+cancel.H/2)
+	f.pump(func() bool { return len(f.Fake.Calls(http.MethodDelete, telegramAPI)) == 1 })
+	f.Root.OpenConversation(api.BeeConversation)
+	f.pump(func() bool { return true })
+	f.wantPath(route.Chat(api.BeeConversation))
+	release()
+	f.pump(func() bool { return !f.Store.Plugins().Pending["telegram"] })
+	f.settle()
+	f.wantPath(route.Chat(api.BeeConversation))
 }
 
 func TestDetailNotFound(t *testing.T) {

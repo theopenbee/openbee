@@ -287,7 +287,8 @@ func TestInstallFromPackageSuccessConfigure(t *testing.T) {
 
 	f.click(locales.PluginsInstallDialogConfigure())
 	f.wantHidden(locales.PluginsInstallDialogTitle(), locales.PluginsTabsMarket())
-	f.wantShown("Linear", locales.PluginsSubtitle())
+	f.wantShown("Linear", locales.PluginsDetailBack())
+	f.wantHidden(locales.PluginsSubtitle())
 	title := f.rect("Linear")
 	f.T.ClickAt(title.X+backInset, title.Y-detailGap-theme.ControlSM/2)
 	f.settle()

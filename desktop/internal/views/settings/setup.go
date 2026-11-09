@@ -77,12 +77,12 @@ func qrImage(url string) (*image.Paletted, error) {
 	return img, nil
 }
 
-func (d *Dialog) startSetup(id string) {
+func (d *Page) startSetup(id string) {
 	d.setup = setupState{open: true, plugin: id}
 	d.restartSetup()
 }
 
-func (d *Dialog) restartSetup() {
+func (d *Page) restartSetup() {
 	st := &d.setup
 	st.sending = false
 	st.session = d.s.Plugins().StartSetup(st.plugin, func(s *store.SetupSession) {
@@ -94,19 +94,19 @@ func (d *Dialog) restartSetup() {
 	})
 }
 
-func (d *Dialog) syncSetup() {
+func (d *Page) syncSetup() {
 	st := &d.setup
 	if st.session == nil {
 		return
 	}
-	if st.open && d.open && d.section == SectionPlugins && d.pluginID == st.plugin {
+	if st.open && d.shown && d.section == SectionPlugins && d.pluginID == st.plugin {
 		return
 	}
 	d.s.Plugins().CancelSetup(st.session)
 	d.setup = setupState{}
 }
 
-func (d *Dialog) setupDialog(c *ui.Context, tk theme.Tokens, title string) {
+func (d *Page) setupDialog(c *ui.Context, tk theme.Tokens, title string) {
 	st := &d.setup
 	s := st.session
 	if s == nil {

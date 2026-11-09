@@ -22,13 +22,15 @@ type Root struct {
 	router   *ui.Router
 	auth     *auth.Screens
 	shell    *shell.Shell
-	settings *settings.Dialog
+	settings *settings.Page
 	account  *account.Account
+	chatLoc  string
 }
 
 func NewRoot(s *store.Store) *Root {
-	r := &Root{s: s, router: ui.NewRouter("/"), settings: settings.New(s), account: account.New(s)}
+	r := &Root{s: s, router: ui.NewRouter("/"), account: account.New(s), chatLoc: route.ChatPath}
 	r.router.Transition = ui.TransitionNone
+	r.settings = settings.New(s, r.router, r.leaveSettings)
 	r.auth = auth.New(s, r.router)
 	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), r.account, r.OpenSettings)
 	return r
@@ -59,11 +61,12 @@ func (r *Root) View(c *ui.Context) {
 		}
 		r.router.View(c, func(rt *ui.Route) { r.page(c, tk, rt) }).Grow(1)
 	})
+	if !route.IsSettings(r.router.Path()) || r.s.Phase != store.PhaseReady {
+		r.settings.Hide()
+	}
 	if r.s.Phase == store.PhaseReady {
-		r.settings.View(c)
 		r.account.Dialogs(c)
 	} else {
-		r.settings.Close()
 		r.account.Close()
 	}
 	r.s.PruneToasts()
@@ -83,6 +86,10 @@ func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {
 		r.shell.View(c, "")
 	case rt.Match(route.ChatPath + "/{conversation}"):
 		r.shell.View(c, rt.Param("conversation"))
+	case rt.Match(route.SettingsPath + "/{section}"):
+		r.settings.View(c, rt.Param("section"), "")
+	case rt.Match(route.SettingsPath + "/" + settings.SectionPlugins + "/{plugin}"):
+		r.settings.View(c, settings.SectionPlugins, rt.Param("plugin"))
 	}
 }
 
@@ -91,6 +98,10 @@ func (r *Root) follow(c *ui.Context) {
 	if target, move := phaseRoute(r.s.Phase, path); move {
 		r.router.Replace(target)
 		path = target
+	}
+	if r.s.Phase == store.PhaseReady && route.IsSettings(path) && !settings.Routable(path) {
+		path = route.Settings(settings.SectionEnv, "")
+		r.router.Replace(path)
 	}
 	if param := conversationParam(path); r.s.Phase == store.PhaseReady && param != "" && route.ConversationID(param) == "" {
 		path = route.Chat(api.BeeConversation)
@@ -103,6 +114,9 @@ func (r *Root) follow(c *ui.Context) {
 		}
 		r.router.Replace(target)
 	}
+	if r.s.Phase == store.PhaseReady && route.IsChat(r.router.Path()) {
+		r.chatLoc = r.router.Location()
+	}
 }
 
 func phaseRoute(phase store.Phase, path string) (string, bool) {
@@ -114,7 +128,7 @@ func phaseRoute(phase store.Phase, path string) (string, bool) {
 	case store.PhaseLogin:
 		return route.LoginPath, path != route.LoginPath
 	case store.PhaseReady:
-		return route.ChatPath, conversationParam(path) == "" && path != route.ChatPath
+		return route.ChatPath, conversationParam(path) == "" && path != route.ChatPath && !route.IsSettings(path)
 	}
 	return "", false
 }
@@ -131,6 +145,10 @@ func (r *Root) OpenSettings(section string) {
 	if r.s.Phase == store.PhaseReady {
 		r.settings.Open(section, "")
 	}
+}
+
+func (r *Root) leaveSettings() {
+	r.router.Push(r.chatLoc)
 }
 
 func (r *Root) OpenConversation(cid string) {

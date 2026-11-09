@@ -71,7 +71,7 @@ func formIdentity(reset int, detail api.PluginDetail) string {
 	return strconv.Itoa(reset) + ":" + string(config) + ":" + string(fields) + ":" + detail.BotName
 }
 
-func (d *Dialog) settingsForm(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string) {
+func (d *Page) settingsForm(c *ui.Context, tk theme.Tokens, st *detailState, detail api.PluginDetail, name string) {
 	form := ui.Column(c).Key(formIdentity(st.reset, detail)).MinWidth(0).Gap(formFieldGap)
 	fs := ui.Local(form, formKey{}, func() formState { return newForm(detail) })
 	submit := func() { d.saveSettings(st, fs, detail, name) }
@@ -117,7 +117,7 @@ func saveButton(c *ui.Context, tk theme.Tokens, st *detailState) ui.Element {
 	return kit.Button(c, tk, text, opts)
 }
 
-func (d *Dialog) saveSettings(st *detailState, fs *formState, detail api.PluginDetail, name string) {
+func (d *Page) saveSettings(st *detailState, fs *formState, detail api.PluginDetail, name string) {
 	if st.saving {
 		return
 	}

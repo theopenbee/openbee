@@ -18,7 +18,7 @@ const (
 	ChatColumnMax  = 768
 	DialogWidth    = 440
 
-	SettingsMaxW, SettingsMaxH = 1152, 832
+	SettingsColumnMax = 896
 
 	BreakTwoPane     = 768
 	BreakInlinePanel = 1184

@@ -65,7 +65,7 @@ type installedKey struct{}
 
 type menuKey struct{}
 
-func (d *Dialog) installedTab(c *ui.Context, tk theme.Tokens) {
+func (d *Page) installedTab(c *ui.Context, tk theme.Tokens) {
 	r := d.s.Plugins().List
 	d.s.Plugins().Catalog.Ensure()
 	root := ui.Column(c).MinWidth(0)
@@ -91,7 +91,7 @@ func (d *Dialog) installedTab(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) installedPanel(c *ui.Context, tk theme.Tokens, st *installedState, list []api.PluginStatus) {
+func (d *Page) installedPanel(c *ui.Context, tk theme.Tokens, st *installedState, list []api.PluginStatus) {
 	categories := d.s.Plugins().Catalog.Data.Categories
 	wide := d.contentWidth() >= container3XL
 	insetCard(c, tk).Clip().Padding(0, 0, tableBottom, 0).Children(func() {
@@ -132,7 +132,7 @@ func tableColumns(c *ui.Context, tk theme.Tokens) {
 	})
 }
 
-func (d *Dialog) installedRow(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, wide bool) {
+func (d *Page) installedRow(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, wide bool) {
 	p := d.s.Plugins()
 	name := displayName(plugin.Name, plugin.ID)
 	busy := p.Uninstalling(plugin.ID)
@@ -167,7 +167,7 @@ func (d *Dialog) installedRow(c *ui.Context, tk theme.Tokens, st *installedState
 	})
 }
 
-func (d *Dialog) pluginLink(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, name string) ui.Element {
+func (d *Page) pluginLink(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, name string) ui.Element {
 	b := ui.ButtonBase(c).Label(name).MinWidth(0).AlignItems(ui.Center).Justify(ui.Start).Gap(nameGap)
 	fg := tk.Foreground
 	if b.Hovered() || b.Pressed() {
@@ -217,7 +217,7 @@ func botCell(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, icon bool)
 	})
 }
 
-func (d *Dialog) rowActions(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, name string, busy bool) ui.Element {
+func (d *Page) rowActions(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, name string, busy bool) ui.Element {
 	p := d.s.Plugins()
 	acting := p.Acting() || p.Pending[plugin.ID]
 	return ui.Row(c).AlignItems(ui.Center).Justify(ui.End).Gap(actionsGap).Children(func() {
@@ -233,7 +233,7 @@ func (d *Dialog) rowActions(c *ui.Context, tk theme.Tokens, st *installedState, 
 	})
 }
 
-func (d *Dialog) rowMenu(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, name string, busy, acting bool) {
+func (d *Page) rowMenu(c *ui.Context, tk theme.Tokens, st *installedState, plugin api.PluginStatus, name string, busy, acting bool) {
 	b := ui.ButtonBase(c).Label(locales.PluginsActionMoreFor(name)).Role(ui.RoleMenuButton).Disabled(busy).
 		Size(theme.ControlSM, theme.ControlSM).Shrink(0).Center().Radius(theme.RadiusControl)
 	open := ui.Local(b, menuKey{}, func() bool { return false })

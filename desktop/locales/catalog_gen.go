@@ -3132,6 +3132,16 @@ func (msgs Messages) MenuSettings() string {
 	return Catalog.Format(msgs.locale, "menuSettings", nil)
 }
 
+// NavBackToChat says "Back to chat"
+// in the language the app shows.
+func NavBackToChat() string { return In(i18n.Locale()).NavBackToChat() }
+
+// NavBackToChat says "Back to chat"
+// in the language of msgs.
+func (msgs Messages) NavBackToChat() string {
+	return Catalog.Format(msgs.locale, "navBackToChat", nil)
+}
+
 // NavSettings says "Settings"
 // in the language the app shows.
 func NavSettings() string { return In(i18n.Locale()).NavSettings() }
