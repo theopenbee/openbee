@@ -25,7 +25,7 @@ import {
   useUpdatePluginSettings,
   type PluginAction,
 } from "@/hooks/use-plugins"
-import { useSettingsDialog } from "@/hooks/use-settings-dialog"
+import { useOpenSettings } from "@/hooks/use-settings"
 import { ApiError } from "@/lib/api"
 import { buildSettingsPayload, initialFormValues, invalidIntFields, localize, pendingInstalls, type FormValues } from "@/lib/plugins"
 import { cn, getErrorMessage } from "@/lib/utils"
@@ -35,7 +35,7 @@ const SAVED_FEEDBACK_MS = 2500
 
 export function PluginDetailSettings({ id }: { id: string }) {
   const { t, i18n } = useTranslation()
-  const show = useSettingsDialog()
+  const show = useOpenSettings()
   const detail = usePlugin(id)
   const catalog = usePluginCatalog()
   const action = usePluginAction()
@@ -245,7 +245,7 @@ export function PluginDetailSettings({ id }: { id: string }) {
         onConfirm={() => {
           setUninstallError("")
           uninstall.mutate(d.id, {
-            onSuccess: () => show({ section: "plugins", tab: "installed" }),
+            onSuccess: () => show({ section: "plugins", tab: "installed" }, { replace: true }),
             onError: (err) => setUninstallError(getErrorMessage(err)),
           })
         }}
@@ -256,7 +256,7 @@ export function PluginDetailSettings({ id }: { id: string }) {
 
 function BackLink() {
   const { t } = useTranslation()
-  const show = useSettingsDialog()
+  const show = useOpenSettings()
   return (
     <button
       type="button"

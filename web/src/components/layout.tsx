@@ -1,13 +1,21 @@
-import { ChatShell } from "@/components/chat/chat-shell"
-import { SettingsDialogProvider } from "@/components/settings/settings-dialog"
+import { Suspense } from "react"
+import { Outlet } from "react-router-dom"
 import { ChatEventsProvider } from "@/hooks/use-chat-events"
+import { useMessageNotifications, useUnreadTitle } from "@/hooks/use-message-notifications"
+
+function ChatAttention() {
+  useMessageNotifications()
+  useUnreadTitle()
+  return null
+}
 
 export function Layout() {
   return (
-    <SettingsDialogProvider>
-      <ChatEventsProvider>
-        <ChatShell />
-      </ChatEventsProvider>
-    </SettingsDialogProvider>
+    <ChatEventsProvider>
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
+      <ChatAttention />
+    </ChatEventsProvider>
   )
 }

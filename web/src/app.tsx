@@ -1,16 +1,19 @@
-import { lazy, Suspense, useEffect } from "react"
+import { lazy, Suspense } from "react"
 import { HashRouter, Navigate, Routes, Route, useLocation, useParams } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
+import { ChatShell } from "@/components/chat/chat-shell"
 import { Toaster } from "@/components/toaster"
-import { useSettingsDialog, type SettingsSection } from "@/hooks/use-settings-dialog"
-import { legacyRedirect } from "@/lib/routes"
+import { legacyRedirect, settingsPath, type SettingsSection } from "@/lib/routes"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
 const ChatIndex = lazy(() => import("@/pages/chat").then(m => ({ default: m.ChatIndex })))
 const Chat = lazy(() => import("@/pages/chat").then(m => ({ default: m.Chat })))
+const SettingsPage = lazy(() =>
+  import("@/components/settings/settings-page").then(m => ({ default: m.SettingsPage })),
+)
 const NotFound = lazy(() => import("@/pages/not-found").then(m => ({ default: m.NotFound })))
 
 const queryClient = new QueryClient({
@@ -24,9 +27,7 @@ const queryClient = new QueryClient({
 
 function SettingsRedirect({ section }: { section: SettingsSection }) {
   const { id } = useParams()
-  const show = useSettingsDialog()
-  useEffect(() => show({ section, plugin: id }), [show, section, id])
-  return <Navigate to="/" replace />
+  return <Navigate to={settingsPath({ section, plugin: id })} replace />
 }
 
 function LegacyRedirect() {
@@ -45,8 +46,12 @@ export function App() {
             <Route path="/setup" element={<Setup />} />
             <Route element={<AuthGuard><Layout /></AuthGuard>}>
               <Route path="/" element={<Navigate to="/chat" replace />} />
-              <Route path="/chat" element={<ChatIndex />} />
-              <Route path="/chat/:conversation" element={<Chat />} />
+              <Route element={<ChatShell />}>
+                <Route path="/chat" element={<ChatIndex />} />
+                <Route path="/chat/:conversation" element={<Chat />} />
+              </Route>
+              <Route path="/settings/:section" element={<SettingsPage />} />
+              <Route path="/settings/plugins/:plugin" element={<SettingsPage />} />
               <Route path="/workers" element={<LegacyRedirect />} />
               <Route path="/workers/create" element={<LegacyRedirect />} />
               <Route path="/workers/:id" element={<LegacyRedirect />} />

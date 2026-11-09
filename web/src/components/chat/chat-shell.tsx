@@ -5,7 +5,6 @@ import { ConversationList } from "@/components/chat/conversation-list"
 import { SplitPanel } from "@/components/split-panel"
 import { WorkerCreateForm } from "@/components/worker-panel/worker-create-form"
 import { WorkerPanel } from "@/components/worker-panel/worker-panel"
-import { useMessageNotifications, useUnreadTitle } from "@/hooks/use-message-notifications"
 import { useWorkers } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
 import {
@@ -71,15 +70,8 @@ export function ChatShell() {
         </Suspense>
       </main>
       <ChatPanel param={param} />
-      <ChatAttention />
     </div>
   )
-}
-
-function ChatAttention() {
-  useMessageNotifications()
-  useUnreadTitle()
-  return null
 }
 
 function ChatPanel({ param }: { param: string | undefined }) {

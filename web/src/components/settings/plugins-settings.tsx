@@ -34,17 +34,17 @@ import {
   useUninstallPlugin,
   type PluginAction,
 } from "@/hooks/use-plugins"
-import { useSettingsDialog, type PluginsTab } from "@/hooks/use-settings-dialog"
+import { useOpenSettings } from "@/hooks/use-settings"
 import { filterCatalog, groupByType, isActiveState, localize, marketAction, pendingInstalls, pluginTypeLabel } from "@/lib/plugins"
+import type { PluginsTab } from "@/lib/routes"
 import { getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginOperation, PluginStatus } from "@/lib/types"
 
 const ALL_TAGS = "__all__"
 const INSTALLED_GRID = "@3xl:grid-cols-[minmax(0,1fr)_5.5rem_minmax(0,12rem)_minmax(0,10rem)_auto]"
 
-export function PluginsSettings({ initialTab = "market" }: { initialTab?: PluginsTab }) {
+export function PluginsSettings({ tab, onTabChange }: { tab: PluginsTab; onTabChange: (tab: PluginsTab) => void }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<PluginsTab>(initialTab)
   const plugins = usePlugins()
   const operations = usePluginOperationToasts()
   const [installOpen, setInstallOpen] = useState(false)
@@ -52,7 +52,7 @@ export function PluginsSettings({ initialTab = "market" }: { initialTab?: Plugin
 
   return (
     <FadeIn>
-      <Tabs value={tab} onValueChange={(value) => setTab(value === "installed" ? "installed" : "market")}>
+      <Tabs value={tab} onValueChange={(value) => onTabChange(value === "installed" ? "installed" : "market")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <TabsList aria-label={t("plugins.title")}>
             <TabsTrigger value="market">{t("plugins.tabs.market")}</TabsTrigger>
@@ -75,7 +75,7 @@ export function PluginsSettings({ initialTab = "market" }: { initialTab?: Plugin
         </TabsContent>
         <TabsContent value="installed">
           <div className="pt-2">
-            <Installed operations={ops} onBrowse={() => setTab("market")} />
+            <Installed operations={ops} onBrowse={() => onTabChange("market")} />
           </div>
         </TabsContent>
       </Tabs>
@@ -86,7 +86,7 @@ export function PluginsSettings({ initialTab = "market" }: { initialTab?: Plugin
 
 function Market({ operations }: { operations: PluginOperation[] }) {
   const { t, i18n } = useTranslation()
-  const show = useSettingsDialog()
+  const show = useOpenSettings()
   const catalog = usePluginCatalog()
   const refresh = useRefreshPluginCatalog()
   const install = useInstallPlugin()
@@ -321,7 +321,7 @@ function MarketAction({
 
 function Installed({ operations, onBrowse }: { operations: PluginOperation[]; onBrowse: () => void }) {
   const { t, i18n } = useTranslation()
-  const show = useSettingsDialog()
+  const show = useOpenSettings()
   const plugins = usePlugins()
   const catalog = usePluginCatalog()
   const action = usePluginAction()

@@ -6,7 +6,8 @@
     "daysAgo": "{{count}} 天前"
   },
   "nav": {
-    "settings": "设置"
+    "settings": "设置",
+    "backToChat": "返回聊天"
   },
   "common": {
     "cancel": "取消",

@@ -6,7 +6,7 @@ import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { Input } from "@/components/arc/input/input"
 import { OperationProgress, useNow } from "@/components/plugin-ui"
 import { useInstallPlugin, usePlugins } from "@/hooks/use-plugins"
-import { useSettingsDialog } from "@/hooks/use-settings-dialog"
+import { useOpenSettings } from "@/hooks/use-settings"
 import { getErrorMessage } from "@/lib/utils"
 import type { PluginOperation } from "@/lib/types"
 
@@ -20,7 +20,7 @@ export function PluginInstallDialog({
   operations: PluginOperation[]
 }) {
   const { t } = useTranslation()
-  const show = useSettingsDialog()
+  const show = useOpenSettings()
   const install = useInstallPlugin()
   const installed = usePlugins()
   const [spec, setSpec] = useState("")

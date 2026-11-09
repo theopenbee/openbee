@@ -6,7 +6,8 @@
     "daysAgo": "{{count}}d ago"
   },
   "nav": {
-    "settings": "Settings"
+    "settings": "Settings",
+    "backToChat": "Back to chat"
   },
   "common": {
     "cancel": "Cancel",

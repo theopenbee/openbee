@@ -8,6 +8,9 @@ import {
   panelToSearch,
   panelView,
   resolveConversationRoute,
+  settingsPath,
+  settingsReturnPath,
+  settingsTarget,
   workerPanelPath,
   type PanelState,
 } from "../routes"
@@ -162,5 +165,77 @@ describe("hashShowsConversation", () => {
     expect(hashShowsConversation("#/chat", "bee")).toBe(false)
     expect(hashShowsConversation("", "bee")).toBe(false)
     expect(hashShowsConversation("#/chat/w1/extra", "worker:w1")).toBe(false)
+  })
+})
+
+describe("settingsPath", () => {
+  it("puts each section on its own page", () => {
+    expect(settingsPath({ section: "env" })).toBe("/settings/env")
+    expect(settingsPath({ section: "system" })).toBe("/settings/system")
+    expect(settingsPath({ section: "plugins" })).toBe("/settings/plugins")
+  })
+
+  it("routes plugin pages and the installed tab", () => {
+    expect(settingsPath({ section: "plugins", plugin: "telegram" })).toBe("/settings/plugins/telegram")
+    expect(settingsPath({ section: "plugins", tab: "installed" })).toBe("/settings/plugins?tab=installed")
+    expect(settingsPath({ section: "plugins", tab: "market" })).toBe("/settings/plugins")
+  })
+
+  it("ignores plugin fields outside the plugins section", () => {
+    expect(settingsPath({ section: "env", plugin: "telegram", tab: "installed" })).toBe("/settings/env")
+  })
+})
+
+describe("settingsTarget", () => {
+  const none = new URLSearchParams()
+
+  it("reads the section, plugin and tab back", () => {
+    expect(settingsTarget("env", undefined, none)).toEqual({ section: "env" })
+    expect(settingsTarget("plugins", "telegram", none)).toEqual({ section: "plugins", plugin: "telegram" })
+    expect(settingsTarget("plugins", undefined, new URLSearchParams("tab=installed"))).toEqual({
+      section: "plugins",
+      tab: "installed",
+    })
+    expect(settingsTarget("plugins", undefined, new URLSearchParams("tab=other"))).toEqual({ section: "plugins" })
+  })
+
+  it("rejects unknown sections", () => {
+    expect(settingsTarget("billing", undefined, none)).toBeNull()
+    expect(settingsTarget(undefined, undefined, none)).toBeNull()
+  })
+
+  it("round-trips every path settingsPath builds", () => {
+    const targets = [
+      { section: "env" },
+      { section: "system" },
+      { section: "plugins" },
+      { section: "plugins", tab: "installed" },
+      { section: "plugins", plugin: "lark" },
+    ] as const
+    for (const target of targets) {
+      const url = new URL(settingsPath(target), "http://x")
+      const [, , section, plugin] = url.pathname.split("/")
+      expect(settingsTarget(section, plugin, url.searchParams)).toEqual(target)
+    }
+  })
+})
+
+describe("settingsReturnPath", () => {
+  it("returns to the chat settings opened from", () => {
+    expect(settingsReturnPath("/chat/w1", "?panel=env", null)).toBe("/chat/w1?panel=env")
+    expect(settingsReturnPath("/chat", "", null)).toBe("/chat")
+  })
+
+  it("keeps the chat to return to while moving between settings pages", () => {
+    expect(settingsReturnPath("/settings/env", "", { returnTo: "/chat/w1" })).toBe("/chat/w1")
+    expect(settingsReturnPath("/settings/plugins/lark", "", { returnTo: "/chat/bee" })).toBe("/chat/bee")
+  })
+
+  it("falls back to the chat list without a chat to return to", () => {
+    expect(settingsReturnPath("/settings/env", "", null)).toBe("/chat")
+    expect(settingsReturnPath("/settings/env", "", { returnTo: "/settings/system" })).toBe("/chat")
+    expect(settingsReturnPath("/settings/env", "", { returnTo: 42 })).toBe("/chat")
+    expect(settingsReturnPath("/settings/env", "", { returnTo: "https://example.com/chat" })).toBe("/chat")
+    expect(settingsReturnPath("/login", "", null)).toBe("/chat")
   })
 })
