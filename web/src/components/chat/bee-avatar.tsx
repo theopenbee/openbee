@@ -1,4 +1,4 @@
-import { LogoMark } from "@/components/brand/logo"
+import { LogoMark, LogoMarkSmall } from "@/components/brand/logo"
 import type { AvatarSize } from "@/components/worker-avatar"
 import { cn } from "@/lib/utils"
 
@@ -24,7 +24,7 @@ export function BeeAvatar({ size = "default", className }: BeeAvatarProps) {
         className,
       )}
     >
-      <LogoMark />
+      {size === "sm" || size === "default" ? <LogoMarkSmall /> : <LogoMark />}
     </span>
   )
 }
