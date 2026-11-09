@@ -18,7 +18,7 @@ const (
 	toolbarInset  = 16
 	dragBand      = 32
 	logoHeight    = 32
-	logoAspect    = 1448.0 / 420.0
+	logoAspect    = 1386.4 / 420.0
 	cardPadding   = 32
 	headingGap    = 8
 	headingBottom = 24

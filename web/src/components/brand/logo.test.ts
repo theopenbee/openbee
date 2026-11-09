@@ -23,10 +23,12 @@ describe("brand logo components", () => {
     expect(rendered(LogoFull)).toEqual(publicFile("logo-full.svg"))
   })
 
-  it("keep the mark clear of the wordmark in the lockup", () => {
+  it("size the lockup mark to the wordmark and centre it on the wordmark", () => {
     const [markPath] = rendered(LogoFull)
-    const xs = [...markPath.matchAll(/[LA][^LAMZ]*?(-?[\d.]+) (-?[\d.]+)(?=[LAMZ])/g)].map((m) => Number(m[1]))
-    expect(Math.max(...xs)).toBeLessThanOrEqual(404)
+    const points = [...markPath.matchAll(/(-?[\d.]+) (-?[\d.]+)(?=[LAMZ])/g)].map((m) => [Number(m[1]), Number(m[2])])
+    const ys = points.map(([, y]) => y)
+    expect(Math.max(...points.map(([x]) => x))).toBeLessThanOrEqual(340)
+    expect((Math.min(...ys) + Math.max(...ys)) / 2).toBeCloseTo(210, 0)
   })
 
   it("paint every shape with the brand token", () => {
