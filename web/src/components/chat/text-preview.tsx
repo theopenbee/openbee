@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/empty-state"
 import { DownloadLink, MediaViewer, VIEWER_KEEP, VIEWER_LINK } from "@/components/media-viewer"
 import { FILE_CHIP, FileCategoryIcon } from "@/components/chat/file-chip"
 import { api } from "@/lib/api"
-import { mediaUrl } from "@/lib/chat-format"
+import { attachmentName, mediaUrl } from "@/lib/chat-format"
 import {
   codeLanguage,
   fenceCode,
@@ -43,11 +43,12 @@ function PlainText({ text }: { text: string }) {
 export function TextPreview({ mediaPath, kind }: { mediaPath: string; kind: PreviewKind }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const filename = basename(mediaPath)
+  const stored = basename(mediaPath)
+  const filename = attachmentName(mediaPath)
   const url = mediaUrl(mediaPath)
   const preview = useQuery({
-    queryKey: ["media-preview", filename],
-    queryFn: async ({ signal }) => readTextPreview(await api.chat.media(filename, signal)),
+    queryKey: ["media-preview", stored],
+    queryFn: async ({ signal }) => readTextPreview(await api.chat.media(stored, signal)),
     enabled: open,
     staleTime: Infinity,
     retry: false,

@@ -8,10 +8,11 @@ import { MentionTextarea } from "@/components/mention-textarea"
 import composerStyles from "@/components/chat-composer.module.css"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { api } from "@/lib/api"
+import { attachmentName } from "@/lib/chat-format"
 import { readDraft, saveDraft } from "@/lib/drafts"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type { Worker } from "@/lib/types"
-import { basename, cn, isImeComposing } from "@/lib/utils"
+import { cn, isImeComposing } from "@/lib/utils"
 
 const TOUCH_ONLY_QUERY = "(hover: none) and (pointer: coarse)"
 
@@ -145,11 +146,11 @@ export function Composer({ draftKey, placeholder, disabled, mentions, onSend }: 
                   className="inline-flex min-h-8 max-w-full items-center gap-2 rounded-full border border-border bg-surface-muted py-1 pr-1 pl-3 text-xs text-foreground"
                 >
                   <FileCategoryIcon filePath={path} className="text-secondary" />
-                  <span className="min-w-0 max-w-40 truncate sm:max-w-56">{basename(path)}</span>
+                  <span className="min-w-0 max-w-40 truncate sm:max-w-56">{attachmentName(path)}</span>
                   <button
                     type="button"
                     className="inline-grid size-6 shrink-0 place-items-center rounded-full text-secondary transition-colors hover:bg-surface hover:text-foreground"
-                    aria-label={t("chat.removeNamedAttachment", { name: basename(path) })}
+                    aria-label={t("chat.removeNamedAttachment", { name: attachmentName(path) })}
                     onClick={() =>
                       setPendingMediaPaths((prev) => prev.filter((entry) => entry !== path))
                     }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { formatMessageTimestamp } from "../chat-format"
+import { attachmentName, formatMessageTimestamp } from "../chat-format"
 
 describe("formatMessageTimestamp", () => {
   beforeEach(() => {
@@ -31,5 +31,27 @@ describe("formatMessageTimestamp", () => {
   it("adds the date for other days", () => {
     const earlier = new Date(2026, 9, 20, 9, 5).getTime()
     expect(formatMessageTimestamp(earlier, "en")).toBe("Oct 20, 09:05")
+  })
+})
+
+describe("attachmentName", () => {
+  it("drops the stored id prefix", () => {
+    expect(attachmentName("26d63ea6-656b-433d-9553-6ffa5da48555_markdown-demo.md")).toBe("markdown-demo.md")
+    expect(attachmentName("uploads/26d63ea6-656b-433d-9553-6ffa5da48555_chart.png")).toBe("chart.png")
+  })
+
+  it("drops only the first prefix", () => {
+    const id = "26d63ea6-656b-433d-9553-6ffa5da48555"
+    expect(attachmentName(`${id}_${id}_notes.txt`)).toBe(`${id}_notes.txt`)
+  })
+
+  it("keeps names without a stored id prefix", () => {
+    expect(attachmentName("report.pdf")).toBe("report.pdf")
+    expect(attachmentName("2026-11-10_report.pdf")).toBe("2026-11-10_report.pdf")
+    expect(attachmentName("out-1_chart.png")).toBe("out-1_chart.png")
+  })
+
+  it("keeps the stored name when nothing follows the prefix", () => {
+    expect(attachmentName("26d63ea6-656b-433d-9553-6ffa5da48555_")).toBe("26d63ea6-656b-433d-9553-6ffa5da48555_")
   })
 })

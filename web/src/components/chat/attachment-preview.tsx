@@ -3,16 +3,16 @@ import { ArrowUpRight } from "lucide-react"
 import { ImageLightbox } from "@/components/image-lightbox"
 import { FILE_CHIP, FileCategoryIcon } from "@/components/chat/file-chip"
 import { TextPreview } from "@/components/chat/text-preview"
-import { mediaUrl } from "@/lib/chat-format"
+import { attachmentName, mediaUrl } from "@/lib/chat-format"
 import { previewKind } from "@/lib/text-preview"
-import { basename, isImage } from "@/lib/utils"
+import { isImage } from "@/lib/utils"
 
 export const AttachmentPreview = memo(function AttachmentPreview({
   mediaPath,
 }: {
   mediaPath: string
 }) {
-  const filename = basename(mediaPath)
+  const filename = attachmentName(mediaPath)
   const url = mediaUrl(mediaPath)
 
   if (isImage(mediaPath)) {
