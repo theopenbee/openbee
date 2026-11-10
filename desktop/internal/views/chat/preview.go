@@ -185,7 +185,7 @@ func (v *View) textPreview(c *ui.Context, tk theme.Tokens) {
 			v.viewerButton(c, tk, w >= theme.BreakComposer, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",
-				busy:  v.opening[name],
+				busy:  v.downloading(name),
 				click: func() { v.downloadMedia(name) },
 			})
 		})
@@ -212,7 +212,7 @@ func (v *View) previewBody(c *ui.Context, tk theme.Tokens, name string) {
 		return
 	}
 	download := func() {
-		if kit.Button(c, tk, locales.ChatDownload(), kit.ButtonOpts{Variant: kit.Secondary, Icon: "download", Loading: v.opening[name]}).Clicked() {
+		if kit.Button(c, tk, locales.ChatDownload(), kit.ButtonOpts{Variant: kit.Secondary, Icon: "download", Loading: v.downloading(name)}).Clicked() {
 			v.downloadMedia(name)
 		}
 	}

@@ -34,7 +34,7 @@ const BORDER = 1
 
 type Point = { x: number; y: number }
 type Anchor = Point & { u: number; v: number }
-type Drag = { id: number; x: number; y: number; left: number; top: number; moved: boolean }
+type Drag = { id: number; x: number; y: number; left: number; top: number; moved: boolean; image: boolean }
 type Pinch = { distance: number; scale: number; u: number; v: number }
 type GestureEvent = UIEvent & { scale: number; clientX: number; clientY: number }
 
@@ -42,7 +42,7 @@ function distance(a: Touch, b: Touch) {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
 }
 
-function useImageZoom() {
+function useImageZoom(close: () => void) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
   const image = useRef<HTMLImageElement>(null)
   const [view, setView] = useState<Size | null>(null)
@@ -55,7 +55,6 @@ function useImageZoom() {
   const target = useRef(1)
   const anchor = useRef<Anchor | null>(null)
   const drag = useRef<Drag | null>(null)
-  const dragged = useRef(false)
   const pinch = useRef<Pinch | null>(null)
   const gesture = useRef<number | null>(null)
 
@@ -199,17 +198,38 @@ function useImageZoom() {
     }
   }, [scroller])
 
+  const endDrag = () => {
+    drag.current = null
+    setDragging(false)
+  }
+
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     const el = e.currentTarget
     const at = localPoint(e.clientX, e.clientY)
-    dragged.current = at.x >= el.clientWidth || at.y >= el.clientHeight
-    if (dragged.current || e.pointerType !== "mouse" || e.button !== 0 || !overflows) return
-    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, moved: false }
+    if (at.x >= el.clientWidth || at.y >= el.clientHeight) {
+      e.stopPropagation()
+      return
+    }
+    if (e.pointerType !== "mouse" || e.button !== 0 || !overflows) return
+    e.stopPropagation()
+    drag.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      left: el.scrollLeft,
+      top: el.scrollTop,
+      moved: false,
+      image: e.target === image.current,
+    }
   }
 
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
+    if ((e.buttons & 1) === 0) {
+      endDrag()
+      return
+    }
     const dx = e.clientX - d.x
     const dy = e.clientY - d.y
     if (!d.moved) {
@@ -225,15 +245,8 @@ function useImageZoom() {
   const onPointerEnd = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
-    dragged.current = d.moved
-    drag.current = null
-    setDragging(false)
-  }
-
-  const onClickCapture = (e: MouseEvent) => {
-    if (!dragged.current) return
-    dragged.current = false
-    e.stopPropagation()
+    endDrag()
+    if (e.type === "pointerup" && !d.moved && !d.image) close()
   }
 
   const onDoubleClick = (e: MouseEvent) => {
@@ -261,8 +274,11 @@ function useImageZoom() {
     dragging,
     step,
     reset,
-    restart: () => setZoom(null),
-    stage: { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd, onClickCapture },
+    restart: () => {
+      endDrag()
+      setZoom(null)
+    },
+    stage: { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd },
     onDoubleClick,
     onLoad,
     onError: () => {
@@ -283,7 +299,7 @@ export function ImageLightbox({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const zoom = useImageZoom()
+  const zoom = useImageZoom(() => setOpen(false))
 
   const onOpenChange = (next: boolean) => {
     if (next) zoom.restart()
@@ -342,7 +358,7 @@ export function ImageLightbox({
         ref={zoom.scroller}
         {...zoom.stage}
         className={cn(
-          "relative min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto overscroll-contain",
+          "relative min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto overscroll-contain [scrollbar-gutter:stable]",
           zoom.overflows && "cursor-grab",
           zoom.dragging && "cursor-grabbing select-none"
         )}

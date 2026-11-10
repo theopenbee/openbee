@@ -36,7 +36,7 @@ const (
 	photoKeyPrefix       = "photo:"
 	thumbKeyPrefix       = "thumb:"
 	svgExtension         = ".svg"
-	photoEdge            = 16384
+	photoEdge            = 8192
 	maxDecodedPixels     = 1 << 24
 	thumbEdge            = 640
 	inlineEdge           = 2048

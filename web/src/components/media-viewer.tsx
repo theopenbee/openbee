@@ -64,6 +64,9 @@ export function MediaViewer({
     : { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }
   const leave: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.standard] }
 
+  const disarm = () => {
+    armed.current = false
+  }
   const arm = (e: PointerEvent) => {
     armed.current = !insideKeep(e.target)
   }
@@ -91,6 +94,7 @@ export function MediaViewer({
             <DialogPrimitive.Content asChild forceMount aria-describedby={undefined} onEscapeKeyDown={holdEscape}>
               <motion.div
                 className="fixed inset-0 z-50 flex flex-col"
+                onPointerDownCapture={disarm}
                 onPointerDown={arm}
                 onClick={dismiss}
                 initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}

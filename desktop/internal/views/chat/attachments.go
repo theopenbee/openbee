@@ -246,7 +246,7 @@ func (v *View) thumbnail(c *ui.Context, tk theme.Tokens, name string, src ui.Ima
 
 func (v *View) fileChip(c *ui.Context, tk theme.Tokens, name string) {
 	preview := previewKind(name) != ""
-	busy := v.opening[name] && !preview
+	busy := v.saving(name) && !preview
 	label, trailing, click := name, "external-link", func() { v.openMedia(name) }
 	if preview {
 		label, trailing, click = locales.ChatPreviewFile(name), "eye", func() { v.openPreview(name) }
@@ -278,10 +278,10 @@ func (v *View) downloadMedia(name string) {
 }
 
 func (v *View) saveToDownloads(name string, open bool) {
-	if v.opening[name] {
+	if v.saving(name) {
 		return
 	}
-	v.opening[name] = true
+	v.opening[name] = open
 	gen := v.mediaGen
 	v.s.SaveMedia(name, func(localPath string, err error) {
 		if v.mediaGen != gen {
@@ -302,6 +302,16 @@ func (v *View) saveToDownloads(name string, open bool) {
 		}
 		v.s.Toast(kit.Toast{Tone: kit.ToneSuccess, Title: locales.FileSavedToDownloads(), Description: filepath.Base(localPath)})
 	})
+}
+
+func (v *View) saving(name string) bool {
+	_, ok := v.opening[name]
+	return ok
+}
+
+func (v *View) downloading(name string) bool {
+	open, ok := v.opening[name]
+	return ok && !open
 }
 
 func (v *View) launch(localPath string) error {

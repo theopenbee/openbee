@@ -163,7 +163,7 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 			v.viewerButton(c, tk, labels, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",
-				busy:  v.opening[name],
+				busy:  v.downloading(name),
 				click: func() { v.downloadMedia(name) },
 			})
 			v.viewerButton(c, tk, labels, viewerAction{
