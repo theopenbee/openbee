@@ -176,12 +176,13 @@ func (v *View) textPreview(c *ui.Context, tk theme.Tokens) {
 	}
 	w, h := c.Size()
 	name := p.name
+	shown := displayName(name)
 	ui.DialogBase(c, &p.open, func(backdrop, panel ui.Element) {
-		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatPreviewFile(displayName(name)))
+		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatPreviewFile(shown))
 		if panel.Clicked() {
 			p.open = false
 		}
-		v.viewerBar(c, tk, displayName(name), w, locales.ChatClosePreview(), func() { p.open = false }, func() {
+		v.viewerBar(c, tk, shown, w, locales.ChatClosePreview(), func() { p.open = false }, func() {
 			v.viewerButton(c, tk, w >= theme.BreakComposer, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",

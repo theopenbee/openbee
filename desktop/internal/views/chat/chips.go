@@ -38,7 +38,7 @@ func chips(c *ui.Context, tk theme.Tokens, cm *composerState, wide bool) {
 }
 
 func pendingChip(c *ui.Context, tk theme.Tokens, cm *composerState, path string, limit float32) {
-	name := mediaBase(path)
+	name := displayName(path)
 	ui.Row(c).Key(path).Role(ui.RoleListItem).MinHeight(pillMinHeight).MinWidth(0).MaxWidthPercent(100).
 		AlignItems(ui.Center).Gap(pillGap).Padding(pillPadY, pillPadEnd, pillPadY, pillPadStart).Radius(theme.RadiusPill).
 		Border(1, tk.Border).Background(tk.SurfaceMuted).FontSize(pillFont).TextColor(tk.Foreground).Children(func() {

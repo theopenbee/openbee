@@ -143,8 +143,9 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 	}
 	w, h := c.Size()
 	name := l.name
+	shown := displayName(name)
 	ui.DialogBase(c, &l.open, func(backdrop, panel ui.Element) {
-		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatViewImage(displayName(name)))
+		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatViewImage(shown))
 		if panel.Clicked() {
 			l.open = false
 		}
@@ -158,7 +159,7 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 			l.zoomCenter(l.stage.fit())
 		}
 		labels := w >= theme.BreakTwoPane
-		v.viewerBar(c, tk, displayName(name), w, locales.ChatCloseImage(), func() { l.open = false }, func() {
+		v.viewerBar(c, tk, shown, w, locales.ChatCloseImage(), func() { l.open = false }, func() {
 			v.zoomControls(c, tk, w)
 			v.viewerButton(c, tk, labels, viewerAction{
 				text:  locales.ChatDownload(),

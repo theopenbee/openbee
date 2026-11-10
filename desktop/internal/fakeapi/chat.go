@@ -364,7 +364,8 @@ func (s *Server) uploadMedia(q *request) reply {
 	if name == "" {
 		name = "file"
 	}
-	filename := fmt.Sprintf("%s_%s", s.nextID("upload"), name)
+	s.idSeq++
+	filename := fmt.Sprintf("00000000-0000-4000-8000-%012d_%s", s.idSeq, name)
 	s.st.Media[filename] = data
 	return ok(map[string]string{"path": filename})
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -89,7 +90,8 @@ func (f *fixture) wantAttachments(cid string, suffixes ...string) []string {
 		if !strings.HasSuffix(got[i], suffix) {
 			f.t.Fatalf("attachment %d = %q, want it to end in %q", i, got[i], suffix)
 		}
-		f.wantShown(locales.ChatRemoveNamedAttachment(got[i]))
+		f.wantShown(locales.ChatRemoveNamedAttachment(chat.DisplayName(got[i])))
+		f.wantHidden(locales.ChatRemoveNamedAttachment(got[i]))
 	}
 	return got
 }
@@ -277,7 +279,7 @@ func TestDropFilesUploads(t *testing.T) {
 			t.Fatalf("attachments %q miss %s", got, name)
 		}
 	}
-	f.wantShown(locales.ChatRemoveNamedAttachment(got[0]), locales.ChatRemoveNamedAttachment(got[1]))
+	f.wantShown(locales.ChatRemoveNamedAttachment(chat.DisplayName(got[0])), locales.ChatRemoveNamedAttachment(chat.DisplayName(got[1])))
 }
 
 func TestUploadFailureAlert(t *testing.T) {
@@ -299,12 +301,12 @@ func TestRemoveChip(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("attachments = %q", got)
 	}
-	f.click(locales.ChatRemoveNamedAttachment(got[0]))
+	f.click(locales.ChatRemoveNamedAttachment("a.txt"))
 	if left := f.view.Attachments(workerCID); len(left) != 1 || left[0] != got[1] {
 		t.Fatalf("attachments after removing %q = %q", got[0], left)
 	}
-	f.wantHidden(locales.ChatRemoveNamedAttachment(got[0]))
-	f.click(locales.ChatRemoveNamedAttachment(got[1]))
+	f.wantHidden(locales.ChatRemoveNamedAttachment("a.txt"))
+	f.click(locales.ChatRemoveNamedAttachment("b.txt"))
 	f.click(locales.ChatSend())
 	f.wantNothingSent(workerCID)
 }
