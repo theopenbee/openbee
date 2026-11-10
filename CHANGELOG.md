@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.5] - 2026-11-09
 
 ### Added
 - Zoom, pan and download images in the preview.
