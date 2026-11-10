@@ -29,8 +29,12 @@ const (
 	photoH          = 300
 	thumbHeight     = 240
 	thumbBorder     = 2
-	photoEdge       = 2560
-	photoShort      = 853
+	scaleEdge       = 2560
+	scaleShort      = 853
+	budgetW         = 4644
+	budgetH         = 3612
+	screenshotW     = 1170
+	screenshotH     = 8000
 	thumbSlack      = 0.5
 	pixelSlack      = 6
 	barHeight       = 76
@@ -426,8 +430,8 @@ func TestLargePhotoDisplaysDownscaled(t *testing.T) {
 	m := withAttachments(message("m1", "worker", "w1", "Full resolution.", time.Now().Add(-time.Hour)), "wide.png")
 	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{"wide.png": grayPNG(t, tallPhotoW, tallPhotoH)}, m))
 	f.awaitThumbWithin("wide.png", float32(tallPhotoW)*thumbHeight/tallPhotoH, bigPhotoTimeout)
-	if got, limit := f.view.CachedImageBytes(), int64(photoEdge*photoEdge*4); got <= 0 || got > limit {
-		t.Fatalf("cached %d bytes for a %d×%d photo, want a bitmap of at most %d×%d (%d bytes)", got, tallPhotoW, tallPhotoH, photoEdge, photoEdge, limit)
+	if got, limit := f.view.CachedImageBytes(), int64(scaleEdge*scaleEdge*4); got <= 0 || got > limit {
+		t.Fatalf("cached %d bytes for a %d×%d photo, want a bitmap of at most %d×%d (%d bytes)", got, tallPhotoW, tallPhotoH, scaleEdge, scaleEdge, limit)
 	}
 	f.click(locales.ChatViewImage("wide.png"))
 	f.wantShown(locales.ChatCloseImage())
@@ -436,7 +440,7 @@ func TestLargePhotoDisplaysDownscaled(t *testing.T) {
 	}
 }
 
-func TestPhotoScalesDownToTheEdge(t *testing.T) {
+func TestPhotoKeepsItsFullResolution(t *testing.T) {
 	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, landscapeW, landscapeH), nil })
 	src, err := ic.LoadPhoto("landscape.png")
 	if err != nil {
@@ -447,8 +451,8 @@ func TestPhotoScalesDownToTheEdge(t *testing.T) {
 		t.Fatalf("source is %T, want a bitmap", src)
 	}
 	w, h := b.Size()
-	if w != photoEdge || h != photoShort {
-		t.Fatalf("bitmap is %d×%d, want %d×%d", w, h, photoEdge, photoShort)
+	if w != landscapeW || h != landscapeH {
+		t.Fatalf("bitmap is %d×%d, want the photo's %d×%d", w, h, landscapeW, landscapeH)
 	}
 	if got := ic.Bytes(); got != int64(w*h*4) {
 		t.Fatalf("cache counts %d bytes, want %d", got, w*h*4)
@@ -458,6 +462,44 @@ func TestPhotoScalesDownToTheEdge(t *testing.T) {
 	}
 	if ic.Len() != 1 {
 		t.Fatalf("%d images cached, want 1", ic.Len())
+	}
+}
+
+func TestLongScreenshotKeepsItsFullResolution(t *testing.T) {
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, screenshotW, screenshotH), nil })
+	src, err := ic.LoadPhoto("screenshot.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := src.(*ui.Bitmap).Size(); w != screenshotW || h != screenshotH {
+		t.Fatalf("bitmap is %d×%d, want the screenshot's %d×%d", w, h, screenshotW, screenshotH)
+	}
+}
+
+func TestHugePhotoScalesToThePixelBudget(t *testing.T) {
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, tallPhotoW, tallPhotoH), nil })
+	src, err := ic.LoadPhoto("huge.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, h := src.(*ui.Bitmap).Size()
+	if w != budgetW || h != budgetH {
+		t.Fatalf("bitmap is %d×%d, want %d×%d", w, h, budgetW, budgetH)
+	}
+	if w*h > chat.MaxDecodedPixels {
+		t.Fatalf("bitmap has %d pixels, want at most %d", w*h, chat.MaxDecodedPixels)
+	}
+}
+
+func TestVeryLongImageStopsAtTheEdge(t *testing.T) {
+	const side = 400
+	ic := chat.NewImageCache(func(string) ([]byte, error) { return grayPNG(t, side, 2*chat.PhotoEdge), nil })
+	src, err := ic.LoadPhoto("strip.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w, h := src.(*ui.Bitmap).Size(); w != side/2 || h != chat.PhotoEdge {
+		t.Fatalf("bitmap is %d×%d, want %d×%d", w, h, side/2, chat.PhotoEdge)
 	}
 }
 
@@ -499,24 +541,24 @@ func TestUnreadablePhotoFallsBackToChip(t *testing.T) {
 }
 
 func TestPhotoFollowsExifOrientation(t *testing.T) {
-	img, err := chat.ScaledPhoto(exifJPEG(t, landscapeW, landscapeH, exifRotateCW))
+	img, err := chat.ScaledPhoto(exifJPEG(t, landscapeW, landscapeH, exifRotateCW), scaleEdge)
 	if err != nil {
 		t.Fatal(err)
 	}
 	b := img.Bounds()
-	if b.Dy() != photoEdge || b.Dx() != photoShort {
-		t.Fatalf("rotated photo is %d×%d, want %d×%d", b.Dx(), b.Dy(), photoShort, photoEdge)
+	if b.Dy() != scaleEdge || b.Dx() != scaleShort {
+		t.Fatalf("rotated photo is %d×%d, want %d×%d", b.Dx(), b.Dy(), scaleShort, scaleEdge)
 	}
 	top, bottom := img.RGBAAt(b.Dx()/2, b.Dy()/8), img.RGBAAt(b.Dx()/2, b.Dy()*7/8)
 	if top.R < 150 || top.B > 70 || bottom.B < 150 || bottom.R > 70 {
 		t.Fatalf("top %v, bottom %v; a photo rotated clockwise should put its red left half on top", top, bottom)
 	}
-	plain, err := chat.ScaledPhoto(exifJPEG(t, landscapeW, landscapeH, 1))
+	plain, err := chat.ScaledPhoto(exifJPEG(t, landscapeW, landscapeH, 1), scaleEdge)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := plain.Bounds(); b.Dx() != photoEdge {
-		t.Fatalf("unrotated photo is %d wide, want %d", b.Dx(), photoEdge)
+	if b := plain.Bounds(); b.Dx() != scaleEdge {
+		t.Fatalf("unrotated photo is %d wide, want %d", b.Dx(), scaleEdge)
 	}
 }
 
@@ -756,8 +798,8 @@ func TestThumbnailsDecodeSmallerThanTheLightbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w, _ := full.(*ui.Bitmap).Size(); w != photoEdge {
-		t.Fatalf("lightbox photo is %d wide, want %d", w, photoEdge)
+	if w, _ := full.(*ui.Bitmap).Size(); w != landscapeW {
+		t.Fatalf("lightbox photo is %d wide, want %d", w, landscapeW)
 	}
 	if ic.Len() != 2 {
 		t.Fatalf("%d images cached, want the thumbnail and the photo apart", ic.Len())

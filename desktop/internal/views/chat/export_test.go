@@ -108,8 +108,12 @@ func (ic *imageCache) LoadThumbnail(name string) (ui.ImageSource, error) {
 	return ic.loadPhoto(name, thumbSize)
 }
 
-func ScaledPhoto(data []byte) (*image.RGBA, error) {
-	return scaleImage(data, photoEdge)
+func (v *View) LightboxInput(ev ui.InputEvent) bool {
+	return v.light.input(ev)
+}
+
+func ScaledPhoto(data []byte, edge int) (*image.RGBA, error) {
+	return scaleImage(data, edge)
 }
 
 func (ic *imageCache) SetDecoder(decode func(data []byte, svg bool, edge int) (ui.ImageSource, int64, error)) {
@@ -117,12 +121,21 @@ func (ic *imageCache) SetDecoder(decode func(data []byte, svg bool, edge int) (u
 }
 
 const (
-	ThumbEdge    = thumbEdge
-	InlineEdge   = inlineEdge
-	MaxMediaFile = maxMediaFile
+	ThumbEdge        = thumbEdge
+	InlineEdge       = inlineEdge
+	MaxMediaFile     = maxMediaFile
+	PhotoEdge        = photoEdge
+	MaxDecodedPixels = maxDecodedPixels
 )
 
 var ReadMediaFile = readMediaFile
+
+var (
+	FitScale        = fitScale
+	StepZoom        = stepZoom
+	ToggleZoom      = toggleZoom
+	WheelZoomFactor = wheelZoomFactor
+)
 
 var (
 	MentionQuery      = mentionQuery

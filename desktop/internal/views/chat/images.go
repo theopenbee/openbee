@@ -9,6 +9,7 @@ import (
 	"image"
 	"io"
 	"maps"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +36,8 @@ const (
 	photoKeyPrefix       = "photo:"
 	thumbKeyPrefix       = "thumb:"
 	svgExtension         = ".svg"
-	photoEdge            = 2560
+	photoEdge            = 16384
+	maxDecodedPixels     = 1 << 24
 	thumbEdge            = 640
 	inlineEdge           = 2048
 	photoDecodeSlots     = 2
@@ -318,6 +320,7 @@ func decodeScaled(data []byte, svg bool, edge int) (ui.ImageSource, int64, error
 	if err != nil {
 		return nil, 0, err
 	}
+	edge = min(edge, budgetEdge(cfg.Width, cfg.Height))
 	switch {
 	case int64(cfg.Width)*int64(cfg.Height) > maxPhotoPixels:
 		return nil, 0, fmt.Errorf("%w: %dx%d pixels", errImageTooLarge, cfg.Width, cfg.Height)
@@ -329,6 +332,14 @@ func decodeScaled(data []byte, svg bool, edge int) (ui.ImageSource, int64, error
 		return nil, 0, err
 	}
 	return ui.NewBitmap(img), int64(img.Rect.Dx()) * int64(img.Rect.Dy()) * bytesPerPixel, nil
+}
+
+func budgetEdge(w, h int) int {
+	pixels := int64(w) * int64(h)
+	if pixels <= maxDecodedPixels {
+		return max(w, h)
+	}
+	return max(1, int(float64(max(w, h))*math.Sqrt(float64(maxDecodedPixels)/float64(pixels))))
 }
 
 func scaleImage(data []byte, edge int) (*image.RGBA, error) {
