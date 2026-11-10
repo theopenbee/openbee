@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/theopenbee/openbee/internal/infra/utils"
@@ -16,6 +17,8 @@ import (
 const sessionKeyPrefix = PlatformID + ":"
 
 const legacySessionKey = sessionKeyPrefix + "default"
+
+var storedNamePrefix = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_`)
 
 type SessionClaimStore interface {
 	SessionKeyClaim(ctx context.Context, from string) (string, bool, error)
@@ -49,6 +52,13 @@ func MediaDir(root, sessionKey string) (string, error) {
 
 func MediaFileName(messageID, mediaPath string) string {
 	return messageID + "_" + platform.SanitizeFileName(filepath.Base(mediaPath))
+}
+
+func MediaDisplayName(name string) string {
+	if loc := storedNamePrefix.FindStringIndex(name); loc != nil && loc[1] < len(name) {
+		return name[loc[1]:]
+	}
+	return name
 }
 
 func (l *LegacySession) Restore(ctx context.Context, findOwner func() (string, bool, error)) error {

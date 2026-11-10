@@ -84,6 +84,19 @@ func TestMediaFileName(t *testing.T) {
 	assert.Equal(t, "out-1_chart.png", local.MediaFileName("out-1", "/work/out/chart.png"))
 }
 
+func TestMediaDisplayName(t *testing.T) {
+	const id = "26d63ea6-656b-433d-9553-6ffa5da48555"
+	for name, want := range map[string]string{
+		local.MediaFileName(id, "/work/out/demo.md"): "demo.md",
+		id + "_" + id + "_notes.txt":                 id + "_notes.txt",
+		"out-1_chart.png":                            "out-1_chart.png",
+		"2026-11-10_report.pdf":                      "2026-11-10_report.pdf",
+		id + "_":                                     id + "_",
+	} {
+		assert.Equal(t, want, local.MediaDisplayName(name), name)
+	}
+}
+
 func TestLegacySession_ClaimMovesMedia(t *testing.T) {
 	root := t.TempDir()
 	writeLegacyMedia(t, root, "old.png", "old")

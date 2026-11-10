@@ -700,7 +700,7 @@ func (h *LocalChatHandler) ServeMedia(c *gin.Context) {
 		return
 	}
 	c.Header("Content-Type", "application/octet-stream")
-	c.FileAttachment(path, filename)
+	c.FileAttachment(path, local.MediaDisplayName(filename))
 }
 
 func isInlineMedia(filename string) bool {

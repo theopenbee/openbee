@@ -659,6 +659,19 @@ func TestServeMedia_SandboxesAndDownloadsActiveContent(t *testing.T) {
 	}
 }
 
+func TestServeMedia_DownloadNameDropsStoredID(t *testing.T) {
+	s := newLocalChatServer(t)
+	userDir := filepath.Join(s.mediaRoot, testUserID)
+	require.NoError(t, os.MkdirAll(userDir, 0o755))
+	stored := "26d63ea6-656b-433d-9553-6ffa5da48555_report.pdf"
+	require.NoError(t, os.WriteFile(filepath.Join(userDir, stored), []byte("%PDF"), 0o644))
+
+	rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/media/"+stored, nil), testUserID)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, `attachment; filename="report.pdf"`, rec.Header().Get("Content-Disposition"))
+}
+
 func listConversations(t *testing.T, r *gin.Engine, userID string) []ConversationSummary {
 	t.Helper()
 	rec := serveAs(r, httptest.NewRequest(http.MethodGet, "/local/conversations", nil), userID)
