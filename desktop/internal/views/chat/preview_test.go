@@ -129,6 +129,19 @@ func TestMarkdownPreviewRenders(t *testing.T) {
 	}
 }
 
+func TestPreviewHidesTheStoredID(t *testing.T) {
+	const shown = "notes.md"
+	stored := "26d63ea6-656b-433d-9553-6ffa5da48555_" + shown
+	f := previewChat(t, map[string][]byte{stored: []byte("# Release notes\n")}, "uploads/"+stored)
+	f.wantShown(shown)
+	f.openPreview(shown)
+	f.wantShown("Release notes")
+	if n := f.countText(shown); n < 2 {
+		t.Fatalf("%q shown %d times, want it on the chip and the preview bar", shown, n)
+	}
+	f.wantHidden(stored)
+}
+
 func TestTextPreviewDecodesAndKeepsLines(t *testing.T) {
 	gbk := []byte{0xc4, 0xe3, 0xba, 0xc3, '\r', '\n', 'o', 'k'}
 	f := previewChat(t, map[string][]byte{"gbk.txt": gbk}, "gbk.txt")

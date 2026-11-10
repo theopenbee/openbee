@@ -47,6 +47,7 @@ const (
 	exifRotateCW    = 6
 	declaredSide    = 20000
 	reportName      = "report.pdf"
+	storedID        = "26d63ea6-656b-433d-9553-6ffa5da48555"
 	reportContent   = "%PDF-1.7 report"
 	lightboxEdge    = 20
 	columnMax       = 768
@@ -217,6 +218,47 @@ func TestFileCategory(t *testing.T) {
 			t.Errorf("isImage(%q) = %v, want %v", tc.name, got, want)
 		}
 	}
+}
+
+func TestDisplayName(t *testing.T) {
+	for name, want := range map[string]string{
+		storedID + "_markdown-demo.md":           "markdown-demo.md",
+		"uploads/" + storedID + "_chart.png":     "chart.png",
+		storedID + "_" + storedID + "_notes.txt": storedID + "_notes.txt",
+		"report.pdf":                             "report.pdf",
+		"2026-11-10_report.pdf":                  "2026-11-10_report.pdf",
+		"out-1_chart.png":                        "out-1_chart.png",
+		storedID + "_":                           storedID + "_",
+	} {
+		if got := chat.DisplayName(name); got != want {
+			t.Errorf("displayName(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestFileChipHidesTheStoredID(t *testing.T) {
+	stored := storedID + "_" + reportName
+	m := withAttachments(message("m1", "worker", "w1", "The report is attached.", time.Now().Add(-time.Hour)), "uploads/"+stored)
+	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{stored: []byte(reportContent)}, m))
+	o := &opener{}
+	f.view.SetOpener(o.open)
+	f.wantShown(reportName)
+	f.wantHidden(stored)
+	f.click(reportName)
+	f.Fix.Await(t, func() bool { return len(o.paths()) == 1 })
+	if n := f.mediaGets(stored); n != 1 {
+		t.Fatalf("%d downloads of %s, want the chip to fetch the stored file once", n, stored)
+	}
+}
+
+func TestLightboxHidesTheStoredID(t *testing.T) {
+	stored := storedID + "_" + photoName
+	m := withAttachments(message("m1", "worker", "w1", "Here is the photo.", time.Now().Add(-time.Hour)), stored)
+	f := newFixture(t, wideW, wideH, "w1", attached(map[string][]byte{stored: pngImage(t, photoW, photoH)}, m))
+	f.awaitThumb(photoName, photoW*thumbHeight/photoH)
+	f.click(locales.ChatViewImage(photoName))
+	f.wantShown(locales.ChatCloseImage(), photoName)
+	f.wantHidden(stored)
 }
 
 func TestImageThumbnailOpensLightbox(t *testing.T) {

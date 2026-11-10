@@ -177,11 +177,11 @@ func (v *View) textPreview(c *ui.Context, tk theme.Tokens) {
 	w, h := c.Size()
 	name := p.name
 	ui.DialogBase(c, &p.open, func(backdrop, panel ui.Element) {
-		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatPreviewFile(name))
+		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatPreviewFile(displayName(name)))
 		if panel.Clicked() {
 			p.open = false
 		}
-		v.viewerBar(c, tk, name, w, locales.ChatClosePreview(), func() { p.open = false }, func() {
+		v.viewerBar(c, tk, displayName(name), w, locales.ChatClosePreview(), func() { p.open = false }, func() {
 			v.viewerButton(c, tk, w >= theme.BreakComposer, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",
@@ -198,7 +198,7 @@ func (v *View) previewStage(c *ui.Context, tk theme.Tokens, name string, w float
 	ui.Scroll(c).Grow(1).MinHeight(0).Children(func() {
 		ui.Column(c).AlignItems(ui.Center).Padding(0, pad, lightboxBottom, pad).Children(func() {
 			box := ui.Column(c).Width(min(previewMaxWidth, w-2*pad)).MinWidth(0).Padding(previewPad).
-				Radius(theme.RadiusSurface).Border(1, tk.Border).Background(tk.Surface).Label(name)
+				Radius(theme.RadiusSurface).Border(1, tk.Border).Background(tk.Surface).Label(displayName(name))
 			theme.WithShadow(keepOpen(box), tk.ShadowFloating).Children(func() {
 				v.previewBody(c, tk, name)
 			})

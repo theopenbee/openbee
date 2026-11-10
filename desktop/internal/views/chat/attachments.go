@@ -4,6 +4,7 @@ import (
 	"log"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -68,6 +69,8 @@ var openableCategories = map[string]bool{
 
 var revealOnly = map[string]bool{"svg": true}
 
+var storedNamePrefix = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_`)
+
 var extensionCategories = func() map[string]string {
 	m := map[string]string{}
 	for _, c := range categoryExtensions {
@@ -103,6 +106,14 @@ func mediaBase(mediaPath string) string {
 		return mediaPath[i+1:]
 	}
 	return mediaPath
+}
+
+func displayName(mediaPath string) string {
+	base := mediaBase(mediaPath)
+	if loc := storedNamePrefix.FindStringIndex(base); loc != nil && loc[1] < len(base) {
+		return base[loc[1]:]
+	}
+	return base
 }
 
 type photoLoads struct {
@@ -229,7 +240,7 @@ func (v *View) attachment(c *ui.Context, tk theme.Tokens, name string) {
 
 func (v *View) thumbnail(c *ui.Context, tk theme.Tokens, name string, src ui.ImageSource) {
 	iw, ih := sourceSize(src)
-	b := ui.ButtonBase(c).Label(locales.ChatViewImage(name)).Radius(theme.RadiusInset).Border(1, tk.Border).
+	b := ui.ButtonBase(c).Label(locales.ChatViewImage(displayName(name))).Radius(theme.RadiusInset).Border(1, tk.Border).
 		Background(tk.Surface).Clip().MinWidth(0).MaxWidthPercent(100).Cursor(ui.CursorPointer)
 	shown := float32(1)
 	if b.Hovered() {
@@ -247,9 +258,10 @@ func (v *View) thumbnail(c *ui.Context, tk theme.Tokens, name string, src ui.Ima
 func (v *View) fileChip(c *ui.Context, tk theme.Tokens, name string) {
 	preview := previewKind(name) != ""
 	busy := v.saving(name) && !preview
-	label, trailing, click := name, "external-link", func() { v.openMedia(name) }
+	shown := displayName(name)
+	label, trailing, click := shown, "external-link", func() { v.openMedia(name) }
 	if preview {
-		label, trailing, click = locales.ChatPreviewFile(name), "eye", func() { v.openPreview(name) }
+		label, trailing, click = locales.ChatPreviewFile(shown), "eye", func() { v.openPreview(name) }
 	}
 	b := ui.ButtonBase(c).Label(label).MinHeight(chipMinHeight).Padding(0, chipPadX).Gap(chipGap).AlignItems(ui.Center).
 		Radius(theme.RadiusControl).Border(1, tk.Border).MinWidth(0).MaxWidthPercent(100).Cursor(ui.CursorPointer)
@@ -260,7 +272,7 @@ func (v *View) fileChip(c *ui.Context, tk theme.Tokens, name string) {
 	b.Background(b.AnimateColor("bg", bg, colorFade)).TextColor(tk.Foreground).FontSize(bodySize).
 		OnClick(click).Children(func() {
 		ui.Icon(c, icons.Get(categoryIcons[fileCategory(name)])).Size(chipGlyph, chipGlyph).Shrink(0).TextColor(tk.TextSecondary)
-		ui.Text(c, name).SingleLine().MinWidth(0)
+		ui.Text(c, shown).SingleLine().MinWidth(0)
 		if busy {
 			kit.Spinner(c, tk, chipGlyph)
 			return

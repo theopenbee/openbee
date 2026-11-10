@@ -81,6 +81,7 @@ var (
 	CodeLanguage = codeLanguage
 	DecodeText   = decodeText
 	FenceCode    = fenceCode
+	DisplayName  = displayName
 )
 
 const (

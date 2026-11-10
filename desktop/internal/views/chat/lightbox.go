@@ -144,7 +144,7 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 	w, h := c.Size()
 	name := l.name
 	ui.DialogBase(c, &l.open, func(backdrop, panel ui.Element) {
-		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatViewImage(name))
+		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatViewImage(displayName(name)))
 		if panel.Clicked() {
 			l.open = false
 		}
@@ -158,7 +158,7 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 			l.zoomCenter(l.stage.fit())
 		}
 		labels := w >= theme.BreakTwoPane
-		v.viewerBar(c, tk, name, w, locales.ChatCloseImage(), func() { l.open = false }, func() {
+		v.viewerBar(c, tk, displayName(name), w, locales.ChatCloseImage(), func() { l.open = false }, func() {
 			v.zoomControls(c, tk, w)
 			v.viewerButton(c, tk, labels, viewerAction{
 				text:  locales.ChatDownload(),
@@ -283,7 +283,7 @@ func (v *View) lightboxStage(c *ui.Context, tk theme.Tokens, name string, w, h f
 	}
 	stage.Children(func() {
 		ui.Column(c).Size(cw, ch).Padding(oy, 0, 0, ox).AlignItems(ui.Start).Children(func() {
-			img := ui.Image(c, src).Label(name).Fit(ui.Contain).Size(ow, oh).Radius(theme.RadiusPanel).
+			img := ui.Image(c, src).Label(displayName(name)).Fit(ui.Contain).Size(ow, oh).Radius(theme.RadiusPanel).
 				Border(lightboxBorder, tk.Border).Background(tk.Surface).Clip().Shrink(0)
 			theme.WithShadow(img, tk.ShadowFloating)
 		})
