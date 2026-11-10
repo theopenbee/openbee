@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.4] - 2026-11-09
 
 ### Added
 - Preview text, Markdown and code attachments in the app.
