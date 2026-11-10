@@ -1448,6 +1448,16 @@ func (msgs Messages) ChatClosePanel() string {
 	return Catalog.Format(msgs.locale, "chatClosePanel", nil)
 }
 
+// ChatClosePreview says "Close preview"
+// in the language the app shows.
+func ChatClosePreview() string { return In(i18n.Locale()).ChatClosePreview() }
+
+// ChatClosePreview says "Close preview"
+// in the language of msgs.
+func (msgs Messages) ChatClosePreview() string {
+	return Catalog.Format(msgs.locale, "chatClosePreview", nil)
+}
+
 // ChatComposerHint says "Enter to send, Shift+Enter for a new line, @ to mention a worker"
 // in the language the app shows.
 func ChatComposerHint() string { return In(i18n.Locale()).ChatComposerHint() }
@@ -1526,6 +1536,16 @@ func ChatDeletedWorker() string { return In(i18n.Locale()).ChatDeletedWorker() }
 // in the language of msgs.
 func (msgs Messages) ChatDeletedWorker() string {
 	return Catalog.Format(msgs.locale, "chatDeletedWorker", nil)
+}
+
+// ChatDownload says "Download"
+// in the language the app shows.
+func ChatDownload() string { return In(i18n.Locale()).ChatDownload() }
+
+// ChatDownload says "Download"
+// in the language of msgs.
+func (msgs Messages) ChatDownload() string {
+	return Catalog.Format(msgs.locale, "chatDownload", nil)
 }
 
 // ChatEmptyWorker says "Say hello to {name} and hand over work directly."
@@ -1778,6 +1798,96 @@ func ChatPanelTitle() string { return In(i18n.Locale()).ChatPanelTitle() }
 // in the language of msgs.
 func (msgs Messages) ChatPanelTitle() string {
 	return Catalog.Format(msgs.locale, "chatPanelTitle", nil)
+}
+
+// ChatPreviewEmpty says "This file is empty."
+// in the language the app shows.
+func ChatPreviewEmpty() string { return In(i18n.Locale()).ChatPreviewEmpty() }
+
+// ChatPreviewEmpty says "This file is empty."
+// in the language of msgs.
+func (msgs Messages) ChatPreviewEmpty() string {
+	return Catalog.Format(msgs.locale, "chatPreviewEmpty", nil)
+}
+
+// ChatPreviewFailed says "Check the connection and try again."
+// in the language the app shows.
+func ChatPreviewFailed() string { return In(i18n.Locale()).ChatPreviewFailed() }
+
+// ChatPreviewFailed says "Check the connection and try again."
+// in the language of msgs.
+func (msgs Messages) ChatPreviewFailed() string {
+	return Catalog.Format(msgs.locale, "chatPreviewFailed", nil)
+}
+
+// ChatPreviewFailedTitle says "Couldn't load the file"
+// in the language the app shows.
+func ChatPreviewFailedTitle() string { return In(i18n.Locale()).ChatPreviewFailedTitle() }
+
+// ChatPreviewFailedTitle says "Couldn't load the file"
+// in the language of msgs.
+func (msgs Messages) ChatPreviewFailedTitle() string {
+	return Catalog.Format(msgs.locale, "chatPreviewFailedTitle", nil)
+}
+
+// ChatPreviewFile says "Preview {name}"
+// in the language the app shows.
+func ChatPreviewFile(name string) string { return In(i18n.Locale()).ChatPreviewFile(name) }
+
+// ChatPreviewFile says "Preview {name}"
+// in the language of msgs.
+func (msgs Messages) ChatPreviewFile(name string) string {
+	return Catalog.Format(msgs.locale, "chatPreviewFile", map[string]any{"name": name})
+}
+
+// ChatPreviewLoading says "Loading file"
+// in the language the app shows.
+func ChatPreviewLoading() string { return In(i18n.Locale()).ChatPreviewLoading() }
+
+// ChatPreviewLoading says "Loading file"
+// in the language of msgs.
+func (msgs Messages) ChatPreviewLoading() string {
+	return Catalog.Format(msgs.locale, "chatPreviewLoading", nil)
+}
+
+// ChatPreviewTooLarge says "Files over 1 MB can't be previewed. Download it to view."
+// in the language the app shows.
+func ChatPreviewTooLarge() string { return In(i18n.Locale()).ChatPreviewTooLarge() }
+
+// ChatPreviewTooLarge says "Files over 1 MB can't be previewed. Download it to view."
+// in the language of msgs.
+func (msgs Messages) ChatPreviewTooLarge() string {
+	return Catalog.Format(msgs.locale, "chatPreviewTooLarge", nil)
+}
+
+// ChatPreviewTooLargeTitle says "File too large to preview"
+// in the language the app shows.
+func ChatPreviewTooLargeTitle() string { return In(i18n.Locale()).ChatPreviewTooLargeTitle() }
+
+// ChatPreviewTooLargeTitle says "File too large to preview"
+// in the language of msgs.
+func (msgs Messages) ChatPreviewTooLargeTitle() string {
+	return Catalog.Format(msgs.locale, "chatPreviewTooLargeTitle", nil)
+}
+
+// ChatPreviewUnsupported says "It isn't readable text. Download it to view."
+// in the language the app shows.
+func ChatPreviewUnsupported() string { return In(i18n.Locale()).ChatPreviewUnsupported() }
+
+// ChatPreviewUnsupported says "It isn't readable text. Download it to view."
+// in the language of msgs.
+func (msgs Messages) ChatPreviewUnsupported() string {
+	return Catalog.Format(msgs.locale, "chatPreviewUnsupported", nil)
+}
+
+// ChatPreviewUnsupportedTitle says "Can't preview this file"
+// in the language the app shows.
+func ChatPreviewUnsupportedTitle() string { return In(i18n.Locale()).ChatPreviewUnsupportedTitle() }
+
+// ChatPreviewUnsupportedTitle says "Can't preview this file"
+// in the language of msgs.
+func (msgs Messages) ChatPreviewUnsupportedTitle() string {
+	return Catalog.Format(msgs.locale, "chatPreviewUnsupportedTitle", nil)
 }
 
 // ChatReconnectFailed says "Still can't reach the server. Retrying automatically."
@@ -2900,6 +3010,16 @@ func FileOpenFailed() string { return In(i18n.Locale()).FileOpenFailed() }
 // in the language of msgs.
 func (msgs Messages) FileOpenFailed() string {
 	return Catalog.Format(msgs.locale, "fileOpenFailed", nil)
+}
+
+// FileSaveFailed says "Couldn't save the file"
+// in the language the app shows.
+func FileSaveFailed() string { return In(i18n.Locale()).FileSaveFailed() }
+
+// FileSaveFailed says "Couldn't save the file"
+// in the language of msgs.
+func (msgs Messages) FileSaveFailed() string {
+	return Catalog.Format(msgs.locale, "fileSaveFailed", nil)
 }
 
 // FileSavedToDownloads says "Saved to Downloads"

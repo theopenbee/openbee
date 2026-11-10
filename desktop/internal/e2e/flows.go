@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -398,11 +399,11 @@ func (a *admin) restoreSystemConfigs(saved map[string]string) {
 	})
 }
 
-func (a *admin) send(cid, text string) {
+func (a *admin) send(cid, text string, media ...string) {
 	a.t.Helper()
 	ctx, cancel := a.ctx()
 	defer cancel()
-	_, err := a.c.SendMessage(ctx, cid, api.SendMessageRequest{ID: model.NewMessageID(), Content: text})
+	_, err := a.c.SendMessage(ctx, cid, api.SendMessageRequest{ID: model.NewMessageID(), Content: text, MediaPaths: media})
 	a.must("send to "+cid, err)
 }
 
@@ -560,4 +561,13 @@ func (r *relay) restore() {
 		r.t.Fatalf("relay: listen again on %s: %v", r.addr, err)
 	}
 	r.serve(ln)
+}
+
+func (a *admin) upload(name string, data []byte) string {
+	a.t.Helper()
+	ctx, cancel := a.ctx()
+	defer cancel()
+	path, err := a.c.UploadMedia(ctx, name, bytes.NewReader(data))
+	a.must("upload "+name, err)
+	return path
 }

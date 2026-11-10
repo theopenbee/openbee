@@ -912,3 +912,45 @@ func TestDownloadMedia(t *testing.T) {
 		t.Fatalf("invalid paths reached the server (%d requests)", after-before)
 	}
 }
+
+func TestReadMedia(t *testing.T) {
+	var mu sync.Mutex
+	reads := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/api/local/media/")
+		mu.Lock()
+		reads[name]++
+		mu.Unlock()
+		switch name {
+		case "missing.md":
+			http.NotFound(w, r)
+		case "big.log":
+			w.Header().Set("Content-Length", "11")
+			_, _ = io.WriteString(w, "hello world")
+		case "chunked.log":
+			w.(http.Flusher).Flush()
+			_, _ = io.WriteString(w, "hello world")
+		default:
+			_, _ = io.WriteString(w, "# hi")
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv, &fakeTokens{access: "tok", refresh: "r"}, nil)
+	ctx := context.Background()
+
+	data, err := c.ReadMedia(ctx, "/uploads/7c1e_a.md", 4)
+	if err != nil || string(data) != "# hi" {
+		t.Fatalf("ReadMedia = %q, %v", data, err)
+	}
+	for _, name := range []string{"big.log", "chunked.log"} {
+		if _, err := c.ReadMedia(ctx, name, 10); !errors.Is(err, ErrMediaTooLarge) {
+			t.Fatalf("ReadMedia(%s) err = %v, want ErrMediaTooLarge", name, err)
+		}
+	}
+	if _, err := c.ReadMedia(ctx, "missing.md", 10); !IsStatus(err, http.StatusNotFound) {
+		t.Fatalf("missing file: err = %v", err)
+	}
+	if _, err := c.ReadMedia(ctx, "..", 10); err == nil {
+		t.Fatal("ReadMedia(..) returned no error")
+	}
+}

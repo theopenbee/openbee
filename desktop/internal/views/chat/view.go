@@ -44,6 +44,8 @@ type View struct {
 	link        linkState
 	table       tableModal
 	light       lightboxState
+	preview     previewState
+	previews    map[string]*previewLoad
 	photos      *photoLoads
 	opening     map[string]bool
 	openPath    func(path string) error
@@ -83,7 +85,7 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 }
 
 func (v *View) closeOverlays() {
-	v.link, v.table, v.light = linkState{}, tableModal{}, lightboxState{}
+	v.link, v.table, v.light, v.preview = linkState{}, tableModal{}, lightboxState{}, previewState{}
 }
 
 func revealInFolder(path string) error {
@@ -98,7 +100,7 @@ func (v *View) Markdown() *markdown.Options {
 func (v *View) resetMedia() {
 	v.mediaGen++
 	v.images = newImageCache(v.mediaImages(v.mediaGen), fetchExternalImage)
-	v.photos, v.opening = newPhotoLoads(), map[string]bool{}
+	v.photos, v.opening, v.previews = newPhotoLoads(), map[string]bool{}, map[string]*previewLoad{}
 	v.useMarkdown(newImageLoads(nil))
 }
 
@@ -163,6 +165,7 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		v.tableDialog(c, tk)
 		v.linkDialog(c, tk)
 		v.lightbox(c, tk)
+		v.textPreview(c, tk)
 	})
 }
 

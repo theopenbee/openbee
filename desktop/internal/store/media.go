@@ -81,6 +81,15 @@ func (s *Store) SaveMedia(mediaPath string, done func(localPath string, err erro
 	s.fetchMedia(mediaPath, s.o.DownloadDir, errNoDownloadDir, done)
 }
 
+func (s *Store) ReadMedia(mediaPath string, limit int64, done func(data []byte, err error)) {
+	s.async(func(ctx context.Context, c *api.Client) func() {
+		ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
+		defer cancel()
+		data, err := c.ReadMedia(ctx, mediaPath, limit)
+		return func() { done(data, err) }
+	}, func() { done(nil, context.Canceled) })
+}
+
 func (s *Store) fetchMedia(mediaPath, dir string, errNoDir error, done func(localPath string, err error)) {
 	if done == nil {
 		done = func(string, error) {}

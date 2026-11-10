@@ -833,3 +833,38 @@ func TestSaveMediaWithoutDownloadsDir(t *testing.T) {
 		t.Fatalf("download calls = %d, want none", n)
 	}
 }
+
+func TestReadMediaWithLimit(t *testing.T) {
+	st, fake, fix := loaded(t, func(st *fakeapi.State) {
+		team(st)
+		st.Media["m1_notes.md"] = []byte("# notes")
+	})
+	type result struct {
+		data string
+		err  error
+	}
+	got := map[string]result{}
+	read := func(key, path string, limit int64) {
+		st.ReadMedia(path, limit, func(data []byte, err error) { got[key] = result{string(data), err} })
+	}
+
+	read("fits", "uploads/m1_notes.md", 7)
+	read("over", "m1_notes.md", 6)
+	read("missing", "gone.md", 7)
+	fix.Settle(t)
+	if got["fits"] != (result{"# notes", nil}) {
+		t.Fatalf("read = %+v, want the file", got["fits"])
+	}
+	if !errors.Is(got["over"].err, api.ErrMediaTooLarge) {
+		t.Fatalf("over the limit = %+v, want ErrMediaTooLarge", got["over"])
+	}
+	if !api.IsStatus(got["missing"].err, http.StatusNotFound) {
+		t.Fatalf("missing = %+v, want a 404", got["missing"])
+	}
+	if n := countCalls(fake, "GET", "/api/local/media/m1_notes.md"); n != 2 {
+		t.Fatalf("download calls = %d, want 2 uncached reads", n)
+	}
+	if entries, _ := os.ReadDir(fix.CacheDir); len(entries) != 0 {
+		t.Fatalf("cache entries = %v, want reads to leave the cache alone", entries)
+	}
+}

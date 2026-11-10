@@ -13,6 +13,8 @@ import (
 
 var maxUploadSize int64 = 100 << 20
 
+var ErrMediaTooLarge = errors.New("media file is larger than the limit")
+
 func mediaBasename(path string) string {
 	if i := strings.LastIndexAny(path, `/\`); i >= 0 {
 		return path[i+1:]
@@ -63,17 +65,21 @@ func (c *Client) UploadMedia(ctx context.Context, name string, r io.Reader) (str
 	return out.Path, nil
 }
 
-func (c *Client) DownloadMedia(ctx context.Context, path string, w io.Writer) (string, error) {
+func (c *Client) getMedia(ctx context.Context, path string) (*http.Response, error) {
 	name := mediaBasename(path)
 	if name == "" || name == "." || name == ".." {
-		return "", fmt.Errorf("invalid media path %q", path)
+		return nil, fmt.Errorf("invalid media path %q", path)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+apiPrefix+"/local/media/"+escapeSegment(name), nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Accept", "*/*")
-	resp, err := c.DoRaw(ctx, req)
+	return c.DoRaw(ctx, req)
+}
+
+func (c *Client) DownloadMedia(ctx context.Context, path string, w io.Writer) (string, error) {
+	resp, err := c.getMedia(ctx, path)
 	if err != nil {
 		return "", err
 	}
@@ -82,4 +88,23 @@ func (c *Client) DownloadMedia(ctx context.Context, path string, w io.Writer) (s
 		return "", fmt.Errorf("download media: %w", err)
 	}
 	return mediaType(resp.Header.Get("Content-Type")), nil
+}
+
+func (c *Client) ReadMedia(ctx context.Context, path string, limit int64) ([]byte, error) {
+	resp, err := c.getMedia(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.ContentLength > limit {
+		return nil, ErrMediaTooLarge
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("read media: %w", err)
+	}
+	if int64(len(data)) > limit {
+		return nil, ErrMediaTooLarge
+	}
+	return data, nil
 }

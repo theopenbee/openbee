@@ -77,6 +77,15 @@ var (
 	FileCategory = fileCategory
 	IsImage      = isImage
 	SafeToOpen   = safeToOpen
+	PreviewKind  = previewKind
+	CodeLanguage = codeLanguage
+	DecodeText   = decodeText
+	FenceCode    = fenceCode
+)
+
+const (
+	PreviewLimit   = previewLimit
+	HighlightLimit = highlightLimit
 )
 
 func (v *View) SetOpener(open func(path string) error) {

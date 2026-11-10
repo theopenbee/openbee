@@ -38,44 +38,62 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 	w, h := c.Size()
 	name := l.name
 	ui.DialogBase(c, &l.open, func(backdrop, panel ui.Element) {
-		fade := backdrop.Keyframes("fade", []ui.Keyframe{{At: 0, Value: 0}, {At: lightboxFade, Value: 1, Ease: easeEnter}})
-		backdrop.Background(tk.Background.Alpha(lightboxScrim * fade))
-		rise := panel.Keyframes("rise", []ui.Keyframe{{At: 0, Value: 0}, {At: lightboxFade, Value: 1, Ease: easeEnter}})
-		scale := lightboxScale + (1-lightboxScale)*rise
-		panel.Size(w, h).Label(locales.ChatViewImage(name)).TextColor(tk.Foreground).FontSize(bodySize).Opacity(rise).Scale(scale, scale)
+		v.viewerFrame(tk, backdrop, panel, w, h, locales.ChatViewImage(name))
 		if panel.Clicked() {
 			l.open = false
 		}
-		v.lightboxBar(c, tk, name, w)
+		v.viewerBar(c, tk, name, w, viewerAction{
+			text:  locales.ChatOpenOriginal(),
+			icon:  "external-link",
+			click: func() { v.openMedia(name) },
+		}, locales.ChatCloseImage(), func() { l.open = false })
 		v.lightboxStage(c, tk, name, w, h)
 	})
 }
 
-func (v *View) lightboxBar(c *ui.Context, tk theme.Tokens, name string, w float32) {
+func (v *View) viewerFrame(tk theme.Tokens, backdrop, panel ui.Element, w, h float32, label string) {
+	fade := backdrop.Keyframes("fade", []ui.Keyframe{{At: 0, Value: 0}, {At: lightboxFade, Value: 1, Ease: easeEnter}})
+	backdrop.Background(tk.Background.Alpha(lightboxScrim * fade))
+	rise := panel.Keyframes("rise", []ui.Keyframe{{At: 0, Value: 0}, {At: lightboxFade, Value: 1, Ease: easeEnter}})
+	scale := lightboxScale + (1-lightboxScale)*rise
+	panel.Size(w, h).Label(label).TextColor(tk.Foreground).FontSize(bodySize).Opacity(rise).Scale(scale, scale)
+}
+
+type viewerAction struct {
+	text, icon string
+	busy       bool
+	click      func()
+}
+
+func (v *View) viewerBar(c *ui.Context, tk theme.Tokens, title string, w float32, action viewerAction, closeLabel string, close func()) {
 	inset := c.TitleBar()
 	bar := ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(lightboxBarGap).PaddingY(lightboxBarPad).
 		PaddingStart(max(lightboxBarPad, inset.Left)).PaddingEnd(max(lightboxBarPad, inset.Right))
 	keepOpen(bar).Children(func() {
-		ui.Text(c, name).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().Grow(1).MinWidth(0)
-		label, text := locales.ChatOpenOriginal(), locales.ChatOpenOriginal()
+		ui.Text(c, title).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().Grow(1).MinWidth(0)
+		text := action.text
 		if w < theme.BreakComposer {
 			text = ""
 		}
-		open := kit.Button(c, tk, text, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: "external-link", Label: label})
-		if open.Clicked() {
-			v.openMedia(name)
+		opts := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: action.icon, Label: action.text, Loading: action.busy}
+		if kit.Button(c, tk, text, opts).Clicked() {
+			action.click()
 		}
-		if kit.IconButton(c, tk, "x", locales.ChatCloseImage(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).Clicked() {
-			v.light.open = false
+		if kit.IconButton(c, tk, "x", closeLabel, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).Clicked() {
+			close()
 		}
 	})
 }
 
-func (v *View) lightboxStage(c *ui.Context, tk theme.Tokens, name string, w, h float32) {
-	pad := float32(lightboxPadNarrow)
+func viewerPad(w float32) float32 {
 	if w >= theme.BreakComposer {
-		pad = lightboxPadWide
+		return lightboxPadWide
 	}
+	return lightboxPadNarrow
+}
+
+func (v *View) lightboxStage(c *ui.Context, tk theme.Tokens, name string, w, h float32) {
+	pad := viewerPad(w)
 	ui.Column(c).Grow(1).MinHeight(0).Center().Padding(0, pad, lightboxBottom, pad).Children(func() {
 		src, ok := v.photo(c, name, fullSize)
 		if !ok {

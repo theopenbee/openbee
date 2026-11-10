@@ -522,7 +522,7 @@ func TestPhotoFollowsExifOrientation(t *testing.T) {
 
 func TestOnlyKnownSafeAttachmentsOpenDirectly(t *testing.T) {
 	opens := map[string]bool{reportName: true}
-	names := []string{reportName, "run.command", "setup.exe", "x.exe.", "script.sh", "tool.py", "readme", "x.lnk", "Setup.EXE"}
+	names := []string{reportName, "run.command", "setup.exe", "x.exe.", "script.bat", "tool.ps1", "readme", "x.lnk", "Setup.EXE"}
 	media := map[string][]byte{}
 	for _, name := range names {
 		media[name] = []byte("content of " + name)

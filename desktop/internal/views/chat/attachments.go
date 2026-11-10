@@ -43,7 +43,7 @@ var categoryExtensions = []struct{ category, extensions string }{
 	{categoryImage, model.ImageExtensions},
 	{categoryAudio, "mp3 wav ogg aac flac m4a wma"},
 	{categoryVideo, "mp4 mov avi mkv webm flv wmv"},
-	{categoryDocument, "pdf doc docx txt md csv xls xlsx ppt pptx rtf"},
+	{categoryDocument, "pdf doc docx txt md markdown log csv xls xlsx ppt pptx rtf"},
 	{categoryCode, "js ts jsx tsx py go java c cpp h cs rb php html css json xml yaml yml sh sql"},
 	{categoryArchive, "zip tar gz rar 7z bz2"},
 }
@@ -245,26 +245,39 @@ func (v *View) thumbnail(c *ui.Context, tk theme.Tokens, name string, src ui.Ima
 }
 
 func (v *View) fileChip(c *ui.Context, tk theme.Tokens, name string) {
-	busy := v.opening[name]
-	b := ui.ButtonBase(c).Label(name).MinHeight(chipMinHeight).Padding(0, chipPadX).Gap(chipGap).AlignItems(ui.Center).
+	preview := previewKind(name) != ""
+	busy := v.opening[name] && !preview
+	label, trailing, click := name, "external-link", func() { v.openMedia(name) }
+	if preview {
+		label, trailing, click = locales.ChatPreviewFile(name), "eye", func() { v.openPreview(name) }
+	}
+	b := ui.ButtonBase(c).Label(label).MinHeight(chipMinHeight).Padding(0, chipPadX).Gap(chipGap).AlignItems(ui.Center).
 		Radius(theme.RadiusControl).Border(1, tk.Border).MinWidth(0).MaxWidthPercent(100).Cursor(ui.CursorPointer)
 	bg := tk.Surface
 	if b.Hovered() || b.Pressed() {
 		bg = tk.SurfaceMuted
 	}
 	b.Background(b.AnimateColor("bg", bg, colorFade)).TextColor(tk.Foreground).FontSize(bodySize).
-		OnClick(func() { v.openMedia(name) }).Children(func() {
+		OnClick(click).Children(func() {
 		ui.Icon(c, icons.Get(categoryIcons[fileCategory(name)])).Size(chipGlyph, chipGlyph).Shrink(0).TextColor(tk.TextSecondary)
 		ui.Text(c, name).SingleLine().MinWidth(0)
 		if busy {
 			kit.Spinner(c, tk, chipGlyph)
 			return
 		}
-		ui.Icon(c, icons.Get("external-link")).Size(chipGlyph, chipGlyph).Shrink(0).TextColor(tk.TextMuted)
+		ui.Icon(c, icons.Get(trailing)).Size(chipGlyph, chipGlyph).Shrink(0).TextColor(tk.TextMuted)
 	})
 }
 
 func (v *View) openMedia(name string) {
+	v.saveToDownloads(name, true)
+}
+
+func (v *View) downloadMedia(name string) {
+	v.saveToDownloads(name, false)
+}
+
+func (v *View) saveToDownloads(name string, open bool) {
 	if v.opening[name] {
 		return
 	}
@@ -275,12 +288,16 @@ func (v *View) openMedia(name string) {
 			return
 		}
 		delete(v.opening, name)
-		if err == nil {
+		if err == nil && open {
 			err = v.launch(localPath)
 		}
 		if err != nil {
-			log.Printf("chat: open attachment %s: %v", name, err)
-			v.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: locales.FileOpenFailed()})
+			log.Printf("chat: save attachment %s: %v", name, err)
+			title := locales.FileSaveFailed()
+			if open {
+				title = locales.FileOpenFailed()
+			}
+			v.s.Toast(kit.Toast{Tone: kit.ToneDanger, Title: title})
 			return
 		}
 		v.s.Toast(kit.Toast{Tone: kit.ToneSuccess, Title: locales.FileSavedToDownloads(), Description: filepath.Base(localPath)})

@@ -3,6 +3,7 @@ package e2e
 import (
 	"fmt"
 	"os/exec"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -178,6 +179,40 @@ func TestLiveBeeHandoff(t *testing.T) {
 		return ok && f.summary(cid).Activity.State == stateIdle
 	})
 	f.shot("handoff-worker-chat")
+}
+
+func TestLiveTextPreview(t *testing.T) {
+	name := uniqueName("preview")
+	var w api.Worker
+	var notes, gbk string
+	f := start(t, func(a *admin) {
+		w = a.createWorker(name)
+		notes = a.upload("notes.md", []byte("# Release notes\n\n- Preview **text** files\n"))
+		gbk = a.upload("gbk.txt", []byte{0xc4, 0xe3, 0xba, 0xc3})
+		a.send(api.WorkerConversation(w.ID), pongPrompt, notes, gbk)
+	})
+	cid := api.WorkerConversation(w.ID)
+	f.await("the new worker in the list", quickWait, func() bool { return f.shows(name) })
+	f.click(name)
+	notesChip := locales.ChatPreviewFile(path.Base(notes))
+	f.await("the attachments in the worker chat", quickWait, func() bool { return f.shows(notesChip) })
+
+	f.click(notesChip)
+	f.await("the rendered markdown preview", quickWait, func() bool {
+		return f.shows("Release notes") && f.shows(locales.ChatClosePreview())
+	})
+	f.shot("preview-markdown")
+	f.T.Key(0, ui.KeyEscape)
+	f.Motion()
+	f.wantHidden(locales.ChatClosePreview())
+
+	f.click(locales.ChatPreviewFile(path.Base(gbk)))
+	f.await("the decoded GBK text", quickWait, func() bool { return f.shows("你好") })
+	f.click(locales.ChatClosePreview())
+	f.await("the worker chat back to idle", replyWait, func() bool {
+		_, ok := f.message(cid, func(m model.Message) bool { return m.Sender.Type == senderWorker })
+		return ok && f.summary(cid).Activity.State == stateIdle
+	})
 }
 
 func TestLiveStopAndReset(t *testing.T) {

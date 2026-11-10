@@ -25,6 +25,7 @@
   "notificationsEnabledTitle": "Notifications are on",
   "fileSavedToDownloads": "Saved to Downloads",
   "fileOpenFailed": "Couldn't open the file",
+  "fileSaveFailed": "Couldn't save the file",
   "linkDialogTitle": "Open external link?",
   "linkDialogDescription": "You're about to visit an external website.",
   "linkCopy": "Copy link",
