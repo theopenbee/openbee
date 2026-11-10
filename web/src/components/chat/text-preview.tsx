@@ -13,11 +13,13 @@ import { mediaUrl } from "@/lib/chat-format"
 import {
   codeLanguage,
   fenceCode,
-  HIGHLIGHT_LIMIT,
   readTextPreview,
+  RENDER_LIMIT,
   type PreviewKind,
 } from "@/lib/text-preview"
 import { basename } from "@/lib/utils"
+
+const PREVIEW_CONTROLS = { table: { fullscreen: false } }
 
 function DownloadLink({ url, filename, className }: { url: string; filename: string; className: string }) {
   const { t } = useTranslation()
@@ -85,10 +87,9 @@ export function TextPreview({ mediaPath, kind }: { mediaPath: string; kind: Prev
     body = <Notice title={t("chat.previewUnsupportedTitle")} description={t("chat.previewUnsupported")} action={download} />
   } else if (preview.data.text.trim() === "") {
     body = <p className="text-sm text-secondary">{t("chat.previewEmpty")}</p>
-  } else if (kind === "markdown") {
-    body = <ChatMarkdown>{preview.data.text}</ChatMarkdown>
-  } else if (kind === "code" && preview.data.text.length <= HIGHLIGHT_LIMIT) {
-    body = <ChatMarkdown>{fenceCode(preview.data.text, codeLanguage(mediaPath))}</ChatMarkdown>
+  } else if (kind !== "text" && preview.data.text.length <= RENDER_LIMIT) {
+    const source = kind === "markdown" ? preview.data.text : fenceCode(preview.data.text, codeLanguage(mediaPath))
+    body = <ChatMarkdown controls={PREVIEW_CONTROLS}>{source}</ChatMarkdown>
   } else {
     body = <PlainText text={preview.data.text} />
   }

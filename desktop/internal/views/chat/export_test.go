@@ -84,8 +84,8 @@ var (
 )
 
 const (
-	PreviewLimit   = previewLimit
-	HighlightLimit = highlightLimit
+	PreviewLimit = previewLimit
+	RenderLimit  = renderLimit
 )
 
 func (v *View) SetOpener(open func(path string) error) {

@@ -162,10 +162,10 @@ func (v *View) View(c *ui.Context, cid string, panel route.Panel) {
 		v.activityBar(c, tk, p)
 		v.composer(c, tk, p)
 		v.resetDialog(c, tk, p)
-		v.tableDialog(c, tk)
-		v.linkDialog(c, tk)
 		v.lightbox(c, tk)
 		v.textPreview(c, tk)
+		v.tableDialog(c, tk)
+		v.linkDialog(c, tk)
 	})
 }
 

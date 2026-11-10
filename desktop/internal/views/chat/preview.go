@@ -20,7 +20,7 @@ import (
 
 const (
 	previewLimit    = 1 << 20
-	highlightLimit  = 128 << 10
+	renderLimit     = 64 << 10
 	previewMaxWidth = 896
 	previewPad      = 24
 	previewSpinner  = 24
@@ -141,9 +141,10 @@ func newPreviewLoad(name string, data []byte, err error) *previewLoad {
 	}
 	p := &previewLoad{status: previewReady, text: strings.TrimSuffix(text, "\n")}
 	switch kind := previewKind(name); {
+	case len(text) > renderLimit:
 	case kind == previewMarkdown:
 		p.markdown = text
-	case kind == previewCode && len(text) <= highlightLimit:
+	case kind == previewCode:
 		p.markdown = fenceCode(text, codeLanguage(name))
 	}
 	return p

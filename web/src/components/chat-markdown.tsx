@@ -1,4 +1,4 @@
-import { Streamdown } from "streamdown"
+import { Streamdown, type ControlsConfig } from "streamdown"
 import { code } from "@streamdown/code"
 import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { cn } from "@/lib/utils"
@@ -9,10 +9,12 @@ const STREAMDOWN_PLUGINS = { code }
 export function ChatMarkdown({
   children,
   breaks = false,
+  controls,
   className,
 }: {
   children: string
   breaks?: boolean
+  controls?: ControlsConfig
   className?: string
 }) {
   return (
@@ -21,6 +23,7 @@ export function ChatMarkdown({
         mode="static"
         plugins={STREAMDOWN_PLUGINS}
         remarkPlugins={breaks ? CHAT_REMARK_PLUGINS : undefined}
+        controls={controls}
       >
         {children}
       </Streamdown>

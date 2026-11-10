@@ -1,7 +1,7 @@
 import { basename, getFileCategory } from "@/lib/utils"
 
 export const PREVIEW_LIMIT = 1024 * 1024
-export const HIGHLIGHT_LIMIT = 128 * 1024
+export const RENDER_LIMIT = 64 * 1024
 
 export type PreviewKind = "markdown" | "text" | "code"
 
@@ -59,13 +59,37 @@ export function fenceCode(code: string, language: string) {
   return `${fence}${language}\n${code.replace(/\n$/, "")}\n${fence}`
 }
 
-export async function readTextPreview(res: Response): Promise<TextPreview> {
-  if (Number(res.headers.get("Content-Length")) > PREVIEW_LIMIT) {
+async function readLimited(res: Response, limit: number): Promise<Uint8Array | null> {
+  if (Number(res.headers.get("Content-Length")) > limit) {
     await res.body?.cancel().catch(() => {})
-    return { status: "too-large" }
+    return null
   }
-  const data = new Uint8Array(await res.arrayBuffer())
-  if (data.byteLength > PREVIEW_LIMIT) return { status: "too-large" }
+  if (!res.body) return new Uint8Array()
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const data = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    data.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return data
+}
+
+export async function readTextPreview(res: Response): Promise<TextPreview> {
+  const data = await readLimited(res, PREVIEW_LIMIT)
+  if (!data) return { status: "too-large" }
   const text = decodeText(data)
   return text === null ? { status: "unsupported" } : { status: "ready", text }
 }

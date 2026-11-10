@@ -10,6 +10,10 @@ export const VIEWER_LINK =
 
 export const VIEWER_KEEP = { "data-viewer-keep": "" }
 
+function holdEscape(e: KeyboardEvent) {
+  if (document.querySelector('[data-streamdown="link-safety-modal"]')) e.preventDefault()
+}
+
 function insideKeep(target: EventTarget) {
   return target instanceof Element && target.closest("[data-viewer-keep]") !== null
 }
@@ -63,7 +67,7 @@ export function MediaViewer({
                 transition={fade}
               />
             </DialogPrimitive.Overlay>
-            <DialogPrimitive.Content asChild forceMount aria-describedby={undefined}>
+            <DialogPrimitive.Content asChild forceMount aria-describedby={undefined} onEscapeKeyDown={holdEscape}>
               <motion.div
                 className="fixed inset-0 z-50 flex flex-col"
                 onPointerDown={arm}

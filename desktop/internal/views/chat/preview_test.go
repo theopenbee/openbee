@@ -145,13 +145,48 @@ func TestCodePreviewHighlights(t *testing.T) {
 
 func TestLargeCodePreviewIsPlainText(t *testing.T) {
 	line := "export const value = 1\n"
-	src := strings.Repeat(line, chat.HighlightLimit/len(line)+1)
+	src := strings.Repeat(line, chat.RenderLimit/len(line)+1)
 	f := previewChat(t, map[string][]byte{"big.ts": []byte(src)}, "big.ts")
 	f.openPreview("big.ts")
 	f.wantHidden(locales.ArcCodeBlockRegion("ts"))
 	if !f.showsPrefix(line) {
 		t.Fatalf("plain text of big.ts is not shown; texts %q", f.T.Texts())
 	}
+}
+
+func TestLargeMarkdownPreviewIsPlainText(t *testing.T) {
+	line := "# Heading\n"
+	src := strings.Repeat(line, chat.RenderLimit/len(line)+1)
+	f := previewChat(t, map[string][]byte{"big.md": []byte(src)}, "big.md")
+	f.openPreview("big.md")
+	if !f.showsPrefix(line) {
+		t.Fatalf("the source of big.md is not shown as plain text; texts %q", f.T.Texts())
+	}
+}
+
+func TestPreviewLinkAndTableOpenAbove(t *testing.T) {
+	url := "https://example.com/guide"
+	doc := "Read [the guide](" + url + ").\n\n| h1 | h2 |\n| --- | --- |\n| a | b |\n"
+	f := previewChat(t, map[string][]byte{"doc.md": []byte(doc)}, "doc.md")
+	f.openPreview("doc.md")
+	f.click("the guide")
+	f.wantShown(locales.LinkDialogTitle())
+	f.click(locales.LinkOpen())
+	if opened := f.T.OpenedURLs(); len(opened) != 1 || opened[0] != url {
+		t.Fatalf("opened %q, want %q", opened, url)
+	}
+	f.wantHidden(locales.LinkDialogTitle())
+	f.wantShown(locales.ChatClosePreview())
+
+	f.click(locales.TableFullscreen())
+	if n := f.count("h1"); n != 2 {
+		t.Fatalf("%d header cells with the table in full screen, want 2; texts %q", n, f.T.Texts())
+	}
+	f.click(locales.ArcDialogClose())
+	if n := f.count("h1"); n != 1 {
+		t.Fatalf("%d header cells after closing the full-screen table, want 1", n)
+	}
+	f.wantShown(locales.ChatClosePreview())
 }
 
 func TestPreviewTooLargeOffersDownload(t *testing.T) {

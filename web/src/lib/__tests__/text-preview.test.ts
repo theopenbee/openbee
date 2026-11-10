@@ -110,6 +110,36 @@ describe("readTextPreview", () => {
     expect(await readTextPreview(res)).toEqual({ status: "too-large" })
   })
 
+  it("stops reading a stream once it passes the limit", async () => {
+    const chunk = 64 * 1024
+    let pulls = 0
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++
+        controller.enqueue(new Uint8Array(chunk).fill(0x61))
+      },
+      cancel() {
+        cancelled = true
+      },
+    }, { highWaterMark: 0 })
+    expect(await readTextPreview(new Response(body))).toEqual({ status: "too-large" })
+    expect(cancelled).toBe(true)
+    expect(pulls).toBeLessThanOrEqual(PREVIEW_LIMIT / chunk + 2)
+  })
+
+  it("joins a streamed body", async () => {
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode("你"))
+        controller.enqueue(encoder.encode("好"))
+        controller.close()
+      },
+    })
+    expect(await readTextPreview(new Response(body))).toEqual({ status: "ready", text: "你好" })
+  })
+
   it("accepts a file of exactly the limit", async () => {
     const res = new Response(new Uint8Array(PREVIEW_LIMIT).fill(0x61))
     const preview = await readTextPreview(res)
