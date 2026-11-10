@@ -20,7 +20,7 @@ export function cn(...inputs: ClassValue[]) {
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"])
 const AUDIO_EXTS = new Set(["mp3", "wav", "ogg", "aac", "flac", "m4a", "wma"])
 const VIDEO_EXTS = new Set(["mp4", "mov", "avi", "mkv", "webm", "flv", "wmv"])
-const DOC_EXTS = new Set(["pdf", "doc", "docx", "txt", "md", "csv", "xls", "xlsx", "ppt", "pptx", "rtf"])
+const DOC_EXTS = new Set(["pdf", "doc", "docx", "txt", "md", "markdown", "log", "csv", "xls", "xlsx", "ppt", "pptx", "rtf"])
 const CODE_EXTS = new Set(["js", "ts", "jsx", "tsx", "py", "go", "java", "c", "cpp", "h", "cs", "rb", "php", "html", "css", "json", "xml", "yaml", "yml", "sh", "sql"])
 const ARCHIVE_EXTS = new Set(["zip", "tar", "gz", "rar", "7z", "bz2"])
 

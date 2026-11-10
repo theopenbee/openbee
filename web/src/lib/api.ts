@@ -136,6 +136,11 @@ export const api = {
       if (!res.ok) throw new Error(await res.text())
       return res.json() as Promise<{ path: string }>
     },
+    media: async (filename: string, signal?: AbortSignal) => {
+      const res = await fetchWithAuth(`${API_BASE}/local/media/${encodeURIComponent(filename)}`, { signal })
+      if (!res.ok) throw new ApiError(res.status, res.statusText)
+      return res
+    },
   },
   envs: {
     list: (scope: string, scopeId?: string) => {

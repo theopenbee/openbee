@@ -177,6 +177,17 @@
     "viewImage": "查看图片 {{name}}",
     "openOriginal": "打开原图",
     "closeImage": "关闭图片",
+    "previewFile": "预览 {{name}}",
+    "closePreview": "关闭预览",
+    "download": "下载",
+    "previewLoading": "正在加载文件",
+    "previewEmpty": "文件是空的。",
+    "previewTooLargeTitle": "文件太大，无法预览",
+    "previewTooLarge": "超过 1 MB 的文件不能预览，请下载后查看。",
+    "previewUnsupportedTitle": "无法预览这个文件",
+    "previewUnsupported": "它不是可识别的文本，请下载后查看。",
+    "previewFailedTitle": "文件加载失败",
+    "previewFailed": "请检查连接后重试。",
     "taskType": {
       "countdown": "定时一次",
       "scheduled": "周期任务"

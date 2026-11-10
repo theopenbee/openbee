@@ -178,6 +178,17 @@
     "viewImage": "View image {{name}}",
     "openOriginal": "Open original",
     "closeImage": "Close image",
+    "previewFile": "Preview {{name}}",
+    "closePreview": "Close preview",
+    "download": "Download",
+    "previewLoading": "Loading file",
+    "previewEmpty": "This file is empty.",
+    "previewTooLargeTitle": "File too large to preview",
+    "previewTooLarge": "Files over 1 MB can't be previewed. Download it to view.",
+    "previewUnsupportedTitle": "Can't preview this file",
+    "previewUnsupported": "It isn't readable text. Download it to view.",
+    "previewFailedTitle": "Couldn't load the file",
+    "previewFailed": "Check the connection and try again.",
     "taskType": {
       "countdown": "Runs once",
       "scheduled": "Recurring"
