@@ -5,6 +5,9 @@
 ### Added
 - Zoom, pan and download images in the preview.
 
+### Changed
+- Hide the stored file ID in attachment names.
+
 ## [1.0.4] - 2026-11-09
 
 ### Added
