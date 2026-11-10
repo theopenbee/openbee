@@ -1,12 +1,12 @@
 import { useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Download, Eye, FileWarning, RotateCw } from "lucide-react"
+import { Eye, FileWarning, RotateCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/arc/button/button"
 import { Skeleton } from "@/components/arc/skeleton/skeleton"
 import { ChatMarkdown } from "@/components/chat-markdown"
 import { EmptyState } from "@/components/empty-state"
-import { MediaViewer, VIEWER_KEEP, VIEWER_LINK } from "@/components/media-viewer"
+import { DownloadLink, MediaViewer, VIEWER_KEEP, VIEWER_LINK } from "@/components/media-viewer"
 import { FILE_CHIP, FileCategoryIcon } from "@/components/chat/file-chip"
 import { api } from "@/lib/api"
 import { mediaUrl } from "@/lib/chat-format"
@@ -20,16 +20,6 @@ import {
 import { basename } from "@/lib/utils"
 
 const PREVIEW_CONTROLS = { table: { fullscreen: false } }
-
-function DownloadLink({ url, filename, className }: { url: string; filename: string; className: string }) {
-  const { t } = useTranslation()
-  return (
-    <a href={url} download={filename} className={className}>
-      <Download size={16} strokeWidth={1.75} aria-hidden="true" />
-      {t("chat.download")}
-    </a>
-  )
-}
 
 function Notice({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (

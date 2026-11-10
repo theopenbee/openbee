@@ -26,6 +26,7 @@
   "fileSavedToDownloads": "已保存到“下载”文件夹",
   "fileOpenFailed": "无法打开文件",
   "fileSaveFailed": "无法保存文件",
+  "chatOpenOriginal": "打开原图",
   "linkDialogTitle": "打开外部链接？",
   "linkDialogDescription": "你将访问一个外部网站。",
   "linkCopy": "复制链接",

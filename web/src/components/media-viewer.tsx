@@ -1,7 +1,8 @@
 import { useRef, type MouseEvent, type PointerEvent, type ReactNode } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "motion/react"
-import { X } from "lucide-react"
+import { Download, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/arc/button/button"
 import { motionTokens } from "@/components/arc/lib/motion-tokens"
 
@@ -9,6 +10,26 @@ export const VIEWER_LINK =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-surface-muted"
 
 export const VIEWER_KEEP = { "data-viewer-keep": "" }
+
+export function DownloadLink({
+  url,
+  filename,
+  className,
+  compact = false,
+}: {
+  url: string
+  filename: string
+  className: string
+  compact?: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <a href={url} download={filename} className={className}>
+      <Download size={16} strokeWidth={1.75} aria-hidden="true" />
+      <span className={compact ? "sr-only sm:not-sr-only" : undefined}>{t("chat.download")}</span>
+    </a>
+  )
+}
 
 function holdEscape(e: KeyboardEvent) {
   if (document.querySelector('[data-streamdown="link-safety-modal"]')) e.preventDefault()

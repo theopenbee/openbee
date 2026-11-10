@@ -2112,6 +2112,36 @@ func (msgs Messages) ChatYouPrefix() string {
 	return Catalog.Format(msgs.locale, "chatYouPrefix", nil)
 }
 
+// ChatZoomFit says "Fit to window"
+// in the language the app shows.
+func ChatZoomFit() string { return In(i18n.Locale()).ChatZoomFit() }
+
+// ChatZoomFit says "Fit to window"
+// in the language of msgs.
+func (msgs Messages) ChatZoomFit() string {
+	return Catalog.Format(msgs.locale, "chatZoomFit", nil)
+}
+
+// ChatZoomIn says "Zoom in"
+// in the language the app shows.
+func ChatZoomIn() string { return In(i18n.Locale()).ChatZoomIn() }
+
+// ChatZoomIn says "Zoom in"
+// in the language of msgs.
+func (msgs Messages) ChatZoomIn() string {
+	return Catalog.Format(msgs.locale, "chatZoomIn", nil)
+}
+
+// ChatZoomOut says "Zoom out"
+// in the language the app shows.
+func ChatZoomOut() string { return In(i18n.Locale()).ChatZoomOut() }
+
+// ChatZoomOut says "Zoom out"
+// in the language of msgs.
+func (msgs Messages) ChatZoomOut() string {
+	return Catalog.Format(msgs.locale, "chatZoomOut", nil)
+}
+
 // CodeDownload says "Download"
 // in the language the app shows.
 func CodeDownload() string { return In(i18n.Locale()).CodeDownload() }
