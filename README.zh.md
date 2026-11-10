@@ -8,6 +8,7 @@ OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 *
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
 [![License](https://img.shields.io/github/license/theopenbee/openbee?color=F7C948)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-F7C948)](https://github.com/theopenbee/openbee/releases)
+<a href="https://awesomemygo.dev/apps/openbee"><img src="https://awesomemygo.dev/badge.svg" alt="Listed on Awesome MyGo" height="20" /></a>
 [![GitHub Stars](https://img.shields.io/github/stars/theopenbee/openbee?style=social)](https://github.com/theopenbee/openbee)
 
 <sub><a href="README.md">English</a> &nbsp;·&nbsp; <a href="https://theopenbee.com/zh/docs/">📖 文档</a> &nbsp;·&nbsp; <a href="https://x.com/0xtyz">0xtyz</a></sub>
