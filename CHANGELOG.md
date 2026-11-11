@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- About settings with versions and a check for updates.
+
 ## [1.0.5] - 2026-11-09
 
 ### Added
