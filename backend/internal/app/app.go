@@ -380,6 +380,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
 		Plugins:           api.NewPluginHandler(plugins),
+		Version:           api.NewVersionHandler(buildinfo.Version, buildinfo.Bundled),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,

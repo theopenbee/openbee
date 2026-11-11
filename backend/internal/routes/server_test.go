@@ -80,3 +80,27 @@ func TestServer_LocalChatRoutes(t *testing.T) {
 		assert.Equal(t, "spa", rec.Body.String(), route.method+" "+route.path)
 	}
 }
+
+func TestServer_VersionRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	jwt := auth.NewJWTService("s", time.Hour, time.Hour)
+	s, err := NewServer(ServerParams{
+		Version:        api.NewVersionHandler("1.0.6", true),
+		AuthMiddleware: auth.AuthMiddleware(jwt, activeUsers{}),
+		StaticFS:       fstest.MapFS{"dist/index.html": {Data: []byte("spa")}},
+	})
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	s.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/version", nil))
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	token, _, err := jwt.GenerateUserAccessToken("u1")
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodGet, "/api/version", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec = httptest.NewRecorder()
+	s.router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.JSONEq(t, `{"version":"1.0.6","bundled":true}`, rec.Body.String())
+}

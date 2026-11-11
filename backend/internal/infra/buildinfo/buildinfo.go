@@ -9,6 +9,7 @@ var (
 	Version = "dev"
 	Commit  = "none"
 	Date    = "unknown"
+	Bundled = false
 )
 
 // Set records the build metadata. Called once from main at startup.

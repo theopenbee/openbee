@@ -14,6 +14,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	// Current-user endpoints
 	r.GET("/me", s.Auth.Me)
 	r.POST("/me/password", s.Auth.ChangePassword)
+	r.GET("/version", s.Version.Get)
 
 	// Workers
 	r.POST("/workers", s.Workers.Create)

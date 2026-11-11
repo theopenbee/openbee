@@ -146,6 +146,7 @@ func (s *Server) running() bool {
 
 func (s *Server) boot() error {
 	importShellPath()
+	buildinfo.Bundled = true
 	if s.o.Version != "" && s.o.Version != unsetVersion {
 		buildinfo.Set(s.o.Version, "", "")
 	}
