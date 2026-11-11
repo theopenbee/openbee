@@ -102,6 +102,14 @@ func (s *Server) authRoutes() {
 	s.route("POST /api/auth/refresh", authNone, s.refresh)
 	s.route("GET /api/me", authUser, s.me)
 	s.route("POST /api/me/password", authUser, s.changePassword)
+	s.route("GET /api/version", authUser, s.version)
+}
+
+func (s *Server) version(*request) reply {
+	if s.st.Version.Version == "" {
+		return ok(indexHTML)
+	}
+	return ok(s.st.Version)
 }
 
 func (s *Server) getConfig(*request) reply {

@@ -68,14 +68,15 @@ const (
 
 type Account struct {
 	s        *store.Store
+	updates  func()
 	open     bool
 	refocus  bool
 	entry    entryPoint
 	password passwordForm
 }
 
-func New(s *store.Store) *Account {
-	return &Account{s: s}
+func New(s *store.Store, updates func()) *Account {
+	return &Account{s: s, updates: updates}
 }
 
 func (a *Account) Close() {
@@ -147,6 +148,12 @@ func (a *Account) menu(c *ui.Context, tk theme.Tokens, name string) {
 			a.open = false
 			a.password.show()
 		})
+		a.item(c, tk, "refresh-cw", locales.AboutCheckUpdates(), false, entryNone, func() {
+			a.open = false
+			if a.updates != nil {
+				a.updates()
+			}
+		})
 		separator(c, tk)
 		a.themeRow(c, tk)
 		a.languageRow(c, tk)
@@ -184,7 +191,7 @@ func (a *Account) item(c *ui.Context, tk theme.Tokens, icon, text string, danger
 	if item.Hovered() || item.Pressed() || item.FocusVisible() {
 		bg = tint
 	}
-	if a.entry == entry {
+	if entry != entryNone && a.entry == entry {
 		a.entry = entryNone
 		item.Focus()
 	}

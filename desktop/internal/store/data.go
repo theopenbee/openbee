@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"slices"
 	"time"
 
@@ -22,9 +24,26 @@ func (s *Store) initData() {
 	s.SystemConfigs = NewResource(s, func(ctx context.Context, c *api.Client) (map[string]string, error) {
 		return c.SystemConfigs(ctx)
 	})
+	s.ServerVersion = NewResource(s, serverVersion)
 	s.details = map[string]*Resource[api.Worker]{}
 	s.envs = map[envScope]*Resource[[]api.EnvConfig]{}
 	s.initPlugins()
+}
+
+func serverVersion(ctx context.Context, c *api.Client) (api.ServerVersion, error) {
+	v, err := c.Version(ctx)
+	if errors.Is(err, api.ErrNotOpenBee) || api.IsStatus(err, http.StatusNotFound) {
+		return api.ServerVersion{}, nil
+	}
+	return v, err
+}
+
+func (s *Store) AppVersion() string {
+	return s.o.Version
+}
+
+func (s *Store) Updater() Updater {
+	return s.o.Updater
 }
 
 func (s *Store) WorkerMap() map[string]api.Worker {

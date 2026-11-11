@@ -351,11 +351,15 @@ func repositoryLink(c *ui.Context, tk theme.Tokens, repo string) {
 		infoValue(c, tk, shown, false)
 		return
 	}
+	externalLink(c, tk, repo, shown)
+}
+
+func externalLink(c *ui.Context, tk theme.Tokens, url, shown string) {
 	link := ui.ButtonBase(c).Label(shown).Role(ui.RoleLink).AlignSelf(ui.Start).MinWidth(0).AlignItems(ui.Center).Gap(linkGap).
 		FontSize(textSize).TextColor(tk.AccentStrong)
 	hovered := link.Hovered()
 	if link.Clicked() {
-		c.OpenURL(repo)
+		c.OpenURL(url)
 	}
 	link.Children(func() {
 		text := ui.Text(c, shown).MinWidth(0)

@@ -16,6 +16,7 @@ type State struct {
 	Language     string
 	Engines      []api.EngineInfo
 	LegacyConfig bool
+	Version      api.ServerVersion
 
 	Workers       []api.Worker
 	Conversations []api.ConversationSummary
@@ -55,6 +56,7 @@ func seedState() State {
 		Engines:       Engines("claude", "codex", "pi"),
 		Conversations: []api.ConversationSummary{newSummary(api.BeeConversation)},
 		Catalog:       api.PluginCatalog{SchemaVersion: 1},
+		Version:       api.ServerVersion{Version: "1.0.6"},
 	}
 	st.normalize()
 	return st

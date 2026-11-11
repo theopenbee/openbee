@@ -136,6 +136,11 @@ func (a *App) start() {
 		DownloadDir:    a.download,
 		SetLocale:      l10n.SetLang,
 		SetThemeSource: a.setTheme,
+		Version:        mygo.App.Version(),
+	}
+	if a.updates {
+		opts.Updater = appUpdater{}
+		updater.OnChange(func() { a.post(func() {}) })
 	}
 	a.server = a.localServer()
 	if a.server != nil {

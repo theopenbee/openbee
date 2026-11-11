@@ -15,6 +15,7 @@ const (
 	SectionEnv     = "env"
 	SectionSystem  = "system"
 	SectionPlugins = "plugins"
+	SectionAbout   = "about"
 )
 
 const (
@@ -40,6 +41,7 @@ var sections = []section{
 	{SectionEnv, "key-round", locales.EnvConfigTitle, locales.EnvConfigNavTitle, locales.EnvConfigPageDescription},
 	{SectionSystem, "sliders-horizontal", locales.SystemSettingsTitle, locales.SystemSettingsTitle, locales.SystemSettingsSubtitle},
 	{SectionPlugins, "puzzle", locales.PluginsTitle, locales.PluginsTitle, locales.PluginsSubtitle},
+	{SectionAbout, "info", locales.AboutTitle, locales.AboutTitle, locales.AboutSubtitle},
 }
 
 type Page struct {
@@ -169,6 +171,8 @@ func (d *Page) content(c *ui.Context, tk theme.Tokens, cur section) {
 					d.system(c, tk)
 				case SectionPlugins:
 					d.plugins(c, tk)
+				case SectionAbout:
+					d.about(c, tk)
 				default:
 					d.env(c)
 				}

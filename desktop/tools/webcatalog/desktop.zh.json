@@ -40,5 +40,18 @@
   "tableFullscreen": "全屏",
   "downloadSaved": "已保存 {name}",
   "trayOpen": "打开 OpenBee",
-  "trayUnread": "OpenBee · {count} 条未读"
+  "trayUnread": "OpenBee · {count} 条未读",
+  "aboutDesktopTitle": "OpenBee Desktop",
+  "aboutDesktopDescription": "当前使用的桌面应用。",
+  "aboutUpdates": "更新",
+  "aboutLastChecked": "上次检查：{time}",
+  "aboutNeverChecked": "还没有检查过。",
+  "aboutCheckUpdates": "检查更新",
+  "aboutAutoCheck": "自动检查更新",
+  "aboutAutoCheckDescription": "每天在后台检查一次新版本。",
+  "aboutAutoInstall": "自动安装更新",
+  "aboutAutoInstallDescription": "在后台下载新版本，下次启动 OpenBee 时安装。",
+  "aboutManualUpdates": "这个版本不能自动更新，请到 GitHub 下载最新版。",
+  "aboutDownloadLatest": "下载最新版",
+  "aboutVersionUnknown": "未知"
 }

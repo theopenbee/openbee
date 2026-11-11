@@ -106,7 +106,12 @@ func NewTester(view func(c *ui.Context), w, h int) *ui.Tester {
 
 func SignedIn(t testing.TB, w, h int, seed func(st *fakeapi.State)) *Harness {
 	t.Helper()
-	hs := New(t, w, h, seed)
+	return SignedInWith(t, w, h, seed)
+}
+
+func SignedInWith(t testing.TB, w, h int, seed func(st *fakeapi.State), opts ...func(o *store.Options)) *Harness {
+	t.Helper()
+	hs := WithOptions(t, w, h, seed, opts...)
 	hs.Connect()
 	snap := hs.Fake.Snapshot()
 	var loginErr error

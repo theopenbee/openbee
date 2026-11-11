@@ -24,6 +24,15 @@ type Notifier interface {
 
 type Notification struct{ ID, Group, Title, Body, ConversationID string }
 
+type Updater interface {
+	Check()
+	LastCheck() time.Time
+	AutomaticChecks() bool
+	SetAutomaticChecks(on bool)
+	AutomaticDownloads() bool
+	SetAutomaticDownloads(on bool)
+}
+
 type Options struct {
 	Post           func(func())
 	HTTP           *http.Client
@@ -39,6 +48,8 @@ type Options struct {
 	SetThemeSource func(pref string)
 	LocalServer    string
 	StartLocal     func(ctx context.Context) error
+	Version        string
+	Updater        Updater
 }
 
 type Phase int
@@ -67,6 +78,7 @@ type Store struct {
 	Workers         *Resource[[]api.Worker]
 	Conversations   *Resource[[]api.ConversationSummary]
 	SystemConfigs   *Resource[map[string]string]
+	ServerVersion   *Resource[api.ServerVersion]
 	Online          bool
 	Offline         bool
 	Reconnecting    bool

@@ -6,6 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -114,8 +116,33 @@ func TestMenuShowsUsername(t *testing.T) {
 	if names != 2 {
 		t.Fatalf("username shown %d times, want 2 (trigger and header); texts %q", names, f.T.Texts())
 	}
-	f.wantShown(locales.AccountRole(), locales.AccountChangePassword(), locales.ArcUserMenuTheme(), locales.ArcUserMenuLanguage(),
-		locales.ArcUserMenuNotifications(), locales.ArcUserMenuSignOut())
+	f.wantShown(locales.AccountRole(), locales.AccountChangePassword(), locales.AboutCheckUpdates(), locales.ArcUserMenuTheme(),
+		locales.ArcUserMenuLanguage(), locales.ArcUserMenuNotifications(), locales.ArcUserMenuSignOut())
+}
+
+func TestMenuChecksForUpdates(t *testing.T) {
+	u := &testkit.Updater{}
+	f := &fixture{Harness: testkit.SignedInWith(t, wideW, wideH, nil, testkit.WithUpdater(u, "1.0.6")), t: t}
+	f.openMenu()
+	f.click(locales.AboutCheckUpdates())
+	if got, want := f.Root.Nav().Path(), route.Settings(settings.SectionAbout, ""); got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	if u.Checks != 1 {
+		t.Fatalf("checks = %d, want 1", u.Checks)
+	}
+	f.wantHidden(locales.AccountRole())
+	f.wantShown(locales.AboutCheckUpdates(), locales.AboutAutoCheck())
+}
+
+func TestMenuOpensAboutWithoutSelfUpdate(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	f.click(locales.AboutCheckUpdates())
+	if got, want := f.Root.Nav().Path(), route.Settings(settings.SectionAbout, ""); got != want {
+		t.Fatalf("path = %q, want %q", got, want)
+	}
+	f.wantShown(locales.AboutDownloadLatest())
 }
 
 func TestThemeSwitch(t *testing.T) {

@@ -69,6 +69,7 @@ type screen struct {
 	narrow   func(t *testing.T, h *testkit.Harness)
 	shots    shots
 	hint     bool
+	opts     []func(o *store.Options)
 	want     func() string
 }
 
@@ -741,6 +742,21 @@ var settingsScreens = []screen{
 		want: locales.SystemSettingsSaveError},
 	{name: "settings-system-loading", seed: settingsSeed, signedIn: true, prepare: systemLoading, shots: wideOnly,
 		want: locales.SystemSettingsSubtitle},
+	{name: "settings-about", seed: remoteServer, signedIn: true, prepare: openSettings("about"),
+		opts: []func(o *store.Options){testkit.WithUpdater(&testkit.Updater{Automatic: true, Last: time.Now().Add(-2 * time.Hour)}, "1.0.6")},
+		want: locales.AboutAutoInstall},
+	{name: "settings-about-manual", seed: bundledServer, signedIn: true, prepare: openSettings("about"), shots: wideOnly,
+		opts: []func(o *store.Options){testkit.WithUpdater(nil, "1.0.6")}, want: locales.AboutDownloadLatest},
+}
+
+func remoteServer(st *fakeapi.State) {
+	settingsSeed(st)
+	st.Version = api.ServerVersion{Version: "1.0.5"}
+}
+
+func bundledServer(st *fakeapi.State) {
+	settingsSeed(st)
+	st.Version = api.ServerVersion{Version: "1.0.6", Bundled: true}
 }
 
 func bilingual(en, zh string) api.LocalizedText {
@@ -958,11 +974,11 @@ func TestScreens(t *testing.T) {
 	}
 	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens) {
 		t.Run(s.name, func(t *testing.T) {
-			open := testkit.New
+			open := testkit.WithOptions
 			if s.signedIn {
-				open = testkit.SignedIn
+				open = testkit.SignedInWith
 			}
-			h := open(t, wideW, wideH, s.seed)
+			h := open(t, wideW, wideH, s.seed, s.opts...)
 			if s.signedIn && !s.hint {
 				h.Fix.Notifier.Unsupported = true
 				h.Settle()

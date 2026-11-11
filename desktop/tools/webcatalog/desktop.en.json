@@ -40,5 +40,18 @@
   "tableFullscreen": "Full screen",
   "downloadSaved": "Saved {name}",
   "trayOpen": "Open OpenBee",
-  "trayUnread": "OpenBee · {count} unread"
+  "trayUnread": "OpenBee · {count} unread",
+  "aboutDesktopTitle": "OpenBee Desktop",
+  "aboutDesktopDescription": "The app you're using now.",
+  "aboutUpdates": "Updates",
+  "aboutLastChecked": "Last checked {time}.",
+  "aboutNeverChecked": "Not checked yet.",
+  "aboutCheckUpdates": "Check for updates",
+  "aboutAutoCheck": "Check automatically",
+  "aboutAutoCheckDescription": "Look for a new version once a day.",
+  "aboutAutoInstall": "Install automatically",
+  "aboutAutoInstallDescription": "Download new versions in the background and install them the next time OpenBee starts.",
+  "aboutManualUpdates": "This copy can't update itself. Download the latest version from GitHub.",
+  "aboutDownloadLatest": "Download latest",
+  "aboutVersionUnknown": "Unknown"
 }

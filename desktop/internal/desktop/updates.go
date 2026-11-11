@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	nativeupdater "github.com/egoist/mygo/plugins/updater/native"
 )
 
@@ -27,3 +29,12 @@ func SelfUpdates(goos, exe string) bool {
 	_, err := os.Stat(filepath.Join(filepath.Dir(exe), windowsUninstaller))
 	return err == nil
 }
+
+type appUpdater struct{}
+
+func (appUpdater) Check()                        { updater.CheckForUpdates() }
+func (appUpdater) LastCheck() time.Time          { return updater.LastCheck() }
+func (appUpdater) AutomaticChecks() bool         { return updater.AutomaticChecks() }
+func (appUpdater) SetAutomaticChecks(on bool)    { updater.SetAutomaticChecks(on) }
+func (appUpdater) AutomaticDownloads() bool      { return updater.AutomaticDownloads() }
+func (appUpdater) SetAutomaticDownloads(on bool) { updater.SetAutomaticDownloads(on) }

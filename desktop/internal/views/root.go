@@ -28,7 +28,8 @@ type Root struct {
 }
 
 func NewRoot(s *store.Store) *Root {
-	r := &Root{s: s, router: ui.NewRouter("/"), account: account.New(s), chatLoc: route.ChatPath}
+	r := &Root{s: s, router: ui.NewRouter("/"), chatLoc: route.ChatPath}
+	r.account = account.New(s, r.checkUpdates)
 	r.router.Transition = ui.TransitionNone
 	r.settings = settings.New(s, r.router, r.leaveSettings)
 	r.auth = auth.New(s, r.router)
@@ -144,6 +145,16 @@ func conversationParam(path string) string {
 func (r *Root) OpenSettings(section string) {
 	if r.s.Phase == store.PhaseReady {
 		r.settings.Open(section, "")
+	}
+}
+
+func (r *Root) checkUpdates() {
+	if r.s.Phase != store.PhaseReady {
+		return
+	}
+	r.settings.Open(settings.SectionAbout, "")
+	if u := r.s.Updater(); u != nil {
+		u.Check()
 	}
 }
 

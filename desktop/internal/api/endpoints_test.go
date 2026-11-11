@@ -423,6 +423,13 @@ func TestEndpoints(t *testing.T) {
 			status: 204,
 		},
 		{
+			name:   "version",
+			call:   func(c *Client) (any, error) { return c.Version(ctx) },
+			method: "GET", uri: "/api/version",
+			status: 200, response: `{"version":"1.0.6","bundled":true}`,
+			want: ServerVersion{Version: "1.0.6", Bundled: true},
+		},
+		{
 			name:   "system configs",
 			call:   func(c *Client) (any, error) { return c.SystemConfigs(ctx) },
 			method: "GET", uri: "/api/system-configs",

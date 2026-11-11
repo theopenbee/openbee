@@ -34,6 +34,266 @@ type Messages struct{ locale string }
 // source language.
 func In(locale string) Messages { return Messages{locale} }
 
+// AboutAutoCheck says "Check automatically"
+// in the language the app shows.
+func AboutAutoCheck() string { return In(i18n.Locale()).AboutAutoCheck() }
+
+// AboutAutoCheck says "Check automatically"
+// in the language of msgs.
+func (msgs Messages) AboutAutoCheck() string {
+	return Catalog.Format(msgs.locale, "aboutAutoCheck", nil)
+}
+
+// AboutAutoCheckDescription says "Look for a new version once a day."
+// in the language the app shows.
+func AboutAutoCheckDescription() string { return In(i18n.Locale()).AboutAutoCheckDescription() }
+
+// AboutAutoCheckDescription says "Look for a new version once a day."
+// in the language of msgs.
+func (msgs Messages) AboutAutoCheckDescription() string {
+	return Catalog.Format(msgs.locale, "aboutAutoCheckDescription", nil)
+}
+
+// AboutAutoInstall says "Install automatically"
+// in the language the app shows.
+func AboutAutoInstall() string { return In(i18n.Locale()).AboutAutoInstall() }
+
+// AboutAutoInstall says "Install automatically"
+// in the language of msgs.
+func (msgs Messages) AboutAutoInstall() string {
+	return Catalog.Format(msgs.locale, "aboutAutoInstall", nil)
+}
+
+// AboutAutoInstallDescription says "Download new versions in the background and install them the next time OpenBee starts."
+// in the language the app shows.
+func AboutAutoInstallDescription() string { return In(i18n.Locale()).AboutAutoInstallDescription() }
+
+// AboutAutoInstallDescription says "Download new versions in the background and install them the next time OpenBee starts."
+// in the language of msgs.
+func (msgs Messages) AboutAutoInstallDescription() string {
+	return Catalog.Format(msgs.locale, "aboutAutoInstallDescription", nil)
+}
+
+// AboutCheckUpdates says "Check for updates"
+// in the language the app shows.
+func AboutCheckUpdates() string { return In(i18n.Locale()).AboutCheckUpdates() }
+
+// AboutCheckUpdates says "Check for updates"
+// in the language of msgs.
+func (msgs Messages) AboutCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "aboutCheckUpdates", nil)
+}
+
+// AboutDesktopDescription says "The app you're using now."
+// in the language the app shows.
+func AboutDesktopDescription() string { return In(i18n.Locale()).AboutDesktopDescription() }
+
+// AboutDesktopDescription says "The app you're using now."
+// in the language of msgs.
+func (msgs Messages) AboutDesktopDescription() string {
+	return Catalog.Format(msgs.locale, "aboutDesktopDescription", nil)
+}
+
+// AboutDesktopTitle says "OpenBee Desktop"
+// in the language the app shows.
+func AboutDesktopTitle() string { return In(i18n.Locale()).AboutDesktopTitle() }
+
+// AboutDesktopTitle says "OpenBee Desktop"
+// in the language of msgs.
+func (msgs Messages) AboutDesktopTitle() string {
+	return Catalog.Format(msgs.locale, "aboutDesktopTitle", nil)
+}
+
+// AboutDownloadLatest says "Download latest"
+// in the language the app shows.
+func AboutDownloadLatest() string { return In(i18n.Locale()).AboutDownloadLatest() }
+
+// AboutDownloadLatest says "Download latest"
+// in the language of msgs.
+func (msgs Messages) AboutDownloadLatest() string {
+	return Catalog.Format(msgs.locale, "aboutDownloadLatest", nil)
+}
+
+// AboutLastChecked says "Last checked {time}."
+// in the language the app shows.
+func AboutLastChecked(time_ string) string { return In(i18n.Locale()).AboutLastChecked(time_) }
+
+// AboutLastChecked says "Last checked {time}."
+// in the language of msgs.
+func (msgs Messages) AboutLastChecked(time_ string) string {
+	return Catalog.Format(msgs.locale, "aboutLastChecked", map[string]any{"time": time_})
+}
+
+// AboutLoadError says "Couldn't load the server version"
+// in the language the app shows.
+func AboutLoadError() string { return In(i18n.Locale()).AboutLoadError() }
+
+// AboutLoadError says "Couldn't load the server version"
+// in the language of msgs.
+func (msgs Messages) AboutLoadError() string {
+	return Catalog.Format(msgs.locale, "aboutLoadError", nil)
+}
+
+// AboutManualUpdates says "This copy can't update itself. Download the latest version from GitHub."
+// in the language the app shows.
+func AboutManualUpdates() string { return In(i18n.Locale()).AboutManualUpdates() }
+
+// AboutManualUpdates says "This copy can't update itself. Download the latest version from GitHub."
+// in the language of msgs.
+func (msgs Messages) AboutManualUpdates() string {
+	return Catalog.Format(msgs.locale, "aboutManualUpdates", nil)
+}
+
+// AboutNeverChecked says "Not checked yet."
+// in the language the app shows.
+func AboutNeverChecked() string { return In(i18n.Locale()).AboutNeverChecked() }
+
+// AboutNeverChecked says "Not checked yet."
+// in the language of msgs.
+func (msgs Messages) AboutNeverChecked() string {
+	return Catalog.Format(msgs.locale, "aboutNeverChecked", nil)
+}
+
+// AboutReleasesDescription says "See what changed in each version."
+// in the language the app shows.
+func AboutReleasesDescription() string { return In(i18n.Locale()).AboutReleasesDescription() }
+
+// AboutReleasesDescription says "See what changed in each version."
+// in the language of msgs.
+func (msgs Messages) AboutReleasesDescription() string {
+	return Catalog.Format(msgs.locale, "aboutReleasesDescription", nil)
+}
+
+// AboutReleasesLink says "GitHub Releases"
+// in the language the app shows.
+func AboutReleasesLink() string { return In(i18n.Locale()).AboutReleasesLink() }
+
+// AboutReleasesLink says "GitHub Releases"
+// in the language of msgs.
+func (msgs Messages) AboutReleasesLink() string {
+	return Catalog.Format(msgs.locale, "aboutReleasesLink", nil)
+}
+
+// AboutReleasesTitle says "Release notes"
+// in the language the app shows.
+func AboutReleasesTitle() string { return In(i18n.Locale()).AboutReleasesTitle() }
+
+// AboutReleasesTitle says "Release notes"
+// in the language of msgs.
+func (msgs Messages) AboutReleasesTitle() string {
+	return Catalog.Format(msgs.locale, "aboutReleasesTitle", nil)
+}
+
+// AboutServerBundledDescription says "Built into OpenBee Desktop and updated with it."
+// in the language the app shows.
+func AboutServerBundledDescription() string { return In(i18n.Locale()).AboutServerBundledDescription() }
+
+// AboutServerBundledDescription says "Built into OpenBee Desktop and updated with it."
+// in the language of msgs.
+func (msgs Messages) AboutServerBundledDescription() string {
+	return Catalog.Format(msgs.locale, "aboutServerBundledDescription", nil)
+}
+
+// AboutServerCopyCommand says "Copy command"
+// in the language the app shows.
+func AboutServerCopyCommand() string { return In(i18n.Locale()).AboutServerCopyCommand() }
+
+// AboutServerCopyCommand says "Copy command"
+// in the language of msgs.
+func (msgs Messages) AboutServerCopyCommand() string {
+	return Catalog.Format(msgs.locale, "aboutServerCopyCommand", nil)
+}
+
+// AboutServerDescription says "The OpenBee server you're connected to."
+// in the language the app shows.
+func AboutServerDescription() string { return In(i18n.Locale()).AboutServerDescription() }
+
+// AboutServerDescription says "The OpenBee server you're connected to."
+// in the language of msgs.
+func (msgs Messages) AboutServerDescription() string {
+	return Catalog.Format(msgs.locale, "aboutServerDescription", nil)
+}
+
+// AboutServerTitle says "Server"
+// in the language the app shows.
+func AboutServerTitle() string { return In(i18n.Locale()).AboutServerTitle() }
+
+// AboutServerTitle says "Server"
+// in the language of msgs.
+func (msgs Messages) AboutServerTitle() string {
+	return Catalog.Format(msgs.locale, "aboutServerTitle", nil)
+}
+
+// AboutServerUpgrade says "Upgrade"
+// in the language the app shows.
+func AboutServerUpgrade() string { return In(i18n.Locale()).AboutServerUpgrade() }
+
+// AboutServerUpgrade says "Upgrade"
+// in the language of msgs.
+func (msgs Messages) AboutServerUpgrade() string {
+	return Catalog.Format(msgs.locale, "aboutServerUpgrade", nil)
+}
+
+// AboutServerUpgradeDescription says "Run this on the machine the server runs on, then run openbee restart."
+// in the language the app shows.
+func AboutServerUpgradeDescription() string { return In(i18n.Locale()).AboutServerUpgradeDescription() }
+
+// AboutServerUpgradeDescription says "Run this on the machine the server runs on, then run openbee restart."
+// in the language of msgs.
+func (msgs Messages) AboutServerUpgradeDescription() string {
+	return Catalog.Format(msgs.locale, "aboutServerUpgradeDescription", nil)
+}
+
+// AboutSubtitle says "The versions in use, how to upgrade, and what changed in each release."
+// in the language the app shows.
+func AboutSubtitle() string { return In(i18n.Locale()).AboutSubtitle() }
+
+// AboutSubtitle says "The versions in use, how to upgrade, and what changed in each release."
+// in the language of msgs.
+func (msgs Messages) AboutSubtitle() string {
+	return Catalog.Format(msgs.locale, "aboutSubtitle", nil)
+}
+
+// AboutTitle says "About"
+// in the language the app shows.
+func AboutTitle() string { return In(i18n.Locale()).AboutTitle() }
+
+// AboutTitle says "About"
+// in the language of msgs.
+func (msgs Messages) AboutTitle() string {
+	return Catalog.Format(msgs.locale, "aboutTitle", nil)
+}
+
+// AboutUpdates says "Updates"
+// in the language the app shows.
+func AboutUpdates() string { return In(i18n.Locale()).AboutUpdates() }
+
+// AboutUpdates says "Updates"
+// in the language of msgs.
+func (msgs Messages) AboutUpdates() string {
+	return Catalog.Format(msgs.locale, "aboutUpdates", nil)
+}
+
+// AboutVersion says "Version"
+// in the language the app shows.
+func AboutVersion() string { return In(i18n.Locale()).AboutVersion() }
+
+// AboutVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) AboutVersion() string {
+	return Catalog.Format(msgs.locale, "aboutVersion", nil)
+}
+
+// AboutVersionUnknown says "Unknown"
+// in the language the app shows.
+func AboutVersionUnknown() string { return In(i18n.Locale()).AboutVersionUnknown() }
+
+// AboutVersionUnknown says "Unknown"
+// in the language of msgs.
+func (msgs Messages) AboutVersionUnknown() string {
+	return Catalog.Format(msgs.locale, "aboutVersionUnknown", nil)
+}
+
 // AccountChangePassword says "Change password"
 // in the language the app shows.
 func AccountChangePassword() string { return In(i18n.Locale()).AccountChangePassword() }
