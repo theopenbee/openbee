@@ -33,7 +33,7 @@ Then create the admin account. Later launches sign in automatically.
 
 ## Updates
 
-The app checks GitHub Releases for a new version 10 seconds after launch and then once a day. When one is out, it shows the release notes and offers to install it, remind you later or skip that version. Tick "Automatically download and install updates in the future" to stop being asked. **Check for Updates…** checks right away: it is in the app menu on macOS and in the File menu on Windows and Linux.
+The app checks GitHub Releases for a new version 10 seconds after launch and then once a day. When one is out, it shows the release notes and offers to install it, remind you later or skip that version. Tick "Automatically download and install updates in the future" to stop being asked. To check right away, choose **Check for updates** in the account menu or under **Settings → About**, or **Check for Updates…** in the app menu on macOS or the File menu on Windows and Linux. **Settings → About** also turns automatic checks and installs on or off.
 
 An update downloads in the background and takes effect when the app restarts. With the built-in server, restarting the app restarts the server too.
 
