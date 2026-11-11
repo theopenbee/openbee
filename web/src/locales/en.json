@@ -515,6 +515,25 @@
       "lost": "Lost the connection to the sign-in session. Get a new code to try again."
     }
   },
+  "about": {
+    "title": "About",
+    "subtitle": "The versions in use, how to upgrade, and what changed in each release.",
+    "loadError": "Couldn't load the server version",
+    "version": "Version",
+    "server": {
+      "title": "Server",
+      "description": "The OpenBee server you're connected to.",
+      "bundledDescription": "Built into OpenBee Desktop and updated with it.",
+      "upgrade": "Upgrade",
+      "upgradeDescription": "Run this on the machine the server runs on, then run openbee restart.",
+      "copyCommand": "Copy command"
+    },
+    "releases": {
+      "title": "Release notes",
+      "description": "See what changed in each version.",
+      "link": "GitHub Releases"
+    }
+  },
   "errors": {
     "worker_not_found": "Worker not found",
     "env_not_found": "Env config not found",

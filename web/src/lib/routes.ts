@@ -4,7 +4,7 @@ import type { ConversationId } from "@/lib/types"
 
 export type PanelSection = "constraints" | "permissions" | "env"
 
-export type SettingsSection = "env" | "system" | "plugins"
+export type SettingsSection = "env" | "system" | "plugins" | "about"
 export type PluginsTab = "market" | "installed"
 export type SettingsTarget = { section: SettingsSection; plugin?: string; tab?: PluginsTab }
 export type SettingsState = { returnTo: string }
@@ -24,7 +24,7 @@ export const DEFAULT_PANEL_SECTION: PanelSection = "constraints"
 const PANEL_PARAM = "panel"
 const NEW_PANEL = "new"
 
-const SETTINGS_SECTIONS: readonly string[] = ["env", "system", "plugins"] satisfies SettingsSection[]
+const SETTINGS_SECTIONS: readonly string[] = ["env", "system", "plugins", "about"] satisfies SettingsSection[]
 export const SETTINGS_PATH = "/settings"
 export const CHAT_PATH = "/chat"
 const TAB_PARAM = "tab"

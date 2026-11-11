@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { useQueryClient } from "@tanstack/react-query"
 import { Check } from "lucide-react"
@@ -7,6 +7,7 @@ import { Button } from "@/components/arc/button/button"
 import { FadeIn } from "@/components/fade-in"
 import { EngineSelect } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
+import { SettingsGroup, SettingsRow, SettingsSkeleton } from "@/components/settings/settings-layout"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import { getErrorMessage } from "@/lib/utils"
@@ -20,57 +21,6 @@ import {
 const SAVED_RESET_MS = 2400
 
 type SaveStatus = "idle" | "saving" | "saved" | "error"
-
-function SettingsRow({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description: string
-  children: ReactNode
-}) {
-  return (
-    <div className="grid gap-4 px-4 py-5 @lg:px-6 @2xl:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] @2xl:gap-8">
-      <div className="grid content-start gap-1">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <p className="text-sm text-secondary">{description}</p>
-      </div>
-      <div className="min-w-0">{children}</div>
-    </div>
-  )
-}
-
-function SettingsGroup({ children }: { children: ReactNode }) {
-  return (
-    <div className="divide-y divide-border-subtle overflow-hidden rounded-inset border border-border bg-surface">
-      {children}
-    </div>
-  )
-}
-
-function SettingsSkeleton() {
-  return (
-    <div className="grid gap-10" aria-busy="true">
-      {[1, 2].map((group) => (
-        <div key={group} className="grid gap-4">
-          <div className="skeleton h-5 w-32" />
-          <div className="divide-y divide-border-subtle rounded-inset border border-border bg-surface">
-            {Array.from({ length: group }).map((_, row) => (
-              <div key={row} className="grid gap-4 px-6 py-5 @2xl:grid-cols-[14rem_1fr] @2xl:gap-8">
-                <div className="grid content-start gap-2">
-                  <div className="skeleton h-4 w-24" />
-                  <div className="skeleton h-4 w-40" />
-                </div>
-                <div className="skeleton h-11 w-full rounded-control" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 export function SystemSettings() {
   const { t } = useTranslation()

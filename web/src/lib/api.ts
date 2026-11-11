@@ -1,4 +1,4 @@
-import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -76,6 +76,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   config: {
     get: () => fetchAPI<AppConfig>("/config"),
+  },
+  version: {
+    get: () => fetchAPI<ServerVersion>("/version"),
   },
   workers: {
     list: async () => {

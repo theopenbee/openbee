@@ -121,6 +121,11 @@ export interface AppConfig {
   engines: EngineInfo[]
 }
 
+export interface ServerVersion {
+  version: string
+  bundled: boolean
+}
+
 export interface SetupStatus {
   initialized: boolean
 }

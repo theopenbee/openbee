@@ -22,6 +22,13 @@ export function useAppConfig() {
   })
 }
 
+export function useServerVersion() {
+  return useQuery({
+    queryKey: ["version"],
+    queryFn: () => api.version.get(),
+  })
+}
+
 export function useEnabledEngines(): EngineChoice[] {
   const { data } = useAppConfig()
   const { i18n } = useTranslation()

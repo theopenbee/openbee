@@ -511,6 +511,25 @@
       "lost": "与登录会话的连接已断开，请点击“重新获取”重试。"
     }
   },
+  "about": {
+    "title": "关于",
+    "subtitle": "当前版本、升级方式，以及每个版本的改动。",
+    "loadError": "无法加载服务端版本",
+    "version": "版本",
+    "server": {
+      "title": "服务端",
+      "description": "当前连接的 OpenBee 服务端。",
+      "bundledDescription": "内置于 OpenBee Desktop，随桌面端一起更新。",
+      "upgrade": "升级",
+      "upgradeDescription": "在运行服务端的机器上执行这条命令，然后运行 openbee restart 重启。",
+      "copyCommand": "复制命令"
+    },
+    "releases": {
+      "title": "更新日志",
+      "description": "查看每个版本的改动。",
+      "link": "GitHub Releases"
+    }
+  },
   "errors": {
     "worker_not_found": "数字员工不存在",
     "env_not_found": "环境变量配置不存在",

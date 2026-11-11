@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import {
   ArrowLeftIcon,
   ChevronLeftIcon,
+  InfoIcon,
   KeyRoundIcon,
   PuzzleIcon,
   SlidersHorizontalIcon,
@@ -21,6 +22,9 @@ const SystemSettings = lazy(() =>
 const PluginsSettings = lazy(() =>
   import("@/components/settings/plugins-settings").then((m) => ({ default: m.PluginsSettings })),
 )
+const AboutSettings = lazy(() =>
+  import("@/components/settings/about-settings").then((m) => ({ default: m.AboutSettings })),
+)
 const PluginDetailSettings = lazy(() =>
   import("@/components/settings/plugin-detail-settings").then((m) => ({ default: m.PluginDetailSettings })),
 )
@@ -29,6 +33,7 @@ const SECTIONS: { id: SettingsSection; titleKey: string; navKey?: string; descri
   { id: "env", titleKey: "envConfig.title", navKey: "envConfig.navTitle", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
   { id: "system", titleKey: "systemSettings.title", descriptionKey: "systemSettings.subtitle", icon: SlidersHorizontalIcon },
   { id: "plugins", titleKey: "plugins.title", descriptionKey: "plugins.subtitle", icon: PuzzleIcon },
+  { id: "about", titleKey: "about.title", descriptionKey: "about.subtitle", icon: InfoIcon },
 ]
 
 function revealNavItem(node: HTMLButtonElement | null) {
@@ -134,6 +139,8 @@ function SectionBody({ target }: { target: SettingsTarget }) {
   switch (target.section) {
     case "system":
       return <SystemSettings />
+    case "about":
+      return <AboutSettings />
     case "plugins":
       return target.plugin ? (
         <PluginDetailSettings id={target.plugin} />

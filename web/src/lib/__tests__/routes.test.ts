@@ -173,6 +173,7 @@ describe("settingsPath", () => {
     expect(settingsPath({ section: "env" })).toBe("/settings/env")
     expect(settingsPath({ section: "system" })).toBe("/settings/system")
     expect(settingsPath({ section: "plugins" })).toBe("/settings/plugins")
+    expect(settingsPath({ section: "about" })).toBe("/settings/about")
   })
 
   it("routes plugin pages and the installed tab", () => {
@@ -211,6 +212,7 @@ describe("settingsTarget", () => {
       { section: "plugins" },
       { section: "plugins", tab: "installed" },
       { section: "plugins", plugin: "lark" },
+      { section: "about" },
     ] as const
     for (const target of targets) {
       const url = new URL(settingsPath(target), "http://x")
