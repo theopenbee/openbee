@@ -1,21 +1,31 @@
 import type { ReactNode } from "react"
+import { cn } from "@/lib/utils"
 
 export function SettingsRow({
   title,
   description,
+  inline = false,
   children,
 }: {
   title: string
   description: string
+  inline?: boolean
   children: ReactNode
 }) {
   return (
-    <div className="grid gap-4 px-4 py-5 @lg:px-6 @2xl:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] @2xl:gap-8">
-      <div className="grid content-start gap-1">
+    <div
+      className={cn(
+        "grid gap-4 px-4 py-5 @lg:px-6",
+        inline
+          ? "@lg:flex @lg:items-center @lg:justify-between @lg:gap-8"
+          : "@2xl:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] @2xl:gap-8",
+      )}
+    >
+      <div className={cn("grid content-start", inline ? "min-w-0 gap-0.5" : "gap-1")}>
         <h3 className="text-sm font-medium text-foreground">{title}</h3>
         <p className="text-sm text-secondary">{description}</p>
       </div>
-      <div className="min-w-0">{children}</div>
+      <div className={inline ? "flex min-w-0 @lg:shrink-0 @lg:justify-end" : "min-w-0"}>{children}</div>
     </div>
   )
 }

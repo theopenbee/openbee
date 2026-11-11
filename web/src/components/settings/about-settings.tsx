@@ -34,20 +34,21 @@ export function AboutSettings() {
           </h2>
           <SettingsGroup>
             <SettingsRow
+              inline
               title={t("about.version")}
               description={t(data.bundled ? "about.server.bundledDescription" : "about.server.description")}
             >
               <p className="font-mono text-sm text-foreground">{data.version}</p>
             </SettingsRow>
             {!data.bundled && (
-              <SettingsRow title={t("about.server.upgrade")} description={t("about.server.upgradeDescription")}>
-                <div className="flex min-w-0 items-center justify-between gap-2 rounded-control border border-border bg-surface-muted py-1 pr-1 pl-4">
+              <SettingsRow inline title={t("about.server.upgrade")} description={t("about.server.upgradeDescription")}>
+                <div className="flex min-w-0 items-center gap-2 rounded-control border border-border bg-surface-muted py-1 pr-1 pl-4">
                   <code className="min-w-0 truncate font-mono text-sm text-foreground">{UPGRADE_COMMAND}</code>
                   <CopyButton value={UPGRADE_COMMAND} label={t("about.server.copyCommand")} />
                 </div>
               </SettingsRow>
             )}
-            <SettingsRow title={t("about.releases.title")} description={t("about.releases.description")}>
+            <SettingsRow inline title={t("about.releases.title")} description={t("about.releases.description")}>
               <a
                 href={RELEASES_URL}
                 target="_blank"

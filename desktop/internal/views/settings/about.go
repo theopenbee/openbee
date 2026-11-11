@@ -27,6 +27,7 @@ const (
 	relativeHours     = "hours"
 	relativeDays      = "days"
 	switchRowMinH     = 64
+	inlineTextGap     = 2
 	aboutSwitchBorder = 1
 )
 
@@ -43,18 +44,18 @@ func (d *Page) desktopGroup(c *ui.Context, tk theme.Tokens) {
 	ui.Column(c).MinWidth(0).Gap(groupGap).Children(func() {
 		heading(c, locales.AboutDesktopTitle())
 		card(c, tk, func() {
-			d.row(c, tk, true, locales.AboutVersion(), locales.AboutDesktopDescription(), func() {
+			d.inlineRow(c, tk, true, locales.AboutVersion(), locales.AboutDesktopDescription(), func() {
 				infoValue(c, tk, d.s.AppVersion(), true)
 			})
 			if u := d.s.Updater(); u != nil {
 				d.updaterRows(c, tk, u)
 			} else {
-				d.row(c, tk, false, locales.AboutUpdates(), locales.AboutManualUpdates(), func() {
+				d.inlineRow(c, tk, false, locales.AboutUpdates(), locales.AboutManualUpdates(), func() {
 					kit.Button(c, tk, locales.AboutDownloadLatest(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Icon: "download"}).
-						AlignSelf(ui.Start).OnClick(func() { c.OpenURL(LatestReleaseURL) })
+						OnClick(func() { c.OpenURL(LatestReleaseURL) })
 				})
 			}
-			d.row(c, tk, false, locales.AboutReleasesTitle(), locales.AboutReleasesDescription(), func() {
+			d.inlineRow(c, tk, false, locales.AboutReleasesTitle(), locales.AboutReleasesDescription(), func() {
 				externalLink(c, tk, ReleasesURL, locales.AboutReleasesLink())
 			})
 		})
@@ -62,9 +63,9 @@ func (d *Page) desktopGroup(c *ui.Context, tk theme.Tokens) {
 }
 
 func (d *Page) updaterRows(c *ui.Context, tk theme.Tokens, u store.Updater) {
-	d.row(c, tk, false, locales.AboutUpdates(), lastChecked(u.LastCheck(), c.Now()), func() {
+	d.inlineRow(c, tk, false, locales.AboutUpdates(), lastChecked(u.LastCheck(), c.Now()), func() {
 		kit.Button(c, tk, locales.AboutCheckUpdates(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Icon: "refresh-cw"}).
-			AlignSelf(ui.Start).OnClick(u.Check)
+			OnClick(u.Check)
 	})
 	auto := u.AutomaticChecks()
 	d.switchRow(c, tk, &auto, locales.AboutAutoCheck(), locales.AboutAutoCheckDescription(), false).
@@ -74,12 +75,29 @@ func (d *Page) updaterRows(c *ui.Context, tk theme.Tokens, u store.Updater) {
 		OnChange(func() { u.SetAutomaticDownloads(install) })
 }
 
-func (d *Page) switchRow(c *ui.Context, tk theme.Tokens, on *bool, title, description string, disabled bool) ui.Element {
-	padX := float32(rowPadXNarrow)
-	if d.contentWidth() >= containerLG {
-		padX = rowPadXWide
+func (d *Page) inlineRow(c *ui.Context, tk theme.Tokens, first bool, title, description string, control func()) {
+	row := ui.Row(c).MinWidth(0).AlignItems(ui.Center).Justify(ui.SpaceBetween).Gap(rowGapWide).Padding(rowPadY, d.rowPadX())
+	if !first {
+		row.BorderWidth(cardBorder, 0, 0, 0).BorderColor(tk.BorderSubtle)
 	}
-	return kit.SwitchRow(c, tk, on, title, description, disabled).MinHeight(switchRowMinH).Padding(rowPadY, padX).
+	row.Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(inlineTextGap).Children(func() {
+			ui.Text(c, title).FontSize(rowTitleSize).FontWeight(mediumWeight).Role(ui.RoleHeading).Level(3)
+			ui.Text(c, description).TextColor(tk.TextSecondary)
+		})
+		ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(control)
+	})
+}
+
+func (d *Page) rowPadX() float32 {
+	if d.contentWidth() >= containerLG {
+		return rowPadXWide
+	}
+	return rowPadXNarrow
+}
+
+func (d *Page) switchRow(c *ui.Context, tk theme.Tokens, on *bool, title, description string, disabled bool) ui.Element {
+	return kit.SwitchRow(c, tk, on, title, description, disabled).MinHeight(switchRowMinH).Padding(rowPadY, d.rowPadX()).
 		BorderWidth(aboutSwitchBorder, 0, 0, 0).BorderColor(tk.BorderSubtle)
 }
 
@@ -97,7 +115,7 @@ func (d *Page) serverGroup(c *ui.Context, tk theme.Tokens, r *store.Resource[api
 				if v.Bundled {
 					description = locales.AboutServerBundledDescription()
 				}
-				d.row(c, tk, true, locales.AboutVersion(), description, func() {
+				d.inlineRow(c, tk, true, locales.AboutVersion(), description, func() {
 					switch {
 					case !r.Loaded:
 						kit.SkeletonBar(c, tk, versionSkeletonW, versionSkeletonH)
@@ -108,7 +126,7 @@ func (d *Page) serverGroup(c *ui.Context, tk theme.Tokens, r *store.Resource[api
 					}
 				})
 				if r.Loaded && !v.Bundled {
-					d.row(c, tk, false, locales.AboutServerUpgrade(), locales.AboutServerUpgradeDescription(), func() {
+					d.inlineRow(c, tk, false, locales.AboutServerUpgrade(), locales.AboutServerUpgradeDescription(), func() {
 						upgradeCommand(c, tk)
 					})
 				}
