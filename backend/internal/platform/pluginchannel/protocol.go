@@ -37,7 +37,7 @@ type SendParams struct {
 
 type Button struct {
 	Label string `json:"label"`
-	Text  string `json:"text,omitempty"`
+	Text  string `json:"text"`
 	Style string `json:"style,omitempty"`
 }
 

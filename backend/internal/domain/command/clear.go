@@ -18,7 +18,10 @@ import (
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
-const clearConfirmTimeout = 30 * time.Second
+const (
+	clearConfirmTimeout = 30 * time.Second
+	clearCancelArg      = "cancel"
+)
 
 type WorkerNameLookup interface {
 	ListByName(name string) ([]model.Worker, error)
@@ -80,6 +83,11 @@ func (h *ClearCommandHandler) HandleCommand(ctx context.Context, content string,
 			h.handleClearAll(ctx, replyTo)
 		}
 	case 2:
+		if fields[1] == clearCancelArg {
+			h.dropPending(replyTo.SessionKey)
+			h.reply(ctx, replyTo, i18n.M.Runtime.ClearCommand.Cancelled)
+			return true
+		}
 		h.handleClearWorker(ctx, replyTo, fields[1])
 	default:
 		h.reply(ctx, replyTo, i18n.M.Runtime.ClearCommand.Usage)
@@ -254,6 +262,17 @@ func (h *ClearCommandHandler) storePending(key string) {
 	h.pending[key] = now.Add(clearConfirmTimeout)
 }
 
+func (h *ClearCommandHandler) dropPending(sessionKey string) {
+	prefix := h.pendingKey(sessionKey, "")
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for k := range h.pending {
+		if strings.HasPrefix(k, prefix) {
+			delete(h.pending, k)
+		}
+	}
+}
+
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
 	sendReply(ctx, h.senders, replyTo, text)
 }
@@ -266,7 +285,7 @@ func confirmButtons(cmd string) []platform.Button {
 	m := i18n.M.Runtime.ClearCommand
 	return []platform.Button{
 		{Label: m.ConfirmButton, Text: cmd, Style: platform.ButtonStyleDanger},
-		{Label: m.CancelButton},
+		{Label: m.CancelButton, Text: CmdClear + " " + clearCancelArg},
 	}
 }
 

@@ -19,7 +19,7 @@ runtime:
     busy_executions: "Cannot switch engine: there are executions in progress. Please wait until they are completed."
     busy_tasks: "Cannot switch engine: there are immediate tasks pending or running. Please wait until they are completed."
   clear_command:
-    usage: "Usage:\n/clear — clear all session contexts for this session\n/clear {workerName} — clear session context for a specific worker"
+    usage: "Usage:\n/clear — clear all session contexts for this session\n/clear {workerName} — clear session context for a specific worker\n/clear cancel — cancel a clear waiting for confirmation"
     worker_not_found: "Worker %q not found"
     worker_duplicate: "Multiple workers named %q found:\n%s"
     no_context: "No session contexts to clear."
@@ -36,6 +36,7 @@ runtime:
     worker_confirm_footer: "Send /clear %s again within 30s to confirm."
     confirm_button: "Clear"
     cancel_button: "Cancel"
+    cancelled: "Cancelled. Nothing was cleared."
   stop_command:
     usage: "Usage:\n/stop — stop the running bee for this session and cancel pending messages\n/stop {workerName} — stop a specific worker's running tasks (keeps context)"
     stopped: "✅ Stopped bee execution"

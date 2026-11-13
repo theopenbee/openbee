@@ -158,7 +158,7 @@ Errors:
   "media": { "path": "/abs/path/report.pdf", "name": "report.pdf" },
   "buttons": [
     { "label": "Clear", "text": "/clear", "style": "danger" },
-    { "label": "Cancel" }
+    { "label": "Cancel", "text": "/clear cancel" }
   ]
 }
 ```
@@ -229,7 +229,7 @@ A click answers for the clicking user, so the plugin turns it into an `inbound` 
 
 | Field | Value |
 |---|---|
-| `text` | The button's `text`. A button without `text` only closes the buttons and sends nothing. |
+| `text` | The button's `text`. |
 | `sender_id` | The user who clicked. |
 | `chat_id`, `session_scope` | Those of the `send` that carried the buttons, so the click lands in the same session. |
 | `message_id` | The id of the message that carried the buttons. openbee deduplicates on it, so only the first click on a message counts. |

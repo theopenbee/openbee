@@ -19,7 +19,7 @@ runtime:
     busy_executions: "当前有执行中的 execution，无法切换引擎，请等待完成后再试。"
     busy_tasks: "当前有即时任务正在等待或执行中，无法切换引擎，请等待完成后再试。"
   clear_command:
-    usage: "用法：\n/clear — 清除当前会话的全部上下文\n/clear {workerName} — 清除指定员工的上下文"
+    usage: "用法：\n/clear — 清除当前会话的全部上下文\n/clear {workerName} — 清除指定员工的上下文\n/clear cancel — 取消待确认的清除"
     worker_not_found: "员工 %q 不存在"
     worker_duplicate: "存在多个同名员工 %q：\n%s"
     no_context: "没有可清除的会话"
@@ -36,6 +36,7 @@ runtime:
     worker_confirm_footer: "30s 内再发一次 /clear %s 确认。"
     confirm_button: "确认清空"
     cancel_button: "取消"
+    cancelled: "已取消，上下文没有清除。"
   stop_command:
     usage: "用法：\n/stop — 停止当前会话正在运行的 bee 并取消待处理消息\n/stop {workerName} — 停止指定员工正在运行的任务（保留上下文）"
     stopped: "✅ 已停止 bee 执行"

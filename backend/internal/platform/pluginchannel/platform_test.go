@@ -110,7 +110,7 @@ func TestPlatform_SendsButtonsWhenDeclared(t *testing.T) {
 		Content:    "Clear?",
 		Buttons: []platform.Button{
 			{Label: "Clear", Text: "/clear", Style: platform.ButtonStyleDanger},
-			{Label: "Cancel"},
+			{Label: "Cancel", Text: "/clear cancel"},
 		},
 	}))
 	var echoes []platform.InboundMessage
@@ -120,7 +120,7 @@ func TestPlatform_SendsButtonsWhenDeclared(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	var got SendParams
 	require.NoError(t, json.Unmarshal([]byte(echoes[0].RawContent), &got))
-	assert.Equal(t, []Button{{Label: "Clear", Text: "/clear", Style: "danger"}, {Label: "Cancel"}}, got.Buttons)
+	assert.Equal(t, []Button{{Label: "Clear", Text: "/clear", Style: "danger"}, {Label: "Cancel", Text: "/clear cancel"}}, got.Buttons)
 }
 
 func TestPlatform_DropsButtonsWithoutCapability(t *testing.T) {

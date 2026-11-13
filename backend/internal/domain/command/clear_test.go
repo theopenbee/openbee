@@ -265,7 +265,7 @@ func TestClearCommand_Confirm(t *testing.T) {
 			require.Len(t, fx.sender.sent, 1, "expected 1 reply after first /clear")
 			assert.Equal(t, []platform.Button{
 				{Label: "确认清空", Text: "/clear", Style: platform.ButtonStyleDanger},
-				{Label: "取消"},
+				{Label: "取消", Text: "/clear cancel"},
 			}, fx.sender.buttons[0])
 
 			current = current.Add(tc.advance)
@@ -286,6 +286,25 @@ func TestClearCommand_Confirm(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClearCommand_CancelDropsPendingConfirmation(t *testing.T) {
+	clock := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	agents := []store.SessionAgent{{AgentID: "w1", AgentType: "worker", Engine: "claude", Name: "关羽", UpdatedAt: nowMs - 1000}}
+	tasks := []model.Task{{ID: "t1", WorkerID: "w1", Instruction: "do work", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate}}
+	fx := makeClearFixture(agents, tasks, map[string]model.Worker{"w1": {ID: "w1", Name: "关羽"}},
+		withClearClock(fixedClock(clock)), withClearCancelled(1), withClearRunningExecs(fakeRunningExecs{"t1": "exec-1"}))
+
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+	fx.handler.HandleCommand(context.Background(), "/clear cancel", makeReplyTo())
+	fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
+
+	require.Len(t, fx.sender.sent, 3)
+	assert.Equal(t, "已取消，上下文没有清除。", fx.sender.sent[1])
+	assert.Contains(t, fx.sender.sent[2], "30s 内再发一次 /clear 确认。")
+	assert.Empty(t, fx.stopper.stopped)
+	assert.Empty(t, fx.disp.cleared)
 }
 
 func TestClearCommand_Worker_NoRunningTasks_ClearsImmediately(t *testing.T) {
@@ -366,7 +385,7 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	}
 	assert.Equal(t, []platform.Button{
 		{Label: "确认清空", Text: "/clear 徐晃", Style: platform.ButtonStyleDanger},
-		{Label: "取消"},
+		{Label: "取消", Text: "/clear cancel"},
 	}, fx.sender.buttons[0])
 	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped on first /clear")
 	assert.Empty(t, fx.disp.clearedWorkers, "expected ClearWorker not yet called")
