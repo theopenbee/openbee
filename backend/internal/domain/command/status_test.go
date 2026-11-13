@@ -156,6 +156,28 @@ func TestStatusCommand_HappyPath(t *testing.T) {
 	} {
 		assert.Contains(t, out, want)
 	}
+	assert.Equal(t, []platform.Button{
+		{Label: "停止 貂蝉", Text: "/stop 貂蝉", Style: platform.ButtonStyleDanger},
+		{Label: "停止 吕布", Text: "/stop 吕布", Style: platform.ButtonStyleDanger},
+	}, sender.buttons[0])
+}
+
+func TestStatusCommand_StopButtonsSkipUnnamedAndRepeatedWorkers(t *testing.T) {
+	clock := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	nowMs := clock.UnixMilli()
+	tasks := []model.Task{
+		{ID: "t1", WorkerID: "w1", Instruction: "a", CreatedAt: nowMs - 5000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t2", WorkerID: "w1", Instruction: "b", CreatedAt: nowMs - 4000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t3", WorkerID: "w2", Instruction: "c", CreatedAt: nowMs - 3000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+		{ID: "t4", WorkerID: "missing", Instruction: "d", CreatedAt: nowMs - 2000, Status: model.TaskStatusRunning, Type: model.TaskTypeImmediate},
+	}
+	workers := map[string]model.Worker{
+		"w1": {ID: "w1", Name: "貂蝉"},
+		"w2": {ID: "w2", Name: "Lu Bu"},
+	}
+	h, sender := makeStatusHandler(nil, tasks, workers, withClock(fixedClock(clock)))
+	h.HandleCommand(context.Background(), "/status", makeReplyTo())
+	assert.Equal(t, []platform.Button{{Label: "停止 貂蝉", Text: "/stop 貂蝉", Style: platform.ButtonStyleDanger}}, sender.buttons[0])
 }
 
 func TestStatusCommand_FallsBackToWorkerIDOnLookupFailure(t *testing.T) {
@@ -184,6 +206,7 @@ func TestStatusCommand_EmptyBeesAndTasks(t *testing.T) {
 		assert.Contains(t, out, want)
 	}
 	assert.Equal(t, 2, strings.Count(out, "  (无)"))
+	assert.Empty(t, sender.buttons[0])
 }
 
 func TestStatusCommand_BeesOnly_NoTasks(t *testing.T) {

@@ -142,7 +142,11 @@ func (h *EngineCommandHandler) HandleCommand(ctx context.Context, content string
 		return false
 	}
 
-	if len(fields) == 1 || len(fields) > 3 {
+	if len(fields) == 1 {
+		h.replyEnginePicker(ctx, replyTo)
+		return true
+	}
+	if len(fields) > 3 {
 		h.reply(ctx, replyTo, i18n.M.Runtime.EngineCommand.Usage)
 		return true
 	}
@@ -236,6 +240,18 @@ func (h *EngineCommandHandler) isValidEngine(ctx context.Context, replyTo platfo
 		return false
 	}
 	return true
+}
+
+func (h *EngineCommandHandler) replyEnginePicker(ctx context.Context, replyTo platform.InboundMessage) {
+	m := i18n.M.Runtime.EngineCommand
+	current := h.engineCfg.Get()
+	var buttons []platform.Button
+	for _, e := range h.validator.EnabledEngines() {
+		if e != current {
+			buttons = append(buttons, platform.Button{Label: e, Text: CmdEngine + " " + e})
+		}
+	}
+	sendReplyWithButtons(ctx, h.senders, replyTo, fmt.Sprintf(m.Current, current)+"\n\n"+m.Usage, buttons)
 }
 
 func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {

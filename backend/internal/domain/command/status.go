@@ -98,17 +98,35 @@ func (h *StatusCommandHandler) HandleCommand(ctx context.Context, content string
 		return true
 	}
 
-	h.reply(ctx, replyTo, h.formatStatus(ctx, agents, runningTasks))
+	workerNames := resolveWorkerNames(h.workers, runningTasks)
+	sendReplyWithButtons(ctx, h.senders, replyTo, h.formatStatus(ctx, agents, runningTasks, workerNames), stopButtons(runningTasks, workerNames))
 	return true
 }
 
-func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.SessionAgent, tasks []model.Task) string {
+func stopButtons(tasks []model.Task, workerNames map[string]string) []platform.Button {
+	var buttons []platform.Button
+	seen := make(map[string]bool, len(tasks))
+	for _, t := range tasks {
+		name := workerNames[t.WorkerID]
+		if seen[t.WorkerID] || name == "" || strings.ContainsAny(name, " \t\r\n") {
+			continue
+		}
+		seen[t.WorkerID] = true
+		buttons = append(buttons, platform.Button{
+			Label: fmt.Sprintf(i18n.M.Runtime.StatusCommand.StopButton, name),
+			Text:  CmdStop + " " + name,
+			Style: platform.ButtonStyleDanger,
+		})
+	}
+	return buttons
+}
+
+func (h *StatusCommandHandler) formatStatus(ctx context.Context, agents []store.SessionAgent, tasks []model.Task, workerNames map[string]string) string {
 	m := i18n.M.Runtime.StatusCommand
 	now := h.now()
 	// Both SessionAgent.UpdatedAt and Task.CreatedAt are in milliseconds.
 	nowMs := now.UnixMilli()
 
-	workerNames := resolveWorkerNames(h.workers, tasks)
 	execIDs := utils.RunningExecIDsForTasks(ctx, log, h.runningExecs, tasks)
 
 	lines := make([]string, 0, 2+max(1, len(agents))+max(1, len(tasks)))

@@ -177,11 +177,23 @@ func TestEngineCommand_WorkerNotFound(t *testing.T) {
 	assert.Equal(t, []string{`员工 "nobody" 不存在`}, sender.sent)
 }
 
-func TestEngineCommand_NoArgs(t *testing.T) {
-	h, sender, _, _ := makeHandler(nil)
+func TestEngineCommand_NoArgsOffersOtherEngines(t *testing.T) {
+	h, sender, _, engineCfg := makeHandler(nil)
+	engineCfg.Set("codex")
 	handled := h.HandleCommand(context.Background(), "/engine", makeReplyTo())
 	require.True(t, handled, "expected handled=true")
+	assert.Equal(t, []string{"当前默认 engine：codex\n\n用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"}, sender.sent)
+	assert.Equal(t, []platform.Button{
+		{Label: "claude", Text: "/engine claude"},
+		{Label: "pi", Text: "/engine pi"},
+	}, sender.buttons[0])
+}
+
+func TestEngineCommand_TooManyArgs(t *testing.T) {
+	h, sender, _, _ := makeHandler(nil)
+	h.HandleCommand(context.Background(), "/engine a b c", makeReplyTo())
 	assert.Equal(t, []string{"用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine"}, sender.sent)
+	assert.Empty(t, sender.buttons[0])
 }
 
 // TestEngineCommand_Busy merges the busy-checker scenarios that used to be
@@ -244,7 +256,7 @@ func TestEngineCommand_Busy(t *testing.T) {
 			beeBusy:    command.NewBeeBusyChecker(&fakeBeeBusyChecker{activeMessages: true, activeBeeExecs: true}, &fakeBeeBusyChecker{activeBeeExecs: true}),
 			workerBusy: command.NewWorkerBusyChecker(&fakeWorkerBusyChecker{activeExecs: true}, &fakeWorkerBusyChecker{activeTasks: true}),
 			cmd:        "/engine",
-			wantReply:  "用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine",
+			wantReply:  "当前默认 engine：claude\n\n用法：\n/engine {engine} — 切换默认 engine\n/engine {engine} {workerName} — 切换指定员工的 engine",
 		},
 		{
 			name:       "SwitchWorkerEngine_UpdateError",

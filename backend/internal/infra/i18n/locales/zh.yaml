@@ -18,6 +18,7 @@ runtime:
     busy_messages: "当前有消息正在接收或处理中，无法切换引擎，请等待完成后再试。"
     busy_executions: "当前有执行中的 execution，无法切换引擎，请等待完成后再试。"
     busy_tasks: "当前有即时任务正在等待或执行中，无法切换引擎，请等待完成后再试。"
+    current: "当前默认 engine：%s"
   clear_command:
     usage: "用法：\n/clear — 清除当前会话的全部上下文\n/clear {workerName} — 清除指定员工的上下文\n/clear cancel — 取消待确认的清除"
     worker_not_found: "员工 %q 不存在"
@@ -58,6 +59,7 @@ runtime:
     empty_marker: "  (无)"
     bee_line: "  - %s   引擎: %s   最近活跃: %s 前"
     task_line: "  - [%s] %s   已运行 %s   exec: %s"
+    stop_button: "停止 %s"
   list_command:
     usage: "用法：/list [关键词]"
     lookup_failed: "⚠️ 查询员工列表失败，请稍后重试；若持续出现请检查服务端日志。"

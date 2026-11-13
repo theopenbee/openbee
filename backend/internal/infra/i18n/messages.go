@@ -28,6 +28,7 @@ type EngineCommandMessages struct {
 	BusyMessages    string `yaml:"busy_messages"`
 	BusyExecutions  string `yaml:"busy_executions"`
 	BusyTasks       string `yaml:"busy_tasks"`
+	Current         string `yaml:"current"` // contains %s (engine name)
 }
 
 // ClearCommandMessages holds text sent to IM users by the /clear command handler.
@@ -77,6 +78,7 @@ type StatusCommandMessages struct {
 	EmptyMarker  string `yaml:"empty_marker"`
 	BeeLine      string `yaml:"bee_line"`
 	TaskLine     string `yaml:"task_line"`
+	StopButton   string `yaml:"stop_button"` // contains %s (worker name)
 }
 
 // ListCommandMessages holds text sent to IM users by the /list command handler.
