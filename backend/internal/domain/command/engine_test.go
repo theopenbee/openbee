@@ -58,11 +58,13 @@ func (f *fakeSysConfig) Set(_ context.Context, key, value string) error {
 }
 
 type fakeSender struct {
-	sent []string
+	sent    []string
+	buttons [][]platform.Button
 }
 
 func (f *fakeSender) Send(_ context.Context, msg platform.OutboundMessage) error {
 	f.sent = append(f.sent, msg.Content)
+	f.buttons = append(f.buttons, msg.Buttons)
 	return nil
 }
 

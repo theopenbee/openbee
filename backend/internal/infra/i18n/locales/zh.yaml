@@ -34,6 +34,8 @@ runtime:
     worker_cleared_with_tasks: "✅ 已清除 %s（engine：%s），取消了 %d 个任务。"
     worker_confirm_header: "⚠️ 将清除 %s（engine：%s）的会话上下文。"
     worker_confirm_footer: "30s 内再发一次 /clear %s 确认。"
+    confirm_button: "确认清空"
+    cancel_button: "取消"
   stop_command:
     usage: "用法：\n/stop — 停止当前会话正在运行的 bee 并取消待处理消息\n/stop {workerName} — 停止指定员工正在运行的任务（保留上下文）"
     stopped: "✅ 已停止 bee 执行"

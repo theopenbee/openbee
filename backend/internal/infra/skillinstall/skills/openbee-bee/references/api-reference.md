@@ -132,10 +132,11 @@ return await openbee.get_system_overview();
 
 ## Messages
 
-Send with the `send_message` tool. `message_id` replies to that message; `session_key` sends a new message to the conversation without replying to any message. `media_path` takes one local file per call; with `content` in the same call, the text goes first. Each line is the arguments of one call:
+Send with the `send_message` tool. `message_id` replies to that message; `session_key` sends a new message to the conversation without replying to any message. `media_path` takes one local file per call; with `content` in the same call, the text goes first. `options` shows one-click answers as buttons; a click comes back as the user's reply. Each line is the arguments of one call:
 
 ```json
 { "message_id": "<id>", "content": "Task has been dispatched to Maomao, please wait." }
+{ "message_id": "<id>", "content": "Both Maomao and Lulu can handle this. Which one?", "options": ["Maomao", "Lulu"] }
 { "message_id": "<id>", "content": "System status screenshot attached.", "media_path": "/tmp/overview.png" }
 { "message_id": "<id>", "content": "Here is the exported task list.", "media_path": "/tmp/tasks.xlsx" }
 ```

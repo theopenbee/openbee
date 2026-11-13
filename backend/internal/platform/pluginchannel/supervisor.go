@@ -62,6 +62,7 @@ type Supervisor struct {
 
 	mu   sync.Mutex
 	conn *Conn
+	caps Capabilities
 	done chan struct{}
 }
 
@@ -97,9 +98,16 @@ func (s *Supervisor) Call(ctx context.Context, method string, params, result any
 	return err
 }
 
-func (s *Supervisor) setConn(c *Conn) {
+func (s *Supervisor) Capabilities() Capabilities {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.caps
+}
+
+func (s *Supervisor) setConn(c *Conn, caps Capabilities) {
 	s.mu.Lock()
 	s.conn = c
+	s.caps = caps
 	s.mu.Unlock()
 }
 
@@ -227,15 +235,15 @@ func (s *Supervisor) runOnce(ctx context.Context) error {
 		return &permanentError{fmt.Errorf("plugin speaks protocol_version %d, openbee supports %d", res.ProtocolVersion, ProtocolVersion)}
 	}
 
-	s.setConn(c.conn)
-	s.log.Info("plugin channel started")
+	s.setConn(c.conn, res.Capabilities)
+	s.log.Info("plugin channel started", zap.Bool("buttons", res.Capabilities.Buttons))
 	s.report(StateRunning, nil)
 	select {
 	case err := <-c.waitDone:
-		s.setConn(nil)
+		s.setConn(nil, Capabilities{})
 		return fmt.Errorf("plugin exited: %v", err)
 	case <-ctx.Done():
-		s.setConn(nil)
+		s.setConn(nil, Capabilities{})
 		s.stop(c)
 		return ctx.Err()
 	}

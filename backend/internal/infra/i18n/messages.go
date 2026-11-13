@@ -47,6 +47,8 @@ type ClearCommandMessages struct {
 	WorkerClearedWithTasks string `yaml:"worker_cleared_with_tasks"` // contains %s, %s, %d (name, engine, cancelled count)
 	WorkerConfirmHeader    string `yaml:"worker_confirm_header"`     // contains %s, %s (name, engine)
 	WorkerConfirmFooter    string `yaml:"worker_confirm_footer"`     // contains %s (name)
+	ConfirmButton          string `yaml:"confirm_button"`
+	CancelButton           string `yaml:"cancel_button"`
 }
 
 // StopCommandMessages holds text sent to IM users by the /stop command handler.

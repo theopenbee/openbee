@@ -243,6 +243,10 @@ func (h *EngineCommandHandler) reply(ctx context.Context, replyTo platform.Inbou
 }
 
 func sendReply(ctx context.Context, senders platform.Senders, replyTo platform.InboundMessage, text string) {
+	sendReplyWithButtons(ctx, senders, replyTo, text, nil)
+}
+
+func sendReplyWithButtons(ctx context.Context, senders platform.Senders, replyTo platform.InboundMessage, text string, buttons []platform.Button) {
 	sender, ok := senders.Get(replyTo.Platform)
 	if !ok {
 		return
@@ -251,6 +255,7 @@ func sendReply(ctx context.Context, senders platform.Senders, replyTo platform.I
 		Content:    text,
 		ReplyTo:    replyTo,
 		SourceType: store.SourceTypeSystem,
+		Buttons:    buttons,
 	}); err != nil {
 		log.Warn("command reply failed", zap.String("platform", replyTo.Platform), zap.Error(err))
 	}

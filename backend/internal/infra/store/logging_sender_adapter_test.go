@@ -63,6 +63,25 @@ func TestLoggingPlatformSenderAdapter_SendsTextWithMedia(t *testing.T) {
 	assert.False(t, platform.SendsTextWithMedia(plain))
 }
 
+type buttonRecordingSender struct {
+	recordingSender
+}
+
+func (s *buttonRecordingSender) SendsButtons() bool { return true }
+
+func TestLoggingPlatformSenderAdapter_SendsButtons(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+
+	buttons := store.NewLoggingPlatformSenderAdapter(&buttonRecordingSender{}, outboundStore, "alpha")
+	plain := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "beta")
+
+	assert.True(t, platform.SendsButtons(buttons))
+	assert.False(t, platform.SendsButtons(plain))
+}
+
 func TestLoggingPlatformSenderAdapter_RecordsKindAndPayload(t *testing.T) {
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)

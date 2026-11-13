@@ -25,7 +25,9 @@ const mcpInstructions = "openbee coordinates the user's AI workers. Reach the us
 
 const sendMessageDescription = `Send a message to the user on their chat platform. This is the only way to reach the user: your text output is never shown to them.
 
-Pass message_id to reply to that message (from message_meta or task_meta), or session_key to post a new message to the conversation (scheduled and countdown tasks). content is the text. media_path is one local file to upload, such as an image or a document; send several files with several calls. With both, the text goes first.`
+Pass message_id to reply to that message (from message_meta or task_meta), or session_key to post a new message to the conversation (scheduled and countdown tasks). content is the text. media_path is one local file to upload, such as an image or a document; send several files with several calls. With both, the text goes first.
+
+When you ask the user to pick one of a few answers, put them in options: they show as buttons under the text, and a click comes back as the user's reply with that option. Write the question in content as usual; chats without buttons list the options under it.`
 
 const executeDescription = `Run JavaScript against the openbee API and get the result back.
 
@@ -48,7 +50,8 @@ var sendMessageSchema = json.RawMessage(`{
     "message_id": { "type": "string", "description": "Reply to this message" },
     "session_key": { "type": "string", "description": "Post a new message to this conversation instead of replying" },
     "content": { "type": "string", "description": "Message text" },
-    "media_path": { "type": "string", "description": "Absolute path of one local file to send" }
+    "media_path": { "type": "string", "description": "Absolute path of one local file to send" },
+    "options": { "type": "array", "items": { "type": "string" }, "maxItems": 10, "description": "Answers the user can pick with one click, shown as buttons under content. Each one line, at most 100 characters" }
   },
   "additionalProperties": false
 }`)

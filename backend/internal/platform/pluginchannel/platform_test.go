@@ -99,6 +99,51 @@ func TestPlatform_SendMapsOutbound(t *testing.T) {
 	}, got)
 }
 
+func TestPlatform_SendsButtonsWhenDeclared(t *testing.T) {
+	rec := &inboundRecorder{}
+	p := newTestPlatform(t, "buttons")
+	startPlatform(t, p, rec)
+	assert.True(t, platform.SendsButtons(p.Sender()))
+
+	require.NoError(t, p.Sender().Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "good:c3:u3",
+		Content:    "Clear?",
+		Buttons: []platform.Button{
+			{Label: "Clear", Text: "/clear", Style: platform.ButtonStyleDanger},
+			{Label: "Cancel"},
+		},
+	}))
+	var echoes []platform.InboundMessage
+	require.Eventually(t, func() bool {
+		echoes = rec.matching(`"session_key":"good:c3:u3"`)
+		return len(echoes) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+	var got SendParams
+	require.NoError(t, json.Unmarshal([]byte(echoes[0].RawContent), &got))
+	assert.Equal(t, []Button{{Label: "Clear", Text: "/clear", Style: "danger"}, {Label: "Cancel"}}, got.Buttons)
+}
+
+func TestPlatform_DropsButtonsWithoutCapability(t *testing.T) {
+	rec := &inboundRecorder{}
+	p := newTestPlatform(t, "ok")
+	startPlatform(t, p, rec)
+	assert.False(t, platform.SendsButtons(p.Sender()))
+
+	require.NoError(t, p.Sender().Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "good:c4:u4",
+		Content:    "Clear?",
+		Buttons:    []platform.Button{{Label: "Clear", Text: "/clear"}},
+	}))
+	var echoes []platform.InboundMessage
+	require.Eventually(t, func() bool {
+		echoes = rec.matching(`"session_key":"good:c4:u4"`)
+		return len(echoes) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(echoes[0].RawContent), &got))
+	assert.NotContains(t, got, "buttons")
+}
+
 func TestPlatform_ProactiveOmitsEmptyReplyTo(t *testing.T) {
 	rec := &inboundRecorder{}
 	p := newTestPlatform(t, "ok")

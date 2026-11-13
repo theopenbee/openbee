@@ -16,7 +16,12 @@ type InitializeParams struct {
 }
 
 type InitializeResult struct {
-	ProtocolVersion int `json:"protocol_version"`
+	ProtocolVersion int          `json:"protocol_version"`
+	Capabilities    Capabilities `json:"capabilities"`
+}
+
+type Capabilities struct {
+	Buttons bool `json:"buttons,omitempty"`
 }
 
 type SendParams struct {
@@ -27,6 +32,13 @@ type SendParams struct {
 	ReplyTo      *ReplyTo `json:"reply_to,omitempty"`
 	Content      string   `json:"content,omitempty"`
 	Media        *Media   `json:"media,omitempty"`
+	Buttons      []Button `json:"buttons,omitempty"`
+}
+
+type Button struct {
+	Label string `json:"label"`
+	Text  string `json:"text,omitempty"`
+	Style string `json:"style,omitempty"`
 }
 
 type ReplyTo struct {

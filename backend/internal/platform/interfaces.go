@@ -30,6 +30,15 @@ type OutboundMessage struct {
 	Kind         string
 	Payload      string
 	SentAt       int64
+	Buttons      []Button
+}
+
+const ButtonStyleDanger = "danger"
+
+type Button struct {
+	Label string
+	Text  string
+	Style string
 }
 
 // PlatformReceiverAdapter receives inbound messages and dispatches them.
@@ -56,4 +65,13 @@ type CombinedSender interface {
 func SendsTextWithMedia(s PlatformSenderAdapter) bool {
 	c, ok := s.(CombinedSender)
 	return ok && c.SendsTextWithMedia()
+}
+
+type ButtonSender interface {
+	SendsButtons() bool
+}
+
+func SendsButtons(s PlatformSenderAdapter) bool {
+	b, ok := s.(ButtonSender)
+	return ok && b.SendsButtons()
 }

@@ -263,6 +263,10 @@ func TestClearCommand_Confirm(t *testing.T) {
 			// First /clear -> confirmation prompt.
 			fx.handler.HandleCommand(context.Background(), "/clear", makeReplyTo())
 			require.Len(t, fx.sender.sent, 1, "expected 1 reply after first /clear")
+			assert.Equal(t, []platform.Button{
+				{Label: "确认清空", Text: "/clear", Style: platform.ButtonStyleDanger},
+				{Label: "取消"},
+			}, fx.sender.buttons[0])
 
 			current = current.Add(tc.advance)
 
@@ -274,6 +278,7 @@ func TestClearCommand_Confirm(t *testing.T) {
 				assert.Equal(t, []string{"exec-1234abcd"}, fx.stopper.stopped)
 				assert.Len(t, fx.disp.cleared, 1)
 				assert.Contains(t, fx.sender.sent[1], "✅ 已清除：")
+				assert.Empty(t, fx.sender.buttons[1])
 			} else {
 				assert.Empty(t, fx.stopper.stopped)
 				assert.Empty(t, fx.disp.cleared)
@@ -359,6 +364,10 @@ func TestClearCommand_Worker_WithRunningTasks_RequiresConfirm(t *testing.T) {
 	} {
 		assert.Contains(t, first, want)
 	}
+	assert.Equal(t, []platform.Button{
+		{Label: "确认清空", Text: "/clear 徐晃", Style: platform.ButtonStyleDanger},
+		{Label: "取消"},
+	}, fx.sender.buttons[0])
 	assert.Empty(t, fx.stopper.stopped, "expected no executions stopped on first /clear")
 	assert.Empty(t, fx.disp.clearedWorkers, "expected ClearWorker not yet called")
 
@@ -508,6 +517,7 @@ func TestClearCommand_WorkerChatConfirmsBeforeStoppingARun(t *testing.T) {
 
 	require.Len(t, fx.sender.sent, 1)
 	assert.Contains(t, fx.sender.sent[0], "alice")
+	assert.Equal(t, "/clear", fx.sender.buttons[0][0].Text)
 	assert.Empty(t, fx.sessions.deletedSessions)
 	assert.Empty(t, fx.stopper.stopped)
 

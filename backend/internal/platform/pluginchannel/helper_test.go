@@ -86,6 +86,9 @@ func fakePluginMain() {
 			case "bad_protocol":
 				reply(msg.ID, map[string]any{"protocol_version": 2})
 				continue
+			case "buttons":
+				reply(msg.ID, map[string]any{"protocol_version": 1, "capabilities": map[string]any{"buttons": true}})
+				continue
 			}
 			reply(msg.ID, map[string]any{"protocol_version": 1})
 			notify("log", map[string]any{"level": "info", "message": "fake plugin ready"})

@@ -105,7 +105,7 @@ func (h *ClearCommandHandler) handleClearAll(ctx context.Context, replyTo platfo
 	}
 	if !confirmed && len(preview.ActiveTasks) > 0 {
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks))
+		h.replyWithButtons(ctx, replyTo, h.formatConfirmPrompt(ctx, preview.Agents, preview.ActiveTasks), confirmButtons(CmdClear))
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *ClearCommandHandler) handleClearWorker(ctx context.Context, replyTo pla
 	if !ok {
 		return
 	}
-	h.clearWorker(ctx, replyTo, w)
+	h.clearWorker(ctx, replyTo, w, CmdClear+" "+w.Name)
 }
 
 func (h *ClearCommandHandler) handleClearChatWorker(ctx context.Context, replyTo platform.InboundMessage, workerID string) {
@@ -148,10 +148,10 @@ func (h *ClearCommandHandler) handleClearChatWorker(ctx context.Context, replyTo
 	if !ok {
 		return
 	}
-	h.clearWorker(ctx, replyTo, w)
+	h.clearWorker(ctx, replyTo, w, CmdClear)
 }
 
-func (h *ClearCommandHandler) clearWorker(ctx context.Context, replyTo platform.InboundMessage, w model.Worker) {
+func (h *ClearCommandHandler) clearWorker(ctx context.Context, replyTo platform.InboundMessage, w model.Worker, confirmCmd string) {
 	m := i18n.M.Runtime.ClearCommand
 	sessionKey := replyTo.SessionKey
 
@@ -166,7 +166,7 @@ func (h *ClearCommandHandler) clearWorker(ctx context.Context, replyTo platform.
 	}
 	if !confirmed && len(preview.ActiveTasks) > 0 {
 		h.storePending(pendingKey)
-		h.reply(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks))
+		h.replyWithButtons(ctx, replyTo, h.formatWorkerConfirmPrompt(ctx, w, preview.Engine, preview.ActiveTasks), confirmButtons(confirmCmd))
 		return
 	}
 
@@ -256,6 +256,18 @@ func (h *ClearCommandHandler) storePending(key string) {
 
 func (h *ClearCommandHandler) reply(ctx context.Context, replyTo platform.InboundMessage, text string) {
 	sendReply(ctx, h.senders, replyTo, text)
+}
+
+func (h *ClearCommandHandler) replyWithButtons(ctx context.Context, replyTo platform.InboundMessage, text string, buttons []platform.Button) {
+	sendReplyWithButtons(ctx, h.senders, replyTo, text, buttons)
+}
+
+func confirmButtons(cmd string) []platform.Button {
+	m := i18n.M.Runtime.ClearCommand
+	return []platform.Button{
+		{Label: m.ConfirmButton, Text: cmd, Style: platform.ButtonStyleDanger},
+		{Label: m.CancelButton},
+	}
 }
 
 func formatAgentList(agents []store.SessionAgent) string {

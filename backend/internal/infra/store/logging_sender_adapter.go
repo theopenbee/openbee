@@ -91,3 +91,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 func (a *LoggingPlatformSenderAdapter) SendsTextWithMedia() bool {
 	return platform.SendsTextWithMedia(a.inner)
 }
+
+func (a *LoggingPlatformSenderAdapter) SendsButtons() bool {
+	return platform.SendsButtons(a.inner)
+}

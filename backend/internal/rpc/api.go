@@ -24,8 +24,8 @@ type Constraint = { key: string; value: string; updated_at: number };
 type ActiveTasksConfirmation = { requires_confirmation: true; reason: "active_tasks"; running_tasks: { task_id: string; instruction: string; status: string }[]; message: string };`
 
 var apiMethods = []apiMethod{
-	{utils.SendMessage, `/** Send text and/or one file to the user. Pass message_id to reply to that message, or session_key to post a new message to the conversation. */
-send_message(args: { message_id?: string; session_key?: string; content?: string; media_path?: string }): Promise<{ status: "sent" }>;`},
+	{utils.SendMessage, `/** Send text and/or one file to the user. Pass message_id to reply to that message, or session_key to post a new message to the conversation. options are one-click answers shown as buttons under content; a click comes back as the user's reply. */
+send_message(args: { message_id?: string; session_key?: string; content?: string; media_path?: string; options?: string[] }): Promise<{ status: "sent" }>;`},
 	{utils.ListWorkers, `/** List workers. name matches part of the name, case-insensitive; id matches exactly. page_size defaults to 50, max 200. */
 list_workers(args?: { name?: string; id?: string; page?: number; page_size?: number }): Promise<Page<WorkerBrief>>;`},
 	{utils.GetWorker, `get_worker(args: { worker_id: string }): Promise<Worker>;`},

@@ -538,10 +538,11 @@ func (s *Server) toolCancelTask(ctx context.Context, args json.RawMessage) (any,
 
 func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any, error) {
 	var params struct {
-		MessageID  string `json:"message_id"`
-		SessionKey string `json:"session_key"`
-		Content    string `json:"content"`
-		MediaPath  string `json:"media_path"`
+		MessageID  string   `json:"message_id"`
+		SessionKey string   `json:"session_key"`
+		Content    string   `json:"content"`
+		MediaPath  string   `json:"media_path"`
+		Options    []string `json:"options"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -554,6 +555,9 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	}
 	if params.Content == "" && params.MediaPath == "" {
 		return nil, fmt.Errorf("at least one of 'content' or 'media_path' must be provided")
+	}
+	if err := validateOptions(params.Options, params.Content); err != nil {
+		return nil, err
 	}
 
 	sourceType := store.SourceTypeBee
@@ -574,10 +578,20 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 		params.Content = s.workerDisplayName(sourceID) + "\n" + params.Content
 	}
 
+	var buttons []platform.Button
+	if len(params.Options) > 0 {
+		if platform.SendsButtons(sender) {
+			buttons = s.optionButtons(sourceID, params.Options)
+		} else {
+			params.Content = appendOptionList(params.Content, params.Options)
+		}
+	}
+
 	if platform.SendsTextWithMedia(sender) && params.Content != "" && params.MediaPath != "" {
 		outbound := base
 		outbound.Content = params.Content
 		outbound.MediaPath = params.MediaPath
+		outbound.Buttons = buttons
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send message: %w", err)
 		}
@@ -587,6 +601,7 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	if params.Content != "" {
 		outbound := base
 		outbound.Content = params.Content
+		outbound.Buttons = buttons
 		if err := sender.Send(ctx, outbound); err != nil {
 			return nil, fmt.Errorf("send text message: %w", err)
 		}

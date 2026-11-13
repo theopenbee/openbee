@@ -123,6 +123,8 @@ type sender struct{ p *Platform }
 
 func (s sender) SendsTextWithMedia() bool { return true }
 
+func (s sender) SendsButtons() bool { return s.p.sup.Capabilities().Buttons }
+
 func (s sender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	key := msg.ReplyTo.SessionKey
 	if key == "" {
@@ -146,6 +148,11 @@ func (s sender) Send(ctx context.Context, msg platform.OutboundMessage) error {
 	if msg.MediaPath != "" {
 		params.Media = &Media{Path: msg.MediaPath, Name: filepath.Base(msg.MediaPath)}
 	}
+	if msg.Content != "" && s.SendsButtons() {
+		for _, b := range msg.Buttons {
+			params.Buttons = append(params.Buttons, Button{Label: b.Label, Text: b.Text, Style: b.Style})
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
 	defer cancel()
 	var res SendResult
@@ -157,4 +164,5 @@ var (
 	_ platform.PlatformReceiverAdapter = receiver{}
 	_ platform.PlatformSenderAdapter   = sender{}
 	_ platform.CombinedSender          = sender{}
+	_ platform.ButtonSender            = sender{}
 )

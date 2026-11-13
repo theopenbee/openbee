@@ -128,6 +128,16 @@ UTF-8 JSON-RPC 2.0, one message per line (`\n`-terminated). Lines longer than 8 
 
 Reply `{"protocol_version": 1}` once the plugin is connected to its platform. After replying the plugin may send `inbound` notifications.
 
+The reply may also declare optional features:
+
+```json
+{ "protocol_version": 1, "capabilities": { "buttons": true } }
+```
+
+| Capability | Meaning |
+|---|---|
+| `buttons` | The plugin can show `send.buttons`. Without it openbee sends no buttons, and the text alone tells the user what to reply. |
+
 Errors:
 
 | Code | Meaning | openbee reaction |
@@ -145,7 +155,11 @@ Errors:
   "proactive": false,
   "reply_to": { "message_id": "m1", "raw": "<raw from the inbound message>" },
   "content": "text",
-  "media": { "path": "/abs/path/report.pdf", "name": "report.pdf" }
+  "media": { "path": "/abs/path/report.pdf", "name": "report.pdf" },
+  "buttons": [
+    { "label": "Clear", "text": "/clear", "style": "danger" },
+    { "label": "Cancel" }
+  ]
 }
 ```
 
@@ -154,6 +168,7 @@ Errors:
 - `reply_to` is omitted when there is nothing to reply to. `reply_to.message_id` is the plugin's own `message_id` (without the channel prefix); `reply_to.raw` is the plugin's own `raw`, returned unchanged. If the channel id used to belong to a built-in channel, messages stored before the switch carry that channel's raw payload instead, without `message_id`.
 - `proactive: true` means openbee is starting the conversation (scheduled task results, notifications). The plugin should post to `chat_id` without quoting a message.
 - Reply `{}` or `{"platform_message_id": "..."}`. Error messages are passed to the caller (for example a worker calling the `send_message` MCP tool).
+- `buttons` is only sent to plugins that declared the `buttons` capability, and only together with `content`. Show them under the text. `style` is omitted or `danger` (a destructive action). See [Buttons](#buttons) for what a click does.
 - The deadline follows the caller and is capped at 120s; for replies sent through the `send_message` MCP tool it is 50s. When the caller gives up, openbee sends `$/cancelRequest`.
 
 #### `$/cancelRequest` (notification)
@@ -207,6 +222,22 @@ Tells openbee that a chat got a new id (for example a Telegram group upgraded to
 #### `log` (notification)
 
 `{"level": "debug" | "info" | "warn" | "error", "message": "...", "fields": {...}}` is written to the openbee log with component `plugin:<id>`.
+
+## Buttons
+
+A click answers for the clicking user, so the plugin turns it into an `inbound` notification:
+
+| Field | Value |
+|---|---|
+| `text` | The button's `text`. A button without `text` only closes the buttons and sends nothing. |
+| `sender_id` | The user who clicked. |
+| `chat_id`, `session_scope` | Those of the `send` that carried the buttons, so the click lands in the same session. |
+| `message_id` | The id of the message that carried the buttons. openbee deduplicates on it, so only the first click on a message counts. |
+| `raw` | Whatever lets the plugin reply to the message that carried the buttons. |
+
+Only the session's owner should be able to click: in a group, refuse clicks whose user does not match `session_scope` when the scope is a user id. After a click, replace the buttons with the chosen label so nobody clicks again.
+
+openbee uses buttons for `/clear` confirmations and for `send_message` calls with `options`. A worker's options carry `@<worker name> <option>` as `text`, so the answer goes straight back to that worker.
 
 ## Error codes
 

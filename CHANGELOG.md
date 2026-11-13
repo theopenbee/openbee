@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Confirm or cancel `/clear` with buttons in chat.
+- Workers and Bee can offer one-click answer buttons.
+
 ## [1.0.6] - 2026-11-10
 
 ### Added

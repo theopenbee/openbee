@@ -34,6 +34,8 @@ runtime:
     worker_cleared_with_tasks: "✅ Cleared %s (engine: %s). Cancelled %d task(s)."
     worker_confirm_header: "⚠️ Will clear session context for %s (engine: %s)."
     worker_confirm_footer: "Send /clear %s again within 30s to confirm."
+    confirm_button: "Clear"
+    cancel_button: "Cancel"
   stop_command:
     usage: "Usage:\n/stop — stop the running bee for this session and cancel pending messages\n/stop {workerName} — stop a specific worker's running tasks (keeps context)"
     stopped: "✅ Stopped bee execution"
