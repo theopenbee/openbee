@@ -2,12 +2,10 @@ package command
 
 import (
 	"fmt"
-	"strings"
 
 	"go.uber.org/zap"
 
 	"github.com/theopenbee/openbee/internal/infra/model"
-	"github.com/theopenbee/openbee/internal/infra/utils"
 )
 
 type WorkerByIDsLookup interface {
@@ -18,7 +16,7 @@ func formatTaskLine(format string, t model.Task, workerNames, execIDs map[string
 	runtimeSec := (nowMs - t.CreatedAt) / 1000
 	return fmt.Sprintf(format,
 		workerNameOrFallback(workerNames, t.WorkerID),
-		utils.TruncateRunes(strings.Join(strings.Fields(t.Instruction), " "), maxInstructionRunes),
+		instructionSummary(t),
 		formatRelative(runtimeSec),
 		shortExecID(execIDs[t.ID]),
 	)

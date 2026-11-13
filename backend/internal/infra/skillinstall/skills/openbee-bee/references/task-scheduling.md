@@ -27,3 +27,9 @@ When a user message contains scheduled or countdown intent, you must separate th
 ## Result Delivery for Scheduled/Delayed Tasks
 
 Scheduled and countdown tasks are not bound to the message that created them. `message_id` on `openbee.create_task` only records where the task came from and which conversation (`session_key`) it belongs to. Each run delivers its results as a new message to that conversation (the worker receives `session_key` in its task metadata and passes it to `send_message`), so results arrive even long after the original message.
+
+## Confirmation for Scheduled/Delayed Tasks
+
+When `openbee.create_task` returns `confirmation: "sent"`, openbee has already shown the user the worker, the run time and a cancel button. Do not send your own confirmation of that task. Without it (web and desktop chats, or a failed send), confirm as usual.
+
+The user can list and cancel this conversation's scheduled and countdown tasks with `/cancel`, without going through you.

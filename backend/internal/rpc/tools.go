@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -422,7 +423,29 @@ func (s *Server) toolCreateTask(ctx context.Context, args json.RawMessage) (any,
 	if err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
 	}
-	return map[string]string{"task_id": id, "status": "pending"}, nil
+	result := map[string]string{"task_id": id, "status": "pending"}
+	if task.Type != model.TaskTypeImmediate {
+		task.ID = id
+		if s.sendTimedTaskNotice(ctx, params.MessageID, task) {
+			result["confirmation"] = "sent"
+		}
+	}
+	return result, nil
+}
+
+func (s *Server) sendTimedTaskNotice(ctx context.Context, messageID string, t model.Task) bool {
+	sender, out, err := s.delivery.Resolve(ctx, delivery.Target{MessageID: messageID})
+	if err != nil {
+		log.Warn("timed task notice: resolve target", zap.String("taskID", t.ID), zap.Error(err))
+		return false
+	}
+	out.SourceType = store.SourceTypeSystem
+	out.Content, out.Buttons = command.TimedTaskNotice(t, s.workerDisplayName(t.WorkerID))
+	if err := sender.Send(ctx, out); err != nil {
+		log.Warn("timed task notice: send", zap.String("taskID", t.ID), zap.Error(err))
+		return false
+	}
+	return true
 }
 
 type taskWithExecutions struct {

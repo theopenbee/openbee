@@ -237,7 +237,7 @@ A click answers for the clicking user, so the plugin turns it into an `inbound` 
 
 Only the session's owner should be able to click: in a group, refuse clicks whose user does not match `session_scope` when the scope is a user id. After a click, replace the buttons with the chosen label so nobody clicks again.
 
-openbee uses buttons for `/clear` confirmations and for `send_message` calls with `options`. A worker's options carry `@<worker name> <option>` as `text`, so the answer goes straight back to that worker.
+openbee uses buttons for `/clear` confirmations, `/status`, `/engine`, `/cancel`, confirmations of scheduled and countdown tasks, and `send_message` calls with `options`. A worker's options carry `@<worker name> <option>` as `text`, so the answer goes straight back to that worker.
 
 ## Error codes
 

@@ -211,7 +211,8 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 		RunningExecs: s.execStore,
 	})
 	listCmdHandler := command.NewListCommandHandler(s.workerStore, sendersByPlatform)
-	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler)
+	cancelCmdHandler := command.NewCancelCommandHandler(s.taskStore, clearSvc, s.workerStore, sendersByPlatform)
+	cmdChain := msgingest.ChainHandlers(engineCmdHandler, clearCmdHandler, stopCmdHandler, statusCmdHandler, listCmdHandler, cancelCmdHandler)
 	ingest := msgingest.New(s.msgStore, cfg.Bee.MessageDebounce, cmdChain)
 	localIngest := msgingest.New(s.msgStore, 100*time.Millisecond, cmdChain, msgingest.WithCommandHistory())
 

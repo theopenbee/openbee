@@ -15,6 +15,7 @@ type RuntimeMessages struct {
 	StopCommand     StopCommandMessages     `yaml:"stop_command"`
 	StatusCommand   StatusCommandMessages   `yaml:"status_command"`
 	ListCommand     ListCommandMessages     `yaml:"list_command"`
+	CancelCommand   CancelCommandMessages   `yaml:"cancel_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -93,6 +94,24 @@ type ListCommandMessages struct {
 	StatusIdle    string `yaml:"status_idle"`
 	StatusWorking string `yaml:"status_working"`
 	StatusError   string `yaml:"status_error"`
+}
+
+type CancelCommandMessages struct {
+	Usage            string `yaml:"usage"`
+	LookupFailed     string `yaml:"lookup_failed"`
+	Empty            string `yaml:"empty"`
+	Header           string `yaml:"header"` // contains %d (task count)
+	Line             string `yaml:"line"`   // contains %d, %s, %s, %s, %s (number, worker, instruction, when, task id)
+	Footer           string `yaml:"footer"`
+	Button           string `yaml:"button"`         // contains %d (number)
+	ScheduledWhen    string `yaml:"scheduled_when"` // contains %s, %s (cron, next run)
+	NotFound         string `yaml:"not_found"`      // contains %s (task id)
+	CancelFailed     string `yaml:"cancel_failed"`
+	Cancelled        string `yaml:"cancelled"`         // contains %s, %s (worker, instruction)
+	CountdownCreated string `yaml:"countdown_created"` // contains %s, %s, %s (worker, instruction, run time)
+	ScheduledCreated string `yaml:"scheduled_created"` // contains %s, %s, %s, %s (worker, instruction, cron, next run)
+	CreatedFooter    string `yaml:"created_footer"`    // contains %s (task id)
+	CancelButton     string `yaml:"cancel_button"`
 }
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.

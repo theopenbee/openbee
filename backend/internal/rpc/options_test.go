@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,4 +141,64 @@ func TestSendMessageOptions_Validation(t *testing.T) {
 			assert.Empty(t, spy.sent)
 		})
 	}
+}
+
+func TestCreateTimedTaskSendsConfirmationWithCancelButton(t *testing.T) {
+	future := time.Now().Add(time.Hour).UnixMilli()
+	cases := []struct {
+		name    string
+		args    map[string]any
+		wantSub string
+	}{
+		{"countdown", map[string]any{"type": "countdown", "scheduled_at": future}, "⏰"},
+		{"scheduled", map[string]any{"type": "scheduled", "cron_expr": "0 9 * * *"}, "0 9 * * *"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spy := &buttonMockSender{mockSender: &mockSender{}}
+			s, db := setupServerWithSender(t, "beta", spy)
+			ctx := context.Background()
+			_, err := store.NewMessageStore(db).Create(ctx, "msg-origin", "beta:chat_1:user_1", "beta", "remind me", `{"r":1}`, "", 0)
+			require.NoError(t, err)
+			w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+			args := map[string]any{"message_id": "msg-origin", "worker_id": w.ID, "instruction": "drink water"}
+			for k, v := range tc.args {
+				args[k] = v
+			}
+			result, err := s.CallTool(ctx, "create_task", mustMarshal(t, args))
+			require.NoError(t, err)
+			res := result.(map[string]string)
+			assert.Equal(t, "sent", res["confirmation"])
+
+			require.Len(t, spy.sent, 1)
+			notice := spy.sent[0]
+			assert.Equal(t, store.SourceTypeSystem, notice.SourceType)
+			assert.Equal(t, `{"r":1}`, notice.ReplyTo.Raw)
+			assert.Contains(t, notice.Content, "W")
+			assert.Contains(t, notice.Content, "drink water")
+			assert.Contains(t, notice.Content, tc.wantSub)
+			short := res["task_id"][:8]
+			assert.Contains(t, notice.Content, "/cancel "+short)
+			require.Len(t, notice.Buttons, 1)
+			assert.Equal(t, "/cancel "+short, notice.Buttons[0].Text)
+			assert.Equal(t, platform.ButtonStyleDanger, notice.Buttons[0].Style)
+		})
+	}
+}
+
+func TestCreateImmediateTaskSendsNoConfirmation(t *testing.T) {
+	spy := &buttonMockSender{mockSender: &mockSender{}}
+	s, db := setupServerWithSender(t, "beta", spy)
+	ctx := context.Background()
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-origin", "beta:chat_1:user_1", "beta", "do it", `{}`, "", 0)
+	require.NoError(t, err)
+	w := mustCreateWorker(t, s, map[string]any{"name": "W"})
+
+	result, err := s.CallTool(ctx, "create_task", mustMarshal(t, map[string]any{
+		"message_id": "msg-origin", "worker_id": w.ID, "instruction": "go", "type": "immediate",
+	}))
+	require.NoError(t, err)
+	assert.NotContains(t, result.(map[string]string), "confirmation")
+	assert.Empty(t, spy.sent)
 }

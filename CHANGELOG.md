@@ -5,6 +5,8 @@
 ### Added
 - Confirm or cancel `/clear` with buttons in chat.
 - Workers and Bee can offer one-click answer buttons.
+- Stop buttons in `/status`, engine buttons in `/engine`.
+- Scheduled task confirmations with a cancel button, plus `/cancel`.
 
 ## [1.0.6] - 2026-11-10
 
