@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.7] - 2026-11-15
 
 ### Added
 - Confirm or cancel `/clear` with buttons in chat.
