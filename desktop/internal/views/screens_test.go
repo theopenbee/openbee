@@ -919,7 +919,7 @@ func openAccountMenu(t *testing.T, h *testkit.Harness) {
 
 func narrowAccountMenu(t *testing.T, h *testkit.Harness) {
 	listOnly(t, h)
-	if !h.T.HasText(locales.AccountRole()) {
+	if !h.T.HasText(locales.AccountChangePassword()) {
 		openAccountMenu(t, h)
 	}
 }
@@ -962,8 +962,8 @@ func passwordChanged(t *testing.T, h *testkit.Harness) {
 }
 
 var accountScreens = []screen{
-	{name: "account-menu", seed: staffed, signedIn: true, prepare: openAccountMenu, narrow: narrowAccountMenu, want: locales.AccountRole},
-	{name: "account-menu-on", seed: staffed, signedIn: true, hint: true, prepare: accountMenuOn, narrow: narrowAccountMenu, want: locales.AccountRole},
+	{name: "account-menu", seed: staffed, signedIn: true, prepare: openAccountMenu, narrow: narrowAccountMenu, want: locales.AccountChangePassword},
+	{name: "account-menu-on", seed: staffed, signedIn: true, hint: true, prepare: accountMenuOn, narrow: narrowAccountMenu, want: locales.AccountChangePassword},
 	{name: "password-dialog", seed: staffed, signedIn: true, prepare: passwordInvalid, want: locales.AccountErrorTooShort},
 	{name: "password-changed", seed: staffed, signedIn: true, prepare: passwordChanged, shots: wideOnly, want: locales.AccountPasswordChangedRelogin},
 }

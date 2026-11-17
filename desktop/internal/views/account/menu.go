@@ -26,22 +26,22 @@ const (
 	triggerSize   = 14
 	triggerArrow  = 16
 	pressedMix    = 0.08
+	roleHeight    = 20
+	rolePadX      = 8
+	roleSize      = 11
+	roleTint      = 0.07
 	mediumWeight  = 500
 
 	menuWidth    = 288
-	menuInset    = 5
-	menuPadX     = 11
+	menuPad      = 3
+	menuInset    = 8
+	menuPadX     = 16
 	menuGap      = 10
 	menuSize     = 13
 	menuGlyph    = 16
-	itemHeight   = 32
 	rowHeight    = 36
-	rowPadEnd    = 4
-	headerPadY   = 8
-	headerFace   = 34
-	roleSize     = 12
+	rowPadEnd    = 6
 	noteSize     = 11
-	separatorGap = 4
 	dangerTint   = 0.08
 	chinese      = "zh"
 	english      = "en"
@@ -94,7 +94,7 @@ func (a *Account) View(c *ui.Context) {
 	tk := theme.Apply(c)
 	name := a.name()
 	trigger := ui.ButtonBase(c).Label(locales.ArcUserMenuTrigger(name)).Role(ui.RoleMenuButton).Expanded(a.open).
-		Height(triggerHeight).MinWidth(0).Gap(triggerGap).Padding(triggerPad, triggerPadEnd, triggerPad, triggerPad).
+		Height(triggerHeight).MinWidth(0).Shrink(1).Gap(triggerGap).Padding(triggerPad, triggerPadEnd, triggerPad, triggerPad).
 		Radius(theme.RadiusPill)
 	bg := tk.SurfaceMuted.Alpha(0)
 	switch {
@@ -119,6 +119,10 @@ func (a *Account) View(c *ui.Context) {
 	trigger.Children(func() {
 		kit.InitialsAvatar(c, tk, name, kit.AvatarSM).Size(triggerFace, triggerFace).TextColor(tk.TextSecondary)
 		ui.Text(c, name).FontSize(triggerSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).MaxWidth(triggerName)
+		ui.Row(c).Height(roleHeight).PaddingX(rolePadX).Shrink(0).AlignItems(ui.Center).Radius(theme.RadiusPill).
+			Background(tk.Foreground.Alpha(roleTint)).Children(func() {
+			ui.Text(c, locales.AccountRole()).FontSize(roleSize).FontWeight(mediumWeight).TextColor(tk.TextSecondary).LineHeight(1).SingleLine()
+		})
 		turn := float32(0)
 		if a.open {
 			turn = 180
@@ -127,7 +131,7 @@ func (a *Account) View(c *ui.Context) {
 			TextColor(trigger.AnimateColor("arrow", arrowColor, fade))
 		arrow.Rotate(arrow.AnimateTo("turn", turn, ui.Snappy))
 	})
-	kit.Popover(c, tk, trigger, &a.open, menuWidth, func() { a.menu(c, tk, name) })
+	kit.Popover(c, tk, trigger, &a.open, menuWidth, func() { a.menu(c, tk) })
 }
 
 func (a *Account) openAt(entry entryPoint) {
@@ -140,10 +144,8 @@ func (a *Account) closeFromTab() {
 	a.refocus = true
 }
 
-func (a *Account) menu(c *ui.Context, tk theme.Tokens, name string) {
-	ui.Column(c).FocusGroup(ui.Vertical).Role(ui.RoleMenu).OnShortcut(0, ui.KeyTab, a.closeFromTab).Children(func() {
-		a.header(c, tk, name)
-		separator(c, tk)
+func (a *Account) menu(c *ui.Context, tk theme.Tokens) {
+	ui.Column(c).Padding(menuPad).FocusGroup(ui.Vertical).Role(ui.RoleMenu).OnShortcut(0, ui.KeyTab, a.closeFromTab).Children(func() {
 		a.item(c, tk, "key-round", locales.AccountChangePassword(), false, entryFirst, func() {
 			a.open = false
 			a.password.show()
@@ -154,11 +156,9 @@ func (a *Account) menu(c *ui.Context, tk theme.Tokens, name string) {
 				a.updates()
 			}
 		})
-		separator(c, tk)
 		a.themeRow(c, tk)
 		a.languageRow(c, tk)
 		a.notificationsRow(c, tk)
-		separator(c, tk)
 		a.item(c, tk, "log-out", locales.ArcUserMenuSignOut(), true, entryLast, func() {
 			a.open = false
 			a.s.Logout()
@@ -166,22 +166,8 @@ func (a *Account) menu(c *ui.Context, tk theme.Tokens, name string) {
 	})
 }
 
-func (a *Account) header(c *ui.Context, tk theme.Tokens, name string) {
-	ui.Row(c).Gap(menuGap).Padding(headerPadY, menuPadX).Children(func() {
-		kit.InitialsAvatar(c, tk, name, kit.AvatarMD).Size(headerFace, headerFace).TextColor(tk.TextSecondary)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			ui.Text(c, name).FontSize(menuSize).FontWeight(mediumWeight).SingleLine().MinWidth(0)
-			ui.Text(c, locales.AccountRole()).FontSize(roleSize).TextColor(tk.TextMuted).SingleLine().MinWidth(0)
-		})
-	})
-}
-
-func separator(c *ui.Context, tk theme.Tokens) {
-	ui.Box(c).Height(1).Margin(separatorGap, -menuInset).Background(tk.BorderSubtle)
-}
-
 func (a *Account) item(c *ui.Context, tk theme.Tokens, icon, text string, danger bool, entry entryPoint, onClick func()) {
-	item := ui.ButtonBase(c).Label(text).Role(ui.RoleMenuItem).MinHeight(itemHeight).PaddingX(menuPadX).Gap(menuGap).
+	item := ui.ButtonBase(c).Label(text).Role(ui.RoleMenuItem).MinHeight(rowHeight).PaddingX(menuPadX).Gap(menuGap).
 		AlignItems(ui.Center).Justify(ui.Start).Radius(theme.Concentric(theme.RadiusPanel, menuInset)).FontSize(menuSize)
 	fg, glyph, tint := tk.Foreground, tk.TextSecondary, tk.SurfaceMuted
 	if danger {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Simpler desktop account menu; role badge beside the name.
+
 ## [1.0.7] - 2026-11-15
 
 ### Added

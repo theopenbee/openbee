@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/store"
+	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/testkit"
@@ -40,7 +42,7 @@ func (f *fixture) click(name string) {
 func (f *fixture) openMenu() {
 	f.t.Helper()
 	f.click(locales.ArcUserMenuTrigger(username))
-	if !f.T.HasText(locales.AccountRole()) {
+	if !f.T.HasText(locales.AccountChangePassword()) {
 		f.t.Fatalf("menu did not open; texts %q", f.T.Texts())
 	}
 }
@@ -103,21 +105,49 @@ func (f *fixture) wantErrorBelow(errText, field, next string) {
 	}
 }
 
-func TestMenuShowsUsername(t *testing.T) {
-	f := signedIn(t)
-	f.wantShown(username)
-	f.openMenu()
-	names := 0
-	for _, text := range f.T.Texts() {
-		if text == username {
-			names++
+func count(texts []string, want string) int {
+	n := 0
+	for _, text := range texts {
+		if text == want {
+			n++
 		}
 	}
-	if names != 2 {
-		t.Fatalf("username shown %d times, want 2 (trigger and header); texts %q", names, f.T.Texts())
+	return n
+}
+
+func TestTriggerShowsUsernameAndRole(t *testing.T) {
+	f := signedIn(t)
+	f.wantShown(username, locales.AccountRole())
+	name, ok0 := f.T.Find(username)
+	role, ok1 := f.T.Find(locales.AccountRole())
+	if !ok0 || !ok1 || role.X <= name.X+name.W {
+		t.Fatalf("role at %+v is not after the username at %+v", role, name)
 	}
-	f.wantShown(locales.AccountRole(), locales.AccountChangePassword(), locales.AboutCheckUpdates(), locales.ArcUserMenuTheme(),
+	f.openMenu()
+	for _, text := range []string{username, locales.AccountRole()} {
+		if got := count(f.T.Texts(), text); got != 1 {
+			t.Fatalf("%q shown %d times with the menu open, want only the trigger; texts %q", text, got, f.T.Texts())
+		}
+	}
+	f.wantShown(locales.AccountChangePassword(), locales.AboutCheckUpdates(), locales.ArcUserMenuTheme(),
 		locales.ArcUserMenuLanguage(), locales.ArcUserMenuNotifications(), locales.ArcUserMenuSignOut())
+}
+
+func TestLongUsernameKeepsFooterInSidebar(t *testing.T) {
+	long := "maximilian.alexander.longname"
+	f := &fixture{Harness: testkit.SignedIn(t, wideW, wideH, func(st *fakeapi.State) { st.Username = long }), t: t}
+	trigger, ok0 := f.T.Find(locales.ArcUserMenuTrigger(long))
+	role, ok1 := f.T.Find(locales.AccountRole())
+	gear, ok2 := f.T.Find(locales.NavSettings())
+	if !ok0 || !ok1 || !ok2 {
+		t.Fatalf("footer missing; texts %q", f.T.Texts())
+	}
+	if role.X+role.W > trigger.X+trigger.W || trigger.X+trigger.W > gear.X {
+		t.Fatalf("trigger %+v, role %+v and settings %+v overlap", trigger, role, gear)
+	}
+	if gear.X+gear.W > theme.SidebarWidth {
+		t.Fatalf("settings ends at %v, past the sidebar width %v", gear.X+gear.W, theme.SidebarWidth)
+	}
 }
 
 func TestMenuChecksForUpdates(t *testing.T) {
@@ -131,7 +161,7 @@ func TestMenuChecksForUpdates(t *testing.T) {
 	if u.Checks != 1 {
 		t.Fatalf("checks = %d, want 1", u.Checks)
 	}
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	f.wantShown(locales.AboutCheckUpdates(), locales.AboutAutoCheck())
 }
 
@@ -233,19 +263,19 @@ func TestKeyboardOpensMenuAndTabCloses(t *testing.T) {
 	f.openMenu()
 	f.T.Key(0, ui.KeyEscape)
 	f.Settle()
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
 		t.Fatalf("trigger lost the focus when Escape closed the menu; texts %q", f.T.Texts())
 	}
 	f.T.Key(0, ui.KeyDown)
 	f.Settle()
-	f.wantShown(locales.AccountRole())
+	f.wantShown(locales.AccountChangePassword())
 	if !f.T.Focused(locales.AccountChangePassword()) {
 		t.Fatalf("ArrowDown did not focus the first item; texts %q", f.T.Texts())
 	}
 	f.T.Key(0, ui.KeyTab)
 	f.Settle()
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
 		t.Fatalf("trigger lost the focus when Tab closed the menu; texts %q", f.T.Texts())
 	}
@@ -261,7 +291,7 @@ func TestTabClosesMenuOpenedByClick(t *testing.T) {
 	f.openMenu()
 	f.T.Key(0, ui.KeyTab)
 	f.Settle()
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
 		t.Fatalf("trigger lost the focus when Tab closed the menu; texts %q", f.T.Texts())
 	}
@@ -272,39 +302,46 @@ func TestTabClosesMenuOpenedByEnter(t *testing.T) {
 	f.openMenu()
 	f.T.Key(0, ui.KeyEscape)
 	f.Settle()
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	f.T.Key(0, ui.KeyEnter)
 	f.Settle()
-	f.wantShown(locales.AccountRole())
+	f.wantShown(locales.AccountChangePassword())
 	f.T.Key(0, ui.KeyTab)
 	f.Settle()
-	f.wantHidden(locales.AccountRole())
+	f.wantHidden(locales.AccountChangePassword())
 	if !f.T.Focused(locales.ArcUserMenuTrigger(username)) {
 		t.Fatalf("trigger lost the focus when Tab closed the menu; texts %q", f.T.Texts())
 	}
 }
 
-func roleY(t *testing.T, f *fixture) float32 {
+func menuTop(t *testing.T, f *fixture) float32 {
 	t.Helper()
-	r, ok := f.T.Find(locales.AccountRole())
+	r, ok := f.T.Find(locales.AccountChangePassword())
 	if !ok {
-		t.Fatalf("role not found; texts %q", f.T.Texts())
+		t.Fatalf("first item not found; texts %q", f.T.Texts())
 	}
 	return r.Y
 }
 
-func TestSettingRowsAreTheSameHeight(t *testing.T) {
+func TestMenuRowsAreEvenlySpaced(t *testing.T) {
 	f := signedIn(t)
 	f.openMenu()
 	item, ok0 := f.T.Find(locales.AccountChangePassword())
-	theme, ok1 := f.T.Find(locales.ArcUserMenuTheme())
-	language, ok2 := f.T.Find(locales.ArcUserMenuLanguage())
-	notifications, ok3 := f.T.Find(locales.ArcUserMenuNotifications())
-	if !ok0 || !ok1 || !ok2 || !ok3 {
+	updates, ok1 := f.T.Find(locales.AboutCheckUpdates())
+	themeRow, ok2 := f.T.Find(locales.ArcUserMenuTheme())
+	language, ok3 := f.T.Find(locales.ArcUserMenuLanguage())
+	notifications, ok4 := f.T.Find(locales.ArcUserMenuNotifications())
+	signOut, ok5 := f.T.Find(locales.ArcUserMenuSignOut())
+	if !ok0 || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
 		t.Fatalf("menu rows missing; texts %q", f.T.Texts())
 	}
-	row := item.H * 36 / 32
-	for name, got := range map[string]float32{"language": language.Y - theme.Y, "notifications": notifications.Y - language.Y} {
+	row := item.H
+	for name, got := range map[string]float32{
+		"check for updates": updates.Y - item.Y,
+		"language":          language.Y - themeRow.Y,
+		"notifications":     notifications.Y - language.Y,
+		"sign out":          (signOut.Y - item.Y) / 5,
+	} {
 		if got < row-0.1 || got > row+0.1 {
 			t.Fatalf("%s row is %v below the previous one, want %v", name, got, row)
 		}
@@ -319,7 +356,7 @@ func TestNotificationNoteKeepsMenuHeight(t *testing.T) {
 	noted.Settle()
 	noted.openMenu()
 	noted.wantShown(locales.NotificationsUnavailableDesktop())
-	if got, want := roleY(t, noted), roleY(t, plain); got != want {
+	if got, want := menuTop(t, noted), menuTop(t, plain); got != want {
 		t.Fatalf("menu top with the note = %v, want %v without it", got, want)
 	}
 }
