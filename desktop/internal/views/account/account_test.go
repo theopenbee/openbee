@@ -484,3 +484,16 @@ func TestSignOutClosesPasswordDialog(t *testing.T) {
 	f.wantHidden(locales.AccountChangePasswordDescription())
 	f.wantShown(locales.LoginTitle())
 }
+
+func TestMenuSitsEvenlyInTheSidebar(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	item, ok := f.T.Find(locales.AccountChangePassword())
+	if !ok {
+		t.Fatalf("first item not found; texts %q", f.T.Texts())
+	}
+	left, right := item.X, theme.SidebarWidth-theme.SidebarBorder-(item.X+item.W)
+	if left-right > 0.5 || right-left > 0.5 {
+		t.Fatalf("menu items are %vpx from the sidebar's left edge and %vpx from its right edge, want them even", left, right)
+	}
+}

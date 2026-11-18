@@ -6,6 +6,9 @@
 - Removed redundant hints from settings pages.
 - Compact plugin marketplace cards.
 
+### Fixed
+- Even side margins for the desktop account menu.
+
 ## [1.0.8] - 2026-11-18
 
 ### Added

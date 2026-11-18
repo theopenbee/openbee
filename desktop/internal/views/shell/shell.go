@@ -72,7 +72,7 @@ func (sh *Shell) View(c *ui.Context, conversationParam string) {
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(tk.Background).Children(func() {
 		side := ui.Column(c).MinWidth(0).Hidden(!twoPane && cid != "")
 		if twoPane {
-			side.Width(theme.SidebarWidth).Shrink(0).BorderWidth(0, 1, 0, 0).BorderColor(tk.Border)
+			side.Width(theme.SidebarWidth).Shrink(0).BorderWidth(0, theme.SidebarBorder, 0, 0).BorderColor(tk.Border)
 		} else {
 			side.Grow(1)
 		}

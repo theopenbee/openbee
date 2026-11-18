@@ -24,7 +24,7 @@ const (
 	notePadX      = 12
 	notePadY      = 16
 	bodySize      = 14
-	footerPad     = 12
+	footerPad     = theme.SidebarPad
 	footerGap     = 8
 	nameBarWidth  = 96
 	nameBarHeight = 14

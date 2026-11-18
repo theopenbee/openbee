@@ -32,7 +32,7 @@ const (
 	roleTint      = 0.07
 	mediumWeight  = 500
 
-	menuWidth    = 288
+	menuWidth    = theme.SidebarWidth - theme.SidebarBorder - 2*theme.SidebarPad
 	menuPad      = 3
 	menuInset    = 8
 	menuPadX     = 16

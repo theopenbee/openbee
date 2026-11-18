@@ -13,6 +13,8 @@ const (
 
 	HeaderHeight   = 64
 	SidebarWidth   = 304
+	SidebarBorder  = 1
+	SidebarPad     = 12
 	PanelWidth     = 400
 	DrawerMaxWidth = 448
 	ChatColumnMax  = 768
