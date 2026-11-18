@@ -24,6 +24,7 @@ const (
 	backInset      = 20
 	narrowW        = 700
 	detailGap      = 16
+	compactGap     = 16
 )
 
 func text(en, zh string) api.LocalizedText {
@@ -399,5 +400,26 @@ func TestPluginRowMenuMovesWithArrows(t *testing.T) {
 	f.settle()
 	if !f.T.Focused(locales.PluginsActionRestart()) {
 		t.Fatal("the down arrow did not wrap to the first menu item")
+	}
+}
+
+func TestMarketCardsAreCompact(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withPlugins)
+	name, install, desc := f.rect("Linear"), f.rect(locales.PluginsActionInstall()), f.rect("Turn Linear issues into worker tasks.")
+	if install.Y > name.Y+name.H || install.Y+install.H < name.Y || install.Y+install.H > desc.Y {
+		t.Fatalf("install %+v is not beside the name %+v and above the description %+v", install, name, desc)
+	}
+	telegramDesc, note := f.rect("Chat with your workers from Telegram."), f.rect(locales.PluginsUpdateAvailable("1.2.0"))
+	if gap := note.Y - (telegramDesc.Y + telegramDesc.H); gap < 0 || gap > compactGap {
+		t.Fatalf("installed note sits %vpx under the description, want at most %v", gap, compactGap)
+	}
+	if telegram, discord := f.rect("Telegram"), f.rect("Discord"); telegram.Y != discord.Y || telegram.X >= discord.X {
+		t.Fatalf("wide market is not two columns: telegram %+v, discord %+v", telegram, discord)
+	}
+
+	f.T.SetSize(narrowW, wideH)
+	f.settle()
+	if telegram, discord := f.rect("Telegram"), f.rect("Discord"); telegram.X != discord.X || telegram.Y >= discord.Y {
+		t.Fatalf("narrow market is not one column: telegram %+v, discord %+v", telegram, discord)
 	}
 }

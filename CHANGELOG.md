@@ -3,7 +3,8 @@
 ## [Unreleased]
 
 ### Changed
-- Removed redundant hints from the environment variables page.
+- Removed redundant hints from settings pages.
+- Compact plugin marketplace cards.
 
 ## [1.0.8] - 2026-11-18
 

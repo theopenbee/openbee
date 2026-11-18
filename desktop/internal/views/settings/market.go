@@ -20,20 +20,14 @@ const (
 	toolbarGap      = 16
 	searchWidth     = 288
 	gridGap         = 16
-	cardPad         = 24
+	cardPad         = 20
 	cardHeadGap     = 12
 	cardTitleGap    = 8
 	cardNameSize    = 16
 	cardMetaGap     = 2
-	cardDescGap     = 16
+	cardDescGap     = 12
 	cardDescLines   = 2
-	cardDescMin     = 40
-	cardTagsGap     = 12
-	cardFooterGap   = 20
-	cardFooterPad   = 16
-	cardFooterMin   = 36
-	cardFooterGapX  = 12
-	cardFooterGapY  = 8
+	cardFooterGap   = 12
 	installedGlyph  = 14
 	installedGap    = 6
 	skeletonCards   = 6
@@ -135,7 +129,7 @@ func (d *Page) gridColumns() int {
 	switch w := d.contentWidth(); {
 	case w >= container4XL:
 		return 3
-	case w >= containerXL:
+	case w >= container3XL:
 		return 2
 	}
 	return 1
@@ -178,47 +172,45 @@ func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlug
 	lang := i18n.Locale()
 	name := displayName(plugin.Name, plugin.ID)
 	insetCard(c, tk).Key(plugin.ID).Padding(cardPad).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-			ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(cardHeadGap).Children(func() {
-				kit.InitialsAvatar(c, tk, name, kit.AvatarMD)
-				ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-					ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).Gap(cardTitleGap).Children(func() {
-						ui.Text(c, name).FontSize(cardNameSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).
-							Role(ui.RoleHeading).Level(3)
-						if plugin.Official {
-							kit.SmallBadge(c, tk, locales.PluginsOfficial(), kit.ToneNeutral)
-						}
-						if notice := l10n.Localized(plugin.Deprecated, lang); notice != "" {
-							kit.Tooltip(c, tk, kit.SmallBadge(c, tk, locales.PluginsDeprecated(), kit.ToneWarning), notice)
-						}
-					})
-					ui.Text(c, plugin.ID+versionJoin+plugin.Version).Font(theme.FontMono).FontSize(metaSize).
-						TextColor(tk.TextSecondary).SingleLine().MinWidth(0).Margin(cardMetaGap, 0, 0, 0)
-				})
-			})
-			ui.Text(c, l10n.Localized(plugin.Description, lang)).TextColor(tk.TextSecondary).MaxLines(cardDescLines).
-				MinHeight(cardDescMin).Margin(cardDescGap, 0, 0, 0)
-			if len(plugin.Tags) > 0 {
-				names := make([]string, len(plugin.Tags))
-				for i, id := range plugin.Tags {
-					names[i] = id
-					if tagName, ok := tagNames[id]; ok {
-						names[i] = tagName
+		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(cardHeadGap).Children(func() {
+			kit.InitialsAvatar(c, tk, name, kit.AvatarMD)
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).Gap(cardTitleGap).Children(func() {
+					ui.Text(c, name).FontSize(cardNameSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).
+						Role(ui.RoleHeading).Level(3)
+					if plugin.Official {
+						kit.SmallBadge(c, tk, locales.PluginsOfficial(), kit.ToneNeutral)
 					}
-				}
-				ui.Text(c, strings.Join(names, tagJoin)).FontSize(metaSize).TextColor(tk.TextMuted).SingleLine().
-					Margin(cardTagsGap, 0, 0, 0)
-			}
-		})
-		ui.Row(c).MinWidth(0).MinHeight(cardFooterMin).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).
-			GapX(cardFooterGapX).GapY(cardFooterGapY).Margin(cardFooterGap, 0, 0, 0).Padding(cardFooterPad, 0, 0, 0).
-			BorderWidth(cardBorder, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
-			ui.Row(c).MinWidth(0).Children(func() {
-				if plugin.Installed {
-					installedNote(c, tk, plugin)
-				}
+					if notice := l10n.Localized(plugin.Deprecated, lang); notice != "" {
+						kit.Tooltip(c, tk, kit.SmallBadge(c, tk, locales.PluginsDeprecated(), kit.ToneWarning), notice)
+					}
+				})
+				ui.Text(c, plugin.ID+versionJoin+plugin.Version).Font(theme.FontMono).FontSize(metaSize).
+					TextColor(tk.TextSecondary).SingleLine().MinWidth(0).Margin(cardMetaGap, 0, 0, 0)
 			})
-			d.marketAction(c, tk, plugin, op, installing)
+			ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(func() {
+				d.marketAction(c, tk, plugin, op, installing)
+			})
+		})
+		if desc := l10n.Localized(plugin.Description, lang); desc != "" {
+			ui.Text(c, desc).TextColor(tk.TextSecondary).MaxLines(cardDescLines).Margin(cardDescGap, 0, 0, 0)
+		}
+		if len(plugin.Tags) == 0 && !plugin.Installed {
+			return
+		}
+		ui.Box(c).Grow(1)
+		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(cardHeadGap).Margin(cardFooterGap, 0, 0, 0).Children(func() {
+			names := make([]string, len(plugin.Tags))
+			for i, id := range plugin.Tags {
+				names[i] = id
+				if tagName, ok := tagNames[id]; ok {
+					names[i] = tagName
+				}
+			}
+			ui.Text(c, strings.Join(names, tagJoin)).FontSize(metaSize).TextColor(tk.TextMuted).SingleLine().Grow(1).MinWidth(0)
+			if plugin.Installed {
+				installedNote(c, tk, plugin)
+			}
 		})
 	})
 }
@@ -228,7 +220,7 @@ func installedNote(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin) {
 	if plugin.UpdateAvailable {
 		text = locales.PluginsUpdateAvailable(plugin.InstalledVersion)
 	}
-	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(installedGap).Children(func() {
+	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(installedGap).Children(func() {
 		ui.Icon(c, icons.Get("check")).Size(installedGlyph, installedGlyph).Shrink(0).TextColor(tk.Success)
 		ui.Text(c, text).FontSize(metaSize).TextColor(tk.TextSecondary).SingleLine().MinWidth(0)
 	})
