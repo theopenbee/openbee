@@ -15,7 +15,16 @@ export const SHORTCUTS: Record<CommandId, string> = {
   newConversation: "mod+shift+o",
 }
 
-const OVER_DIALOGS: ReadonlySet<CommandId> = new Set(["quickSearch", "showShortcuts"])
+const TOGGLES: ReadonlySet<CommandId> = new Set(["quickSearch", "showShortcuts"])
+const ARROWS: ReadonlySet<CommandId> = new Set(["previousConversation", "nextConversation"])
+
+export type Overlay = "none" | "own" | "other"
+
+export interface KeyContext {
+  overlay: Overlay
+  editing: boolean
+  repeat: boolean
+}
 
 type Handler = () => void
 
@@ -60,13 +69,15 @@ export function commandsVersion(): number {
   return version
 }
 
-export function commandFor(
-  matches: (shortcut: string) => boolean,
-  dialogOpen: boolean,
-): CommandId | null {
+function allowed(id: CommandId, { overlay, editing, repeat }: KeyContext): boolean {
+  if (overlay === "other") return false
+  if (TOGGLES.has(id)) return !repeat
+  return overlay === "none" && !(editing && ARROWS.has(id))
+}
+
+export function commandFor(matches: (shortcut: string) => boolean, context: KeyContext): CommandId | null {
   for (const [id, shortcut] of Object.entries(SHORTCUTS) as [CommandId, string][]) {
-    if (!matches(shortcut)) continue
-    return dialogOpen && !OVER_DIALOGS.has(id) ? null : id
+    if (matches(shortcut)) return allowed(id, context) ? id : null
   }
   return null
 }
@@ -99,11 +110,19 @@ export function subscribeComposerFocus(listener: () => void): () => void {
   }
 }
 
+export const COMPOSER_ATTR = "data-composer"
+
+const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-streamdown="link-safety-modal"]'
+
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT"
 }
 
-export function isDialogOpen(): boolean {
-  return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null
+export function isEditingOutsideComposer(target: EventTarget | null): boolean {
+  return isEditableTarget(target) && !(target as HTMLElement).closest(`[${COMPOSER_ATTR}]`)
+}
+
+export function isOverlayOpen(): boolean {
+  return document.querySelector(OVERLAYS) !== null
 }

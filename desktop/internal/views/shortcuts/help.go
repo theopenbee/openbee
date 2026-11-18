@@ -34,7 +34,7 @@ func groups() []group {
 			{locales.ShortcutsShowShortcuts, ShowShortcuts},
 			{locales.ShortcutsOpenSettings, OpenSettings},
 			{locales.ShortcutsNewWorker, NewWorker},
-			{locales.ShortcutsClose, Close},
+			{locales.ShortcutsCloseDialog, Close},
 		}},
 		{locales.ShortcutsChat, []entry{
 			{locales.ShortcutsPreviousConversation, PreviousConversation},

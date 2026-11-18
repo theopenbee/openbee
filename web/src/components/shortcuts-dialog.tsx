@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { ShortcutList, type ShortcutListGroup } from "@/components/arc/shortcut-recorder/shortcut-recorder"
+import { useReturnFocus } from "@/hooks/use-return-focus"
 import { SHORTCUTS } from "@/lib/shortcuts"
 
 interface ShortcutsDialogProps {
@@ -11,6 +12,7 @@ interface ShortcutsDialogProps {
 export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
   const { t } = useTranslation()
   const title = t("shortcuts.title")
+  const focus = useReturnFocus(open)
   const groups: ShortcutListGroup[] = [
     {
       label: t("shortcuts.general"),
@@ -35,7 +37,7 @@ export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={title} aria-describedby={undefined}>
+      <DialogContent title={title} aria-describedby={undefined} onCloseAutoFocus={focus.onCloseAutoFocus}>
         <ShortcutList groups={groups} label={title} searchable={false} />
       </DialogContent>
     </Dialog>

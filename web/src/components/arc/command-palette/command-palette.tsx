@@ -174,6 +174,7 @@ export function CommandPalette({ items, placeholder: placeholderProp, onSelect, 
     inputRef.current?.focus();
   }
   function handleKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) keyboardMove.current = true;
     if (event.key === "ArrowDown") { event.preventDefault(); setActiveIndex(Math.min(safeActiveIndex + 1, Math.max(filtered.length - 1, 0))); }
     if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex(Math.max(safeActiveIndex - 1, 0)); }

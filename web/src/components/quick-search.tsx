@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from "react"
+import { useMemo, type KeyboardEvent, type ReactNode } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "motion/react"
 import { useTranslation } from "react-i18next"
@@ -19,9 +19,10 @@ import {
 } from "lucide-react"
 import { CommandPalette, type CommandItem } from "@/components/arc/command-palette/command-palette"
 import { motionTokens } from "@/components/arc/lib/motion-tokens"
-import { shortcutTokens, usePlatform } from "@/components/arc/shortcut-recorder/shortcut-recorder"
+import { matchesShortcut, shortcutTokens, usePlatform } from "@/components/arc/shortcut-recorder/shortcut-recorder"
 import { LogoMarkSmall } from "@/components/brand/logo"
 import { useHasCommand } from "@/hooks/use-command"
+import { useReturnFocus } from "@/hooks/use-return-focus"
 import { useConversations } from "@/hooks/use-conversations"
 import { usePlugins } from "@/hooks/use-plugins"
 import { useOpenSettings } from "@/hooks/use-settings"
@@ -86,25 +87,26 @@ interface QuickSearchProps {
 export function QuickSearch({ open, onOpenChange }: QuickSearchProps) {
   const { t } = useTranslation()
   const reduced = useReducedMotion()
-  const keepFocus = useRef(false)
+  const platform = usePlatform()
+  const focus = useReturnFocus(open)
   const fade: Transition = reduced
     ? { duration: motionTokens.duration.instant }
     : { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }
   const leave: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.standard] }
 
   const done = (focusMoved: boolean) => {
-    keepFocus.current = focusMoved
+    if (focusMoved) focus.keepFocus()
     onOpenChange(false)
   }
 
+  const closeOnToggle = (event: KeyboardEvent) => {
+    if (!matchesShortcut(event.nativeEvent, SHORTCUTS.quickSearch, platform)) return
+    event.preventDefault()
+    done(false)
+  }
+
   return (
-    <DialogPrimitive.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (next) keepFocus.current = false
-        onOpenChange(next)
-      }}
-    >
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
         {open && (
           <DialogPrimitive.Portal forceMount>
@@ -124,9 +126,8 @@ export function QuickSearch({ open, onOpenChange }: QuickSearchProps) {
               onEscapeKeyDown={(event) => {
                 if (event.target instanceof HTMLInputElement) event.preventDefault()
               }}
-              onCloseAutoFocus={(event) => {
-                if (keepFocus.current) event.preventDefault()
-              }}
+              onCloseAutoFocus={focus.onCloseAutoFocus}
+              onKeyDown={closeOnToggle}
             >
               <motion.div
                 className="fixed inset-x-4 top-[12vh] z-50 mx-auto max-w-xl"

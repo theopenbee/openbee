@@ -8,27 +8,53 @@ import {
   runCommand,
   SHORTCUTS,
   takeComposerFocus,
+  type KeyContext,
 } from "../shortcuts"
 
 const pressed = (combo: string) => (shortcut: string) => shortcut === combo
 
+const idle: KeyContext = { overlay: "none", editing: false, repeat: false }
+
 describe("commandFor", () => {
   it("maps each shortcut to its command", () => {
     for (const [id, shortcut] of Object.entries(SHORTCUTS)) {
-      expect(commandFor(pressed(shortcut), false)).toBe(id)
+      expect(commandFor(pressed(shortcut), idle)).toBe(id)
     }
   })
 
   it("ignores keys without a command", () => {
-    expect(commandFor(pressed("mod+j"), false)).toBeNull()
+    expect(commandFor(pressed("mod+j"), idle)).toBeNull()
   })
 
-  it("only lets search and the shortcut list through an open dialog", () => {
-    expect(commandFor(pressed(SHORTCUTS.quickSearch), true)).toBe("quickSearch")
-    expect(commandFor(pressed(SHORTCUTS.showShortcuts), true)).toBe("showShortcuts")
-    expect(commandFor(pressed(SHORTCUTS.nextConversation), true)).toBeNull()
-    expect(commandFor(pressed(SHORTCUTS.newConversation), true)).toBeNull()
-    expect(commandFor(pressed(SHORTCUTS.openSettings), true)).toBeNull()
+  it("only lets search and the shortcut list through their own dialogs", () => {
+    const own: KeyContext = { ...idle, overlay: "own" }
+    expect(commandFor(pressed(SHORTCUTS.quickSearch), own)).toBe("quickSearch")
+    expect(commandFor(pressed(SHORTCUTS.showShortcuts), own)).toBe("showShortcuts")
+    expect(commandFor(pressed(SHORTCUTS.nextConversation), own)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.newConversation), own)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.openSettings), own)).toBeNull()
+  })
+
+  it("lets nothing through other dialogs and menus", () => {
+    const other: KeyContext = { ...idle, overlay: "other" }
+    for (const shortcut of Object.values(SHORTCUTS)) {
+      expect(commandFor(pressed(shortcut), other)).toBeNull()
+    }
+  })
+
+  it("leaves Alt and the arrows to text fields other than the composer", () => {
+    const editing: KeyContext = { ...idle, editing: true }
+    expect(commandFor(pressed(SHORTCUTS.previousConversation), editing)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.nextConversation), editing)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.quickSearch), editing)).toBe("quickSearch")
+    expect(commandFor(pressed(SHORTCUTS.newConversation), editing)).toBe("newConversation")
+  })
+
+  it("does not toggle dialogs on key repeat", () => {
+    const repeat: KeyContext = { ...idle, repeat: true }
+    expect(commandFor(pressed(SHORTCUTS.quickSearch), repeat)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.showShortcuts), repeat)).toBeNull()
+    expect(commandFor(pressed(SHORTCUTS.nextConversation), repeat)).toBe("nextConversation")
   })
 
   it("uses distinct shortcuts", () => {

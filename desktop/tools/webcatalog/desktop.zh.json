@@ -54,5 +54,6 @@
   "aboutManualUpdates": "这个版本不能自动更新，请到 GitHub 下载最新版。",
   "aboutDownloadLatest": "下载最新版",
   "aboutVersionUnknown": "未知",
-  "shortcutsNewWorker": "新建员工"
+  "shortcutsNewWorker": "新建员工",
+  "shortcutsCloseDialog": "关闭弹窗"
 }

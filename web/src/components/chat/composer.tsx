@@ -10,7 +10,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { api } from "@/lib/api"
 import { attachmentName } from "@/lib/chat-format"
 import { readDraft, saveDraft } from "@/lib/drafts"
-import { subscribeComposerFocus, takeComposerFocus } from "@/lib/shortcuts"
+import { COMPOSER_ATTR, subscribeComposerFocus, takeComposerFocus } from "@/lib/shortcuts"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type { Worker } from "@/lib/types"
 import { cn, isImeComposing } from "@/lib/utils"
@@ -171,7 +171,7 @@ export function Composer({ draftKey, placeholder, disabled, mentions, onSend }: 
             </ul>
           )}
 
-          <div className={composerStyles.input}>
+          <div className={composerStyles.input} {...{ [COMPOSER_ATTR]: "" }}>
             {mentions ? (
               <MentionTextarea
                 textareaRef={textareaRef}

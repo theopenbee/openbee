@@ -54,5 +54,6 @@
   "aboutManualUpdates": "This copy can't update itself. Download the latest version from GitHub.",
   "aboutDownloadLatest": "Download latest",
   "aboutVersionUnknown": "Unknown",
-  "shortcutsNewWorker": "New worker"
+  "shortcutsNewWorker": "New worker",
+  "shortcutsCloseDialog": "Close dialog"
 }

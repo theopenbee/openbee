@@ -4,7 +4,7 @@ import { QuickSearch } from "@/components/quick-search"
 import { ShortcutsDialog } from "@/components/shortcuts-dialog"
 import { useCommand } from "@/hooks/use-command"
 import { useOpenSettings } from "@/hooks/use-settings"
-import { commandFor, isDialogOpen, runCommand } from "@/lib/shortcuts"
+import { commandFor, isEditingOutsideComposer, isOverlayOpen, runCommand, type Overlay } from "@/lib/shortcuts"
 
 export function KeyboardShortcuts() {
   const platform = usePlatform()
@@ -23,14 +23,22 @@ export function KeyboardShortcuts() {
   useCommand("openSettings", () => openSettings({ section: "env" }))
 
   useEffect(() => {
+    const overlay = (): Overlay => {
+      if (!isOverlayOpen()) return "none"
+      return searchOpen || shortcutsOpen ? "own" : "other"
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return
-      const id = commandFor((shortcut) => matchesShortcut(event, shortcut, platform), isDialogOpen())
+      const id = commandFor((shortcut) => matchesShortcut(event, shortcut, platform), {
+        overlay: overlay(),
+        editing: isEditingOutsideComposer(event.target),
+        repeat: event.repeat,
+      })
       if (id && runCommand(id)) event.preventDefault()
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [platform])
+  }, [platform, searchOpen, shortcutsOpen])
 
   return (
     <>

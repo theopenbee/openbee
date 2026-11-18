@@ -5538,6 +5538,16 @@ func (msgs Messages) ShortcutsClose() string {
 	return Catalog.Format(msgs.locale, "shortcutsClose", nil)
 }
 
+// ShortcutsCloseDialog says "Close dialog"
+// in the language the app shows.
+func ShortcutsCloseDialog() string { return In(i18n.Locale()).ShortcutsCloseDialog() }
+
+// ShortcutsCloseDialog says "Close dialog"
+// in the language of msgs.
+func (msgs Messages) ShortcutsCloseDialog() string {
+	return Catalog.Format(msgs.locale, "shortcutsCloseDialog", nil)
+}
+
 // ShortcutsGeneral says "General"
 // in the language the app shows.
 func ShortcutsGeneral() string { return In(i18n.Locale()).ShortcutsGeneral() }

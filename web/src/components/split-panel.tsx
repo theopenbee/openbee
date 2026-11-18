@@ -6,7 +6,7 @@ import { Button } from "@/components/arc/button/button"
 import { Drawer, DrawerContent } from "@/components/arc/drawer/drawer"
 import { motionTokens } from "@/components/arc/lib/motion-tokens"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { isDialogOpen, isEditableTarget } from "@/lib/shortcuts"
+import { isEditableTarget, isOverlayOpen } from "@/lib/shortcuts"
 
 const WIDE_QUERY = "(min-width: 74rem)"
 const PANEL_WIDTH = "25rem"
@@ -54,13 +54,13 @@ function InlinePanel({ open, onClose, title, children }: { open: boolean; onClos
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return
+      if (event.key !== "Escape" || event.isComposing) return
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-      if (isEditableTarget(event.target) || isDialogOpen()) return
+      if (isEditableTarget(event.target) || isOverlayOpen()) return
       onClose()
     }
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
+    window.addEventListener("keydown", onKeyDown, true)
+    return () => window.removeEventListener("keydown", onKeyDown, true)
   }, [open, onClose])
 
   return (
