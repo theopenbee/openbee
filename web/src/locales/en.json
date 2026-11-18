@@ -343,7 +343,6 @@
       "title": "Bee coordinator",
       "description": "Applied to the Bee that routes messages to workers."
     },
-    "subtitle": "The default engine for the Bee and new workers, and the flags each engine starts with.",
     "loadError": "Couldn't load settings",
     "save": "Save changes",
     "saved": "Saved",
@@ -361,7 +360,6 @@
   },
   "plugins": {
     "title": "Plugins",
-    "subtitle": "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee",
     "types": {
       "channel": "Channels",
       "engine": "Engines"
@@ -514,7 +512,6 @@
   },
   "about": {
     "title": "About",
-    "subtitle": "The versions in use, how to upgrade, and what changed in each release.",
     "loadError": "Couldn't load the server version",
     "version": "Version",
     "server": {

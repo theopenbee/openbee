@@ -340,7 +340,6 @@
       "title": "Bee 协调器",
       "description": "应用于把消息分派给员工的 Bee。"
     },
-    "subtitle": "Bee 和新员工的默认引擎，以及各引擎启动时附加的参数。",
     "loadError": "无法加载系统设置",
     "save": "保存更改",
     "saved": "已保存",
@@ -358,7 +357,6 @@
   },
   "plugins": {
     "title": "插件",
-    "subtitle": "从插件目录安装渠道和引擎插件，配置后即可启用，无需重启 OpenBee",
     "types": {
       "channel": "渠道",
       "engine": "引擎"
@@ -510,7 +508,6 @@
   },
   "about": {
     "title": "关于",
-    "subtitle": "当前版本、升级方式，以及每个版本的改动。",
     "loadError": "无法加载服务端版本",
     "version": "版本",
     "server": {
