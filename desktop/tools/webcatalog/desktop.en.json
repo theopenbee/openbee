@@ -53,5 +53,6 @@
   "aboutAutoInstallDescription": "Download new versions in the background and install them the next time OpenBee starts.",
   "aboutManualUpdates": "This copy can't update itself. Download the latest version from GitHub.",
   "aboutDownloadLatest": "Download latest",
-  "aboutVersionUnknown": "Unknown"
+  "aboutVersionUnknown": "Unknown",
+  "shortcutsNewWorker": "New worker"
 }

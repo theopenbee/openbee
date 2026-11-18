@@ -32,6 +32,7 @@ type ButtonOpts struct {
 	Loading  bool
 	Disabled bool
 	Label    string
+	Shortcut string
 }
 
 const (
@@ -133,7 +134,11 @@ func IconButton(c *ui.Context, tk theme.Tokens, icon, label string, o ButtonOpts
 	b := button(c, tk, o, label, iconPressScale, func() {
 		ui.Icon(c, icons.Get(icon)).Size(iconButtonGlyph, iconButtonGlyph)
 	})
-	return Tooltip(c, tk, b.Size(h, h), label)
+	tip := label
+	if o.Shortcut != "" {
+		tip += " " + o.Shortcut
+	}
+	return Tooltip(c, tk, b.Size(h, h), tip)
 }
 
 func button(c *ui.Context, tk theme.Tokens, o ButtonOpts, label string, squeeze float32, content func()) ui.Element {

@@ -12,6 +12,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/shortcuts"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
@@ -85,7 +86,7 @@ func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 				kit.Button(c, tk, locales.ChatStop(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Icon: "square", Loading: p.ch.Stopping}).
 					OnClick(func() { v.stop(p) })
 			}
-			kit.IconButton(c, tk, "square-pen", locales.ChatNewConversation(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM}).
+			kit.IconButton(c, tk, "square-pen", locales.ChatNewConversation(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM, Shortcut: shortcuts.NewConversation.Text()}).
 				OnClick(p.cs.reset.show)
 		})
 	})

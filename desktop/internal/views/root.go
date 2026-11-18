@@ -12,8 +12,10 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
 	"github.com/theopenbee/openbee/desktop/internal/views/chat"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
+	"github.com/theopenbee/openbee/desktop/internal/views/search"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
 	"github.com/theopenbee/openbee/desktop/internal/views/shell"
+	"github.com/theopenbee/openbee/desktop/internal/views/shortcuts"
 	"github.com/theopenbee/openbee/desktop/internal/views/worker"
 )
 
@@ -24,16 +26,30 @@ type Root struct {
 	shell    *shell.Shell
 	settings *settings.Page
 	account  *account.Account
+	chat     *chat.View
+	search   *search.Palette
+	help     shortcuts.Help
 	chatLoc  string
 }
 
 func NewRoot(s *store.Store) *Root {
 	r := &Root{s: s, router: ui.NewRouter("/"), chatLoc: route.ChatPath}
-	r.account = account.New(s, r.checkUpdates)
+	r.account = account.New(s, r.checkUpdates, r.help.Toggle)
 	r.router.Transition = ui.TransitionNone
 	r.settings = settings.New(s, r.router, r.leaveSettings)
 	r.auth = auth.New(s, r.router)
-	r.shell = shell.New(s, r.router, chat.New(s, r.router, r.togglePanel), worker.New(s, r.router), r.account, r.OpenSettings)
+	r.chat = chat.New(s, r.router, r.togglePanel)
+	r.chat.OnStep(r.step)
+	r.shell = shell.New(s, r.router, r.chat, worker.New(s, r.router), r.account, r.OpenSettings)
+	r.search = search.New(s, search.Actions{
+		OpenConversation: r.openConversation,
+		OpenPanel:        r.openPanel,
+		NewWorker:        r.NewWorker,
+		NewConversation:  r.startOver,
+		ShowShortcuts:    r.help.Toggle,
+		OpenSettings:     func(section, plugin string) { r.settings.Open(section, plugin) },
+	})
+	r.help.OnSwap = r.search.Toggle
 	return r
 }
 
@@ -53,6 +69,10 @@ func (r *Root) Nav() route.Nav {
 func (r *Root) View(c *ui.Context) {
 	tk := theme.Apply(c)
 	r.follow(c)
+	ready := r.s.Phase == store.PhaseReady
+	if ready {
+		r.shortcuts(c)
+	}
 	ui.Column(c).Fill().Background(tk.Background).TextColor(tk.Foreground).Children(func() {
 		if r.s.Phase == store.PhaseBoot {
 			if r.s.StartingLocal {
@@ -65,10 +85,14 @@ func (r *Root) View(c *ui.Context) {
 	if !route.IsSettings(r.router.Path()) || r.s.Phase != store.PhaseReady {
 		r.settings.Hide()
 	}
-	if r.s.Phase == store.PhaseReady {
+	if ready {
 		r.account.Dialogs(c)
+		r.search.View(c, tk, r.current(), r.current() != "")
+		r.help.View(c, tk)
 	} else {
 		r.account.Close()
+		r.search.Close()
+		r.help.Open = false
 	}
 	r.s.PruneToasts()
 	kit.ShowToasts(c, tk, &r.s.Toasts)
@@ -165,6 +189,47 @@ func (r *Root) leaveSettings() {
 func (r *Root) OpenConversation(cid string) {
 	if param := route.Param(cid); param != "" && r.s.Phase == store.PhaseReady {
 		r.router.Push(route.Chat(param))
+	}
+}
+
+func (r *Root) shortcuts(c *ui.Context) {
+	shortcuts.QuickSearch.Register(c, r.search.Toggle)
+	shortcuts.ShowShortcuts.Register(c, r.help.Toggle)
+	shortcuts.NewConversation.Register(c, r.startOver)
+	shortcuts.PreviousConversation.Register(c, func() { r.step(-1) })
+	shortcuts.NextConversation.Register(c, func() { r.step(1) })
+}
+
+func (r *Root) current() string {
+	if !route.IsChat(r.router.Path()) {
+		return ""
+	}
+	return route.ConversationID(conversationParam(r.router.Path()))
+}
+
+func (r *Root) step(dir int) {
+	if !route.IsChat(r.router.Path()) {
+		return
+	}
+	if next := r.shell.Neighbor(r.current(), dir); next != "" {
+		r.openConversation(next)
+	}
+}
+
+func (r *Root) openConversation(cid string) {
+	r.chat.FocusComposer(cid)
+	r.router.Push(route.Chat(route.Param(cid)))
+}
+
+func (r *Root) openPanel(tab string) {
+	if _, isWorker := api.ConversationWorkerID(r.current()); isWorker {
+		r.router.Push(route.ChatPanel(route.Param(r.current()), tab))
+	}
+}
+
+func (r *Root) startOver() {
+	if cid := r.current(); cid != "" {
+		r.chat.StartOver(cid)
 	}
 }
 

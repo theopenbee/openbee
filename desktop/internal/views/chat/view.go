@@ -55,6 +55,7 @@ type View struct {
 	rowLimit    int
 	save        func(name string, data []byte) (string, error)
 	pick        func() ([]string, error)
+	step        func(dir int)
 }
 
 type convState struct {
@@ -82,6 +83,18 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 		v.photos.retryFailed()
 	})
 	return v
+}
+
+func (v *View) OnStep(fn func(dir int)) {
+	v.step = fn
+}
+
+func (v *View) StartOver(cid string) {
+	v.state(cid).reset.show()
+}
+
+func (v *View) FocusComposer(cid string) {
+	v.state(cid).composer.focus = true
 }
 
 func (v *View) closeOverlays() {

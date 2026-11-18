@@ -328,19 +328,21 @@ func TestMenuRowsAreEvenlySpaced(t *testing.T) {
 	f.openMenu()
 	item, ok0 := f.T.Find(locales.AccountChangePassword())
 	updates, ok1 := f.T.Find(locales.AboutCheckUpdates())
-	themeRow, ok2 := f.T.Find(locales.ArcUserMenuTheme())
-	language, ok3 := f.T.Find(locales.ArcUserMenuLanguage())
-	notifications, ok4 := f.T.Find(locales.ArcUserMenuNotifications())
-	signOut, ok5 := f.T.Find(locales.ArcUserMenuSignOut())
-	if !ok0 || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
+	keys, ok2 := f.T.Find(locales.ShortcutsTitle())
+	themeRow, ok3 := f.T.Find(locales.ArcUserMenuTheme())
+	language, ok4 := f.T.Find(locales.ArcUserMenuLanguage())
+	notifications, ok5 := f.T.Find(locales.ArcUserMenuNotifications())
+	signOut, ok6 := f.T.Find(locales.ArcUserMenuSignOut())
+	if !ok0 || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 {
 		t.Fatalf("menu rows missing; texts %q", f.T.Texts())
 	}
 	row := item.H
 	for name, got := range map[string]float32{
-		"check for updates": updates.Y - item.Y,
-		"language":          language.Y - themeRow.Y,
-		"notifications":     notifications.Y - language.Y,
-		"sign out":          (signOut.Y - item.Y) / 5,
+		"check for updates":  updates.Y - item.Y,
+		"keyboard shortcuts": keys.Y - updates.Y,
+		"language":           language.Y - themeRow.Y,
+		"notifications":      notifications.Y - language.Y,
+		"sign out":           (signOut.Y - item.Y) / 6,
 	} {
 		if got < row-0.1 || got > row+0.1 {
 			t.Fatalf("%s row is %v below the previous one, want %v", name, got, row)

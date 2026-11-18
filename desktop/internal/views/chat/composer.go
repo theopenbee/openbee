@@ -15,6 +15,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/shortcuts"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
@@ -54,6 +55,7 @@ type composerState struct {
 	selecting bool
 	caretTo   int
 	moveCaret bool
+	focus     bool
 	mention   mentionState
 }
 
@@ -167,6 +169,10 @@ func (v *View) input(c *ui.Context, tk theme.Tokens, p pane, wide bool) {
 		ta.SetTextSelection(cm.caretTo, cm.caretTo)
 		cm.moveCaret = false
 	}
+	if cm.focus {
+		cm.focus = false
+		ta.Focus()
+	}
 	start, end := ta.TextSelection()
 	cm.caret, cm.selecting, cm.composing = end, start != end, ta.Composing()
 	if isBee(p.cid) {
@@ -192,6 +198,10 @@ func (v *View) composerKey(p pane, k ui.TextKey) bool {
 		return k.Key == ui.KeyEnter
 	}
 	if v.mentionKey(cm, k) {
+		return true
+	}
+	if dir := stepOf(k); dir != 0 && v.step != nil {
+		v.step(dir)
 		return true
 	}
 	if k.Key != ui.KeyEnter || k.Mods != 0 {
@@ -293,4 +303,14 @@ func composerHint(cid string) string {
 		return locales.ChatComposerHint()
 	}
 	return locales.ChatComposerHintPlain()
+}
+
+func stepOf(k ui.TextKey) int {
+	switch {
+	case shortcuts.PreviousConversation.Is(k.Mods, k.Key):
+		return -1
+	case shortcuts.NextConversation.Is(k.Mods, k.Key):
+		return 1
+	}
+	return 0
 }

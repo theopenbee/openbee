@@ -1,7 +1,10 @@
 package shell
 
 import (
+	"slices"
+
 	"github.com/egoist/mygo/ui"
+	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/store"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
@@ -134,6 +137,23 @@ func (sh *Shell) inlinePanel(c *ui.Context, tk theme.Tokens, param, cid string, 
 			ui.Column(c).Padding(panelBodyPad).Children(func() { sh.panel.View(c, cid, p) })
 		})
 	})
+}
+
+func (sh *Shell) Neighbor(current string, dir int) string {
+	rows := sh.list.rows
+	if len(rows) == 0 {
+		return ""
+	}
+	i := slices.IndexFunc(rows, func(r api.ConversationSummary) bool { return r.ID == current })
+	switch {
+	case i < 0 && dir > 0:
+		return rows[0].ID
+	case i < 0:
+		return rows[len(rows)-1].ID
+	case i+dir < 0 || i+dir >= len(rows):
+		return ""
+	}
+	return rows[i+dir].ID
 }
 
 func (sh *Shell) settings() {

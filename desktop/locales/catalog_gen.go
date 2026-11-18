@@ -730,6 +730,108 @@ func (msgs Messages) ArcComboboxPlaceholder() string {
 	return Catalog.Format(msgs.locale, "arcComboboxPlaceholder", nil)
 }
 
+// ArcCommandPaletteClear says "Clear search"
+// in the language the app shows.
+func ArcCommandPaletteClear() string { return In(i18n.Locale()).ArcCommandPaletteClear() }
+
+// ArcCommandPaletteClear says "Clear search"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteClear() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteClear", nil)
+}
+
+// ArcCommandPaletteClose says "Close command palette"
+// in the language the app shows.
+func ArcCommandPaletteClose() string { return In(i18n.Locale()).ArcCommandPaletteClose() }
+
+// ArcCommandPaletteClose says "Close command palette"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteClose() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteClose", nil)
+}
+
+// ArcCommandPaletteCount says "{count, plural, one {# result} other {# results}}"
+// in the language the app shows.
+func ArcCommandPaletteCount(count int) string { return In(i18n.Locale()).ArcCommandPaletteCount(count) }
+
+// ArcCommandPaletteCount says "{count, plural, one {# result} other {# results}}"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteCount(count int) string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteCount", map[string]any{"count": count})
+}
+
+// ArcCommandPaletteDefaultGroup says "Actions"
+// in the language the app shows.
+func ArcCommandPaletteDefaultGroup() string { return In(i18n.Locale()).ArcCommandPaletteDefaultGroup() }
+
+// ArcCommandPaletteDefaultGroup says "Actions"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteDefaultGroup() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteDefaultGroup", nil)
+}
+
+// ArcCommandPaletteEmpty says "No results for “{query}”"
+// in the language the app shows.
+func ArcCommandPaletteEmpty(query string) string {
+	return In(i18n.Locale()).ArcCommandPaletteEmpty(query)
+}
+
+// ArcCommandPaletteEmpty says "No results for “{query}”"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteEmpty(query string) string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteEmpty", map[string]any{"query": query})
+}
+
+// ArcCommandPaletteEmptyHint says "Try a different word or clear the search."
+// in the language the app shows.
+func ArcCommandPaletteEmptyHint() string { return In(i18n.Locale()).ArcCommandPaletteEmptyHint() }
+
+// ArcCommandPaletteEmptyHint says "Try a different word or clear the search."
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteEmptyHint() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteEmptyHint", nil)
+}
+
+// ArcCommandPaletteLabel says "Command palette"
+// in the language the app shows.
+func ArcCommandPaletteLabel() string { return In(i18n.Locale()).ArcCommandPaletteLabel() }
+
+// ArcCommandPaletteLabel says "Command palette"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteLabel() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteLabel", nil)
+}
+
+// ArcCommandPaletteNone says "No results"
+// in the language the app shows.
+func ArcCommandPaletteNone() string { return In(i18n.Locale()).ArcCommandPaletteNone() }
+
+// ArcCommandPaletteNone says "No results"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteNone() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteNone", nil)
+}
+
+// ArcCommandPalettePlaceholder says "Search commands"
+// in the language the app shows.
+func ArcCommandPalettePlaceholder() string { return In(i18n.Locale()).ArcCommandPalettePlaceholder() }
+
+// ArcCommandPalettePlaceholder says "Search commands"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPalettePlaceholder() string {
+	return Catalog.Format(msgs.locale, "arcCommandPalettePlaceholder", nil)
+}
+
+// ArcCommandPaletteResults says "Command results"
+// in the language the app shows.
+func ArcCommandPaletteResults() string { return In(i18n.Locale()).ArcCommandPaletteResults() }
+
+// ArcCommandPaletteResults says "Command results"
+// in the language of msgs.
+func (msgs Messages) ArcCommandPaletteResults() string {
+	return Catalog.Format(msgs.locale, "arcCommandPaletteResults", nil)
+}
+
 // ArcConfirmMorphCancel says "Cancel"
 // in the language the app shows.
 func ArcConfirmMorphCancel() string { return In(i18n.Locale()).ArcConfirmMorphCancel() }
@@ -1248,6 +1350,56 @@ func ArcSelectPlaceholder() string { return In(i18n.Locale()).ArcSelectPlacehold
 // in the language of msgs.
 func (msgs Messages) ArcSelectPlaceholder() string {
 	return Catalog.Format(msgs.locale, "arcSelectPlaceholder", nil)
+}
+
+// ArcShortcutListClear says "Clear search"
+// in the language the app shows.
+func ArcShortcutListClear() string { return In(i18n.Locale()).ArcShortcutListClear() }
+
+// ArcShortcutListClear says "Clear search"
+// in the language of msgs.
+func (msgs Messages) ArcShortcutListClear() string {
+	return Catalog.Format(msgs.locale, "arcShortcutListClear", nil)
+}
+
+// ArcShortcutListCount says "{count, plural, one {# match} other {# matches}}"
+// in the language the app shows.
+func ArcShortcutListCount(count int) string { return In(i18n.Locale()).ArcShortcutListCount(count) }
+
+// ArcShortcutListCount says "{count, plural, one {# match} other {# matches}}"
+// in the language of msgs.
+func (msgs Messages) ArcShortcutListCount(count int) string {
+	return Catalog.Format(msgs.locale, "arcShortcutListCount", map[string]any{"count": count})
+}
+
+// ArcShortcutListEmpty says "No shortcuts match “{query}”"
+// in the language the app shows.
+func ArcShortcutListEmpty(query string) string { return In(i18n.Locale()).ArcShortcutListEmpty(query) }
+
+// ArcShortcutListEmpty says "No shortcuts match “{query}”"
+// in the language of msgs.
+func (msgs Messages) ArcShortcutListEmpty(query string) string {
+	return Catalog.Format(msgs.locale, "arcShortcutListEmpty", map[string]any{"query": query})
+}
+
+// ArcShortcutListLabel says "Keyboard shortcuts"
+// in the language the app shows.
+func ArcShortcutListLabel() string { return In(i18n.Locale()).ArcShortcutListLabel() }
+
+// ArcShortcutListLabel says "Keyboard shortcuts"
+// in the language of msgs.
+func (msgs Messages) ArcShortcutListLabel() string {
+	return Catalog.Format(msgs.locale, "arcShortcutListLabel", nil)
+}
+
+// ArcShortcutListSearch says "Search shortcuts"
+// in the language the app shows.
+func ArcShortcutListSearch() string { return In(i18n.Locale()).ArcShortcutListSearch() }
+
+// ArcShortcutListSearch says "Search shortcuts"
+// in the language of msgs.
+func (msgs Messages) ArcShortcutListSearch() string {
+	return Catalog.Format(msgs.locale, "arcShortcutListSearch", nil)
 }
 
 // ArcSkeletonLabel says "Loading content"
@@ -5084,6 +5236,68 @@ func (msgs Messages) PluginsUpdateDone(name string, version string) string {
 	return Catalog.Format(msgs.locale, "pluginsUpdateDone", map[string]any{"name": name, "version": version})
 }
 
+// QuickSearchGroupsActions says "Actions"
+// in the language the app shows.
+func QuickSearchGroupsActions() string { return In(i18n.Locale()).QuickSearchGroupsActions() }
+
+// QuickSearchGroupsActions says "Actions"
+// in the language of msgs.
+func (msgs Messages) QuickSearchGroupsActions() string {
+	return Catalog.Format(msgs.locale, "quickSearchGroupsActions", nil)
+}
+
+// QuickSearchGroupsConversations says "Conversations"
+// in the language the app shows.
+func QuickSearchGroupsConversations() string {
+	return In(i18n.Locale()).QuickSearchGroupsConversations()
+}
+
+// QuickSearchGroupsConversations says "Conversations"
+// in the language of msgs.
+func (msgs Messages) QuickSearchGroupsConversations() string {
+	return Catalog.Format(msgs.locale, "quickSearchGroupsConversations", nil)
+}
+
+// QuickSearchGroupsPlugins says "Plugins"
+// in the language the app shows.
+func QuickSearchGroupsPlugins() string { return In(i18n.Locale()).QuickSearchGroupsPlugins() }
+
+// QuickSearchGroupsPlugins says "Plugins"
+// in the language of msgs.
+func (msgs Messages) QuickSearchGroupsPlugins() string {
+	return Catalog.Format(msgs.locale, "quickSearchGroupsPlugins", nil)
+}
+
+// QuickSearchGroupsSettings says "Settings"
+// in the language the app shows.
+func QuickSearchGroupsSettings() string { return In(i18n.Locale()).QuickSearchGroupsSettings() }
+
+// QuickSearchGroupsSettings says "Settings"
+// in the language of msgs.
+func (msgs Messages) QuickSearchGroupsSettings() string {
+	return Catalog.Format(msgs.locale, "quickSearchGroupsSettings", nil)
+}
+
+// QuickSearchPlaceholder says "Search conversations, settings and actions"
+// in the language the app shows.
+func QuickSearchPlaceholder() string { return In(i18n.Locale()).QuickSearchPlaceholder() }
+
+// QuickSearchPlaceholder says "Search conversations, settings and actions"
+// in the language of msgs.
+func (msgs Messages) QuickSearchPlaceholder() string {
+	return Catalog.Format(msgs.locale, "quickSearchPlaceholder", nil)
+}
+
+// QuickSearchTitle says "Quick search"
+// in the language the app shows.
+func QuickSearchTitle() string { return In(i18n.Locale()).QuickSearchTitle() }
+
+// QuickSearchTitle says "Quick search"
+// in the language of msgs.
+func (msgs Messages) QuickSearchTitle() string {
+	return Catalog.Format(msgs.locale, "quickSearchTitle", nil)
+}
+
 // ScopesReadMessagesDescription says "Allows listing and viewing message records"
 // in the language the app shows.
 func ScopesReadMessagesDescription() string { return In(i18n.Locale()).ScopesReadMessagesDescription() }
@@ -5302,6 +5516,136 @@ func SetupUsernameRequired() string { return In(i18n.Locale()).SetupUsernameRequ
 // in the language of msgs.
 func (msgs Messages) SetupUsernameRequired() string {
 	return Catalog.Format(msgs.locale, "setupUsernameRequired", nil)
+}
+
+// ShortcutsChat says "Chat"
+// in the language the app shows.
+func ShortcutsChat() string { return In(i18n.Locale()).ShortcutsChat() }
+
+// ShortcutsChat says "Chat"
+// in the language of msgs.
+func (msgs Messages) ShortcutsChat() string {
+	return Catalog.Format(msgs.locale, "shortcutsChat", nil)
+}
+
+// ShortcutsClose says "Close dialog or panel"
+// in the language the app shows.
+func ShortcutsClose() string { return In(i18n.Locale()).ShortcutsClose() }
+
+// ShortcutsClose says "Close dialog or panel"
+// in the language of msgs.
+func (msgs Messages) ShortcutsClose() string {
+	return Catalog.Format(msgs.locale, "shortcutsClose", nil)
+}
+
+// ShortcutsGeneral says "General"
+// in the language the app shows.
+func ShortcutsGeneral() string { return In(i18n.Locale()).ShortcutsGeneral() }
+
+// ShortcutsGeneral says "General"
+// in the language of msgs.
+func (msgs Messages) ShortcutsGeneral() string {
+	return Catalog.Format(msgs.locale, "shortcutsGeneral", nil)
+}
+
+// ShortcutsNewConversation says "New conversation"
+// in the language the app shows.
+func ShortcutsNewConversation() string { return In(i18n.Locale()).ShortcutsNewConversation() }
+
+// ShortcutsNewConversation says "New conversation"
+// in the language of msgs.
+func (msgs Messages) ShortcutsNewConversation() string {
+	return Catalog.Format(msgs.locale, "shortcutsNewConversation", nil)
+}
+
+// ShortcutsNewLine says "New line"
+// in the language the app shows.
+func ShortcutsNewLine() string { return In(i18n.Locale()).ShortcutsNewLine() }
+
+// ShortcutsNewLine says "New line"
+// in the language of msgs.
+func (msgs Messages) ShortcutsNewLine() string {
+	return Catalog.Format(msgs.locale, "shortcutsNewLine", nil)
+}
+
+// ShortcutsNewWorker says "New worker"
+// in the language the app shows.
+func ShortcutsNewWorker() string { return In(i18n.Locale()).ShortcutsNewWorker() }
+
+// ShortcutsNewWorker says "New worker"
+// in the language of msgs.
+func (msgs Messages) ShortcutsNewWorker() string {
+	return Catalog.Format(msgs.locale, "shortcutsNewWorker", nil)
+}
+
+// ShortcutsNextConversation says "Next conversation"
+// in the language the app shows.
+func ShortcutsNextConversation() string { return In(i18n.Locale()).ShortcutsNextConversation() }
+
+// ShortcutsNextConversation says "Next conversation"
+// in the language of msgs.
+func (msgs Messages) ShortcutsNextConversation() string {
+	return Catalog.Format(msgs.locale, "shortcutsNextConversation", nil)
+}
+
+// ShortcutsOpenSettings says "Open settings"
+// in the language the app shows.
+func ShortcutsOpenSettings() string { return In(i18n.Locale()).ShortcutsOpenSettings() }
+
+// ShortcutsOpenSettings says "Open settings"
+// in the language of msgs.
+func (msgs Messages) ShortcutsOpenSettings() string {
+	return Catalog.Format(msgs.locale, "shortcutsOpenSettings", nil)
+}
+
+// ShortcutsPreviousConversation says "Previous conversation"
+// in the language the app shows.
+func ShortcutsPreviousConversation() string { return In(i18n.Locale()).ShortcutsPreviousConversation() }
+
+// ShortcutsPreviousConversation says "Previous conversation"
+// in the language of msgs.
+func (msgs Messages) ShortcutsPreviousConversation() string {
+	return Catalog.Format(msgs.locale, "shortcutsPreviousConversation", nil)
+}
+
+// ShortcutsQuickSearch says "Quick search"
+// in the language the app shows.
+func ShortcutsQuickSearch() string { return In(i18n.Locale()).ShortcutsQuickSearch() }
+
+// ShortcutsQuickSearch says "Quick search"
+// in the language of msgs.
+func (msgs Messages) ShortcutsQuickSearch() string {
+	return Catalog.Format(msgs.locale, "shortcutsQuickSearch", nil)
+}
+
+// ShortcutsSendMessage says "Send message"
+// in the language the app shows.
+func ShortcutsSendMessage() string { return In(i18n.Locale()).ShortcutsSendMessage() }
+
+// ShortcutsSendMessage says "Send message"
+// in the language of msgs.
+func (msgs Messages) ShortcutsSendMessage() string {
+	return Catalog.Format(msgs.locale, "shortcutsSendMessage", nil)
+}
+
+// ShortcutsShowShortcuts says "Show keyboard shortcuts"
+// in the language the app shows.
+func ShortcutsShowShortcuts() string { return In(i18n.Locale()).ShortcutsShowShortcuts() }
+
+// ShortcutsShowShortcuts says "Show keyboard shortcuts"
+// in the language of msgs.
+func (msgs Messages) ShortcutsShowShortcuts() string {
+	return Catalog.Format(msgs.locale, "shortcutsShowShortcuts", nil)
+}
+
+// ShortcutsTitle says "Keyboard shortcuts"
+// in the language the app shows.
+func ShortcutsTitle() string { return In(i18n.Locale()).ShortcutsTitle() }
+
+// ShortcutsTitle says "Keyboard shortcuts"
+// in the language of msgs.
+func (msgs Messages) ShortcutsTitle() string {
+	return Catalog.Format(msgs.locale, "shortcutsTitle", nil)
 }
 
 // StartingDescription says "Getting the built-in server ready…"

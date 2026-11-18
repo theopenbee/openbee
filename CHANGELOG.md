@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+- Quick search with ⌘K on web and desktop.
+- Keyboard shortcuts for chats, settings, plus a shortcut list.
+
 ### Changed
 - Simpler desktop account menu; role badge beside the name.
 

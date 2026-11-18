@@ -69,14 +69,15 @@ const (
 type Account struct {
 	s        *store.Store
 	updates  func()
+	keys     func()
 	open     bool
 	refocus  bool
 	entry    entryPoint
 	password passwordForm
 }
 
-func New(s *store.Store, updates func()) *Account {
-	return &Account{s: s, updates: updates}
+func New(s *store.Store, updates, keys func()) *Account {
+	return &Account{s: s, updates: updates, keys: keys}
 }
 
 func (a *Account) Close() {
@@ -154,6 +155,12 @@ func (a *Account) menu(c *ui.Context, tk theme.Tokens) {
 			a.open = false
 			if a.updates != nil {
 				a.updates()
+			}
+		})
+		a.item(c, tk, "keyboard", locales.ShortcutsTitle(), false, entryNone, func() {
+			a.open = false
+			if a.keys != nil {
+				a.keys()
 			}
 		})
 		a.themeRow(c, tk)

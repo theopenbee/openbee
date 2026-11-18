@@ -9,6 +9,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/shortcuts"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
 
@@ -66,7 +67,7 @@ func (sh *Shell) listView(c *ui.Context, tk theme.Tokens, param, active string) 
 		ui.Row(c).Shrink(0).Justify(ui.SpaceBetween).Gap(footerGap).Padding(footerPad).
 			BorderWidth(1, 0, 0, 0).BorderColor(tk.BorderSubtle).Children(func() {
 			sh.account.View(c)
-			kit.IconButton(c, tk, "settings", locales.NavSettings(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM}).
+			kit.IconButton(c, tk, "settings", locales.NavSettings(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM, Shortcut: shortcuts.OpenSettings.Text()}).
 				MarginStart(ui.Auto).OnClick(sh.settings)
 		})
 	})
@@ -76,7 +77,7 @@ func (sh *Shell) listHeader(c *ui.Context, tk theme.Tokens, param string) {
 	top := max(listPadX, c.TitleBar().Height+headerGap)
 	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(headerGap).Padding(top, listPadX, listPadX, listPadX).DragWindow().Children(func() {
 		kit.SearchField(c, tk, &sh.list.query, locales.ChatSearch(), locales.ChatSearch()).Grow(1).MinWidth(0)
-		kit.IconButton(c, tk, "plus", locales.ChatNewWorker(), kit.ButtonOpts{Variant: kit.Ghost}).
+		kit.IconButton(c, tk, "plus", locales.ChatNewWorker(), kit.ButtonOpts{Variant: kit.Ghost, Shortcut: shortcuts.NewWorker.Text()}).
 			OnClick(func() { sh.openNewWorker(param) })
 	})
 }
