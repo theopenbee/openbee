@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.9] - 2026-11-18
 
 ### Changed
 - Removed redundant hints from settings pages.
