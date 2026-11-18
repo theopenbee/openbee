@@ -38,7 +38,7 @@ type section struct {
 }
 
 var sections = []section{
-	{SectionEnv, "key-round", locales.EnvConfigTitle, locales.EnvConfigNavTitle, locales.EnvConfigPageDescription},
+	{SectionEnv, "key-round", locales.EnvConfigTitle, locales.EnvConfigNavTitle, nil},
 	{SectionSystem, "sliders-horizontal", locales.SystemSettingsTitle, locales.SystemSettingsTitle, locales.SystemSettingsSubtitle},
 	{SectionPlugins, "puzzle", locales.PluginsTitle, locales.PluginsTitle, locales.PluginsSubtitle},
 	{SectionAbout, "info", locales.AboutTitle, locales.AboutTitle, locales.AboutSubtitle},
@@ -163,7 +163,7 @@ func (d *Page) content(c *ui.Context, tk theme.Tokens, cur section) {
 	pane.Opacity(shown).Children(func() {
 		ui.Column(c).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).WidthPercent(100).MaxWidth(theme.SettingsColumnMax).Padding(d.contentPad()).MinWidth(0).FontSize(textSize).Children(func() {
-				if d.pluginID == "" {
+				if d.pluginID == "" && cur.description != nil {
 					ui.Text(c, cur.description()).TextColor(tk.TextSecondary).Margin(0, 0, descriptionGap, 0)
 				}
 				switch cur.id {

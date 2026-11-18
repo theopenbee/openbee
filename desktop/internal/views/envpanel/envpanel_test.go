@@ -258,13 +258,22 @@ func TestEmptyStatePerScope(t *testing.T) {
 		scope, scopeID string
 		description    func() string
 	}{
-		{"global", "", locales.EnvConfigEmptyGlobal},
-		{"bee", "default", locales.EnvConfigEmptyBee},
+		{"global", "", nil},
+		{"bee", "default", nil},
 		{"worker", workerID, locales.EnvConfigEmptyWorker},
 	} {
 		t.Run(tc.scope, func(t *testing.T) {
 			h := newHost(t, wideW, tc.scope, tc.scopeID, false, seedEnvs())
-			h.wantShown(locales.EnvConfigEmpty(), tc.description(), locales.EnvConfigAdd())
+			want := []string{locales.EnvConfigEmpty()}
+			if tc.description != nil {
+				want = append(want, tc.description())
+			}
+			want = append(want, locales.EnvConfigAdd())
+			texts := h.T.Texts()
+			at := slices.Index(texts, locales.EnvConfigEmpty())
+			if at < 0 || !slices.Equal(texts[at:min(at+len(want), len(texts))], want) {
+				t.Fatalf("empty state texts = %q, want %q in order", texts, want)
+			}
 			if h.rowY(locales.EnvConfigAdd()) <= h.rowY(locales.EnvConfigEmpty()) {
 				t.Fatal("the add button is not inside the empty state")
 			}

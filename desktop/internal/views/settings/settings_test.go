@@ -3,6 +3,7 @@ package settings_test
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -175,15 +176,19 @@ func globalInput(engine string) string {
 
 func TestSettingsOpensAtSection(t *testing.T) {
 	f := open(t, wideW, settings.SectionEnv, configured)
-	f.wantShown(locales.EnvConfigTitle(), locales.EnvConfigPageDescription(), locales.EnvConfigGlobalTitle(), locales.EnvConfigBeeTitle(),
+	f.wantShown(locales.EnvConfigTitle(), locales.EnvConfigGlobalDescription(), locales.EnvConfigGlobalTitle(), locales.EnvConfigBeeTitle(),
 		"DATABASE_URL", "BEE_TOKEN", locales.EnvConfigNavTitle(), locales.PluginsTitle(), locales.NavBackToChat())
 	f.wantHidden(locales.SystemSettingsSubtitle(), locales.ArcDialogClose(), locales.ChatSearch())
 	f.wantPath(route.Settings(settings.SectionEnv, ""))
+	texts := f.T.Texts()
+	if at := slices.Index(texts, locales.EnvConfigGlobalTitle()); at < 1 || texts[at-1] != locales.EnvConfigTitle() {
+		t.Fatalf("texts = %q, want the global variables right under the page title", texts)
+	}
 
 	f.Root.OpenSettings(settings.SectionSystem)
 	f.settle()
 	f.wantShown(locales.SystemSettingsSubtitle(), locales.SystemSettingsEngineSectionTitle(), locales.SystemSettingsArgsSectionTitle())
-	f.wantHidden(locales.EnvConfigPageDescription(), "DATABASE_URL")
+	f.wantHidden(locales.EnvConfigGlobalDescription(), "DATABASE_URL")
 	f.wantPath(route.Settings(settings.SectionSystem, ""))
 
 	f.Root.OpenSettings(settings.SectionPlugins)
@@ -193,7 +198,7 @@ func TestSettingsOpensAtSection(t *testing.T) {
 
 	f.Root.OpenSettings("unknown")
 	f.settle()
-	f.wantShown(locales.EnvConfigPageDescription())
+	f.wantShown(locales.EnvConfigGlobalDescription())
 	f.wantPath(route.Settings(settings.SectionEnv, ""))
 }
 
@@ -203,7 +208,7 @@ func TestSettingsUnknownPathFallsBackToEnv(t *testing.T) {
 		f.Root.Nav().Push(path)
 		f.settle()
 		f.wantPath(route.Settings(settings.SectionEnv, ""))
-		f.wantShown(locales.EnvConfigPageDescription())
+		f.wantShown(locales.EnvConfigGlobalDescription())
 	}
 }
 
@@ -215,7 +220,7 @@ func fromWorkerChat(t *testing.T, w int) *fixture {
 	f.settle()
 	f.Root.OpenSettings(settings.SectionEnv)
 	f.settle()
-	f.wantShown(locales.EnvConfigPageDescription())
+	f.wantShown(locales.EnvConfigGlobalDescription())
 	return f
 }
 
@@ -232,7 +237,7 @@ func (f *fixture) wantChat(param, panel string) {
 	if got := f.Root.Nav().Query(route.PanelQuery); got != panel {
 		f.t.Fatalf("panel = %q, want %q", got, panel)
 	}
-	f.wantHidden(locales.EnvConfigPageDescription(), locales.NavBackToChat())
+	f.wantHidden(locales.EnvConfigGlobalDescription(), locales.NavBackToChat())
 }
 
 func TestSettingsBackReturnsToTheChat(t *testing.T) {
@@ -265,7 +270,7 @@ func TestSettingsEscapeClosesOnlyTheTopOverlay(t *testing.T) {
 	f.T.Key(0, ui.KeyEscape)
 	f.settle()
 	f.wantHidden(locales.EnvConfigEditDescription())
-	f.wantShown(locales.EnvConfigPageDescription(), "DATABASE_URL")
+	f.wantShown(locales.EnvConfigGlobalDescription(), "DATABASE_URL")
 }
 
 func TestSettingsEscapeClosesOnlyTheSelect(t *testing.T) {
@@ -303,14 +308,14 @@ func TestSettingsNavSwitchesSections(t *testing.T) {
 	}
 	f.click(locales.PluginsTitle())
 	f.wantShown(locales.PluginsSubtitle())
-	f.wantHidden(locales.EnvConfigPageDescription())
+	f.wantHidden(locales.EnvConfigGlobalDescription())
 	f.click(locales.EnvConfigNavTitle())
-	f.wantShown(locales.EnvConfigPageDescription(), "DATABASE_URL")
+	f.wantShown(locales.EnvConfigGlobalDescription(), "DATABASE_URL")
 
 	f.T.ClickAt(env.X+env.W/2, env.Y+env.H/2+navStep)
 	f.settle()
 	f.wantShown(locales.SystemSettingsSubtitle(), locales.SystemSettingsEngineSectionTitle())
-	f.wantHidden(locales.EnvConfigPageDescription())
+	f.wantHidden(locales.EnvConfigGlobalDescription())
 }
 
 func TestSettingsSectionRemountsOnSwitch(t *testing.T) {
@@ -321,7 +326,7 @@ func TestSettingsSectionRemountsOnSwitch(t *testing.T) {
 		t.Fatalf("bee codex args = %q before leaving, want the draft", got)
 	}
 	f.click(locales.EnvConfigNavTitle())
-	f.wantShown(locales.EnvConfigPageDescription())
+	f.wantShown(locales.EnvConfigGlobalDescription())
 	env := f.rect(locales.EnvConfigNavTitle())
 	f.T.ClickAt(env.X+env.W/2, env.Y+env.H/2+navStep)
 	f.settle()
@@ -347,17 +352,17 @@ func TestSettingsNarrowNavIsAStrip(t *testing.T) {
 
 func TestSettingsClosesOnSignOut(t *testing.T) {
 	f := open(t, wideW, settings.SectionEnv, configured)
-	f.wantShown(locales.EnvConfigPageDescription())
+	f.wantShown(locales.EnvConfigGlobalDescription())
 	f.Store.Logout()
 	f.settle()
-	f.wantHidden(locales.EnvConfigPageDescription())
+	f.wantHidden(locales.EnvConfigGlobalDescription())
 	if f.Store.Phase == store.PhaseReady {
 		t.Fatalf("phase = %v after sign-out", f.Store.Phase)
 	}
 	snap := f.Fake.Snapshot()
 	f.Store.Login(snap.Username, snap.Password, func(error) {})
 	f.settle()
-	f.wantHidden(locales.EnvConfigPageDescription(), locales.NavBackToChat())
+	f.wantHidden(locales.EnvConfigGlobalDescription(), locales.NavBackToChat())
 	if path := f.Root.Nav().Path(); !route.IsChat(path) {
 		t.Fatalf("path = %q after signing back in, want a chat", path)
 	}

@@ -734,7 +734,7 @@ func systemLoading(t *testing.T, h *testkit.Harness) {
 }
 
 var settingsScreens = []screen{
-	{name: "settings-env", seed: settingsSeed, signedIn: true, prepare: openSettings("env"), want: locales.EnvConfigPageDescription},
+	{name: "settings-env", seed: settingsSeed, signedIn: true, prepare: openSettings("env"), want: locales.EnvConfigGlobalDescription},
 	{name: "settings-system", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), want: locales.SystemSettingsSubtitle},
 	{name: "settings-narrow", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), narrow: settingsWindow, shots: narrowOnly,
 		want: locales.SystemSettingsSubtitle},

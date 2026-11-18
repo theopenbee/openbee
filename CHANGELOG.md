@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Removed redundant hints from the environment variables page.
+
 ## [1.0.8] - 2026-11-18
 
 ### Added

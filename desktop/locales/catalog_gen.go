@@ -2936,26 +2936,6 @@ func (msgs Messages) EnvConfigEmpty() string {
 	return Catalog.Format(msgs.locale, "envConfigEmpty", nil)
 }
 
-// EnvConfigEmptyBee says "Add a variable to pass it to the Bee only."
-// in the language the app shows.
-func EnvConfigEmptyBee() string { return In(i18n.Locale()).EnvConfigEmptyBee() }
-
-// EnvConfigEmptyBee says "Add a variable to pass it to the Bee only."
-// in the language of msgs.
-func (msgs Messages) EnvConfigEmptyBee() string {
-	return Catalog.Format(msgs.locale, "envConfigEmptyBee", nil)
-}
-
-// EnvConfigEmptyGlobal says "Add a variable to pass it to the Bee and every worker."
-// in the language the app shows.
-func EnvConfigEmptyGlobal() string { return In(i18n.Locale()).EnvConfigEmptyGlobal() }
-
-// EnvConfigEmptyGlobal says "Add a variable to pass it to the Bee and every worker."
-// in the language of msgs.
-func (msgs Messages) EnvConfigEmptyGlobal() string {
-	return Catalog.Format(msgs.locale, "envConfigEmptyGlobal", nil)
-}
-
 // EnvConfigEmptyWorker says "Add a variable to pass it to this worker only."
 // in the language the app shows.
 func EnvConfigEmptyWorker() string { return In(i18n.Locale()).EnvConfigEmptyWorker() }
@@ -3094,16 +3074,6 @@ func EnvConfigNoEffective() string { return In(i18n.Locale()).EnvConfigNoEffecti
 // in the language of msgs.
 func (msgs Messages) EnvConfigNoEffective() string {
 	return Catalog.Format(msgs.locale, "envConfigNoEffective", nil)
-}
-
-// EnvConfigPageDescription says "Passed to the Bee and workers when they start. Values are encrypted and stay hidden after you save them."
-// in the language the app shows.
-func EnvConfigPageDescription() string { return In(i18n.Locale()).EnvConfigPageDescription() }
-
-// EnvConfigPageDescription says "Passed to the Bee and workers when they start. Values are encrypted and stay hidden after you save them."
-// in the language of msgs.
-func (msgs Messages) EnvConfigPageDescription() string {
-	return Catalog.Format(msgs.locale, "envConfigPageDescription", nil)
 }
 
 // EnvConfigSaveAndAddAnother says "Save and add another"

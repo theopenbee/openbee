@@ -280,7 +280,7 @@ func TestLiveEnvCrud(t *testing.T) {
 	f := start(t, func(a *admin) { a.cleanupEnv("global", "", key) })
 	f.click(locales.NavSettings())
 	f.await("the env settings", quickWait, func() bool {
-		return f.shows(locales.EnvConfigPageDescription()) && f.shows(locales.EnvConfigAdd())
+		return f.shows(locales.EnvConfigGlobalDescription()) && f.shows(locales.EnvConfigAdd())
 	})
 
 	f.click(locales.EnvConfigAdd())

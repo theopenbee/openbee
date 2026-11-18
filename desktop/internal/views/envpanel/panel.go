@@ -140,12 +140,7 @@ func (p *Panel) list(c *ui.Context, tk theme.Tokens, st *state, r *store.Resourc
 }
 
 func (p *Panel) emptyDescription() string {
-	switch p.scope {
-	case "global":
-		return locales.EnvConfigEmptyGlobal()
-	case "bee":
-		return locales.EnvConfigEmptyBee()
-	case "worker":
+	if p.scope == "worker" {
 		return locales.EnvConfigEmptyWorker()
 	}
 	return ""
