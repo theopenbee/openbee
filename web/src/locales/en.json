@@ -554,6 +554,30 @@
     "plugin_setup_not_found": "The login session has ended, start again",
     "plugin_setup_finished": "The login session has already finished"
   },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "general": "General",
+    "chat": "Chat",
+    "quickSearch": "Quick search",
+    "showShortcuts": "Show keyboard shortcuts",
+    "openSettings": "Open settings",
+    "previousConversation": "Previous conversation",
+    "nextConversation": "Next conversation",
+    "newConversation": "New conversation",
+    "sendMessage": "Send message",
+    "newLine": "New line",
+    "close": "Close dialog or panel"
+  },
+  "quickSearch": {
+    "title": "Quick search",
+    "placeholder": "Search conversations, settings and actions",
+    "groups": {
+      "conversations": "Conversations",
+      "actions": "Actions",
+      "settings": "Settings",
+      "plugins": "Plugins"
+    }
+  },
   "arc": {
     "alert": {
       "dismiss": "Dismiss: {{title}}"
@@ -591,6 +615,19 @@
       "sourceCode": "Source code",
       "copy": "Copy code",
       "selectable": "Selectable source code"
+    },
+    "commandPalette": {
+      "placeholder": "Search commands",
+      "label": "Command palette",
+      "defaultGroup": "Actions",
+      "clear": "Clear search",
+      "close": "Close command palette",
+      "results": "Command results",
+      "empty": "No results for “{{query}}”",
+      "emptyHint": "Try a different word or clear the search.",
+      "count_one": "{{count}} result",
+      "count_other": "{{count}} results",
+      "none": "No results"
     },
     "combobox": {
       "placeholder": "Search or select…",
@@ -668,6 +705,14 @@
     },
     "select": {
       "placeholder": "Select an option"
+    },
+    "shortcutList": {
+      "label": "Keyboard shortcuts",
+      "search": "Search shortcuts",
+      "count_one": "{{count}} match",
+      "count_other": "{{count}} matches",
+      "clear": "Clear search",
+      "empty": "No shortcuts match “{{query}}”"
     },
     "skeleton": {
       "label": "Loading content"

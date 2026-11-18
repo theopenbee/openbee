@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { PlusIcon } from "lucide-react"
 import { useReducedMotion } from "motion/react"
@@ -11,10 +11,12 @@ import { ConversationRow } from "@/components/chat/conversation-row"
 import { NavUser } from "@/components/nav-user"
 import { useNow } from "@/components/plugin-ui"
 import { SettingsButton } from "@/components/settings/settings-button"
+import { useCommand } from "@/hooks/use-command"
 import { useConversations } from "@/hooks/use-conversations"
 import { useWorkers } from "@/hooks/use-workers"
-import { BEE_CONVERSATION, filterConversations, sortConversations } from "@/lib/conversations"
+import { conversationPath, filterConversations, visibleConversations } from "@/lib/conversations"
 import { panelToSearch } from "@/lib/routes"
+import { neighborOf, requestComposerFocus } from "@/lib/shortcuts"
 import type { ConversationId, Worker } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +30,7 @@ interface ConversationListProps {
 
 export function ConversationList({ active, className }: ConversationListProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState("")
   const now = useNow(true, CLOCK_INTERVAL_MS)
@@ -42,13 +45,10 @@ export function ConversationList({ active, className }: ConversationListProps) {
     [workers.data],
   )
 
-  const rows = useMemo(() => {
-    const names = new Map(Array.from(workerMap.values(), (worker) => [worker.id, worker.name]))
-    const listed = (conversations.data ?? []).filter(
-      (item) => item.id === BEE_CONVERSATION || (item.worker_id !== undefined && workerMap.has(item.worker_id)),
-    )
-    return filterConversations(sortConversations(listed, names), query, workerMap)
-  }, [conversations.data, workerMap, query])
+  const rows = useMemo(
+    () => filterConversations(visibleConversations(conversations.data ?? [], workerMap), query, workerMap),
+    [conversations.data, workerMap, query],
+  )
 
   useEffect(() => {
     if (active === revealedRef.current) return
@@ -57,6 +57,25 @@ export function ConversationList({ active, className }: ConversationListProps) {
     row.scrollIntoView({ block: "nearest", behavior: revealedRef.current && !reduced ? "smooth" : "auto" })
     revealedRef.current = active
   }, [active, rows, reduced])
+
+  const cursorRef = useRef(active)
+  useEffect(() => {
+    cursorRef.current = active
+  }, [active])
+
+  const step = (direction: 1 | -1) => {
+    const next = neighborOf(
+      rows.map((row) => row.id),
+      cursorRef.current,
+      direction,
+    )
+    if (!next || next === cursorRef.current) return
+    cursorRef.current = next
+    navigate(conversationPath(next))
+    requestComposerFocus(next)
+  }
+  useCommand("previousConversation", () => step(-1))
+  useCommand("nextConversation", () => step(1))
 
   const openNewWorker = () => setSearchParams((current) => panelToSearch({ mode: "new" }, current))
   const loading = conversations.isPending || workers.isPending

@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { KeyRoundIcon } from "lucide-react"
+import { KeyboardIcon, KeyRoundIcon } from "lucide-react"
+import { shortcutTokens, usePlatform } from "@/components/arc/shortcut-recorder/shortcut-recorder"
 import { UserMenu } from "@/components/arc/user-menu/user-menu"
 import { ChangePasswordDialog } from "@/components/change-password-dialog"
 import { useLanguage } from "@/hooks/use-language"
@@ -9,6 +10,7 @@ import { useNotificationSettings } from "@/hooks/use-notifications"
 import { useThemePreference } from "@/hooks/use-theme-toggle"
 import { getStoredUsername } from "@/lib/auth"
 import { LANGUAGES } from "@/lib/language"
+import { runCommand, SHORTCUTS } from "@/lib/shortcuts"
 
 export function NavUser({
   showName = false,
@@ -26,6 +28,7 @@ export function NavUser({
   const notifications = useNotificationSettings()
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const username = getStoredUsername() ?? "admin"
+  const platform = usePlatform()
 
   return (
     <>
@@ -50,6 +53,12 @@ export function NavUser({
             label: t("account.changePassword", "Change password"),
             icon: <KeyRoundIcon size={16} strokeWidth={1.75} />,
             onSelect: () => setChangePasswordOpen(true),
+          },
+          {
+            label: t("shortcuts.title"),
+            icon: <KeyboardIcon size={16} strokeWidth={1.75} />,
+            keys: shortcutTokens(SHORTCUTS.showShortcuts, platform).map((token) => token.label),
+            onSelect: () => runCommand("showShortcuts"),
           },
         ]}
         onSignOut={logout}

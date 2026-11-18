@@ -11,6 +11,7 @@ import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
 import { Tooltip } from "@/components/arc/tooltip/tooltip"
 import { BeeAvatar } from "@/components/chat/bee-avatar"
 import { WorkerAvatar } from "@/components/worker-avatar"
+import { useCommand, useShortcutText } from "@/hooks/use-command"
 import { useClearConversation, useStopConversation } from "@/hooks/use-conversations"
 import { activeTasksOf, taskTypeLabelKey } from "@/lib/chat-view"
 import { BEE_CONVERSATION } from "@/lib/conversations"
@@ -128,6 +129,7 @@ function NewConversationButton({ conversation, isBee, onCleared }: NewConversati
   const [open, setOpen] = useState(false)
   const [activeTasks, setActiveTasks] = useState<ActiveTask[] | null>(null)
   const label = t("chat.newConversation")
+  const shortcut = useShortcutText("newConversation")
   const failed = clear.error !== null && activeTasksOf(clear.error) === null
 
   const show = () => {
@@ -135,6 +137,7 @@ function NewConversationButton({ conversation, isBee, onCleared }: NewConversati
     setActiveTasks(null)
     setOpen(true)
   }
+  useCommand("newConversation", show)
 
   const run = async (force: boolean) => {
     try {
@@ -153,7 +156,7 @@ function NewConversationButton({ conversation, isBee, onCleared }: NewConversati
 
   return (
     <>
-      <Tooltip content={label}>
+      <Tooltip content={`${label} ${shortcut}`}>
         <Button variant="ghost" size="sm" aria-label={label} onClick={show}>
           <SquarePenIcon size={18} strokeWidth={1.75} aria-hidden="true" />
         </Button>

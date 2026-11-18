@@ -37,6 +37,17 @@ export function sortConversations(
   })
 }
 
+export function visibleConversations(
+  list: ConversationSummary[],
+  workers: Map<string, Worker>,
+): ConversationSummary[] {
+  const names = new Map(Array.from(workers.values(), (worker) => [worker.id, worker.name]))
+  const listed = list.filter(
+    (item) => item.id === BEE_CONVERSATION || (item.worker_id !== undefined && workers.has(item.worker_id)),
+  )
+  return sortConversations(listed, names)
+}
+
 export function filterConversations(
   list: ConversationSummary[],
   query: string,

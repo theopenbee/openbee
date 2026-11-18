@@ -550,6 +550,30 @@
     "plugin_setup_not_found": "登录会话已结束，请重新开始",
     "plugin_setup_finished": "登录会话已经结束"
   },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "general": "通用",
+    "chat": "聊天",
+    "quickSearch": "快速搜索",
+    "showShortcuts": "查看键盘快捷键",
+    "openSettings": "打开设置",
+    "previousConversation": "上一个会话",
+    "nextConversation": "下一个会话",
+    "newConversation": "新对话",
+    "sendMessage": "发送消息",
+    "newLine": "换行",
+    "close": "关闭弹窗或面板"
+  },
+  "quickSearch": {
+    "title": "快速搜索",
+    "placeholder": "搜索会话、设置和操作",
+    "groups": {
+      "conversations": "会话",
+      "actions": "操作",
+      "settings": "设置",
+      "plugins": "插件"
+    }
+  },
   "arc": {
     "alert": {
       "dismiss": "关闭：{{title}}"
@@ -587,6 +611,18 @@
       "sourceCode": "源代码",
       "copy": "复制代码",
       "selectable": "可选中的源代码"
+    },
+    "commandPalette": {
+      "placeholder": "搜索命令",
+      "label": "命令面板",
+      "defaultGroup": "操作",
+      "clear": "清除搜索",
+      "close": "关闭命令面板",
+      "results": "搜索结果",
+      "empty": "没有找到“{{query}}”",
+      "emptyHint": "换个词试试，或清除搜索。",
+      "count_other": "{{count}} 个结果",
+      "none": "没有结果"
     },
     "combobox": {
       "placeholder": "搜索或选择…",
@@ -664,6 +700,13 @@
     },
     "select": {
       "placeholder": "请选择"
+    },
+    "shortcutList": {
+      "label": "键盘快捷键",
+      "search": "搜索快捷键",
+      "count_other": "{{count}} 个匹配",
+      "clear": "清除搜索",
+      "empty": "没有匹配“{{query}}”的快捷键"
     },
     "skeleton": {
       "label": "加载中"

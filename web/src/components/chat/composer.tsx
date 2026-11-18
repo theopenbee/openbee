@@ -10,6 +10,7 @@ import { useMediaQuery } from "@/hooks/use-media-query"
 import { api } from "@/lib/api"
 import { attachmentName } from "@/lib/chat-format"
 import { readDraft, saveDraft } from "@/lib/drafts"
+import { subscribeComposerFocus, takeComposerFocus } from "@/lib/shortcuts"
 import { CHAT_COLUMN } from "@/lib/styles"
 import type { Worker } from "@/lib/types"
 import { cn, isImeComposing } from "@/lib/utils"
@@ -38,6 +39,14 @@ export function Composer({ draftKey, placeholder, disabled, mentions, onSend }: 
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const focus = () => {
+      if (takeComposerFocus(draftKey)) requestAnimationFrame(() => textareaRef.current?.focus())
+    }
+    focus()
+    return subscribeComposerFocus(focus)
+  }, [draftKey])
 
   useEffect(() => {
     saveDraft(draftKey, { text: input, media: pendingMediaPaths })
