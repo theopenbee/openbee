@@ -29,8 +29,8 @@ const PluginDetailSettings = lazy(() =>
   import("@/components/settings/plugin-detail-settings").then((m) => ({ default: m.PluginDetailSettings })),
 )
 
-const SECTIONS: { id: SettingsSection; titleKey: string; navKey?: string; descriptionKey: string; icon: LucideIcon }[] = [
-  { id: "env", titleKey: "envConfig.title", navKey: "envConfig.navTitle", descriptionKey: "envConfig.pageDescription", icon: KeyRoundIcon },
+const SECTIONS: { id: SettingsSection; titleKey: string; navKey?: string; descriptionKey?: string; icon: LucideIcon }[] = [
+  { id: "env", titleKey: "envConfig.title", navKey: "envConfig.navTitle", icon: KeyRoundIcon },
   { id: "system", titleKey: "systemSettings.title", descriptionKey: "systemSettings.subtitle", icon: SlidersHorizontalIcon },
   { id: "plugins", titleKey: "plugins.title", descriptionKey: "plugins.subtitle", icon: PuzzleIcon },
   { id: "about", titleKey: "about.title", descriptionKey: "about.subtitle", icon: InfoIcon },
@@ -98,7 +98,9 @@ function SettingsLayout({ target }: { target: SettingsTarget }) {
         />
         <div key={`${current.id}:${target.plugin ?? ""}`} className="min-h-0 flex-1 overflow-y-auto">
           <div className="@container mx-auto w-full max-w-4xl p-6 md:p-8">
-            {!target.plugin && <p className="mb-6 text-sm text-secondary">{t(current.descriptionKey)}</p>}
+            {!target.plugin && current.descriptionKey && (
+              <p className="mb-6 text-sm text-secondary">{t(current.descriptionKey)}</p>
+            )}
             <Suspense fallback={null}>
               <SectionBody target={target} />
             </Suspense>

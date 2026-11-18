@@ -13,7 +13,7 @@ export function EmptyState({ title, description, action, icon, className }: Empt
   return (
     <ArcEmptyState
       title={title}
-      description={description ?? ""}
+      description={description}
       action={action}
       icon={icon}
       className={className}

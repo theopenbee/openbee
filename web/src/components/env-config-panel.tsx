@@ -14,12 +14,6 @@ import type { EnvConfig, EnvScope } from "@/lib/types"
 
 const ICON = { size: 16, strokeWidth: 1.75, "aria-hidden": true } as const
 
-const EMPTY_DESCRIPTION: Record<EnvScope, [string, string]> = {
-  global: ["envConfig.emptyGlobal", "Add a variable to pass it to the Bee and every worker."],
-  bee: ["envConfig.emptyBee", "Add a variable to pass it to the Bee only."],
-  worker: ["envConfig.emptyWorker", "Add a variable to pass it to this worker only."],
-}
-
 interface EnvConfigPanelProps {
   scope: EnvScope
   scopeId?: string
@@ -37,7 +31,6 @@ export function EnvConfigPanel({ scope, scopeId, title, description, inset = fal
   const [deleteTarget, setDeleteTarget] = useState<EnvConfig | null>(null)
   const existingKeys = useMemo(() => envs.map((e) => e.key), [envs])
   const isEmpty = !isLoading && !isError && envs.length === 0
-  const [emptyKey, emptyFallback] = EMPTY_DESCRIPTION[scope]
 
   const addButton = (
     <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
@@ -85,7 +78,9 @@ export function EnvConfigPanel({ scope, scopeId, title, description, inset = fal
             <EmptyState
               icon={<KeyRoundIcon size={24} strokeWidth={1.75} aria-hidden="true" />}
               title={t("envConfig.empty", "No variables yet")}
-              description={t(emptyKey, emptyFallback)}
+              description={
+                scope === "worker" ? t("envConfig.emptyWorker", "Add a variable to pass it to this worker only.") : undefined
+              }
               action={addButton}
             />
           ) : (

@@ -8,7 +8,7 @@ import styles from "./empty-state.module.css";
 
 export interface EmptyStateProps {
   title: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
   icon?: ReactNode;
   className?: string;
@@ -71,9 +71,9 @@ export function EmptyState({ title, description, action, icon, className, label 
   const swap: MotionProps = { initial: reduce ? { opacity: 0 } : textIn, animate: shown, exit: reduce ? fadeOut : textOut, transition: enter };
   return <section className={[styles.root, className].filter(Boolean).join(" ")} aria-label={label}>
     <div className={styles.icon} aria-hidden="true"><AnimatePresence mode="popLayout" initial={false}><Swap key={iconKey(glyph)} className={styles.glyph} initial={reduce ? { opacity: 0 } : iconIn} animate={shown} exit={reduce ? fadeOut : { ...iconIn, transition: exitFast }} transition={reduce ? enter : motionTokens.spring.snappy}>{glyph}</Swap></AnimatePresence></div>
-    <HeightFrame reduce={reduce} morphKey={`${title}\n${description}`}>
+    <HeightFrame reduce={reduce} morphKey={`${title}\n${description ?? ""}`}>
       <h3><AnimatePresence mode="popLayout" initial={false}><Swap key={title} className={styles.line} {...swap}>{title}</Swap></AnimatePresence></h3>
-      <p><AnimatePresence mode="popLayout" initial={false}><Swap key={description} className={styles.line} {...swap}>{description}</Swap></AnimatePresence></p>
+      {description && <p><AnimatePresence mode="popLayout" initial={false}><Swap key={description} className={styles.line} {...swap}>{description}</Swap></AnimatePresence></p>}
     </HeightFrame>
     {action && <div className={styles.action}>{action}</div>}
   </section>;
