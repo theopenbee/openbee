@@ -735,13 +735,13 @@ func systemLoading(t *testing.T, h *testkit.Harness) {
 
 var settingsScreens = []screen{
 	{name: "settings-env", seed: settingsSeed, signedIn: true, prepare: openSettings("env"), want: locales.EnvConfigGlobalDescription},
-	{name: "settings-system", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), want: locales.SystemSettingsSubtitle},
+	{name: "settings-system", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), want: locales.SystemSettingsEngineSectionTitle},
 	{name: "settings-narrow", seed: settingsSeed, signedIn: true, prepare: openSettings("system"), narrow: settingsWindow, shots: narrowOnly,
-		want: locales.SystemSettingsSubtitle},
+		want: locales.SystemSettingsEngineSectionTitle},
 	{name: "settings-system-error", seed: settingsSeed, signedIn: true, prepare: systemSaveFailed, shots: wideOnly,
 		want: locales.SystemSettingsSaveError},
 	{name: "settings-system-loading", seed: settingsSeed, signedIn: true, prepare: systemLoading, shots: wideOnly,
-		want: locales.SystemSettingsSubtitle},
+		want: locales.SystemSettingsTitle},
 	{name: "settings-about", seed: remoteServer, signedIn: true, prepare: openSettings("about"),
 		opts: []func(o *store.Options){testkit.WithUpdater(&testkit.Updater{Automatic: true, Last: time.Now().Add(-2 * time.Hour)}, "1.0.6")},
 		want: locales.AboutAutoInstall},

@@ -21,7 +21,6 @@ const (
 const (
 	contentPadNarrow = 24
 	contentPadWide   = 32
-	descriptionGap   = 24
 	contentFade      = 240 * time.Millisecond
 )
 
@@ -30,18 +29,17 @@ var easeEnter = ui.CubicBezier(0.16, 1, 0.3, 1)
 type mainKey struct{}
 
 type section struct {
-	id          string
-	icon        string
-	title       func() string
-	nav         func() string
-	description func() string
+	id    string
+	icon  string
+	title func() string
+	nav   func() string
 }
 
 var sections = []section{
-	{SectionEnv, "key-round", locales.EnvConfigTitle, locales.EnvConfigNavTitle, nil},
-	{SectionSystem, "sliders-horizontal", locales.SystemSettingsTitle, locales.SystemSettingsTitle, locales.SystemSettingsSubtitle},
-	{SectionPlugins, "puzzle", locales.PluginsTitle, locales.PluginsTitle, locales.PluginsSubtitle},
-	{SectionAbout, "info", locales.AboutTitle, locales.AboutTitle, locales.AboutSubtitle},
+	{SectionEnv, "key-round", locales.EnvConfigTitle, locales.EnvConfigNavTitle},
+	{SectionSystem, "sliders-horizontal", locales.SystemSettingsTitle, locales.SystemSettingsTitle},
+	{SectionPlugins, "puzzle", locales.PluginsTitle, locales.PluginsTitle},
+	{SectionAbout, "info", locales.AboutTitle, locales.AboutTitle},
 }
 
 type Page struct {
@@ -163,9 +161,6 @@ func (d *Page) content(c *ui.Context, tk theme.Tokens, cur section) {
 	pane.Opacity(shown).Children(func() {
 		ui.Column(c).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).WidthPercent(100).MaxWidth(theme.SettingsColumnMax).Padding(d.contentPad()).MinWidth(0).FontSize(textSize).Children(func() {
-				if d.pluginID == "" && cur.description != nil {
-					ui.Text(c, cur.description()).TextColor(tk.TextSecondary).Margin(0, 0, descriptionGap, 0)
-				}
 				switch cur.id {
 				case SectionSystem:
 					d.system(c, tk)

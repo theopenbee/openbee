@@ -178,28 +178,45 @@ func TestSettingsOpensAtSection(t *testing.T) {
 	f := open(t, wideW, settings.SectionEnv, configured)
 	f.wantShown(locales.EnvConfigTitle(), locales.EnvConfigGlobalDescription(), locales.EnvConfigGlobalTitle(), locales.EnvConfigBeeTitle(),
 		"DATABASE_URL", "BEE_TOKEN", locales.EnvConfigNavTitle(), locales.PluginsTitle(), locales.NavBackToChat())
-	f.wantHidden(locales.SystemSettingsSubtitle(), locales.ArcDialogClose(), locales.ChatSearch())
+	f.wantHidden(locales.SystemSettingsEngineSectionTitle(), locales.ArcDialogClose(), locales.ChatSearch())
 	f.wantPath(route.Settings(settings.SectionEnv, ""))
-	texts := f.T.Texts()
-	if at := slices.Index(texts, locales.EnvConfigGlobalTitle()); at < 1 || texts[at-1] != locales.EnvConfigTitle() {
-		t.Fatalf("texts = %q, want the global variables right under the page title", texts)
-	}
 
 	f.Root.OpenSettings(settings.SectionSystem)
 	f.settle()
-	f.wantShown(locales.SystemSettingsSubtitle(), locales.SystemSettingsEngineSectionTitle(), locales.SystemSettingsArgsSectionTitle())
+	f.wantShown(locales.SystemSettingsEngineSectionTitle(), locales.SystemSettingsArgsSectionTitle())
 	f.wantHidden(locales.EnvConfigGlobalDescription(), "DATABASE_URL")
 	f.wantPath(route.Settings(settings.SectionSystem, ""))
 
 	f.Root.OpenSettings(settings.SectionPlugins)
 	f.settle()
-	f.wantShown(locales.PluginsSubtitle())
-	f.wantHidden(locales.SystemSettingsSubtitle())
+	f.wantShown(locales.PluginsTabsMarket())
+	f.wantHidden(locales.SystemSettingsEngineSectionTitle())
 
 	f.Root.OpenSettings("unknown")
 	f.settle()
 	f.wantShown(locales.EnvConfigGlobalDescription())
 	f.wantPath(route.Settings(settings.SectionEnv, ""))
+}
+
+func TestSettingsContentStartsUnderTheTitle(t *testing.T) {
+	for _, tc := range []struct {
+		section string
+		lead    []string
+	}{
+		{settings.SectionEnv, []string{locales.EnvConfigTitle(), locales.EnvConfigGlobalTitle()}},
+		{settings.SectionSystem, []string{locales.SystemSettingsTitle(), locales.SystemSettingsEngineSectionTitle()}},
+		{settings.SectionPlugins, []string{locales.PluginsTitle(), locales.PluginsTitle(), locales.PluginsTabsMarket()}},
+		{settings.SectionAbout, []string{locales.AboutTitle(), locales.AboutDesktopTitle()}},
+	} {
+		t.Run(tc.section, func(t *testing.T) {
+			f := open(t, wideW, tc.section, configured)
+			texts := f.T.Texts()
+			end := slices.Index(texts, tc.lead[len(tc.lead)-1]) + 1
+			if start := end - len(tc.lead); start < 0 || !slices.Equal(texts[start:end], tc.lead) {
+				t.Fatalf("texts = %q, want %q in a row under the page title", texts, tc.lead)
+			}
+		})
+	}
 }
 
 func TestSettingsUnknownPathFallsBackToEnv(t *testing.T) {
@@ -243,7 +260,7 @@ func (f *fixture) wantChat(param, panel string) {
 func TestSettingsBackReturnsToTheChat(t *testing.T) {
 	f := fromWorkerChat(t, wideW)
 	f.click(locales.PluginsTitle())
-	f.wantShown(locales.PluginsSubtitle())
+	f.wantShown(locales.PluginsTabsMarket())
 	f.click(locales.NavBackToChat())
 	f.wantChat("w1", route.PanelConstraints)
 }
@@ -283,7 +300,7 @@ func TestSettingsEscapeClosesOnlyTheSelect(t *testing.T) {
 	f.T.Key(0, ui.KeyEscape)
 	f.settle()
 	f.wantPath(route.Settings(settings.SectionSystem, ""))
-	f.wantShown(locales.SystemSettingsSubtitle())
+	f.wantShown(locales.SystemSettingsEngineSectionTitle())
 	if got := f.count(codexName); got != closed {
 		t.Fatalf("%q shows %d times after Escape, want %d with the select closed", codexName, got, closed)
 	}
@@ -307,14 +324,14 @@ func TestSettingsNavSwitchesSections(t *testing.T) {
 		t.Fatalf("wide nav is not a column: env %+v, plugins %+v", env, plugins)
 	}
 	f.click(locales.PluginsTitle())
-	f.wantShown(locales.PluginsSubtitle())
+	f.wantShown(locales.PluginsTabsMarket())
 	f.wantHidden(locales.EnvConfigGlobalDescription())
 	f.click(locales.EnvConfigNavTitle())
 	f.wantShown(locales.EnvConfigGlobalDescription(), "DATABASE_URL")
 
 	f.T.ClickAt(env.X+env.W/2, env.Y+env.H/2+navStep)
 	f.settle()
-	f.wantShown(locales.SystemSettingsSubtitle(), locales.SystemSettingsEngineSectionTitle())
+	f.wantShown(locales.SystemSettingsEngineSectionTitle())
 	f.wantHidden(locales.EnvConfigGlobalDescription())
 }
 
@@ -347,7 +364,7 @@ func TestSettingsNarrowNavIsAStrip(t *testing.T) {
 		t.Fatalf("narrow nav is not a strip: env %+v, plugins %+v", env, plugins)
 	}
 	f.click(locales.PluginsTitle())
-	f.wantShown(locales.PluginsSubtitle())
+	f.wantShown(locales.PluginsTabsMarket())
 }
 
 func TestSettingsClosesOnSignOut(t *testing.T) {
@@ -558,7 +575,7 @@ func TestSystemLoadingShowsSkeleton(t *testing.T) {
 	hs.Store.SystemConfigs.Loading = true
 	hs.Root.OpenSettings(settings.SectionSystem)
 	f.settle()
-	f.wantShown(locales.SystemSettingsSubtitle())
+	f.wantPath(route.Settings(settings.SectionSystem, ""))
 	f.wantHidden(locales.SystemSettingsEngineSectionTitle(), locales.SystemSettingsSave(), locales.SystemSettingsLoadError())
 	if !f.T.FramePending() {
 		t.Fatal("the skeleton does not pulse")

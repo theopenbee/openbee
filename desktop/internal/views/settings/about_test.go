@@ -39,7 +39,7 @@ func (f *fixture) wantOpened(url string) {
 func TestAboutShowsVersions(t *testing.T) {
 	f := openAbout(t, nil, api.ServerVersion{Version: "1.0.5"})
 	f.wantPath(route.Settings(settings.SectionAbout, ""))
-	f.wantShown(locales.AboutTitle(), locales.AboutSubtitle(), locales.AboutDesktopTitle(), locales.AboutDesktopDescription(), appVersion,
+	f.wantShown(locales.AboutTitle(), locales.AboutDesktopTitle(), locales.AboutDesktopDescription(), appVersion,
 		locales.AboutServerTitle(), locales.AboutServerDescription(), "1.0.5",
 		locales.AboutServerUpgrade(), locales.AboutServerUpgradeDescription(), settings.UpgradeCommand,
 		locales.AboutReleasesTitle(), locales.AboutReleasesLink())

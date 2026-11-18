@@ -326,13 +326,13 @@ func (f *flow) openSystem() {
 	if !f.shows(locales.NavBackToChat()) {
 		f.click(locales.NavSettings())
 	}
-	if !f.shows(locales.SystemSettingsSubtitle()) {
+	if !f.shows(locales.SystemSettingsEngineSectionTitle()) {
 		plugins := f.rect(locales.PluginsTitle())
 		f.T.ClickAt(plugins.X+plugins.W/2, plugins.Y+plugins.H/2-navStep)
 		f.Motion()
 	}
 	f.await("the system settings form", quickWait, func() bool {
-		return f.Store.SystemConfigs.Loaded && f.shows(locales.SystemSettingsSubtitle()) && f.shows(locales.SystemSettingsSave())
+		return f.Store.SystemConfigs.Loaded && f.shows(locales.SystemSettingsEngineSectionTitle()) && f.shows(locales.SystemSettingsSave())
 	})
 }
 
@@ -386,7 +386,7 @@ func TestLiveSystemSettings(t *testing.T) {
 
 	f.T.Key(0, ui.KeyEscape)
 	f.Motion()
-	f.wantHidden(locales.SystemSettingsSubtitle())
+	f.wantHidden(locales.SystemSettingsEngineSectionTitle())
 	f.openSystem()
 	f.reveal(field, settingsPane)
 	if got := f.fieldText(field); got != goodArgs {

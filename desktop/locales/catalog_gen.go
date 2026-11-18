@@ -244,16 +244,6 @@ func (msgs Messages) AboutServerUpgradeDescription() string {
 	return Catalog.Format(msgs.locale, "aboutServerUpgradeDescription", nil)
 }
 
-// AboutSubtitle says "The versions in use, how to upgrade, and what changed in each release."
-// in the language the app shows.
-func AboutSubtitle() string { return In(i18n.Locale()).AboutSubtitle() }
-
-// AboutSubtitle says "The versions in use, how to upgrade, and what changed in each release."
-// in the language of msgs.
-func (msgs Messages) AboutSubtitle() string {
-	return Catalog.Format(msgs.locale, "aboutSubtitle", nil)
-}
-
 // AboutTitle says "About"
 // in the language the app shows.
 func AboutTitle() string { return In(i18n.Locale()).AboutTitle() }
@@ -4972,16 +4962,6 @@ func (msgs Messages) PluginsStateUninstalling() string {
 	return Catalog.Format(msgs.locale, "pluginsStateUninstalling", nil)
 }
 
-// PluginsSubtitle says "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee"
-// in the language the app shows.
-func PluginsSubtitle() string { return In(i18n.Locale()).PluginsSubtitle() }
-
-// PluginsSubtitle says "Install channel and engine plugins from the catalog and turn them on without restarting OpenBee"
-// in the language of msgs.
-func (msgs Messages) PluginsSubtitle() string {
-	return Catalog.Format(msgs.locale, "pluginsSubtitle", nil)
-}
-
 // PluginsTabsInstalled says "Installed"
 // in the language the app shows.
 func PluginsTabsInstalled() string { return In(i18n.Locale()).PluginsTabsInstalled() }
@@ -5886,16 +5866,6 @@ func SystemSettingsSaved() string { return In(i18n.Locale()).SystemSettingsSaved
 // in the language of msgs.
 func (msgs Messages) SystemSettingsSaved() string {
 	return Catalog.Format(msgs.locale, "systemSettingsSaved", nil)
-}
-
-// SystemSettingsSubtitle says "The default engine for the Bee and new workers, and the flags each engine starts with."
-// in the language the app shows.
-func SystemSettingsSubtitle() string { return In(i18n.Locale()).SystemSettingsSubtitle() }
-
-// SystemSettingsSubtitle says "The default engine for the Bee and new workers, and the flags each engine starts with."
-// in the language of msgs.
-func (msgs Messages) SystemSettingsSubtitle() string {
-	return Catalog.Format(msgs.locale, "systemSettingsSubtitle", nil)
 }
 
 // SystemSettingsTitle says "Settings"
