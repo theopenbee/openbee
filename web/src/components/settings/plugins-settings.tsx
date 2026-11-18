@@ -141,8 +141,8 @@ function Market({ operations }: { operations: PluginOperation[] }) {
     return (
       <>
         {toolbar}
-        <div className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3" aria-busy="true">
-          {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} className="rounded-inset" />)}
+        <div className="grid gap-4 @3xl:grid-cols-2 @4xl:grid-cols-3" aria-busy="true">
+          {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} className="rounded-inset p-5" />)}
         </div>
       </>
     )
@@ -210,7 +210,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
               <h2 id={`market-group-${group.type}`} className="mb-3 text-sm font-medium text-foreground">
                 {typeName(group.type)}
               </h2>
-              <ul className="grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+              <ul className="grid gap-4 @3xl:grid-cols-2 @4xl:grid-cols-3">
                 {group.items.map((p) => {
                   const op = pending[p.package]
                   const action = marketAction(p, Boolean(op) || requested.has(p.package))
@@ -218,36 +218,42 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                   const deprecated = localize(p.deprecated, lang)
                   const description = localize(p.description, lang)
                   return (
-                    <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-6">
-                      <div className="flex-1">
-                        <div className="flex items-start gap-3">
-                          <PluginAvatar name={name} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="min-w-0 truncate text-base font-medium text-foreground">{name}</h3>
-                              {p.official && <Badge size="sm">{t("plugins.official")}</Badge>}
-                              {deprecated && (
-                                <Tooltip content={deprecated}>
-                                  <span tabIndex={0} className="inline-flex rounded-full">
-                                    <Badge tone="warning" size="sm">{t("plugins.deprecated")}</Badge>
-                                  </span>
-                                </Tooltip>
-                              )}
-                            </div>
-                            <p className="mt-0.5 truncate font-mono text-xs text-secondary">
-                              {p.id} · v{p.version}
-                            </p>
+                    <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-5">
+                      <div className="flex items-center gap-3">
+                        <PluginAvatar name={name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="min-w-0 truncate text-base font-medium text-foreground">{name}</h3>
+                            {p.official && <Badge size="sm">{t("plugins.official")}</Badge>}
+                            {deprecated && (
+                              <Tooltip content={deprecated}>
+                                <span tabIndex={0} className="inline-flex rounded-full">
+                                  <Badge tone="warning" size="sm">{t("plugins.deprecated")}</Badge>
+                                </span>
+                              </Tooltip>
+                            )}
                           </div>
+                          <p className="mt-0.5 truncate font-mono text-xs text-secondary">
+                            {p.id} · v{p.version}
+                          </p>
                         </div>
-                        <p className="mt-4 line-clamp-2 min-h-10 text-sm text-secondary">{description}</p>
-                        {p.tags.length > 0 && (
-                          <p className="mt-3 truncate text-xs text-muted">{p.tags.map(tagName).join(" · ")}</p>
-                        )}
+                        <div className="shrink-0">
+                          <MarketAction
+                            action={action}
+                            plugin={p}
+                            op={op}
+                            now={now}
+                            onInstall={() => startInstall(p)}
+                            onConfigure={() => show({ section: "plugins", plugin: p.id })}
+                          />
+                        </div>
                       </div>
-                      <div className="mt-5 flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border-subtle pt-4">
-                        <div className="min-w-0 text-xs text-secondary">
+                      {description && <p className="mt-3 line-clamp-2 text-sm text-secondary">{description}</p>}
+                      {(p.tags.length > 0 || p.installed) && (
+                        <div className="mt-auto flex min-w-0 items-center gap-3 pt-3 text-xs">
+                          <p className="min-w-0 flex-1 truncate text-muted">{p.tags.map(tagName).join(" · ")}</p>
                           {p.installed && (
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex shrink-0 items-center gap-1.5 text-secondary">
                               <CheckIcon size={14} strokeWidth={1.75} className="shrink-0 text-success" aria-hidden="true" />
                               {p.update_available
                                 ? t("plugins.updateAvailable", { version: p.installed_version })
@@ -255,15 +261,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                             </span>
                           )}
                         </div>
-                        <MarketAction
-                          action={action}
-                          plugin={p}
-                          op={op}
-                          now={now}
-                          onInstall={() => startInstall(p)}
-                          onConfigure={() => show({ section: "plugins", plugin: p.id })}
-                        />
-                      </div>
+                      )}
                     </li>
                   )
                 })}
