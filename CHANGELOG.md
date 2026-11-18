@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.8] - 2026-11-18
 
 ### Added
 - Quick search with ⌘K on web and desktop.
