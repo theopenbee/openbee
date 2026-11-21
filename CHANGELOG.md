@@ -4,6 +4,10 @@
 
 ### Changed
 - Account menu no longer shows the Administrator role.
+- Chat message avatars no longer show worker status.
+
+### Fixed
+- Even inner padding for account menu control rows.
 
 ## [1.0.9] - 2026-11-18
 
