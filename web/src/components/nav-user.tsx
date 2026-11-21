@@ -34,7 +34,7 @@ export function NavUser({
     <>
       <UserMenu
         className={className}
-        user={{ name: username, email: t("account.role", "Administrator") }}
+        user={{ name: username }}
         showName={showName}
         align={align}
         theme={preference}

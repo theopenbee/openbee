@@ -214,7 +214,6 @@
     }
   },
   "account": {
-    "role": "管理员",
     "changePassword": "修改密码",
     "changePasswordDescription": "修改后，所有会话都会退出登录。",
     "currentPassword": "当前密码",

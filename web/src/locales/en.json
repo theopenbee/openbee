@@ -215,7 +215,6 @@
     }
   },
   "account": {
-    "role": "Administrator",
     "changePassword": "Change password",
     "changePasswordDescription": "Changing it signs you out of every session.",
     "currentPassword": "Current password",

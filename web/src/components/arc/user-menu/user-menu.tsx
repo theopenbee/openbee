@@ -25,7 +25,7 @@ const themes: { value: ThemePreference; label: string; icon: ReactNode }[] = [
   { value: "system", label: "System", icon: <Monitor size={14} strokeWidth={1.75} aria-hidden="true" /> },
 ];
 
-export interface UserMenuUser { name: string; email: string; plan?: string; avatarSrc?: string; avatarSrcSet?: string }
+export interface UserMenuUser { name: string; email?: string; plan?: string; avatarSrc?: string; avatarSrcSet?: string }
 export interface UserMenuItem { label: string; icon?: ReactNode; keys?: string[]; onSelect?: () => void }
 export interface UserMenuLanguage { value: string; label: string; short: string }
 export interface UserMenuNotifications { enabled: boolean; disabled?: boolean; note?: string; onChange: (enabled: boolean) => void }
@@ -343,7 +343,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
       <Face user={user} status={showStatus ? status : undefined} size="md" />
       <div className={styles.identity}>
         <div className={styles.nameRow}><span className={styles.name}>{user.name}</span>{user.plan && <span className={styles.plan}>{user.plan}</span>}</div>
-        <span className={styles.email} title={user.email}>{user.email}</span>
+        {user.email && <span className={styles.email} title={user.email}>{user.email}</span>}
       </div>
     </motion.div>
     <div ref={listRef} className={styles.list} onFocus={onListFocus} onPointerMove={onListPointerMove} onPointerLeave={onListPointerLeave}>
