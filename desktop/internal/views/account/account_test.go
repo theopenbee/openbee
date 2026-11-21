@@ -1,6 +1,7 @@
 package account_test
 
 import (
+	"image"
 	"slices"
 	"testing"
 
@@ -499,5 +500,47 @@ func TestMenuSitsEvenlyInTheSidebar(t *testing.T) {
 	left, right := item.X, theme.SidebarWidth-theme.SidebarBorder-(item.X+item.W)
 	if left-right > 0.5 || right-left > 0.5 {
 		t.Fatalf("menu items are %vpx from the sidebar's left edge and %vpx from its right edge, want them even", left, right)
+	}
+}
+
+func inkSpan(img *image.RGBA, scale, left, right, top, bottom float32) (first, last float32) {
+	x0, x1 := int(left*scale)+1, int(right*scale)-2
+	y0, y1 := int(top*scale), int(bottom*scale)
+	bg := img.RGBAAt(x0, (y0+y1)/2)
+	inked := func(x int) bool {
+		for y := y0; y <= y1; y++ {
+			if img.RGBAAt(x, y) != bg {
+				return true
+			}
+		}
+		return false
+	}
+	lo, hi := x0, x1
+	for lo < x1 && !inked(lo) {
+		lo++
+	}
+	for hi > x0 && !inked(hi) {
+		hi--
+	}
+	return float32(lo) / scale, float32(hi+1) / scale
+}
+
+func TestMenuRowControlsMirrorTheIconInset(t *testing.T) {
+	f := signedIn(t)
+	f.openMenu()
+	item, ok0 := f.T.Find(locales.AccountChangePassword())
+	for _, label := range []string{locales.ArcUserMenuTheme(), locales.ArcUserMenuLanguage(), locales.ArcUserMenuNotifications()} {
+		text, ok1 := f.T.Find(label)
+		if !ok0 || !ok1 {
+			t.Fatalf("menu rows missing; texts %q", f.T.Texts())
+		}
+		img := f.T.Image()
+		scale := float32(img.Bounds().Dx()) / wideW
+		mid := text.Y + text.H/2
+		first, last := inkSpan(img, scale, item.X, item.X+item.W, mid-item.H/4, mid+item.H/4)
+		left, right := first-item.X, item.X+item.W-last
+		if left-right > 2 || right-left > 2 {
+			t.Fatalf("%s row: icon is %vpx from the menu's left edge, control %vpx from its right edge, want them even", label, left, right)
+		}
 	}
 }

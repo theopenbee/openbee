@@ -36,7 +36,6 @@ const (
 	menuSize     = 13
 	menuGlyph    = 16
 	rowHeight    = 36
-	rowPadEnd    = 6
 	noteSize     = 11
 	dangerTint   = 0.08
 	chinese      = "zh"
@@ -187,7 +186,7 @@ func (a *Account) item(c *ui.Context, tk theme.Tokens, icon, text string, danger
 }
 
 func (a *Account) row(c *ui.Context, tk theme.Tokens, icon, label, note string, control func()) {
-	ui.Row(c).Height(rowHeight).AlignItems(ui.Center).Gap(menuGap).Padding(0, rowPadEnd, 0, menuPadX).Children(func() {
+	ui.Row(c).Height(rowHeight).AlignItems(ui.Center).Gap(menuGap).PaddingX(menuPadX).Children(func() {
 		ui.Icon(c, icons.Get(icon)).Size(menuGlyph, menuGlyph).Shrink(0).TextColor(tk.TextSecondary)
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 			ui.Text(c, label).FontSize(menuSize).SingleLine().MinWidth(0)
