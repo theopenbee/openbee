@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Account menu no longer shows the Administrator role.
+
 ## [1.0.9] - 2026-11-18
 
 ### Changed

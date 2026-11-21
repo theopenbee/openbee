@@ -39,7 +39,6 @@
   "accountNewPasswordHint": "至少 6 个字符。",
   "accountPasswordChanged": "密码已修改",
   "accountPasswordChangedRelogin": "请使用新密码重新登录。",
-  "accountRole": "管理员",
   "accountSignInAgain": "重新登录",
   "arcAlertDismiss": "关闭：{title}",
   "@arcAlertDismiss": { "placeholders": { "title": { "type": "String" } } },

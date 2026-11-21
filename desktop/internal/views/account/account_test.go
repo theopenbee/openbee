@@ -115,19 +115,23 @@ func count(texts []string, want string) int {
 	return n
 }
 
-func TestTriggerShowsUsernameAndRole(t *testing.T) {
+func TestTriggerShowsOnlyTheUsername(t *testing.T) {
 	f := signedIn(t)
-	f.wantShown(username, locales.AccountRole())
-	name, ok0 := f.T.Find(username)
-	role, ok1 := f.T.Find(locales.AccountRole())
-	if !ok0 || !ok1 || role.X <= name.X+name.W {
-		t.Fatalf("role at %+v is not after the username at %+v", role, name)
+	label := locales.ArcUserMenuTrigger(username)
+	trigger, ok0 := f.T.Find(label)
+	name, ok1 := f.T.Find(username)
+	if !ok0 || !ok1 {
+		t.Fatalf("trigger or username missing; texts %q", f.T.Texts())
+	}
+	for _, text := range f.T.Texts() {
+		r, _ := f.T.Find(text)
+		if text != label && r.X >= name.X+name.W && r.X+r.W <= trigger.X+trigger.W && r.Y >= trigger.Y && r.Y+r.H <= trigger.Y+trigger.H {
+			t.Fatalf("trigger shows %q after the username; texts %q", text, f.T.Texts())
+		}
 	}
 	f.openMenu()
-	for _, text := range []string{username, locales.AccountRole()} {
-		if got := count(f.T.Texts(), text); got != 1 {
-			t.Fatalf("%q shown %d times with the menu open, want only the trigger; texts %q", text, got, f.T.Texts())
-		}
+	if got := count(f.T.Texts(), username); got != 1 {
+		t.Fatalf("%q shown %d times with the menu open, want only the trigger; texts %q", username, got, f.T.Texts())
 	}
 	f.wantShown(locales.AccountChangePassword(), locales.AboutCheckUpdates(), locales.ArcUserMenuTheme(),
 		locales.ArcUserMenuLanguage(), locales.ArcUserMenuNotifications(), locales.ArcUserMenuSignOut())
@@ -137,13 +141,13 @@ func TestLongUsernameKeepsFooterInSidebar(t *testing.T) {
 	long := "maximilian.alexander.longname"
 	f := &fixture{Harness: testkit.SignedIn(t, wideW, wideH, func(st *fakeapi.State) { st.Username = long }), t: t}
 	trigger, ok0 := f.T.Find(locales.ArcUserMenuTrigger(long))
-	role, ok1 := f.T.Find(locales.AccountRole())
+	name, ok1 := f.T.Find(long)
 	gear, ok2 := f.T.Find(locales.NavSettings())
 	if !ok0 || !ok1 || !ok2 {
 		t.Fatalf("footer missing; texts %q", f.T.Texts())
 	}
-	if role.X+role.W > trigger.X+trigger.W || trigger.X+trigger.W > gear.X {
-		t.Fatalf("trigger %+v, role %+v and settings %+v overlap", trigger, role, gear)
+	if name.X+name.W > trigger.X+trigger.W || trigger.X+trigger.W > gear.X {
+		t.Fatalf("trigger %+v, name %+v and settings %+v overlap", trigger, name, gear)
 	}
 	if gear.X+gear.W > theme.SidebarWidth {
 		t.Fatalf("settings ends at %v, past the sidebar width %v", gear.X+gear.W, theme.SidebarWidth)
@@ -198,7 +202,7 @@ func TestLanguageSwitch(t *testing.T) {
 	if got := f.Fix.Prefs.Load().Language; got != "zh" {
 		t.Fatalf("saved language = %q, want zh", got)
 	}
-	f.wantShown(locales.In("zh").ArcUserMenuSignOut(), locales.In("zh").AccountRole())
+	f.wantShown(locales.In("zh").ArcUserMenuSignOut(), locales.In("zh").AccountChangePassword())
 	f.wantHidden(locales.In("en").ArcUserMenuSignOut())
 	f.click("EN")
 	f.wantShown(locales.In("en").ArcUserMenuSignOut())

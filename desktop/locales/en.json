@@ -39,7 +39,6 @@
   "accountNewPasswordHint": "Use at least 6 characters.",
   "accountPasswordChanged": "Password changed",
   "accountPasswordChangedRelogin": "Sign in again with your new password.",
-  "accountRole": "Administrator",
   "accountSignInAgain": "Sign in again",
   "arcAlertDismiss": "Dismiss: {title}",
   "@arcAlertDismiss": { "placeholders": { "title": { "type": "String" } } },

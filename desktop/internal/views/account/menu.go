@@ -26,10 +26,6 @@ const (
 	triggerSize   = 14
 	triggerArrow  = 16
 	pressedMix    = 0.08
-	roleHeight    = 20
-	rolePadX      = 8
-	roleSize      = 11
-	roleTint      = 0.07
 	mediumWeight  = 500
 
 	menuWidth    = theme.SidebarWidth - theme.SidebarBorder - 2*theme.SidebarPad
@@ -120,10 +116,6 @@ func (a *Account) View(c *ui.Context) {
 	trigger.Children(func() {
 		kit.InitialsAvatar(c, tk, name, kit.AvatarSM).Size(triggerFace, triggerFace).TextColor(tk.TextSecondary)
 		ui.Text(c, name).FontSize(triggerSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).MaxWidth(triggerName)
-		ui.Row(c).Height(roleHeight).PaddingX(rolePadX).Shrink(0).AlignItems(ui.Center).Radius(theme.RadiusPill).
-			Background(tk.Foreground.Alpha(roleTint)).Children(func() {
-			ui.Text(c, locales.AccountRole()).FontSize(roleSize).FontWeight(mediumWeight).TextColor(tk.TextSecondary).LineHeight(1).SingleLine()
-		})
 		turn := float32(0)
 		if a.open {
 			turn = 180

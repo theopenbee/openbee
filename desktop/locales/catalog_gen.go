@@ -416,16 +416,6 @@ func (msgs Messages) AccountPasswordChangedRelogin() string {
 	return Catalog.Format(msgs.locale, "accountPasswordChangedRelogin", nil)
 }
 
-// AccountRole says "Administrator"
-// in the language the app shows.
-func AccountRole() string { return In(i18n.Locale()).AccountRole() }
-
-// AccountRole says "Administrator"
-// in the language of msgs.
-func (msgs Messages) AccountRole() string {
-	return Catalog.Format(msgs.locale, "accountRole", nil)
-}
-
 // AccountSignInAgain says "Sign in again"
 // in the language the app shows.
 func AccountSignInAgain() string { return In(i18n.Locale()).AccountSignInAgain() }

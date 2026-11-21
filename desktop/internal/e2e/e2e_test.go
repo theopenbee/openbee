@@ -65,7 +65,7 @@ func TestLiveSignIn(t *testing.T) {
 	f.shot("signin-ready")
 
 	f.click(locales.ArcUserMenuTrigger(f.cfg.user))
-	f.wantShown(locales.AccountRole(), locales.AccountChangePassword(), locales.ArcUserMenuSignOut())
+	f.wantShown(locales.AccountChangePassword(), locales.ArcUserMenuSignOut())
 	f.shot("signin-account-menu")
 	f.click(locales.ArcUserMenuSignOut())
 	f.await("the login screen after signing out", quickWait, func() bool { return f.Store.Phase == store.PhaseLogin })
