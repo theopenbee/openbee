@@ -28,7 +28,7 @@ export function HandoffCard({ info, instruction, workers, onOpen }: HandoffCardP
       className="group/handoff flex w-full max-w-md min-w-0 items-start gap-3 rounded-panel border border-border bg-surface px-4 py-3.5 text-left transition-colors duration-150 enabled:hover:border-border-strong enabled:hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
     >
       {worker ? (
-        <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} />
+        <WorkerAvatar workerId={worker.id} name={worker.name} />
       ) : (
         <Avatar name="?" aria-hidden="true" />
       )}

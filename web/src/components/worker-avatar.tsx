@@ -24,7 +24,7 @@ export type AvatarSize = "sm" | "default" | "lg" | "xl"
 interface WorkerAvatarProps {
   workerId: string
   name: string
-  status: string
+  status?: string
   size?: AvatarSize
   className?: string
 }
@@ -40,8 +40,6 @@ const dotPlacement: Record<AvatarSize, string> = {
 
 export function WorkerAvatar({ workerId, name, status, size = "default", className }: WorkerAvatarProps) {
   const { t } = useTranslation()
-  const color = presenceColor[status] ?? "bg-border-strong"
-  const label = statusLabel(status, t)
 
   return (
     <span className={cn("relative inline-flex shrink-0 rounded-full", avatarColorClass(workerId), className)}>
@@ -51,17 +49,24 @@ export function WorkerAvatar({ workerId, name, status, size = "default", classNa
         className="bg-transparent! text-avatar-foreground!"
         aria-hidden="true"
       />
-      <span
-        className={cn("absolute inline-flex items-center justify-center rounded-full ring-2 ring-surface", dotPlacement[size])}
-        title={label}
-        role="img"
-        aria-label={label}
-      >
-        {status === "working" && (
-          <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />
-        )}
-        <span className={cn("relative inline-flex size-full rounded-full", color)} />
-      </span>
+      {status !== undefined && <StatusDot status={status} size={size} label={statusLabel(status, t)} />}
+    </span>
+  )
+}
+
+function StatusDot({ status, size, label }: { status: string; size: AvatarSize; label: string }) {
+  const color = presenceColor[status] ?? "bg-border-strong"
+  return (
+    <span
+      className={cn("absolute inline-flex items-center justify-center rounded-full ring-2 ring-surface", dotPlacement[size])}
+      title={label}
+      role="img"
+      aria-label={label}
+    >
+      {status === "working" && (
+        <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-60", color)} />
+      )}
+      <span className={cn("relative inline-flex size-full rounded-full", color)} />
     </span>
   )
 }
