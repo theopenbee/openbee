@@ -348,6 +348,46 @@ func TestWorkerIntroWhenEmpty(t *testing.T) {
 	f.wantHidden(locales.ChatNoMessagesTitle())
 }
 
+func (f *fixture) statusDots(status string) int {
+	n := 0
+	for _, text := range f.T.Texts() {
+		if text == status {
+			n++
+		}
+	}
+	return n
+}
+
+func TestChatStreamAvatarsHideStatus(t *testing.T) {
+	at := time.Now().Add(-time.Hour)
+	failing := team()
+	failing[0].Status = "error"
+	cases := []struct {
+		name  string
+		param string
+		seed  func(st *fakeapi.State)
+		want  int
+	}{
+		{"messages", "w1", seedChat(failing, workerCID,
+			message("r1", "worker", "w1", "First reply", at),
+			message("u1", "user", "", "Thanks", at.Add(time.Minute)),
+			message("r2", "worker", "w1", "Second reply", at.Add(2*time.Minute))), 1},
+		{"activity", "w1", both(seedChat(failing, workerCID), activity("running")), 1},
+		{"intro", "w1", seedChat(failing, workerCID), 1},
+		{"handoff", api.BeeConversation, seedChat(failing, api.BeeConversation,
+			message("w", "worker", "w1", "Done with the notes", at),
+			handoff("h1", "w1", "immediate", "", "Write the notes", at.Add(time.Minute))), 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, wideW, wideH, tc.param, tc.seed)
+			if got := f.statusDots(locales.StatusesError()); got != tc.want {
+				t.Fatalf("%d status dots, want %d (header only); texts %q", got, tc.want, f.T.Texts())
+			}
+		})
+	}
+}
+
 func TestBeeEmptyState(t *testing.T) {
 	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation))
 	f.wantShown(locales.ChatNoMessagesTitle(), locales.ChatNoMessagesDescription())

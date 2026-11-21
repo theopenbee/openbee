@@ -153,7 +153,7 @@ func senderAvatar(c *ui.Context, tk theme.Tokens, who sender, workers map[string
 		kit.BeeAvatar(c, tk, kit.AvatarSM)
 	case senderWorker:
 		if w, ok := workers[who.workerID]; ok {
-			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, true)
+			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, false)
 		} else {
 			kit.UnknownAvatar(c, tk, kit.AvatarSM)
 		}

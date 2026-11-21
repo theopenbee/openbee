@@ -65,7 +65,7 @@ func (v *View) handoffCard(c *ui.Context, tk theme.Tokens, m model.Message, work
 	}
 	b.Children(func() {
 		if known {
-			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarMD, true)
+			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarMD, false)
 		} else {
 			kit.UnknownAvatar(c, tk, kit.AvatarMD)
 		}

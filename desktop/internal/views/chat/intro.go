@@ -19,7 +19,7 @@ const (
 
 func workerIntro(c *ui.Context, tk theme.Tokens, w api.Worker) {
 	ui.Column(c).AlignItems(ui.Center).Gap(introGap).PaddingY(introPadY).Children(func() {
-		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarXL, true)
+		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarXL, false)
 		ui.Column(c).AlignItems(ui.Center).Gap(introTextGap).MaxWidth(introWidth).Children(func() {
 			ui.Text(c, w.Name).FontSize(introNameSize).FontWeight(mediumWeight).TextColor(tk.Foreground).TextAlign(ui.Center).
 				Role(ui.RoleHeading).Level(2)

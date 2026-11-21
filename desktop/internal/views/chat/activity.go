@@ -26,7 +26,7 @@ func (v *View) activityBar(c *ui.Context, tk theme.Tokens, p pane) {
 				if p.worker == nil {
 					kit.BeeAvatar(c, tk, kit.AvatarSM)
 				} else {
-					kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, kit.AvatarSM, true)
+					kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, kit.AvatarSM, false)
 				}
 				kit.Shimmer(c, tk, statusText(kind, ahead))
 			})
