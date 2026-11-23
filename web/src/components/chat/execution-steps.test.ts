@@ -69,6 +69,16 @@ describe("ExecutionSteps rows", () => {
     expect(html.match(/aria-expanded="false"/g)).toHaveLength(2)
   })
 
+  it("keeps a message with an acknowledgement expandable only for its text", () => {
+    const sent = '{"status":"sent"}'
+    const html = steps([
+      tool({ kind: "message", name: "send_message", summary: "On it", output: sent }),
+      tool({ kind: "message", name: "send_message", output: sent }),
+      tool({ kind: "message", name: "send_message", output: "boom", status: "error" }),
+    ])
+    expect(buttons(html)).toBe(2)
+  })
+
   it("shows the duration from one second and the done mark", () => {
     const html = steps([tool({ summary: "make", duration_ms: 1_500 }), tool({ summary: "ls", duration_ms: 400 })])
     expect(html).toContain(">2s<")
@@ -150,6 +160,22 @@ describe("ToolDetail", () => {
     expect(html).toMatch(/class="[^"]*text-sm[^"]*">On it\nsoon</)
     expect(html).not.toContain("font-mono")
     expect(html).not.toContain("border-t")
+  })
+
+  it("hides the send acknowledgement under a delivered message", () => {
+    const html = detail(tool({ kind: "message", name: "send_message", summary: "On it", output: '{"status":"sent"}' }))
+    expect(html).toContain(">On it<")
+    expect(html).not.toContain("status")
+    expect(html).not.toContain("<pre")
+    expect(html).not.toContain("border-t")
+  })
+
+  it("shows why a message failed to send", () => {
+    const html = detail(
+      tool({ kind: "message", name: "send_message", summary: "On it", output: "session not found", status: "error" }),
+    )
+    expect(html).toContain(">On it<")
+    expect(html).toMatch(/<pre[^>]*text-danger[^>]*>session not found<\/pre>/)
   })
 
   it("leaves out the header without a summary", () => {

@@ -28,6 +28,11 @@ export function toolKind(step: ToolStep): ToolKind {
   return isToolKind(step.kind) ? step.kind : "other"
 }
 
+export function toolOutput(step: ToolStep): string {
+  if (toolKind(step) === "message" && step.status === "done") return ""
+  return step.output ?? ""
+}
+
 export function toolTitle(step: ToolStep, t: Translate): string {
   const kind = toolKind(step)
   if (kind === "other") return t("execution.tool.other", { name: step.name })

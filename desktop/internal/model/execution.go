@@ -73,6 +73,13 @@ func ToolKind(kind string) string {
 	return ToolOther
 }
 
+func ToolOutput(step api.ExecutionStep) string {
+	if ToolKind(step.Kind) == ToolMessage && step.Status == ToolDone {
+		return ""
+	}
+	return step.Output
+}
+
 func ToolDurationShown(ms int64) bool {
 	return ms >= toolDurationMin
 }

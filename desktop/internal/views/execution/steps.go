@@ -254,7 +254,7 @@ func toolStep(c *ui.Context, tk theme.Tokens, item ui.Element, step api.Executio
 	title := ToolTitle(step)
 	summary := strings.TrimSpace(step.Summary)
 	truncated := ui.Local(item, truncatedKey{}, func() bool { return false })
-	hasBody := step.Output != "" || step.Diff != ""
+	hasBody := model.ToolOutput(step) != "" || step.Diff != ""
 	expandable := hasBody || summary != "" && (kind == model.ToolMessage || kind == model.ToolOther || *truncated)
 	expanded := expandable && open[index]
 	iconColor := tk.TextSecondary
@@ -325,7 +325,8 @@ func ToolDetail(c *ui.Context, tk theme.Tokens, step api.ExecutionStep) {
 	if step.Diff != "" {
 		diff = model.DiffLines(step.Diff)
 	}
-	hasBody := step.Output != "" || diff != nil
+	output := model.ToolOutput(step)
+	hasBody := output != "" || diff != nil
 	detailBox(c, tk.Border).Children(func() {
 		if summary != "" {
 			ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(metaGap).Padding(stripPadY, stripPadX).Children(func() {
@@ -353,7 +354,7 @@ func ToolDetail(c *ui.Context, tk theme.Tokens, step api.ExecutionStep) {
 					if diff != nil {
 						diffView(c, tk, diff)
 					}
-					if step.Output == "" {
+					if output == "" {
 						return
 					}
 					fg := tk.TextSecondary
@@ -365,7 +366,7 @@ func ToolDetail(c *ui.Context, tk theme.Tokens, step api.ExecutionStep) {
 						out.BorderWidth(1, 0, 0, 0).BorderColor(tk.Border)
 					}
 					out.Children(func() {
-						mono(ui.Text(c, step.Output)).TextColor(fg).Selectable()
+						mono(ui.Text(c, output)).TextColor(fg).Selectable()
 					})
 				})
 			})

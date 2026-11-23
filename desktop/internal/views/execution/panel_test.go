@@ -381,6 +381,22 @@ func TestToolDetailOutput(t *testing.T) {
 	f.wantShown("On it\nsoon")
 }
 
+func TestMessageToolHidesSendAcknowledgement(t *testing.T) {
+	const sent = `{"status":"sent"}`
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{
+			{Type: "tool", Kind: "message", Name: "send_message", Summary: "On it", Output: sent, Status: "done"},
+			{Type: "tool", Kind: "message", Name: "send_message", Summary: "Later", Output: "session not found", Status: "error"},
+		}
+	})))
+	f.click(locales.ExecutionToolTitleMessage("On it"))
+	f.wantShown("On it")
+	f.wantHidden(sent)
+	f.click(locales.ExecutionToolTitleMessage("Later"))
+	f.wantShown("Later", "session not found")
+	f.wantHidden(sent)
+}
+
 func TestThinkingOpensToTheRest(t *testing.T) {
 	thinking := func(text string) func(e *api.ExecutionDetail) {
 		return func(e *api.ExecutionDetail) { e.Steps = []api.ExecutionStep{{Type: "thinking", Text: text}} }

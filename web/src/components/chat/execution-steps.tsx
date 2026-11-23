@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { ChatMarkdown } from "@/components/chat-markdown"
-import { diffLines, diffStats, splitThinking, toolDuration, toolKind, toolTitle, type DiffLine } from "@/lib/execution"
+import { diffLines, diffStats, splitThinking, toolDuration, toolKind, toolOutput, toolTitle, type DiffLine } from "@/lib/execution"
 import { observeResize } from "@/lib/resize-observer"
 import type { ExecutionStep, ToolKind, ToolStep } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -210,7 +210,7 @@ function ToolStepItem({ step, running }: { step: ToolStep; running: boolean }) {
   const [titleRef, truncated] = useTruncated(title, active)
   const summary = step.summary?.trim() ?? ""
   const duration = toolDuration(step.duration_ms, t)
-  const hasBody = Boolean(step.output || step.diff)
+  const hasBody = Boolean(toolOutput(step) || step.diff)
   const expandable = hasBody || (summary !== "" && (kind === "message" || kind === "other" || truncated))
 
   return (
@@ -241,7 +241,8 @@ function ToolStepItem({ step, running }: { step: ToolStep; running: boolean }) {
 export function ToolDetail({ id, step }: { id?: string; step: ToolStep }) {
   const summary = step.summary?.trim() ?? ""
   const diff = step.diff ? diffLines(step.diff) : null
-  const hasBody = Boolean(step.output || diff)
+  const output = toolOutput(step)
+  const hasBody = Boolean(output || diff)
 
   return (
     <DetailBox id={id}>
@@ -261,7 +262,7 @@ export function ToolDetail({ id, step }: { id?: string; step: ToolStep }) {
       {hasBody && (
         <div className={cn(summary && "border-t border-border")}>
           {diff && <DiffView lines={diff} />}
-          {step.output && (
+          {output && (
             <pre
               className={cn(
                 "max-h-64 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words",
@@ -269,7 +270,7 @@ export function ToolDetail({ id, step }: { id?: string; step: ToolStep }) {
                 diff && "border-t border-border",
               )}
             >
-              {step.output}
+              {output}
             </pre>
           )}
         </div>
