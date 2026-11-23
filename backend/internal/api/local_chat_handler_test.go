@@ -88,6 +88,35 @@ func (f *fakeClearer) StopConversation(_ context.Context, sessionKey string, w m
 	return session.StopWorkerResult{}, f.err
 }
 
+type fakeExecutions struct {
+	mu    sync.Mutex
+	runs  map[string][]model.WorkerExecution
+	calls [][]string
+	err   error
+}
+
+func (f *fakeExecutions) ListByTaskIDs(_ context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, append([]string(nil), taskIDs...))
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := map[string][]model.WorkerExecution{}
+	for _, id := range taskIDs {
+		if list := f.runs[id]; len(list) > 0 {
+			out[id] = list[:min(len(list), limitPerTask)]
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeExecutions) callList() [][]string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([][]string(nil), f.calls...)
+}
+
 type localChatTestServer struct {
 	router        *gin.Engine
 	receiver      *local.LocalReceiver
@@ -98,6 +127,7 @@ type localChatTestServer struct {
 	chats         *store.LocalChatStore
 	workers       *store.WorkerStore
 	clear         *fakeClearer
+	executions    *fakeExecutions
 	mediaRoot     string
 }
 
@@ -114,19 +144,21 @@ func newLocalChatServer(t *testing.T) localChatTestServer {
 		chats:         store.NewLocalChatStore(db),
 		workers:       store.NewWorkerStore(db),
 		clear:         &fakeClearer{},
+		executions:    &fakeExecutions{},
 		mediaRoot:     t.TempDir(),
 	}
 	s.publisher = local.NewEventPublisher(s.hub)
 	h := NewLocalChatHandler(LocalChatDeps{
-		Receiver:  s.receiver,
-		Hub:       s.hub,
-		Publisher: s.publisher,
-		Messages:  s.msgStore,
-		Outbound:  s.outboundStore,
-		Chats:     s.chats,
-		Workers:   s.workers,
-		Clear:     s.clear,
-		MediaRoot: s.mediaRoot,
+		Receiver:   s.receiver,
+		Hub:        s.hub,
+		Publisher:  s.publisher,
+		Messages:   s.msgStore,
+		Outbound:   s.outboundStore,
+		Chats:      s.chats,
+		Workers:    s.workers,
+		Clear:      s.clear,
+		Executions: s.executions,
+		MediaRoot:  s.mediaRoot,
 	})
 
 	s.router = localChatRouter(h)
@@ -809,8 +841,8 @@ func TestConversationsReportActivityAndHandoffPreview(t *testing.T) {
 	s := newLocalChatServer(t)
 	alice := s.createWorker(t, "alice")
 	bob := s.createWorker(t, "bob")
-	s.publisher.TaskState(local.WorkerSessionKey(testUserID, alice.ID), "t1", alice.ID, "running", 0)
-	s.publisher.TaskState(local.WorkerSessionKey(testUserID, bob.ID), "t2", bob.ID, "queued", 2)
+	s.publisher.TaskState(local.WorkerSessionKey(testUserID, alice.ID), "t1", alice.ID, "running", 0, "exec-1")
+	s.publisher.TaskState(local.WorkerSessionKey(testUserID, bob.ID), "t2", bob.ID, "queued", 2, "")
 	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{
 		ID: "h1", Content: "write the report", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff,
 		Payload: handoffPayload(alice.ID, "t1"), SentAt: 100,
@@ -818,7 +850,7 @@ func TestConversationsReportActivityAndHandoffPreview(t *testing.T) {
 
 	byID := conversationsByID(listConversations(t, s.router, testUserID))
 
-	assert.Equal(t, local.Activity{State: local.ActivityRunning}, byID[local.WorkerConversationID(alice.ID)].Activity)
+	assert.Equal(t, local.Activity{State: local.ActivityRunning, ExecutionID: "exec-1"}, byID[local.WorkerConversationID(alice.ID)].Activity)
 	assert.Equal(t, local.Activity{State: local.ActivityQueued, QueuedAhead: 2}, byID[local.WorkerConversationID(bob.ID)].Activity)
 	assert.Equal(t, local.Activity{State: local.ActivityIdle}, byID[local.BeeConversationID].Activity)
 	beeLast := byID[local.BeeConversationID].LastMessage
@@ -1053,6 +1085,84 @@ func TestMessagesAttributeWorkerAndHandoff(t *testing.T) {
 	assert.Equal(t, "write the report", card.Content)
 	require.NotNil(t, card.Handoff)
 	assert.Equal(t, local.HandoffInfo{WorkerID: alice.ID, TaskID: "t1", TaskType: "immediate", ConversationID: "worker:" + alice.ID}, *card.Handoff)
+}
+
+func TestMessagesExposeWorkerExecutionID(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	aliceKey := local.WorkerSessionKey(testUserID, alice.ID)
+	seedOutboundIn(t, s.outboundStore, aliceKey, store.OutboundMessage{ID: "w1", Content: "done", SourceType: store.SourceTypeWorker, SourceID: alice.ID, ExecutionID: "exec-1", SentAt: 100})
+	seedOutboundIn(t, s.outboundStore, aliceKey, store.OutboundMessage{ID: "b1", Content: "bee note", SourceType: store.SourceTypeBee, SentAt: 200})
+
+	rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/conversations/"+local.WorkerConversationID(alice.ID)+"/messages", nil), testUserID)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var res messagesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	require.Len(t, res.Messages, 2)
+	assert.Equal(t, "exec-1", res.Messages[0].ExecutionID)
+	assert.Empty(t, res.Messages[1].ExecutionID)
+	assert.Equal(t, 1, strings.Count(rec.Body.String(), `"execution_id"`))
+}
+
+func TestMessagesFillHandoffRunFromLatestExecution(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	startedOld, completedOld, startedNew := int64(10), int64(20), int64(30)
+	startedDone, completedDone := int64(40), int64(50)
+	s.executions.runs = map[string][]model.WorkerExecution{
+		"t1": {
+			{ID: "exec-new", TaskID: "t1", Status: model.ExecStatusPending, StartedAt: &startedNew},
+			{ID: "exec-old", TaskID: "t1", Status: model.ExecStatusCompleted, StartedAt: &startedOld, CompletedAt: &completedOld},
+		},
+		"t2": {
+			{ID: "exec-done", TaskID: "t2", Status: model.ExecStatusFailed, StartedAt: &startedDone, CompletedAt: &completedDone},
+		},
+	}
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "card-1", Content: "a", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff, Payload: handoffPayload(alice.ID, "t1"), SentAt: 100})
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "card-2", Content: "b", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff, Payload: handoffPayload(alice.ID, "t2"), SentAt: 200})
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "card-3", Content: "c", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff, Payload: handoffPayload(alice.ID, "t3"), SentAt: 300})
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "plain", Content: "d", SentAt: 400})
+
+	rec := serveAs(s.router, httptest.NewRequest(http.MethodGet, "/local/conversations/bee/messages", nil), testUserID)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var res messagesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	require.Len(t, res.Messages, 4)
+	require.NotNil(t, res.Messages[0].Handoff)
+	assert.Equal(t, &local.RunSummary{ID: "exec-new", Status: "running", StartedAt: 30}, res.Messages[0].Handoff.Run)
+	require.NotNil(t, res.Messages[1].Handoff)
+	assert.Equal(t, &local.RunSummary{ID: "exec-done", Status: "failed", StartedAt: 40, CompletedAt: &completedDone}, res.Messages[1].Handoff.Run)
+	require.NotNil(t, res.Messages[2].Handoff)
+	assert.Nil(t, res.Messages[2].Handoff.Run)
+	assert.Equal(t, 2, strings.Count(rec.Body.String(), `"run"`))
+	assert.Equal(t, 1, strings.Count(rec.Body.String(), `"completed_at"`))
+	calls := s.executions.callList()
+	require.Len(t, calls, 1)
+	assert.ElementsMatch(t, []string{"t1", "t2", "t3"}, calls[0])
+}
+
+func TestMessagesSkipExecutionLookupWithoutHandoffs(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedOutbound(t, s.outboundStore, "r1", 100)
+
+	getMessages(t, s.router, "")
+
+	assert.Empty(t, s.executions.callList())
+}
+
+func TestMessagesKeepHandoffsWhenExecutionLookupFails(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	s.executions.err = errors.New("db down")
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "card", Content: "a", SourceType: store.SourceTypeBee, Kind: store.OutboundKindHandoff, Payload: handoffPayload(alice.ID, "t1"), SentAt: 100})
+
+	res := getMessages(t, s.router, "")
+
+	require.Len(t, res.Messages, 1)
+	require.NotNil(t, res.Messages[0].Handoff)
+	assert.Nil(t, res.Messages[0].Handoff.Run)
 }
 
 func TestMessagesInWorkerConversationMapSenders(t *testing.T) {

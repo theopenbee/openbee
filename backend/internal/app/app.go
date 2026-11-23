@@ -254,15 +254,16 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 	})
 
 	localChatHandler := api.NewLocalChatHandler(api.LocalChatDeps{
-		Receiver:  localReceiver,
-		Hub:       localHub,
-		Publisher: localPub,
-		Messages:  s.msgStore,
-		Outbound:  s.outboundMsgStore,
-		Chats:     s.localChatStore,
-		Workers:   s.workerStore,
-		Clear:     clearSvc,
-		MediaRoot: localMediaRoot,
+		Receiver:   localReceiver,
+		Hub:        localHub,
+		Publisher:  localPub,
+		Messages:   s.msgStore,
+		Outbound:   s.outboundMsgStore,
+		Chats:      s.localChatStore,
+		Workers:    s.workerStore,
+		Clear:      clearSvc,
+		Executions: s.execStore,
+		MediaRoot:  localMediaRoot,
 	})
 
 	srv, err := buildAPIServer(cfg.Server, cfg.Bee.RPC, s, mgr, beeRPCSrv, localChatHandler, workerChats, legacyChat.Claim, cfg.Language, envSvc, engineCfg, pluginMgr)
@@ -361,8 +362,8 @@ type localTaskObserver struct {
 	pub *local.EventPublisher
 }
 
-func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int) {
-	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead)
+func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int, executionID string) {
+	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead, executionID)
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {

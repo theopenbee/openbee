@@ -629,3 +629,25 @@ func TestMigrationAddsEngineModelsToWorkers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "{}", w.EngineModels)
 }
+
+func TestMigrationAddsExecutionIDToOutboundMessages(t *testing.T) {
+	db := openPreMigrationDB(t, 63)
+	_, err := db.Exec(`INSERT INTO bee_outbound_messages (id, session_key, platform, sent_at, created_at) VALUES ('o1','local:u1','local',1,1)`)
+	require.NoError(t, err)
+
+	require.NoError(t, migrate(db))
+
+	var executionID string
+	require.NoError(t, db.QueryRow(`SELECT execution_id FROM bee_outbound_messages WHERE id = 'o1'`).Scan(&executionID))
+	assert.Empty(t, executionID)
+
+	oms := NewOutboundMessageStore(db)
+	require.NoError(t, oms.Create(context.Background(), OutboundMessage{
+		ID: "o2", SessionKey: "local:u1", Platform: "local", Status: OutboundStatusSent, SentAt: 2, ExecutionID: "exec-1",
+	}))
+	msgs, err := oms.ListBySessionKey(context.Background(), "local:u1", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Empty(t, msgs[0].ExecutionID)
+	assert.Equal(t, "exec-1", msgs[1].ExecutionID)
+}

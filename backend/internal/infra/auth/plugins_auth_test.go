@@ -47,7 +47,7 @@ func TestPluginsAuth_RejectsBeeAndWorkerTokens(t *testing.T) {
 	r := pluginsRouter(jwt)
 	bee, err := GenerateBeeToken(testRPCSecret, time.Minute)
 	require.NoError(t, err)
-	worker, err := GenerateWorkerToken(testRPCSecret, "w1", nil, time.Minute)
+	worker, err := GenerateWorkerToken(testRPCSecret, "w1", "", nil, time.Minute)
 	require.NoError(t, err)
 	for _, tok := range []string{bee, worker} {
 		code := send(r, http.MethodPost, "/api/plugins/install", map[string]string{"X-API-Key": tok})

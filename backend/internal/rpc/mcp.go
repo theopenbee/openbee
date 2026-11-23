@@ -96,7 +96,7 @@ func (s *Server) MCPHandler() gin.HandlerFunc {
 func callerFromGin(gc *gin.Context) caller {
 	scopes, _ := gc.Get(CtxKeyScopes)
 	list, _ := scopes.([]string)
-	return caller{workerID: gc.GetString(CtxKeyWorkerID), scopes: list}
+	return caller{workerID: gc.GetString(CtxKeyWorkerID), executionID: gc.GetString(CtxKeyExecutionID), scopes: list}
 }
 
 func (s *Server) newMCPServer(c caller) *mcp.Server {

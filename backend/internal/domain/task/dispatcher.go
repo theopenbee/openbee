@@ -43,7 +43,7 @@ const (
 )
 
 type TaskObserver interface {
-	TaskStateChanged(t DispatchTask, state string, queuedAhead int)
+	TaskStateChanged(t DispatchTask, state string, queuedAhead int, executionID string)
 }
 
 type StopSettler interface {
@@ -220,8 +220,12 @@ func (d *TaskDispatcher) startTask(key string, task DispatchTask) {
 }
 
 func (d *TaskDispatcher) emit(task DispatchTask, state string, queuedAhead int) {
+	d.emitExecution(task, state, queuedAhead, "")
+}
+
+func (d *TaskDispatcher) emitExecution(task DispatchTask, state string, queuedAhead int, executionID string) {
 	if d.observer != nil {
-		d.observer.TaskStateChanged(task, state, queuedAhead)
+		d.observer.TaskStateChanged(task, state, queuedAhead, executionID)
 	}
 }
 
@@ -434,6 +438,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 			log.Error("update task status", zap.String("taskID", task.TaskID), zap.Error(err))
 		}
 	}
+	d.emitExecution(task, StateRunning, 0, exec.ID)
 	d.waitForResult(taskCtx, exec.ID, task, engineName)
 }
 

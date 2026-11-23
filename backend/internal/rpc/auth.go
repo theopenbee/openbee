@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	CtxKeyTokenType = "rpc.token.type"
-	CtxKeyWorkerID  = "rpc.token.worker_id"
-	CtxKeyScopes    = "rpc.token.scopes"
+	CtxKeyTokenType   = "rpc.token.type"
+	CtxKeyWorkerID    = "rpc.token.worker_id"
+	CtxKeyExecutionID = "rpc.token.execution_id"
+	CtxKeyScopes      = "rpc.token.scopes"
 )
 
 // JWTAuthMiddleware validates the RPC JWT and writes claims to gin.Context.
@@ -39,6 +40,7 @@ func JWTAuthMiddleware(secret string) gin.HandlerFunc {
 		}
 		c.Set(CtxKeyTokenType, claims.Type)
 		c.Set(CtxKeyWorkerID, claims.WorkerID)
+		c.Set(CtxKeyExecutionID, claims.ExecutionID)
 		c.Set(CtxKeyScopes, claims.Scopes)
 		c.Next()
 	}

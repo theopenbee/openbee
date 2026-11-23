@@ -62,7 +62,12 @@ func beeToken(t *testing.T) string {
 
 func workerToken(t *testing.T, workerID string, scopes ...string) string {
 	t.Helper()
-	token, err := auth.GenerateWorkerToken(mcpTestSecret, workerID, scopes, time.Hour)
+	return workerRunToken(t, workerID, "", scopes...)
+}
+
+func workerRunToken(t *testing.T, workerID, executionID string, scopes ...string) string {
+	t.Helper()
+	token, err := auth.GenerateWorkerToken(mcpTestSecret, workerID, executionID, scopes, time.Hour)
 	require.NoError(t, err)
 	return token
 }
@@ -189,7 +194,7 @@ func TestMCPSendMessage(t *testing.T) {
 	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
 	_, err := store.NewMessageStore(db).Create(context.Background(), "msg-mcp", "telegram:chat1:userA", "telegram", "hi", `{}`, "", 0)
 	require.NoError(t, err)
-	session := connectMCP(t, startMCP(t, s), workerToken(t, w.ID))
+	session := connectMCP(t, startMCP(t, s), workerRunToken(t, w.ID, "exec-mcp"))
 
 	text, isErr := callTool(t, session, "send_message", map[string]any{"message_id": "msg-mcp", "content": "done `x`"})
 	require.False(t, isErr, text)
@@ -203,4 +208,5 @@ func TestMCPSendMessage(t *testing.T) {
 	defer spy.mu.Unlock()
 	require.Len(t, spy.sent, 1)
 	assert.Equal(t, "MaoMao\ndone `x`", spy.sent[0].Content)
+	assert.Equal(t, "exec-mcp", spy.sent[0].ExecutionID)
 }

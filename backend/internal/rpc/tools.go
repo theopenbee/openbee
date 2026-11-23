@@ -651,9 +651,11 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 
 	sourceType := store.SourceTypeBee
 	sourceID := ""
+	executionID := ""
 	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
 		sourceType = store.SourceTypeWorker
 		sourceID = workerID
+		executionID, _ = ctx.Value(CtxExecutionIDKey).(string)
 	}
 
 	sender, base, err := s.delivery.Resolve(ctx, delivery.Target{MessageID: params.MessageID, SessionKey: params.SessionKey})
@@ -662,6 +664,7 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	}
 	base.SourceType = sourceType
 	base.SourceID = sourceID
+	base.ExecutionID = executionID
 
 	if sourceType == store.SourceTypeWorker && params.Content != "" && base.ReplyTo.Platform != local.PlatformID {
 		params.Content = s.workerDisplayName(sourceID) + "\n" + params.Content

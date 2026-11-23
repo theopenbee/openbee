@@ -23,6 +23,8 @@ type ctxKey string
 // Exported so tests can construct contexts that simulate worker calls.
 const CtxWorkerIDKey ctxKey = CtxKeyWorkerID
 
+const CtxExecutionIDKey ctxKey = CtxKeyExecutionID
+
 // Mirrors CtxKeyScopes from auth middleware; see CtxWorkerIDKey comment above.
 const CtxScopesKey ctxKey = CtxKeyScopes
 

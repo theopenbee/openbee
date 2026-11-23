@@ -175,6 +175,25 @@ func TestExecuteWorker_TokenOutlivesWorkerTimeout(t *testing.T) {
 	assert.True(t, claims.ExpiresAt.After(time.Now().Add(24*time.Hour)), "token expires at %s", claims.ExpiresAt)
 }
 
+func TestExecuteWorker_TokenCarriesExecutionID(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	mgr.tokenSecret = "test-secret"
+	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "helper"})
+	require.NoError(t, err)
+
+	exec, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s1"})
+	require.NoError(t, err)
+
+	require.Len(t, pi.Runs(), 1)
+	claims, err := auth.ValidateToken(pi.Runs()[0].APIKey, "test-secret")
+	require.NoError(t, err)
+	assert.Equal(t, w.ID, claims.WorkerID)
+	assert.Equal(t, exec.ID, claims.ExecutionID)
+	assert.NotEmpty(t, claims.ExecutionID)
+}
+
 func TestResolveEngine_NoEngine(t *testing.T) {
 	mgr := newTestManager(t, nil, "claude")
 	w, err := mgr.CreateWorker(CreateWorkerParams{Name: "idle"})

@@ -1546,6 +1546,7 @@ type taskEvent struct {
 	TaskID      string
 	State       string
 	QueuedAhead int
+	ExecutionID string
 }
 
 type recordingObserver struct {
@@ -1553,10 +1554,10 @@ type recordingObserver struct {
 	events []taskEvent
 }
 
-func (o *recordingObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int) {
+func (o *recordingObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int, executionID string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.events = append(o.events, taskEvent{TaskID: t.TaskID, State: state, QueuedAhead: queuedAhead})
+	o.events = append(o.events, taskEvent{TaskID: t.TaskID, State: state, QueuedAhead: queuedAhead, ExecutionID: executionID})
 }
 
 func (o *recordingObserver) snapshot() []taskEvent {
@@ -1703,27 +1704,57 @@ func TestDispatcherEmitsQueuedPosition(t *testing.T) {
 	_, in, _, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
 
 	in <- taskFor("t1", "s1")
-	obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+	obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0, ""})
 	in <- taskFor("t2", "s1")
 	in <- taskFor("t3", "s1")
-	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2})
+	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2, ""})
 
 	mgr.release("t1")
-	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1})
+	obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1, ""})
 	mgr.release("t2")
 	mgr.release("t3")
-	obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0})
+	obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0, ""})
 
 	assert.Equal(t, []taskEvent{
-		{"t1", task.StateRunning, 0},
-		{"t2", task.StateQueued, 1},
-		{"t3", task.StateQueued, 2},
-		{"t1", task.StateCompleted, 0},
-		{"t2", task.StateRunning, 0},
-		{"t3", task.StateQueued, 1},
-		{"t2", task.StateCompleted, 0},
-		{"t3", task.StateRunning, 0},
-		{"t3", task.StateCompleted, 0},
+		{"t1", task.StateRunning, 0, ""},
+		{"t2", task.StateQueued, 1, ""},
+		{"t3", task.StateQueued, 2, ""},
+		{"t1", task.StateRunning, 0, "exec-t1"},
+		{"t1", task.StateCompleted, 0, ""},
+		{"t2", task.StateRunning, 0, ""},
+		{"t3", task.StateQueued, 1, ""},
+		{"t2", task.StateRunning, 0, "exec-t2"},
+		{"t2", task.StateCompleted, 0, ""},
+		{"t3", task.StateRunning, 0, ""},
+		{"t3", task.StateRunning, 0, "exec-t3"},
+		{"t3", task.StateCompleted, 0, ""},
+	}, obs.snapshot())
+}
+
+func TestDispatcherEmitsRunningWithExecutionID(t *testing.T) {
+	mgr := &mockExecManager{execResult: model.WorkerExecution{ID: "exec-1"}}
+	_, in, _, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
+
+	in <- taskFor("t1", "s1")
+	obs.waitForEvent(t, taskEvent{"t1", task.StateCompleted, 0, ""})
+
+	assert.Equal(t, []taskEvent{
+		{"t1", task.StateRunning, 0, ""},
+		{"t1", task.StateRunning, 0, "exec-1"},
+		{"t1", task.StateCompleted, 0, ""},
+	}, obs.snapshot())
+}
+
+func TestDispatcherSkipsExecutionIDWhenLaunchFails(t *testing.T) {
+	mgr := &tableExecManager{execErr: errors.New("launch failed")}
+	_, in, _, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
+
+	in <- taskFor("t1", "s1")
+	obs.waitForEvent(t, taskEvent{"t1", task.StateFailed, 0, ""})
+
+	assert.Equal(t, []taskEvent{
+		{"t1", task.StateRunning, 0, ""},
+		{"t1", task.StateFailed, 0, ""},
 	}, obs.snapshot())
 }
 
@@ -1752,17 +1783,17 @@ func TestDispatcherCancelsQueuedTask(t *testing.T) {
 			d, in, ts, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
 
 			in <- taskFor("t1", "s1")
-			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0, ""})
 			in <- taskFor("t2", "s1")
 			in <- taskFor("t3", "s2")
-			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2})
+			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 2, ""})
 
 			tc.drop(t, d)
-			obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0})
-			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1})
+			obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0, ""})
+			obs.waitForEvent(t, taskEvent{"t3", task.StateQueued, 1, ""})
 
 			mgr.release("t1")
-			obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0})
+			obs.waitForEvent(t, taskEvent{"t3", task.StateCompleted, 0, ""})
 
 			assert.Equal(t, 1, obs.terminalCount("t2"))
 			assert.NotContains(t, mgr.ran(), "t2")
@@ -1821,11 +1852,11 @@ func TestDispatcherEmitsOneTerminalState(t *testing.T) {
 			d, in, _, obs := startObservedDispatcher(t, tc.mgr, tc.eq, newMockSessionStore())
 
 			in <- taskFor("t1", "s1")
-			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+			obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0, ""})
 			if tc.cancel {
 				require.NoError(t, d.CancelTask(context.Background(), "t1"))
 			}
-			obs.waitForEvent(t, taskEvent{"t1", tc.want, 0})
+			obs.waitForEvent(t, taskEvent{"t1", tc.want, 0, ""})
 			assert.Never(t, func() bool { return obs.terminalCount("t1") > 1 }, 100*time.Millisecond, 10*time.Millisecond)
 		})
 	}
@@ -1841,7 +1872,7 @@ func runToTerminal(t *testing.T, ss *mockSessionStore, dt task.DispatchTask, sta
 	if status == model.ExecStatusFailed {
 		want = task.StateFailed
 	}
-	obs.waitForEvent(t, taskEvent{dt.TaskID, want, 0})
+	obs.waitForEvent(t, taskEvent{dt.TaskID, want, 0, ""})
 }
 
 func TestScheduledLocalWorkerRunDoesNotUpsert(t *testing.T) {
@@ -1888,7 +1919,7 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		require.True(t, waitForExecCount(mgr, 1, 2*time.Second), "ExecuteWorker was not called within timeout")
 
 		d.AbortRun("t1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0, ""})
 
 		aborted, cancelled := ts.snapshot()
 		assert.Equal(t, []string{"t1"}, aborted)
@@ -1910,7 +1941,7 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		}
 
 		d.AbortRun("t1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0, ""})
 		assert.Never(t, func() bool { return obs.terminalCount("t1") > 1 }, 100*time.Millisecond, 10*time.Millisecond)
 
 		aborted, cancelled := ts.snapshot()
@@ -1935,7 +1966,7 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		}
 
 		d.AbortRun("t1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0, ""})
 
 		aborted, cancelled := ts.snapshot()
 		assert.Equal(t, []string{"t1"}, aborted)
@@ -1949,15 +1980,15 @@ func TestAbortRunFinalizesAsAborted(t *testing.T) {
 		d, in, ts, obs := startObservedDispatcher(t, mgr, completedQuerier(), newMockSessionStore())
 
 		in <- taskFor("t1", "local:u1:worker:w1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateRunning, 0, ""})
 		in <- proactiveTaskFor("t2", "local:u1:worker:w1", model.TaskTypeCountdown)
-		obs.waitForEvent(t, taskEvent{"t2", task.StateQueued, 1})
+		obs.waitForEvent(t, taskEvent{"t2", task.StateQueued, 1, ""})
 
 		d.AbortRun("t2")
-		obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0})
+		obs.waitForEvent(t, taskEvent{"t2", task.StateCancelled, 0, ""})
 
 		mgr.release("t1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateCompleted, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCompleted, 0, ""})
 
 		aborted, cancelled := ts.snapshot()
 		assert.Equal(t, []string{"t2"}, aborted)
@@ -2108,7 +2139,7 @@ func runAbortedRun(t *testing.T, sessionKey string, stop func(d *task.TaskDispat
 	in <- proactiveTaskFor("t1", sessionKey, model.TaskTypeScheduled)
 	require.True(t, waitForExecCount(mgr, 1, 2*time.Second), "ExecuteWorker was not called within timeout")
 	stop(d)
-	obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+	obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0, ""})
 	return obs
 }
 
@@ -2143,7 +2174,7 @@ func TestStoppedLocalRunSettlesWorker(t *testing.T) {
 			require.Fail(t, "ExecuteWorker was not called within timeout")
 		}
 		d.AbortRun("t1")
-		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0})
+		obs.waitForEvent(t, taskEvent{"t1", task.StateCancelled, 0, ""})
 
 		require.Eventually(t, func() bool { return len(settler.list()) > 0 }, 2*time.Second, 5*time.Millisecond)
 		assert.Equal(t, []string{"exec-1:w1"}, settler.list())

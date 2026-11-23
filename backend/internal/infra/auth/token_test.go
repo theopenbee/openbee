@@ -25,15 +25,17 @@ func TestGenerateToken_ValidAndParseable(t *testing.T) {
 			wantType: auth.TokenTypeBee,
 		},
 		{
-			name:         "Worker",
-			gen:          func() (string, error) { return auth.GenerateWorkerToken("test-secret", "worker-abc", nil, time.Hour) },
+			name: "Worker",
+			gen: func() (string, error) {
+				return auth.GenerateWorkerToken("test-secret", "worker-abc", "", nil, time.Hour)
+			},
 			wantType:     auth.TokenTypeWorker,
 			wantWorkerID: "worker-abc",
 		},
 		{
 			name: "WorkerWithScopes",
 			gen: func() (string, error) {
-				return auth.GenerateWorkerToken("test-secret", "worker-abc", []string{"read:workers", "read:tasks"}, time.Hour)
+				return auth.GenerateWorkerToken("test-secret", "worker-abc", "", []string{"read:workers", "read:tasks"}, time.Hour)
 			},
 			wantType:     auth.TokenTypeWorker,
 			wantWorkerID: "worker-abc",
@@ -74,11 +76,26 @@ func TestValidateToken_MalformedString(t *testing.T) {
 }
 
 func TestGenerateWorkerToken_NoScopes(t *testing.T) {
-	tok, err := auth.GenerateWorkerToken("test-secret", "worker-abc", nil, time.Hour)
+	tok, err := auth.GenerateWorkerToken("test-secret", "worker-abc", "", nil, time.Hour)
 	require.NoError(t, err)
 	claims, err := auth.ValidateToken(tok, "test-secret")
 	require.NoError(t, err)
 	assert.Empty(t, claims.Scopes)
+}
+
+func TestGenerateWorkerToken_CarriesExecutionID(t *testing.T) {
+	tok, err := auth.GenerateWorkerToken("test-secret", "worker-abc", "exec-1", nil, time.Hour)
+	require.NoError(t, err)
+	claims, err := auth.ValidateToken(tok, "test-secret")
+	require.NoError(t, err)
+	assert.Equal(t, "worker-abc", claims.WorkerID)
+	assert.Equal(t, "exec-1", claims.ExecutionID)
+
+	bee, err := auth.GenerateBeeToken("test-secret", time.Hour)
+	require.NoError(t, err)
+	claims, err = auth.ValidateToken(bee, "test-secret")
+	require.NoError(t, err)
+	assert.Empty(t, claims.ExecutionID)
 }
 
 func TestRunTokenTTL(t *testing.T) {

@@ -59,7 +59,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "ValidWorkerToken",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
+				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", "", nil, time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -90,7 +90,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "AllowsWorkerToken",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", nil, time.Hour)
+				tok, err := auth.GenerateWorkerToken(testSecret, "wid-1", "", nil, time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -101,7 +101,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "RejectsWorkerTokenWithoutWorkerID",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateWorkerToken(testSecret, "", nil, time.Hour)
+				tok, err := auth.GenerateWorkerToken(testSecret, "", "", nil, time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -132,7 +132,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 }
 
 func TestWorkerIDStoredInContext(t *testing.T) {
-	tok, err := auth.GenerateWorkerToken(testSecret, "worker-999", nil, time.Hour)
+	tok, err := auth.GenerateWorkerToken(testSecret, "worker-999", "", nil, time.Hour)
 	require.NoError(t, err)
 	r := gin.New()
 	r.Use(rpc.JWTAuthMiddleware(testSecret))
@@ -151,9 +151,25 @@ func TestWorkerIDStoredInContext(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestExecutionIDStoredInContext(t *testing.T) {
+	tok, err := auth.GenerateWorkerToken(testSecret, "worker-999", "exec-7", nil, time.Hour)
+	require.NoError(t, err)
+	r := gin.New()
+	r.Use(rpc.JWTAuthMiddleware(testSecret))
+	r.GET("/test", func(c *gin.Context) {
+		c.String(http.StatusOK, c.GetString(rpc.CtxKeyExecutionID))
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("X-API-Key", tok)
+	r.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "exec-7", w.Body.String())
+}
+
 func TestWorkerScopesStoredInContext(t *testing.T) {
 	scopes := []string{auth.ScopeReadWorkers, auth.ScopeReadTasks}
-	tok, err := auth.GenerateWorkerToken(testSecret, "worker-scoped", scopes, time.Hour)
+	tok, err := auth.GenerateWorkerToken(testSecret, "worker-scoped", "", scopes, time.Hour)
 	require.NoError(t, err)
 	r := gin.New()
 	r.Use(rpc.JWTAuthMiddleware(testSecret))

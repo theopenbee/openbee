@@ -68,6 +68,7 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 		SourceType:   msg.SourceType,
 		SourceID:     msg.SourceID,
 		InboundMsgID: msg.InboundMsgID,
+		ExecutionID:  msg.ExecutionID,
 		Kind:         msg.Kind,
 		Payload:      msg.Payload,
 		Error:        errMsg,

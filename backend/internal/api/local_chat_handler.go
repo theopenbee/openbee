@@ -59,17 +59,22 @@ type LocalChatClearer interface {
 	StopConversation(ctx context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error)
 }
 
+type LocalChatExecutions interface {
+	ListByTaskIDs(ctx context.Context, taskIDs []string, limitPerTask int) (map[string][]model.WorkerExecution, error)
+}
+
 type LocalChatDeps struct {
-	Receiver  *local.LocalReceiver
-	Hub       *local.SSEHub
-	Publisher *local.EventPublisher
-	Messages  *store.MessageStore
-	Outbound  *store.OutboundMessageStore
-	Chats     *store.LocalChatStore
-	Workers   LocalChatWorkers
-	Clear     LocalChatClearer
-	MediaRoot string
-	Heartbeat time.Duration
+	Receiver   *local.LocalReceiver
+	Hub        *local.SSEHub
+	Publisher  *local.EventPublisher
+	Messages   *store.MessageStore
+	Outbound   *store.OutboundMessageStore
+	Chats      *store.LocalChatStore
+	Workers    LocalChatWorkers
+	Clear      LocalChatClearer
+	Executions LocalChatExecutions
+	MediaRoot  string
+	Heartbeat  time.Duration
 }
 
 type LocalChatHandler struct {
@@ -81,6 +86,7 @@ type LocalChatHandler struct {
 	chats         *store.LocalChatStore
 	workers       LocalChatWorkers
 	clear         LocalChatClearer
+	executions    LocalChatExecutions
 	mediaRoot     string
 	heartbeat     time.Duration
 }
@@ -95,6 +101,7 @@ func NewLocalChatHandler(d LocalChatDeps) *LocalChatHandler {
 		chats:         d.Chats,
 		workers:       d.Workers,
 		clear:         d.Clear,
+		executions:    d.Executions,
 		mediaRoot:     d.MediaRoot,
 		heartbeat:     cmp.Or(d.Heartbeat, sseHeartbeatInterval),
 	}
@@ -464,8 +471,45 @@ func (h *LocalChatHandler) GetMessages(c *gin.Context) {
 	if hasMore {
 		combined = combined[len(combined)-limit:]
 	}
+	h.attachHandoffRuns(ctx, combined)
 
 	c.JSON(http.StatusOK, gin.H{"messages": combined, "has_more": hasMore})
+}
+
+func (h *LocalChatHandler) attachHandoffRuns(ctx context.Context, msgs []local.ChatMessage) {
+	var taskIDs []string
+	for _, m := range msgs {
+		if m.Handoff != nil && m.Handoff.TaskID != "" && !slices.Contains(taskIDs, m.Handoff.TaskID) {
+			taskIDs = append(taskIDs, m.Handoff.TaskID)
+		}
+	}
+	if len(taskIDs) == 0 {
+		return
+	}
+	runs, err := h.executions.ListByTaskIDs(ctx, taskIDs, 1)
+	if err != nil {
+		logger.Warn("list handoff executions", zap.Strings("task_ids", taskIDs), zap.Error(err))
+		return
+	}
+	for _, m := range msgs {
+		if m.Handoff == nil {
+			continue
+		}
+		if list := runs[m.Handoff.TaskID]; len(list) > 0 {
+			m.Handoff.Run = runSummary(list[0])
+		}
+	}
+}
+
+func runSummary(exec model.WorkerExecution) *local.RunSummary {
+	summary := &local.RunSummary{ID: exec.ID, Status: string(exec.Status), CompletedAt: exec.CompletedAt}
+	if exec.Status == model.ExecStatusPending {
+		summary.Status = string(model.ExecStatusRunning)
+	}
+	if exec.StartedAt != nil {
+		summary.StartedAt = *exec.StartedAt
+	}
+	return summary
 }
 
 func inboundChatMessage(m store.InboundMessage, userID string) local.ChatMessage {
@@ -485,12 +529,13 @@ func inboundChatMessage(m store.InboundMessage, userID string) local.ChatMessage
 
 func outboundChatMessage(r store.OutboundMessage, mediaDir string) local.ChatMessage {
 	msg := local.ChatMessage{
-		ID:         r.ID,
-		Sender:     chatSender(cmp.Or(r.SourceType, store.SourceTypeBee), r.SourceID),
-		Kind:       cmp.Or(r.Kind, local.KindMessage),
-		Content:    r.Content,
-		MediaPaths: replyMedia(mediaDir, r),
-		TS:         r.SentAt,
+		ID:          r.ID,
+		Sender:      chatSender(cmp.Or(r.SourceType, store.SourceTypeBee), r.SourceID),
+		Kind:        cmp.Or(r.Kind, local.KindMessage),
+		Content:     r.Content,
+		MediaPaths:  replyMedia(mediaDir, r),
+		TS:          r.SentAt,
+		ExecutionID: r.ExecutionID,
 	}
 	if msg.Kind == local.KindHandoff {
 		var info local.HandoffInfo

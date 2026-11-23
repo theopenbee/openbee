@@ -608,6 +608,11 @@ DROP TABLE IF EXISTS bee_local_sessions;`,
 		name:    "move_model_args_to_engine_models",
 		run:     moveModelArgs,
 	},
+	{
+		version: 63,
+		name:    "add_execution_id_to_outbound_messages",
+		sql:     `ALTER TABLE bee_outbound_messages ADD COLUMN execution_id TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 type whereBuilder struct {

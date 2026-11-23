@@ -78,6 +78,24 @@ func TestSendWorkerMessageAttribution(t *testing.T) {
 	require.NotNil(t, ev.Message)
 	assert.Equal(t, local.Sender{Type: "worker", ID: "w1"}, ev.Message.Sender)
 	assert.Equal(t, "message", ev.Message.Kind)
+	assert.Empty(t, ev.Message.ExecutionID)
+}
+
+func TestSendWorkerMessageCarriesExecutionID(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		SessionKey:  "local:u1:worker:w1",
+		Content:     "done",
+		SourceType:  "worker",
+		SourceID:    "w1",
+		ExecutionID: "exec-1",
+	}))
+
+	assert.Equal(t, "exec-1", receiveChat(t, ch).ExecutionID)
 }
 
 func TestSendHandoffCard(t *testing.T) {

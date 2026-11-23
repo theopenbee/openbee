@@ -27,7 +27,7 @@ const (
 )
 
 const outboundMessageColumns = `id, session_key, platform, content, media_path, status, platform_msg_id,
-	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload`
+	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload, execution_id`
 
 // OutboundMessage is a row from the bee_outbound_messages table.
 type OutboundMessage struct {
@@ -47,6 +47,7 @@ type OutboundMessage struct {
 	CreatedAt     int64  `json:"created_at"`
 	Kind          string `json:"kind"`
 	Payload       string `json:"payload"`
+	ExecutionID   string `json:"execution_id"`
 }
 
 // OutboundMessageStore manages the bee_outbound_messages table.
@@ -65,7 +66,7 @@ func scanOutboundMessage(scanner interface{ Scan(...any) error }) (OutboundMessa
 		&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.MediaPath,
 		&m.Status, &m.PlatformMsgID, &m.SourceType, &m.SourceID,
 		&m.InboundMsgID, &m.Error, &m.RetryCount, &m.SentAt, &m.CreatedAt,
-		&m.Kind, &m.Payload,
+		&m.Kind, &m.Payload, &m.ExecutionID,
 	)
 	return m, err
 }
@@ -93,13 +94,12 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO bee_outbound_messages
-		 (id, session_key, platform, content, media_path, status, platform_msg_id,
-		  source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 (`+outboundMessageColumns+`)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.SessionKey, msg.Platform, msg.Content, msg.MediaPath,
 		msg.Status, msg.PlatformMsgID, msg.SourceType, msg.SourceID,
 		msg.InboundMsgID, msg.Error, msg.RetryCount, msg.SentAt, now,
-		msg.Kind, msg.Payload,
+		msg.Kind, msg.Payload, msg.ExecutionID,
 	)
 	return err
 }

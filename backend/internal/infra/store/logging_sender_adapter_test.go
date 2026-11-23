@@ -111,6 +111,30 @@ func TestLoggingPlatformSenderAdapter_RecordsKindAndPayload(t *testing.T) {
 	assert.Empty(t, plain[0].Payload)
 }
 
+func TestLoggingPlatformSenderAdapter_RecordsExecutionID(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+	adapter := store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "local")
+
+	require.NoError(t, adapter.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:s1", Content: "done", SourceType: store.SourceTypeWorker, SourceID: "w1", ExecutionID: "exec-1",
+	}))
+	require.NoError(t, adapter.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:s1", Content: "from bee",
+	}))
+
+	require.Eventually(t, func() bool {
+		msgs, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+		return err == nil && len(msgs) == 2
+	}, time.Second, 10*time.Millisecond)
+	msgs, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, "exec-1", msgs[0].ExecutionID)
+	assert.Empty(t, msgs[1].ExecutionID)
+}
+
 func TestLoggingPlatformSenderAdapter_KeepsSendOrder(t *testing.T) {
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)

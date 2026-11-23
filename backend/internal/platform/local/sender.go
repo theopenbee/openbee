@@ -30,11 +30,12 @@ func (s *LocalSender) Send(_ context.Context, msg platform.OutboundMessage) erro
 	sessionKey := cmp.Or(msg.ReplyTo.SessionKey, msg.SessionKey)
 
 	chat := ChatMessage{
-		ID:      msg.ID,
-		Sender:  Sender{Type: cmp.Or(msg.SourceType, SenderBee), ID: msg.SourceID},
-		Kind:    cmp.Or(msg.Kind, KindMessage),
-		Content: msg.Content,
-		TS:      cmp.Or(msg.SentAt, time.Now().UnixMilli()),
+		ID:          msg.ID,
+		Sender:      Sender{Type: cmp.Or(msg.SourceType, SenderBee), ID: msg.SourceID},
+		Kind:        cmp.Or(msg.Kind, KindMessage),
+		Content:     msg.Content,
+		TS:          cmp.Or(msg.SentAt, time.Now().UnixMilli()),
+		ExecutionID: msg.ExecutionID,
 	}
 	if chat.Kind == KindHandoff {
 		var info HandoffInfo

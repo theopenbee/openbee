@@ -14,27 +14,27 @@ func TestActivityAggregates(t *testing.T) {
 
 	assert.Equal(t, local.Activity{State: "idle"}, pub.Activity(key))
 
-	pub.TaskState(key, "t1", "w1", "queued", 2)
+	pub.TaskState(key, "t1", "w1", "queued", 2, "")
 	assert.Equal(t, local.Activity{State: "queued", QueuedAhead: 2}, pub.Activity(key))
 
-	pub.TaskState(key, "t2", "w1", "queued", 1)
+	pub.TaskState(key, "t2", "w1", "queued", 1, "")
 	assert.Equal(t, local.Activity{State: "queued", QueuedAhead: 1}, pub.Activity(key))
 
-	pub.TaskState(key, "t3", "w1", "running", 0)
+	pub.TaskState(key, "t3", "w1", "running", 0, "")
 	assert.Equal(t, local.Activity{State: "running"}, pub.Activity(key))
 
-	pub.TaskState(key, "t3", "w1", "completed", 0)
+	pub.TaskState(key, "t3", "w1", "completed", 0, "")
 	assert.Equal(t, local.Activity{State: "queued", QueuedAhead: 1}, pub.Activity(key))
 
-	pub.TaskState(key, "t1", "w1", "cancelled", 0)
-	pub.TaskState(key, "t2", "w1", "failed", 0)
+	pub.TaskState(key, "t1", "w1", "cancelled", 0, "")
+	pub.TaskState(key, "t2", "w1", "failed", 0, "")
 	assert.Equal(t, local.Activity{State: "idle"}, pub.Activity(key))
 }
 
 func TestActivityIsPerSession(t *testing.T) {
 	pub := local.NewEventPublisher(local.NewSSEHub())
 
-	pub.TaskState("local:u1:worker:w1", "t1", "w1", "running", 0)
+	pub.TaskState("local:u1:worker:w1", "t1", "w1", "running", 0, "")
 
 	assert.Equal(t, local.Activity{State: "running"}, pub.Activity("local:u1:worker:w1"))
 	assert.Equal(t, local.Activity{State: "idle"}, pub.Activity("local:u1:worker:w2"))
@@ -49,9 +49,9 @@ func TestPublisherIgnoresNonLocal(t *testing.T) {
 	defer unsub()
 
 	pub.Message("telegram:u1", local.ChatMessage{ID: "m1"})
-	pub.TaskState("telegram:u1", "t1", "w1", "running", 0)
+	pub.TaskState("telegram:u1", "t1", "w1", "running", 0, "")
 	pub.Message("local:", local.ChatMessage{ID: "m2"})
-	pub.TaskState("local:u1:bogus", "t2", "w1", "running", 0)
+	pub.TaskState("local:u1:bogus", "t2", "w1", "running", 0, "")
 
 	assertNoEvent(t, ch)
 	assert.Equal(t, local.Activity{State: "idle"}, pub.Activity("telegram:u1"))
@@ -84,7 +84,7 @@ func TestTaskStateEventCarriesTask(t *testing.T) {
 	ch, unsub := hub.Subscribe("u1")
 	defer unsub()
 
-	pub.TaskState("local:u1:worker:w1", "t1", "w1", "queued", 3)
+	pub.TaskState("local:u1:worker:w1", "t1", "w1", "queued", 3, "")
 
 	ev := recvEvent(t, ch)
 	assert.Equal(t, local.Event{
@@ -115,4 +115,56 @@ func TestWorkerStatusReachesEveryUser(t *testing.T) {
 		assert.Equal(t, "working", ev.Status)
 		assert.Empty(t, ev.ConversationID)
 	}
+}
+
+func TestActivityReportsRunningExecution(t *testing.T) {
+	pub := local.NewEventPublisher(local.NewSSEHub())
+	key := "local:u1:worker:w1"
+
+	pub.TaskState(key, "t1", "w1", "running", 0, "")
+	assert.Equal(t, local.Activity{State: "running"}, pub.Activity(key))
+
+	pub.TaskState(key, "t1", "w1", "running", 0, "exec-1")
+	assert.Equal(t, local.Activity{State: "running", ExecutionID: "exec-1"}, pub.Activity(key))
+
+	pub.TaskState(key, "t1", "w1", "running", 0, "")
+	assert.Equal(t, local.Activity{State: "running", ExecutionID: "exec-1"}, pub.Activity(key))
+
+	pub.TaskState(key, "t2", "w1", "queued", 1, "exec-x")
+	assert.Equal(t, local.Activity{State: "running", ExecutionID: "exec-1"}, pub.Activity(key))
+
+	pub.TaskState(key, "t1", "w1", "completed", 0, "")
+	assert.Equal(t, local.Activity{State: "queued", QueuedAhead: 1}, pub.Activity(key))
+
+	pub.TaskState(key, "t2", "w1", "running", 0, "")
+	assert.Equal(t, local.Activity{State: "running"}, pub.Activity(key))
+}
+
+func TestTaskStateEventCarriesExecutionID(t *testing.T) {
+	hub := local.NewSSEHub()
+	pub := local.NewEventPublisher(hub)
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+	key := "local:u1:worker:w1"
+
+	pub.TaskState(key, "t1", "w1", "running", 0, "")
+	pub.TaskState(key, "t1", "w1", "running", 0, "exec-1")
+	pub.TaskState(key, "t1", "w1", "running", 0, "")
+	pub.TaskState(key, "t1", "w1", "completed", 0, "exec-1")
+
+	assert.Empty(t, recvEvent(t, ch).ExecutionID)
+	ev := recvEvent(t, ch)
+	assert.Equal(t, local.Event{
+		Type:           "task",
+		Seq:            2,
+		ConversationID: "worker:w1",
+		TaskID:         "t1",
+		WorkerID:       "w1",
+		State:          "running",
+		ExecutionID:    "exec-1",
+	}, ev)
+	assert.Equal(t, "exec-1", recvEvent(t, ch).ExecutionID)
+	done := recvEvent(t, ch)
+	assert.Equal(t, "completed", done.State)
+	assert.Empty(t, done.ExecutionID)
 }

@@ -63,8 +63,9 @@ get_system_overview(): Promise<{ workers: { total: number; idle: number; working
 }
 
 type caller struct {
-	workerID string
-	scopes   []string
+	workerID    string
+	executionID string
+	scopes      []string
 }
 
 func (c caller) isWorker() bool {
@@ -73,6 +74,7 @@ func (c caller) isWorker() bool {
 
 func (c caller) context(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, CtxWorkerIDKey, c.workerID)
+	ctx = context.WithValue(ctx, CtxExecutionIDKey, c.executionID)
 	return context.WithValue(ctx, CtxScopesKey, c.scopes)
 }
 

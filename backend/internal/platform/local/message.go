@@ -25,23 +25,32 @@ type Sender struct {
 	ID   string `json:"id,omitempty"`
 }
 
+type RunSummary struct {
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	StartedAt   int64  `json:"started_at"`
+	CompletedAt *int64 `json:"completed_at,omitempty"`
+}
+
 type HandoffInfo struct {
-	WorkerID       string `json:"worker_id"`
-	TaskID         string `json:"task_id"`
-	TaskType       string `json:"task_type"`
-	CronExpr       string `json:"cron_expr,omitempty"`
-	ScheduledAt    *int64 `json:"scheduled_at,omitempty"`
-	ConversationID string `json:"conversation_id"`
+	WorkerID       string      `json:"worker_id"`
+	TaskID         string      `json:"task_id"`
+	TaskType       string      `json:"task_type"`
+	CronExpr       string      `json:"cron_expr,omitempty"`
+	ScheduledAt    *int64      `json:"scheduled_at,omitempty"`
+	ConversationID string      `json:"conversation_id"`
+	Run            *RunSummary `json:"run,omitempty"`
 }
 
 type ChatMessage struct {
-	ID         string       `json:"id"`
-	Sender     Sender       `json:"sender"`
-	Kind       string       `json:"kind"`
-	Content    string       `json:"content"`
-	MediaPaths []string     `json:"media_paths,omitempty"`
-	TS         int64        `json:"ts"`
-	Handoff    *HandoffInfo `json:"handoff,omitempty"`
+	ID          string       `json:"id"`
+	Sender      Sender       `json:"sender"`
+	Kind        string       `json:"kind"`
+	Content     string       `json:"content"`
+	MediaPaths  []string     `json:"media_paths,omitempty"`
+	TS          int64        `json:"ts"`
+	ExecutionID string       `json:"execution_id,omitempty"`
+	Handoff     *HandoffInfo `json:"handoff,omitempty"`
 }
 
 type Event struct {
@@ -54,9 +63,11 @@ type Event struct {
 	TaskID         string       `json:"task_id,omitempty"`
 	State          string       `json:"state,omitempty"`
 	QueuedAhead    int          `json:"queued_ahead,omitempty"`
+	ExecutionID    string       `json:"execution_id,omitempty"`
 }
 
 type Activity struct {
 	State       string `json:"state"`
 	QueuedAhead int    `json:"queued_ahead,omitempty"`
+	ExecutionID string `json:"execution_id,omitempty"`
 }

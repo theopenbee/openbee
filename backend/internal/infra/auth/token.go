@@ -21,9 +21,10 @@ const (
 
 // RPCClaims are the JWT claims embedded in every RPC token.
 type RPCClaims struct {
-	Type     string   `json:"type"`
-	WorkerID string   `json:"worker_id,omitempty"`
-	Scopes   []string `json:"scopes,omitempty"`
+	Type        string   `json:"type"`
+	WorkerID    string   `json:"worker_id,omitempty"`
+	ExecutionID string   `json:"execution_id,omitempty"`
+	Scopes      []string `json:"scopes,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -36,11 +37,12 @@ func GenerateBeeToken(secret string, ttl time.Duration) (string, error) {
 	}, secret)
 }
 
-func GenerateWorkerToken(secret, workerID string, scopes []string, ttl time.Duration) (string, error) {
+func GenerateWorkerToken(secret, workerID, executionID string, scopes []string, ttl time.Duration) (string, error) {
 	return signToken(RPCClaims{
-		Type:     TokenTypeWorker,
-		WorkerID: workerID,
-		Scopes:   scopes,
+		Type:        TokenTypeWorker,
+		WorkerID:    workerID,
+		ExecutionID: executionID,
+		Scopes:      scopes,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},

@@ -580,6 +580,35 @@ func TestSendMessageLocalWorkerNoPrefix(t *testing.T) {
 	assert.Equal(t, store.SourceTypeWorker, spy.sent[0].SourceType)
 }
 
+func TestSendMessageCarriesWorkerExecutionID(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "beta", spy)
+	ctx := context.Background()
+	w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-exec", "beta:chat1:userA", "beta", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	workerCtx := context.WithValue(ctx, rpc.CtxWorkerIDKey, w.ID)
+	workerCtx = context.WithValue(workerCtx, rpc.CtxExecutionIDKey, "exec-1")
+
+	_, err = s.CallTool(workerCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-exec", "content": "done", "media_path": "/tmp/x.png",
+	}))
+	require.NoError(t, err)
+	_, err = s.CallTool(ctx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-exec", "content": "from bee",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 3)
+	assert.Equal(t, "exec-1", spy.sent[0].ExecutionID)
+	assert.Equal(t, "exec-1", spy.sent[1].ExecutionID)
+	assert.Equal(t, "/tmp/x.png", spy.sent[1].MediaPath)
+	assert.Equal(t, store.SourceTypeBee, spy.sent[2].SourceType)
+	assert.Empty(t, spy.sent[2].ExecutionID)
+}
+
 func TestSendMessageIMWorkerKeepsPrefix(t *testing.T) {
 	spy := &mockSender{}
 	s, db := setupServerWithSender(t, "telegram", spy)
