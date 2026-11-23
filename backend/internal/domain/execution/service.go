@@ -170,7 +170,9 @@ func (s *Service) steps(ctx context.Context, exec model.WorkerExecution) ([]ai.T
 	case errors.Is(err, ai.ErrTranscriptUnsupported):
 		return empty, StepsErrorUnsupported
 	case err != nil:
-		log.Error("read execution transcript", zap.String("executionID", exec.ID), zap.String("engine", exec.Engine), zap.Error(err))
+		if ctx.Err() == nil {
+			log.Error("read execution transcript", zap.String("executionID", exec.ID), zap.String("engine", exec.Engine), zap.Error(err))
+		}
 		return empty, StepsErrorFailed
 	}
 	if steps == nil {

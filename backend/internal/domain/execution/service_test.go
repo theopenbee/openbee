@@ -1,11 +1,13 @@
 package execution
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +17,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/aitest"
+	"github.com/theopenbee/openbee/internal/infra/logger"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/platform/local"
 )
@@ -353,4 +356,33 @@ func TestDetailStepsCacheEvictsOldest(t *testing.T) {
 	calls := f.engine.TranscriptCalls()
 	require.Len(t, calls, maxCacheEntries+2)
 	assert.Equal(t, paths[0], calls[len(calls)-1])
+}
+
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	require.NoError(t, logger.Init(logger.Config{Level: "debug", Output: &buf}))
+	t.Cleanup(func() { _ = logger.Init(logger.Config{Output: io.Discard}) })
+	return &buf
+}
+
+func TestDetailStepsSkipsLogWhenClientLeft(t *testing.T) {
+	f := newFixture(t)
+	logs := captureLogs(t)
+
+	f.engine.TranscriptFunc = func(context.Context, string) ([]ai.TranscriptStep, error) {
+		return nil, errors.New("plugin crashed")
+	}
+	f.detail(t, "e1")
+	require.Contains(t, logs.String(), "read execution transcript")
+
+	logs.Reset()
+	ctx, cancel := context.WithCancel(context.Background())
+	f.engine.TranscriptFunc = func(context.Context, string) ([]ai.TranscriptStep, error) {
+		cancel()
+		return nil, fmt.Errorf("call transcript: %w", context.Canceled)
+	}
+	_, err := f.service.Detail(ctx, "u1", "e1")
+	require.NoError(t, err)
+	assert.NotContains(t, logs.String(), "read execution transcript")
 }
