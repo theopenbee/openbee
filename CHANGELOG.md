@@ -4,6 +4,7 @@
 
 ### Added
 - OpenCode engine plugin with its icon on web and desktop.
+- Per-worker model field with suggestions on web and desktop.
 
 ### Changed
 - Account menu no longer shows the Administrator role.
