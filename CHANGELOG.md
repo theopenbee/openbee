@@ -11,6 +11,7 @@
 - Bee handles worker management even when a worker is named.
 - Deleting a worker cancels its tasks in every chat.
 - Direct @mentions keep messages sent just before them.
+- Direct @mentions pass attachments to workers as file paths.
 
 ## [1.0.9] - 2026-11-18
 
