@@ -128,8 +128,8 @@ A run fails with the usual failure notice when no engine can be used:
 - **Child processes that keep stdout or stderr open** after the plugin exits delay the call by at most 3 seconds; openbee then continues with the response it has.
 - **Keep the CLI in the plugin's process group.** On Linux and macOS openbee starts the plugin as the leader of a new process group. Spawn the CLI the default way: do not detach it, start a new session or double fork, or it escapes the signals below. openbee sends `SIGTERM` to the whole group when the user stops a task, when a task times out or is cancelled, when `check` or `usage` times out, and after any failed call, to clear leftovers. Whatever is still in the group 3 seconds later gets `SIGKILL`, and openbee waits for that before it exits. A CLI that starts its tool commands outside the group must clean them up on `SIGTERM`. On Windows openbee ends the plugin's whole process tree with `taskkill /F /T` when a task is stopped, times out or is cancelled and when `check` or `usage` times out, so the CLI dies with the plugin; it does not sweep leftovers after a failed call.
 - **Working directory.** The plugin runs in its own directory; it sets the CLI's working directory from `work_dir`.
-- **Environment.** For `run`, the environment is openbee's own (with its executable directory prepended to `PATH`), the user's Env settings, `OPENBEE_API_KEY`, and `NO_PROXY` and `no_proxy` extended with the host of the MCP URL when there is one. `check` and `usage` get openbee's environment without the user's Env settings and without `OPENBEE_API_KEY`. `models` gets openbee's environment and the user's Env settings (global, or the worker's when the request is for a worker), without `OPENBEE_API_KEY`. Pass the environment on to the CLI unchanged. `OPENBEE_API_KEY` is only ever in `run`'s environment; it is not in the request or in any argument.
-- **Timeouts.** `check` 30 seconds, `usage` 60 seconds, `models` 30 seconds. `run` has no timeout of its own: it ends when the plugin does or when the task is stopped or times out (`bee.engine.timeout.bee` for Bee, `bee.engine.timeout.worker` for workers).
+- **Environment.** For `run`, the environment is openbee's own (with its executable directory prepended to `PATH`), the user's Env settings, `OPENBEE_API_KEY`, and `NO_PROXY` and `no_proxy` extended with the host of the MCP URL when there is one. `check`, `usage` and `transcript` get openbee's environment without the user's Env settings and without `OPENBEE_API_KEY`. `models` gets openbee's environment and the user's Env settings (global, or the worker's when the request is for a worker), without `OPENBEE_API_KEY`. Pass the environment on to the CLI unchanged. `OPENBEE_API_KEY` is only ever in `run`'s environment; it is not in the request or in any argument.
+- **Timeouts.** `check` 30 seconds, `usage` 60 seconds, `models` 30 seconds, `transcript` 30 seconds. `run` has no timeout of its own: it ends when the plugin does or when the task is stopped or times out (`bee.engine.timeout.bee` for Bee, `bee.engine.timeout.worker` for workers).
 
 ## Messages
 
@@ -154,7 +154,7 @@ Both sides ignore unknown fields, so new optional fields can be added within ver
 | Field | Rules |
 |---|---|
 | `protocol_version` | `1`. |
-| `method` | `run`, `check`, `usage` or `models`. |
+| `method` | `run`, `check`, `usage`, `models` or `transcript`. |
 | `openbee_version` | The openbee version. |
 | `engine_id` | The plugin's `id`. |
 | `language` | The user's language, `en` or `zh`. |
@@ -259,3 +259,39 @@ Lists the models a worker, the default model or Bee can use with this engine. op
 ```
 
 `id` is the value openbee sends back as `run`'s `model`; `name` is optional display text. An empty list is valid. The user can always type a model that is not listed, so list what the CLI reports and do not guess. A plugin without `models` (for example one built on engine SDK 0.1) answers with an error; openbee then shows the field without suggestions. The call times out after 30 seconds.
+
+### `transcript`
+
+Optional. Reads the log `run` wrote and returns what the task did, step by step, for openbee's execution process view. openbee calls it when the user opens that view, for a finished or a running task.
+
+```json
+"params": { "log_path": "/home/u/.openbee/logs/2026-11-23/exec-123.log" }
+```
+
+```json
+{
+  "result": {
+    "steps": [
+      { "type": "thinking", "text": "Check the failing test first." },
+      { "type": "tool", "kind": "command", "name": "Bash", "summary": "go test ./...", "output": "ok  \tgithub.com/...", "status": "done", "duration_ms": 4200 },
+      { "type": "text", "text": "All tests pass." }
+    ]
+  }
+}
+```
+
+`steps` is ordered oldest first; an empty list is valid. Each step has a `type`:
+
+| `type` | Fields |
+|---|---|
+| `text` | `text`: assistant reply text. Consecutive text merges into one step, separated by a blank line. |
+| `thinking` | `text`: the reasoning. Leave out empty reasoning. |
+| `tool` | `kind`: `command`, `read`, `edit`, `search`, `web`, `message` or `other`. `name`: the tool name, without an `mcp__<server>__` prefix. `summary`: one line, at most 300 characters. `output`: at most 4000 characters; when longer, the first 1000, `\n…\n`, then the last 2997. `status`: `running`, `done` or `error`; a tool with no result yet is `running`. `duration_ms`: only when both timestamps are known. |
+| `error` | `text`: an error the run reported. |
+
+- **Limits.** `text` is at most 20000 characters in every step.
+- **What to skip.** Lines of the log that are not JSON (it also holds stderr), a truncated last line, and events of nested sub-agents (Claude's `parent_tool_use_id` set, pi's `parentToolCallId`).
+- **`message`.** The `kind` of openbee's own `send_message` tool; its `summary` is the message content.
+- **Same environment and timeout as `check`.** No user Env settings and no `OPENBEE_API_KEY`; the call times out after 30 seconds.
+
+A plugin without `transcript` answers `{"error": {"message": "unknown method \"transcript\""}}`. openbee then tells the user to update the engine plugin instead of showing a failure. Plugins built on `@theopenbee/engine-sdk` 0.4.0 or later get this from `Engine.transcript`, and the SDK's `TranscriptBuilder` applies every limit above, so the plugin only translates its own log format.

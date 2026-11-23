@@ -6,6 +6,7 @@
 - Engine plugins can ship their own icon.
 - Bee can list engines, their models and default models.
 - Default and Bee models in settings, web and desktop.
+- View a worker task's execution process, web and desktop.
 
 ### Changed
 - Engine icons come from plugins, not built into OpenBee.
