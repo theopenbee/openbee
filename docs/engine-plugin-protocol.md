@@ -115,8 +115,8 @@ A run fails with the usual failure notice when no engine can be used:
 - **Child processes that keep stdout or stderr open** after the plugin exits delay the call by at most 3 seconds; openbee then continues with the response it has.
 - **Keep the CLI in the plugin's process group.** On Linux and macOS openbee starts the plugin as the leader of a new process group. Spawn the CLI the default way: do not detach it, start a new session or double fork, or it escapes the signals below. openbee sends `SIGTERM` to the whole group when the user stops a task, when a task times out or is cancelled, when `check` or `usage` times out, and after any failed call, to clear leftovers. Whatever is still in the group 3 seconds later gets `SIGKILL`, and openbee waits for that before it exits. A CLI that starts its tool commands outside the group must clean them up on `SIGTERM`. On Windows openbee ends the plugin's whole process tree with `taskkill /F /T` when a task is stopped, times out or is cancelled and when `check` or `usage` times out, so the CLI dies with the plugin; it does not sweep leftovers after a failed call.
 - **Working directory.** The plugin runs in its own directory; it sets the CLI's working directory from `work_dir`.
-- **Environment.** For `run`, the environment is openbee's own (with its executable directory prepended to `PATH`), the user's Env settings, `OPENBEE_API_KEY`, and `NO_PROXY` and `no_proxy` extended with the host of the MCP URL when there is one. `check` and `usage` get openbee's environment without the user's Env settings and without `OPENBEE_API_KEY`. Pass the environment on to the CLI unchanged. `OPENBEE_API_KEY` is only ever in `run`'s environment; it is not in the request or in any argument.
-- **Timeouts.** `check` 30 seconds, `usage` 60 seconds. `run` has no timeout of its own: it ends when the plugin does or when the task is stopped or times out (`bee.engine.timeout.bee` for Bee, `bee.engine.timeout.worker` for workers).
+- **Environment.** For `run`, the environment is openbee's own (with its executable directory prepended to `PATH`), the user's Env settings, `OPENBEE_API_KEY`, and `NO_PROXY` and `no_proxy` extended with the host of the MCP URL when there is one. `check` and `usage` get openbee's environment without the user's Env settings and without `OPENBEE_API_KEY`. `models` gets openbee's environment and the user's Env settings (global, or the worker's when the request is for a worker), without `OPENBEE_API_KEY`. Pass the environment on to the CLI unchanged. `OPENBEE_API_KEY` is only ever in `run`'s environment; it is not in the request or in any argument.
+- **Timeouts.** `check` 30 seconds, `usage` 60 seconds, `models` 30 seconds. `run` has no timeout of its own: it ends when the plugin does or when the task is stopped or times out (`bee.engine.timeout.bee` for Bee, `bee.engine.timeout.worker` for workers).
 
 ## Messages
 
@@ -141,13 +141,13 @@ Both sides ignore unknown fields, so new optional fields can be added within ver
 | Field | Rules |
 |---|---|
 | `protocol_version` | `1`. |
-| `method` | `run`, `check` or `usage`. |
+| `method` | `run`, `check`, `usage` or `models`. |
 | `openbee_version` | The openbee version. |
 | `engine_id` | The plugin's `id`. |
 | `language` | The user's language, `en` or `zh`. |
 | `config` | The plugin's settings with manifest defaults applied and validated, under the same rules as a channel plugin's `initialize.config`. Always an object; `secret` values arrive in plain text. |
 | `data_dir`, `state_dir` | See [`data_dir` and `state_dir`](#data_dir-and-state_dir). |
-| `params` | Depends on `method`; `{}` for `check`. |
+| `params` | Depends on `method`; `{}` for `check` and `models`. |
 
 ### Response
 
@@ -171,7 +171,8 @@ Runs one task. The call lasts as long as the task.
   "prompt": "...",
   "session_id": "6f1c5a52-0000-4000-8000-000000000000",
   "resume": true,
-  "extra_args": ["--model", "opus"],
+  "extra_args": ["--effort", "high"],
+  "model": "opus",
   "log_path": "/home/u/.openbee/logs/2026-10-29/exec-123.log",
   "mcp": { "name": "openbee", "url": "http://127.0.0.1:12350/mcp", "api_key_env": "OPENBEE_API_KEY" }
 }
@@ -185,6 +186,7 @@ Runs one task. The call lasts as long as the task.
 | `session_id` | openbee's session id. The plugin keeps the mapping to its CLI's own session (for example a thread id) in `state_dir`. |
 | `resume` | `true` when the session has run before and the plugin should continue the CLI conversation instead of starting one. |
 | `extra_args` | The merged global and worker engine arguments; always an array, possibly empty. Append them after the plugin's own arguments. |
+| `model` | The worker's model for this engine, from the worker's Model field. Omitted when empty and for Bee. Pass it to the CLI's model option before `extra_args`; when `extra_args` already choose a model, keep theirs. Older plugins ignore it. |
 | `log_path` | A file in an existing directory. The plugin writes the CLI's output to it; the format is up to the plugin. |
 | `mcp` | Omitted when openbee has no external address. Otherwise the plugin registers an MCP server called `name` at `url` with the CLI, in whatever way that CLI supports. `api_key_env` is the name of the environment variable that holds the API key; refer to the key by that name and never write its value into arguments or files. |
 
@@ -234,3 +236,13 @@ Reads token usage for a batch of sessions. openbee starts one `usage` process pe
 ```
 
 Sessions that cannot be found are left out of `usage`. The call times out after 60 seconds.
+
+### `models`
+
+Lists the models a worker can pick for this engine. openbee calls it when the user opens the Model field. `params` is `{}`.
+
+```json
+{ "result": { "models": [ { "id": "deepseek/deepseek-flash", "name": "DeepSeek Flash" }, { "id": "opus" } ] } }
+```
+
+`id` is the value openbee sends back as `run`'s `model`; `name` is optional display text. An empty list is valid. The user can always type a model that is not listed, so list what the CLI reports and do not guess. A plugin without `models` (for example one built on engine SDK 0.1) answers with an error; openbee then shows the field without suggestions. The call times out after 30 seconds.
