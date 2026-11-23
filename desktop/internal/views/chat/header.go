@@ -123,9 +123,12 @@ func (v *View) subtitle(p pane, kind model.StatusKind, ahead int) string {
 	if p.worker == nil {
 		return statusText(kind, ahead)
 	}
-	parts := make([]string, 0, 2)
-	if p.worker.Engine != "" {
-		parts = append(parts, l10n.EngineName(model.FindEngine(v.s.EnabledEngines(), p.worker.Engine)))
+	parts := make([]string, 0, 3)
+	if engine, modelName := v.s.ProfileEngine(*p.worker); engine != "" {
+		parts = append(parts, l10n.EngineName(model.FindEngine(v.s.EnabledEngines(), engine)))
+		if modelName != "" {
+			parts = append(parts, modelName)
+		}
 	}
 	if description := strings.Join(strings.Fields(p.worker.Description), " "); description != "" {
 		parts = append(parts, description)

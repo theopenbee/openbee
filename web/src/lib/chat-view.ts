@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api"
 import { workerIdOf } from "@/lib/conversations"
 import { findEngine } from "@/lib/engines"
+import { profileEngine } from "@/lib/worker-edit"
 import type { ActiveTask, ChatMessage, ConversationActivity, ConversationId, EngineChoice, Worker } from "@/lib/types"
 
 export const GROUP_GAP_MS = 5 * 60_000
@@ -68,10 +69,11 @@ export function statusText(activity: ConversationActivity, worker: Worker | unde
   return worker?.status === "error" ? t("statuses.error") : t("statuses.idle")
 }
 
-export function headerSubtitle(worker: Worker | undefined, engines: readonly EngineChoice[]): string {
+export function headerSubtitle(worker: Worker | undefined, engines: readonly EngineChoice[], systemDefault?: string): string {
   if (!worker) return ""
   const description = worker.description.split(/\s+/).filter(Boolean).join(" ")
-  const parts = [worker.engine ? findEngine(engines, worker.engine).name : "", description]
+  const shown = profileEngine(worker, systemDefault, engines.map((engine) => engine.id))
+  const parts = shown ? [findEngine(engines, shown.engine).name, shown.model, description] : [description]
   return parts.filter(Boolean).join(SUBTITLE_JOIN)
 }
 

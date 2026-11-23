@@ -19,7 +19,7 @@ import { useScrollAnchor } from "@/components/chat/use-scroll-anchor"
 import { EmptyState } from "@/components/empty-state"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { useActiveConversation, useChatEventSubscription } from "@/hooks/use-chat-events"
-import { useEnabledEngines } from "@/hooks/use-config"
+import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import {
   useConversationMessages,
   useConversations,
@@ -40,12 +40,13 @@ import {
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
 import { isRoutedConversation } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
-import type {
-  ChatMessage,
-  ConversationActivity,
-  ConversationId,
-  ConversationMessagesResponse,
-  Worker,
+import {
+  SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
+  type ChatMessage,
+  type ConversationActivity,
+  type ConversationId,
+  type ConversationMessagesResponse,
+  type Worker,
 } from "@/lib/types"
 import { cn, getErrorMessage } from "@/lib/utils"
 
@@ -93,7 +94,8 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const status = statusText(activity, worker, t)
   const busy = activity.state !== "idle"
   const engines = useEnabledEngines()
-  const subtitle = isBee ? status : headerSubtitle(worker, engines)
+  const { data: sysConfigs } = useSystemConfigs()
+  const subtitle = isBee ? status : headerSubtitle(worker, engines, sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE])
 
   const { data, isPending, isError, refetch } = useConversationMessages(conversation)
   const { mutateAsync: sendMessage } = useSendToConversation(conversation)

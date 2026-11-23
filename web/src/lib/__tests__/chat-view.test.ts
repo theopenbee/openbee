@@ -160,6 +160,22 @@ describe("headerSubtitle", () => {
     expect(headerSubtitle(lin("", " \n "), engines)).toBe("")
     expect(headerSubtitle(undefined, engines)).toBe("")
   })
+
+  it("puts the model of the worker's engine after the engine name", () => {
+    const modeled = { ...lin("claude", "Builds openbee"), engine_models: { claude: "opus", pi: "deepseek/deepseek-flash" } }
+    expect(headerSubtitle(modeled, engines)).toBe("Claude Code · opus · Builds openbee")
+    expect(headerSubtitle({ ...modeled, engine_models: { pi: "deepseek/deepseek-flash" } }, engines)).toBe(
+      "Claude Code · Builds openbee",
+    )
+  })
+
+  it("shows the default engine when the worker has a model for it", () => {
+    const withPi = [...engines, { id: "pi", name: "Pi" }]
+    const follower = { ...lin("", "Builds openbee"), engine_models: { pi: "deepseek/deepseek-flash" } }
+    expect(headerSubtitle(follower, withPi, "pi")).toBe("Pi · deepseek/deepseek-flash · Builds openbee")
+    expect(headerSubtitle(follower, withPi, "claude")).toBe("Builds openbee")
+    expect(headerSubtitle(follower, withPi)).toBe("Builds openbee")
+  })
 })
 
 describe("activeTasksOf", () => {

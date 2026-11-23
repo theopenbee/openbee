@@ -541,6 +541,38 @@ func TestHeaderSubtitle(t *testing.T) {
 	}
 }
 
+func TestHeaderSubtitleShowsModel(t *testing.T) {
+	modeled := func(engine string, models map[string]string) api.Worker {
+		w := worker("w1", "Alice", "Writes the release notes")
+		w.Engine, w.EngineModels = engine, models
+		return w
+	}
+	defaultPi := func(st *fakeapi.State) { st.SystemConfigs = map[string]string{"default_engine": "pi"} }
+	cases := []struct {
+		name   string
+		worker api.Worker
+		seed   func(st *fakeapi.State)
+		want   []string
+	}{
+		{"own engine", modeled("claude", map[string]string{"claude": "opus", "pi": "deepseek/deepseek-flash"}), nil, []string{"Claude Code · opus · Writes the release notes"}},
+		{"own engine without its model", modeled("claude", map[string]string{"pi": "deepseek/deepseek-flash"}), nil, []string{"Claude Code · Writes the release notes"}},
+		{"default engine", modeled("", map[string]string{"pi": "deepseek/deepseek-flash"}), defaultPi, []string{"Pi · deepseek/deepseek-flash · Writes the release notes"}},
+		{"default engine without its model", modeled("", map[string]string{"claude": "opus"}), defaultPi, []string{"Writes the release notes"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			seeds := []func(st *fakeapi.State){seedChat([]api.Worker{tc.worker}, workerCID), activity("idle")}
+			if tc.seed != nil {
+				seeds = append(seeds, tc.seed)
+			}
+			f := newFixture(t, wideW, wideH, "w1", both(seeds...))
+			if got := f.underTitle("Alice"); !slices.Equal(got, tc.want) {
+				t.Fatalf("header subtitle = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBeeHeaderKeepsStatus(t *testing.T) {
 	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation))
 	if got, want := f.underTitle(locales.ChatBeeLabel()), []string{locales.StatusesIdle()}; !slices.Equal(got, want) {

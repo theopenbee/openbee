@@ -82,6 +82,14 @@ func (s *Store) EnabledEngines() []api.EngineInfo {
 	return model.EnabledEngines(s.Config.Data)
 }
 
+func (s *Store) ProfileEngine(w api.Worker) (engine, modelName string) {
+	if w.Engine != "" || len(w.EngineModels) == 0 {
+		return model.ProfileEngine(w, "", nil)
+	}
+	s.SystemConfigs.Ensure()
+	return model.ProfileEngine(w, s.SystemConfigs.Data["default_engine"], model.EngineIDs(s.EnabledEngines()))
+}
+
 func (s *Store) workerIndex(id string) int {
 	if !s.Workers.Loaded {
 		return -1

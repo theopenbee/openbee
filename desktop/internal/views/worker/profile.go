@@ -45,7 +45,7 @@ func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Wor
 			ui.Column(c).Grow(1).MinWidth(0).Gap(identityGap).Children(func() {
 				ui.Text(c, w.Name).FontSize(nameSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
 					Role(ui.RoleHeading).Level(3)
-				if engine, modelName := p.profileEngine(w); engine != "" {
+				if engine, modelName := p.s.ProfileEngine(w); engine != "" {
 					info := model.FindEngine(p.s.EnabledEngines(), engine)
 					engineLine(c, tk, info.Icon, model.EngineLabel(l10n.EngineName(info), modelName))
 				}
@@ -62,15 +62,6 @@ func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Wor
 			p.moreMenu(c, tk, st, w)
 		})
 	})
-}
-
-func (p *Panel) profileEngine(w api.Worker) (string, string) {
-	if w.Engine != "" || len(w.EngineModels) == 0 {
-		return model.ProfileEngine(w, "", nil)
-	}
-	configs := p.s.SystemConfigs
-	configs.Ensure()
-	return model.ProfileEngine(w, configs.Data["default_engine"], model.EngineIDs(p.s.EnabledEngines()))
 }
 
 func engineLine(c *ui.Context, tk theme.Tokens, icon, name string) {
