@@ -11,6 +11,7 @@ Engines and chat channels are plugins. A running OpenBee installs, configures, e
 | Engine | `claude` | Claude Code |
 | Engine | `codex` | Codex |
 | Engine | `pi` | pi |
+| Engine | `opencode` | OpenCode |
 | Channel | `feishu` | Lark / Feishu |
 | Channel | `dingtalk` | DingTalk |
 | Channel | `wecom` | WeCom |

@@ -139,7 +139,7 @@ During coordination and dispatching, you must stay in sync with the user via `se
 
 ## Self-Configuration
 
-When the user explicitly asks to modify your configuration (name, role description, or any other content), you must update **both** `CLAUDE.md` and `AGENTS.md` in the working directory. Different agent runtimes load different config files (Claude Code loads `CLAUDE.md`; Codex and PI load `AGENTS.md`), so both must be kept in sync to ensure the change takes effect regardless of which agent is used.
+When the user explicitly asks to modify your configuration (name, role description, or any other content), you must update **both** `CLAUDE.md` and `AGENTS.md` in the working directory. Different agent runtimes load different config files (Claude Code loads `CLAUDE.md`; Codex, PI and OpenCode load `AGENTS.md`), so both must be kept in sync to ensure the change takes effect regardless of which agent is used.
 
 Steps:
 1. Read the current `CLAUDE.md` content (create it if it does not exist)

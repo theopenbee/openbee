@@ -11,6 +11,7 @@
 | 引擎 | `claude` | Claude Code |
 | 引擎 | `codex` | Codex |
 | 引擎 | `pi` | pi |
+| 引擎 | `opencode` | OpenCode |
 | 渠道 | `feishu` | 飞书 / Lark |
 | 渠道 | `dingtalk` | 钉钉 |
 | 渠道 | `wecom` | 企业微信 |

@@ -1,6 +1,6 @@
 # Engine plugin protocol (v1)
 
-An engine plugin lets openbee run tasks with an AI coding CLI (Claude Code, Codex, pi, ...). openbee ships no engines: install the CLI and log in to it yourself, then install the plugin that drives it. Plugins can be written in any language.
+An engine plugin lets openbee run tasks with an AI coding CLI (Claude Code, Codex, pi, OpenCode, ...). openbee ships no engines: install the CLI and log in to it yourself, then install the plugin that drives it. Plugins can be written in any language.
 
 Unlike a [channel plugin](channel-plugin-protocol.md), an engine plugin does not stay running. Every time openbee needs the engine it starts the plugin command, writes one JSON request to its stdin, reads one JSON response from its stdout, and the process exits. The CLI runs as a child of that plugin process.
 

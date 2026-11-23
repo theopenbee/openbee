@@ -2,7 +2,7 @@
 
 # OpenBee — Build reliable AI teams.
 
-OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex** or **pi** — into a team of always-on workers. Message **Bee**, the coordinator, from the desktop app, the browser or your chat app, and Bee hands the job to the right worker. In a chat app, the result comes back to the same chat. In the desktop app and the browser, each task gets its own worker chat, opened from Bee's handoff card.
+OpenBee turns the agent CLIs you already use — **Claude Code**, **Codex**, **pi** or **OpenCode** — into a team of always-on workers. Message **Bee**, the coordinator, from the desktop app, the browser or your chat app, and Bee hands the job to the right worker. In a chat app, the result comes back to the same chat. In the desktop app and the browser, each task gets its own worker chat, opened from Bee's handoff card.
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -25,7 +25,7 @@ OpenBee fits if you want to:
 - **Reach it from anywhere.** Use the desktop app, the web console, or Lark, DingTalk, WeCom, WeChat, Telegram, Discord and Linear.
 - **Self-host.** It runs on your computer or server, and your data stays in `~/.openbee`.
 
-**You need** one agent CLI — Claude Code, Codex or pi — installed and signed in. OpenBee drives it and ships no model of its own.
+**You need** one agent CLI — Claude Code, Codex, pi or OpenCode — installed and signed in. OpenBee drives it and ships no model of its own.
 
 ## Quick start
 
@@ -49,7 +49,7 @@ Builds are not code signed yet. If the first launch is blocked, see [First launc
 ```bash
 npm install -g @theopenbee/cli
 openbee server -d
-openbee plugin install claude   # or codex, pi
+openbee plugin install claude   # or codex, pi, opencode
 ```
 
 Open <http://localhost:19876> and create the admin account. Other install methods are in [Server and CLI](docs/server.md).

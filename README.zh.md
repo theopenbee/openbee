@@ -2,7 +2,7 @@
 
 # OpenBee — Build reliable AI teams.
 
-OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 **pi** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工。在聊天软件里，结果回到同一个对话；在桌面应用和浏览器里，每个任务有自己的员工对话，点 Bee 的交接卡片就能进去。
+OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex**、**pi** 或 **OpenCode** —— 变成一支 7×24 小时在线的数字员工团队。在桌面应用、浏览器或常用的聊天软件里给协调者 **Bee** 发消息，Bee 会把活派给合适的员工。在聊天软件里，结果回到同一个对话；在桌面应用和浏览器里，每个任务有自己的员工对话，点 Bee 的交接卡片就能进去。
 
 [![npm version](https://img.shields.io/npm/v/@theopenbee/cli?color=F7C948&logo=npm&label=npm)](https://www.npmjs.com/package/@theopenbee/cli)
 [![npm downloads](https://img.shields.io/npm/dt/@theopenbee/cli?color=F7C948&logo=npm&label=downloads)](https://www.npmjs.com/package/@theopenbee/cli)
@@ -25,7 +25,7 @@ OpenBee 把你已经在用的 Agent CLI —— **Claude Code**、**Codex** 或 *
 - **随处可用。** 桌面应用、Web 控制台，或飞书、钉钉、企业微信、微信、Telegram、Discord、Linear。
 - **自托管。** 跑在你自己的电脑或服务器上，数据都在 `~/.openbee`。
 
-**前提：** 装好并登录一个 Agent CLI —— Claude Code、Codex 或 pi。OpenBee 负责驱动它，本身不带模型。
+**前提：** 装好并登录一个 Agent CLI —— Claude Code、Codex、pi 或 OpenCode。OpenBee 负责驱动它，本身不带模型。
 
 ## 快速开始
 
@@ -49,7 +49,7 @@ Linux 用户，或不想用包管理器，可以从 [Releases](https://github.co
 ```bash
 npm install -g @theopenbee/cli
 openbee server -d
-openbee plugin install claude   # 或 codex、pi
+openbee plugin install claude   # 或 codex、pi、opencode
 ```
 
 打开 <http://localhost:19876> 并创建管理员账号。其他安装方式见[服务端与命令行](docs/server.zh.md)。
