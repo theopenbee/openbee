@@ -183,12 +183,12 @@ func TestPreviewLinkAndTableOpenAbove(t *testing.T) {
 	f := previewChat(t, map[string][]byte{"doc.md": []byte(doc)}, "doc.md")
 	f.openPreview("doc.md")
 	f.click("the guide")
-	f.wantShown(locales.LinkDialogTitle())
-	f.click(locales.LinkOpen())
+	f.wantShown(locales.ChatLinkTitle())
+	f.click(locales.ChatLinkOpen())
 	if opened := f.T.OpenedURLs(); len(opened) != 1 || opened[0] != url {
 		t.Fatalf("opened %q, want %q", opened, url)
 	}
-	f.wantHidden(locales.LinkDialogTitle())
+	f.wantHidden(locales.ChatLinkTitle())
 	f.wantShown(locales.ChatClosePreview())
 
 	f.click(locales.TableFullscreen())

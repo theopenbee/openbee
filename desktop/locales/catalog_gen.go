@@ -1990,6 +1990,46 @@ func (msgs Messages) ChatImagePreview() string {
 	return Catalog.Format(msgs.locale, "chatImagePreview", nil)
 }
 
+// ChatLinkCopy says "Copy link"
+// in the language the app shows.
+func ChatLinkCopy() string { return In(i18n.Locale()).ChatLinkCopy() }
+
+// ChatLinkCopy says "Copy link"
+// in the language of msgs.
+func (msgs Messages) ChatLinkCopy() string {
+	return Catalog.Format(msgs.locale, "chatLinkCopy", nil)
+}
+
+// ChatLinkDescription says "You're about to visit an external website."
+// in the language the app shows.
+func ChatLinkDescription() string { return In(i18n.Locale()).ChatLinkDescription() }
+
+// ChatLinkDescription says "You're about to visit an external website."
+// in the language of msgs.
+func (msgs Messages) ChatLinkDescription() string {
+	return Catalog.Format(msgs.locale, "chatLinkDescription", nil)
+}
+
+// ChatLinkOpen says "Open link"
+// in the language the app shows.
+func ChatLinkOpen() string { return In(i18n.Locale()).ChatLinkOpen() }
+
+// ChatLinkOpen says "Open link"
+// in the language of msgs.
+func (msgs Messages) ChatLinkOpen() string {
+	return Catalog.Format(msgs.locale, "chatLinkOpen", nil)
+}
+
+// ChatLinkTitle says "Open external link?"
+// in the language the app shows.
+func ChatLinkTitle() string { return In(i18n.Locale()).ChatLinkTitle() }
+
+// ChatLinkTitle says "Open external link?"
+// in the language of msgs.
+func (msgs Messages) ChatLinkTitle() string {
+	return Catalog.Format(msgs.locale, "chatLinkTitle", nil)
+}
+
 // ChatLoadMore says "Load earlier messages"
 // in the language the app shows.
 func ChatLoadMore() string { return In(i18n.Locale()).ChatLoadMore() }
@@ -3422,46 +3462,6 @@ func FileSavedToDownloads() string { return In(i18n.Locale()).FileSavedToDownloa
 // in the language of msgs.
 func (msgs Messages) FileSavedToDownloads() string {
 	return Catalog.Format(msgs.locale, "fileSavedToDownloads", nil)
-}
-
-// LinkCopy says "Copy link"
-// in the language the app shows.
-func LinkCopy() string { return In(i18n.Locale()).LinkCopy() }
-
-// LinkCopy says "Copy link"
-// in the language of msgs.
-func (msgs Messages) LinkCopy() string {
-	return Catalog.Format(msgs.locale, "linkCopy", nil)
-}
-
-// LinkDialogDescription says "You're about to visit an external website."
-// in the language the app shows.
-func LinkDialogDescription() string { return In(i18n.Locale()).LinkDialogDescription() }
-
-// LinkDialogDescription says "You're about to visit an external website."
-// in the language of msgs.
-func (msgs Messages) LinkDialogDescription() string {
-	return Catalog.Format(msgs.locale, "linkDialogDescription", nil)
-}
-
-// LinkDialogTitle says "Open external link?"
-// in the language the app shows.
-func LinkDialogTitle() string { return In(i18n.Locale()).LinkDialogTitle() }
-
-// LinkDialogTitle says "Open external link?"
-// in the language of msgs.
-func (msgs Messages) LinkDialogTitle() string {
-	return Catalog.Format(msgs.locale, "linkDialogTitle", nil)
-}
-
-// LinkOpen says "Open link"
-// in the language the app shows.
-func LinkOpen() string { return In(i18n.Locale()).LinkOpen() }
-
-// LinkOpen says "Open link"
-// in the language of msgs.
-func (msgs Messages) LinkOpen() string {
-	return Catalog.Format(msgs.locale, "linkOpen", nil)
 }
 
 // LoginChangeServer says "Change server"

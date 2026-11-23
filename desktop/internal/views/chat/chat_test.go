@@ -765,11 +765,11 @@ func TestOverlaysCloseWhenTheConversationChanges(t *testing.T) {
 	url := "https://example.com/guide"
 	g := newFixture(t, wideW, wideH, "w1", workerSays("Read [the guide]("+url+") first."))
 	g.click("the guide")
-	g.wantShown(locales.LinkDialogTitle())
+	g.wantShown(locales.ChatLinkTitle())
 	g.visit("w2")
-	g.wantHidden(locales.LinkDialogTitle())
+	g.wantHidden(locales.ChatLinkTitle())
 	g.visit("w1")
-	g.wantHidden(locales.LinkDialogTitle())
+	g.wantHidden(locales.ChatLinkTitle())
 }
 
 func tableHeavyReply(sections, rows int) string {

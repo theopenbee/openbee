@@ -331,15 +331,15 @@ func TestLinkOpensDialogNotBrowser(t *testing.T) {
 	url := "https://example.com/guide"
 	f := newFixture(t, wideW, wideH, "w1", workerSays("Read [the guide]("+url+") first."))
 	f.click("the guide")
-	f.wantShown(locales.LinkDialogTitle(), locales.LinkDialogDescription(), url)
+	f.wantShown(locales.ChatLinkTitle(), locales.ChatLinkDescription(), url)
 	if opened := f.T.OpenedURLs(); len(opened) != 0 {
 		t.Fatalf("opened %q before confirming", opened)
 	}
-	f.click(locales.LinkOpen())
+	f.click(locales.ChatLinkOpen())
 	if opened := f.T.OpenedURLs(); !slices.Equal(opened, []string{url}) {
 		t.Fatalf("opened %q, want %q", opened, url)
 	}
-	f.wantHidden(locales.LinkDialogTitle())
+	f.wantHidden(locales.ChatLinkTitle())
 }
 
 func TestFullscreenTableLinkOpens(t *testing.T) {
@@ -360,12 +360,12 @@ func TestFullscreenTableLinkOpens(t *testing.T) {
 	}
 	f.T.Key(0, ui.KeyEnter)
 	f.settleMotion()
-	f.wantShown(locales.LinkDialogTitle(), url)
-	f.click(locales.LinkOpen())
+	f.wantShown(locales.ChatLinkTitle(), url)
+	f.click(locales.ChatLinkOpen())
 	if opened := f.T.OpenedURLs(); !slices.Equal(opened, []string{url}) {
 		t.Fatalf("opened %q, want %q: the full-screen table covers the link dialog", opened, url)
 	}
-	f.wantHidden(locales.LinkDialogTitle())
+	f.wantHidden(locales.ChatLinkTitle())
 	if n := f.count("name"); n != 2 {
 		t.Fatalf("%d header cells after opening the link, want the full screen still open", n)
 	}
@@ -375,7 +375,7 @@ func TestLinkDialogCopiesLink(t *testing.T) {
 	url := "https://example.com/a?b=c"
 	f := newFixture(t, wideW, wideH, "w1", workerSays("See <"+url+">."))
 	f.click(url)
-	f.click(locales.LinkCopy())
+	f.click(locales.ChatLinkCopy())
 	if got := f.T.Clipboard(); got != url {
 		t.Fatalf("clipboard = %q, want %q", got, url)
 	}
@@ -387,8 +387,8 @@ func TestLinkDialogCopiesLink(t *testing.T) {
 func TestUnsafeLinkDoesNotOpen(t *testing.T) {
 	f := newFixture(t, wideW, wideH, "w1", workerSays("[run me](file:///etc/passwd)"))
 	f.click("run me")
-	f.wantShown(locales.LinkDialogTitle(), "file:///etc/passwd")
-	f.click(locales.LinkOpen())
+	f.wantShown(locales.ChatLinkTitle(), "file:///etc/passwd")
+	f.click(locales.ChatLinkOpen())
 	if opened := f.T.OpenedURLs(); len(opened) != 0 {
 		t.Fatalf("opened %q", opened)
 	}
