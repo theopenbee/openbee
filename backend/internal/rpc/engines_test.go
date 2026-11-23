@@ -11,6 +11,7 @@ import (
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/aitest"
+	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/rpc"
 )
 
@@ -38,9 +39,26 @@ func TestListEngines(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []map[string]any{
-		{"id": "claude", "name": "Claude Code", "default": false},
-		{"id": "opencode", "name": "OpenCode 中文", "default": true},
-		{"id": "plain", "name": "plain", "default": false},
+		{"id": "claude", "name": "Claude Code", "default": false, "default_model": "", "bee_model": ""},
+		{"id": "opencode", "name": "OpenCode 中文", "default": true, "default_model": "", "bee_model": ""},
+		{"id": "plain", "name": "plain", "default": false, "default_model": "", "bee_model": ""},
+	}, decodeList(t, res))
+}
+
+func TestListEnginesShowsDefaultAndBeeModels(t *testing.T) {
+	s, db := newTestServerWithEngines(t, engineSource(&aitest.ModelEngine{}), "opencode")
+	configs := store.NewSystemConfigStore(db)
+	ctx := context.Background()
+	require.NoError(t, configs.Set(ctx, "engine_models_global", `{"opencode":"deepseek/deepseek-flash","claude":"sonnet"}`))
+	require.NoError(t, configs.Set(ctx, "engine_models_bee", `{"opencode":" deepseek/deepseek-v4-pro "}`))
+
+	res, err := s.CallTool(ctx, "list_engines", json.RawMessage(`{}`))
+	require.NoError(t, err)
+
+	assert.Equal(t, []map[string]any{
+		{"id": "claude", "name": "Claude Code", "default": false, "default_model": "sonnet", "bee_model": ""},
+		{"id": "opencode", "name": "OpenCode 中文", "default": true, "default_model": "deepseek/deepseek-flash", "bee_model": "deepseek/deepseek-v4-pro"},
+		{"id": "plain", "name": "plain", "default": false, "default_model": "", "bee_model": ""},
 	}, decodeList(t, res))
 }
 

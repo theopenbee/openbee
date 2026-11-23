@@ -94,6 +94,11 @@ func (m *Manager) DefaultEngine() string {
 	return m.engineCfg.Get()
 }
 
+func (m *Manager) ModelSettings(ctx context.Context) (defaults, bee map[string]string) {
+	return m.loadEngineModels(ctx, model.SystemConfigKeyEngineModelsGlobal),
+		m.loadEngineModels(ctx, model.SystemConfigKeyEngineModelsBee)
+}
+
 func (m *Manager) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
 	if m.sysConfigStore == nil {
 		return nil

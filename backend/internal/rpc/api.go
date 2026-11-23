@@ -35,8 +35,8 @@ create_worker(args: { name: string; description?: string; constraints?: string; 
 	{utils.UpdateWorker, `/** Only the fields you pass change. permission_scopes replaces all scopes ("" clears them). In engine_args and engine_models an empty string removes that engine's entry and {} clears all. */
 update_worker(args: { worker_id: string; name?: string; description?: string; constraints?: string; work_dir?: string; engine?: string; permission_scopes?: string; engine_args?: Record<string, string>; engine_models?: Record<string, string> }): Promise<Worker>;`},
 	{utils.DeleteWorker, `delete_worker(args: { worker_id: string; delete_work_dir?: boolean }): Promise<{ status: "deleted" }>;`},
-	{utils.ListEngines, `/** Enabled engines. default marks the server default, which workers without an engine use. */
-list_engines(): Promise<{ id: string; name: string; default: boolean }[]>;`},
+	{utils.ListEngines, `/** Enabled engines. default marks the server default, which workers without an engine use. default_model is the model of workers without their own model for this engine; bee_model is yours, empty means default_model; empty default_model means the engine's own default. Only the user can change both, in Settings → Models. */
+list_engines(): Promise<{ id: string; name: string; default: boolean; default_model: string; bee_model: string }[]>;`},
 	{utils.ListModels, `/** Model ids the engine offers, for engine_models. With worker_id the engine sees that worker's Env settings, which can add providers. Can take several seconds. An empty list means the engine does not list its models. */
 list_models(args: { engine: string; worker_id?: string }): Promise<{ id: string; name?: string }[]>;`},
 	{utils.ListTasks, `/** Needs at least one of task_id, message_id, session_key, worker_id; task_id cannot be combined with the others. page_size defaults to 50, max 100. Each task carries its newest executions: 10 by default, execution_limit sets another count, and execution_limit 0 with task_id returns all of them. */

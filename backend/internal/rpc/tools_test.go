@@ -131,7 +131,7 @@ func buildTestServer(t *testing.T, senders platform.SenderMap, cards platform.Pl
 	engineCfg := enginecfg.NewStore(defaultEngine, "", engines.IDs)
 	envs, err := env.NewService(store.NewEnvConfigStore(db), "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
 	require.NoError(t, err)
-	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, envs, nil)
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, envs, store.NewSystemConfigStore(db))
 	stopper := &mockExecStopper{}
 	disp := &mockClearDispatcher{}
 	clearSvc := session.NewClearService(session.ClearServiceDeps{

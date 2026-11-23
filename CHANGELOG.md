@@ -4,7 +4,7 @@
 
 ### Added
 - Engine plugins can ship their own icon.
-- Bee can list enabled engines and their models.
+- Bee can list engines, their models and default models.
 - Default and Bee models in settings, web and desktop.
 
 ### Changed

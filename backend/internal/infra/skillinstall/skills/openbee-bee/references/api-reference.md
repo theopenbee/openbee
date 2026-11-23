@@ -60,6 +60,9 @@ return await openbee.list_models({ engine: "opencode", worker_id: "<id>" });
 ```
 
 - `list_engines` returns the enabled engines; `default: true` marks the server default, which workers without an `engine` use
+- A worker runs on its own `engine_models` entry for its engine; without one it uses that engine's `default_model`; with neither, the engine's own default
+- You run on the default engine with its `bee_model`, or its `default_model` when `bee_model` is empty
+- `default_model` and `bee_model` are settings only the user can change, in Settings → Models of the web console or desktop app. When asked to change them, say where; do not save them as constraints or change every worker instead
 - `list_models` returns the model ids an engine offers. Take `engine_models` values from it instead of guessing names
 - Pass `worker_id` for an existing worker: its Env settings, such as a provider key, can change the list
 - An empty list means the engine does not list its models; use the name the user gave

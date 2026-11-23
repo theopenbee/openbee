@@ -80,7 +80,7 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 	case utils.DeleteWorker:
 		return s.toolDeleteWorker(ctx, args)
 	case utils.ListEngines:
-		return s.toolListEngines(), nil
+		return s.toolListEngines(ctx), nil
 	case utils.ListModels:
 		return s.toolListModels(ctx, args)
 	case utils.CreateTask:
@@ -282,17 +282,26 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 }
 
 type engineSummary struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Default bool   `json:"default"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Default      bool   `json:"default"`
+	DefaultModel string `json:"default_model"`
+	BeeModel     string `json:"bee_model"`
 }
 
-func (s *Server) toolListEngines() []engineSummary {
+func (s *Server) toolListEngines(ctx context.Context) []engineSummary {
 	defaultEngine := s.manager.DefaultEngine()
+	defaultModels, beeModels := s.manager.ModelSettings(ctx)
 	engines := s.manager.Engines()
 	out := make([]engineSummary, 0, len(engines))
 	for _, e := range engines {
-		out = append(out, engineSummary{ID: e.ID, Name: engineName(e), Default: e.ID == defaultEngine})
+		out = append(out, engineSummary{
+			ID:           e.ID,
+			Name:         engineName(e),
+			Default:      e.ID == defaultEngine,
+			DefaultModel: defaultModels[e.ID],
+			BeeModel:     beeModels[e.ID],
+		})
 	}
 	return out
 }
