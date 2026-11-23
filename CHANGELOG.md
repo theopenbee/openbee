@@ -8,6 +8,9 @@
 
 ### Fixed
 - Even inner padding for account menu control rows.
+- Bee handles worker management even when a worker is named.
+- Deleting a worker cancels its tasks in every chat.
+- Direct @mentions keep messages sent just before them.
 
 ## [1.0.9] - 2026-11-18
 
