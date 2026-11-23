@@ -19,6 +19,7 @@ import { useScrollAnchor } from "@/components/chat/use-scroll-anchor"
 import { EmptyState } from "@/components/empty-state"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { useActiveConversation, useChatEventSubscription } from "@/hooks/use-chat-events"
+import { useEnabledEngines } from "@/hooks/use-config"
 import {
   useConversationMessages,
   useConversations,
@@ -28,7 +29,14 @@ import {
 } from "@/hooks/use-conversations"
 import { useWorkers } from "@/hooks/use-workers"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
-import { composerDisabled, groupStarts, senderDisplay, statusText, type SenderDisplay } from "@/lib/chat-view"
+import {
+  composerDisabled,
+  groupStarts,
+  headerSubtitle,
+  senderDisplay,
+  statusText,
+  type SenderDisplay,
+} from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
 import { isRoutedConversation } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
@@ -84,6 +92,8 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const activity = isBee ? (beeBusy ? BEE_BUSY : IDLE) : summaryActivity
   const status = statusText(activity, worker, t)
   const busy = activity.state !== "idle"
+  const engines = useEnabledEngines()
+  const subtitle = isBee ? status : headerSubtitle(worker, engines)
 
   const { data, isPending, isError, refetch } = useConversationMessages(conversation)
   const { mutateAsync: sendMessage } = useSendToConversation(conversation)
@@ -205,7 +215,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
         conversation={conversation}
         worker={worker}
         name={name}
-        status={status}
+        subtitle={subtitle}
         busy={busy}
         onCleared={scrollToBottom}
       />

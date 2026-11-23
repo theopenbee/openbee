@@ -5,6 +5,7 @@ import {
   activeTasksOf,
   composerDisabled,
   groupStarts,
+  headerSubtitle,
   instructionPreview,
   senderDisplay,
   statusText,
@@ -136,6 +137,28 @@ describe("statusText", () => {
     expect(statusText({ state: "idle" }, worker("w1", "Lin", "error"), t)).toBe("statuses.error")
     expect(statusText({ state: "idle" }, worker("w1", "Lin", "working"), t)).toBe("statuses.idle")
     expect(statusText({ state: "idle" }, undefined, t)).toBe("statuses.idle")
+  })
+})
+
+describe("headerSubtitle", () => {
+  const engines = [{ id: "claude", name: "Claude Code" }]
+  const lin = (engine: string, description: string): Worker => ({ ...worker("w1", "Lin"), engine, description })
+
+  it("joins the engine name and the description", () => {
+    expect(headerSubtitle(lin("claude", "Builds openbee"), engines)).toBe("Claude Code · Builds openbee")
+  })
+
+  it("falls back to the engine id when it is not enabled", () => {
+    expect(headerSubtitle(lin("codex", ""), engines)).toBe("codex")
+  })
+
+  it("collapses whitespace in the description to one line", () => {
+    expect(headerSubtitle(lin("", "  Fix bugs.\n\n- ship   fast  "), engines)).toBe("Fix bugs. - ship fast")
+  })
+
+  it("is empty without an engine, a description or a worker", () => {
+    expect(headerSubtitle(lin("", " \n "), engines)).toBe("")
+    expect(headerSubtitle(undefined, engines)).toBe("")
   })
 })
 

@@ -23,7 +23,7 @@ interface ChatHeaderProps {
   conversation: ConversationId
   worker: Worker | undefined
   name: string
-  status: string
+  subtitle: string
   busy: boolean
   onCleared: () => void
 }
@@ -51,7 +51,7 @@ export function ChatHeaderPlaceholder() {
   )
 }
 
-export function ChatHeader({ conversation, worker, name, status, busy, onCleared }: ChatHeaderProps) {
+export function ChatHeader({ conversation, worker, name, subtitle, busy, onCleared }: ChatHeaderProps) {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const isBee = conversation === BEE_CONVERSATION
@@ -90,7 +90,7 @@ export function ChatHeader({ conversation, worker, name, status, busy, onCleared
             </Tooltip>
           )}
         </h1>
-        <p className="max-w-full truncate text-xs text-secondary">{status}</p>
+        {subtitle && <p className="max-w-full truncate text-xs text-secondary">{subtitle}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {!isBee && busy && <StopButton conversation={conversation} />}

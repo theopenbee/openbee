@@ -1,10 +1,13 @@
 import { ApiError } from "@/lib/api"
 import { workerIdOf } from "@/lib/conversations"
-import type { ActiveTask, ChatMessage, ConversationActivity, ConversationId, Worker } from "@/lib/types"
+import { findEngine } from "@/lib/engines"
+import type { ActiveTask, ChatMessage, ConversationActivity, ConversationId, EngineChoice, Worker } from "@/lib/types"
 
 export const GROUP_GAP_MS = 5 * 60_000
 
 const INSTRUCTION_PREVIEW_LINES = 3
+
+const SUBTITLE_JOIN = " · "
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -63,6 +66,13 @@ export function statusText(activity: ConversationActivity, worker: Worker | unde
   if (activity.state === "queued") return t("chat.status.queued", { count: activity.queued_ahead ?? 0 })
   if (activity.state === "running") return t("chat.status.running")
   return worker?.status === "error" ? t("statuses.error") : t("statuses.idle")
+}
+
+export function headerSubtitle(worker: Worker | undefined, engines: readonly EngineChoice[]): string {
+  if (!worker) return ""
+  const description = worker.description.split(/\s+/).filter(Boolean).join(" ")
+  const parts = [worker.engine ? findEngine(engines, worker.engine).name : "", description]
+  return parts.filter(Boolean).join(SUBTITLE_JOIN)
 }
 
 export function taskTypeLabelKey(type: string): string | null {
