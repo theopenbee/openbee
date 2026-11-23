@@ -66,7 +66,7 @@ func (sh *Shell) View(c *ui.Context, conversationParam string) {
 	if sh.s.Active() != cid {
 		sh.s.SetActive(cid)
 	}
-	panel := route.ParsePanel(conversationParam, sh.nav.Query(route.PanelQuery))
+	panel := route.ParsePanel(conversationParam, sh.nav.Query(route.PanelQuery), sh.nav.Query(route.RunQuery))
 	w, _ := c.Size()
 	twoPane := w >= theme.BreakTwoPane
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Background(tk.Background).Children(func() {
@@ -97,8 +97,11 @@ func (sh *Shell) closePanel(param string) {
 }
 
 func panelTitle(p route.Panel) string {
-	if p.Mode == route.ModeNew {
+	switch p.Mode {
+	case route.ModeNew:
 		return locales.ChatNewWorker()
+	case route.ModeRun:
+		return locales.ExecutionPanelTitle()
 	}
 	return locales.ChatPanelTitle()
 }

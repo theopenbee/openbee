@@ -12,11 +12,13 @@ const (
 	PanelPermissions = "permissions"
 	PanelEnv         = "env"
 	PanelNew         = "new"
+	PanelRun         = "run"
 )
 
 const (
 	ModeWorker = "worker"
 	ModeNew    = "new"
+	ModeRun    = "run"
 )
 
 const (
@@ -26,6 +28,7 @@ const (
 	ChatPath     = "/chat"
 	SettingsPath = "/settings"
 	PanelQuery   = "panel"
+	RunQuery     = "run"
 )
 
 type Nav interface {
@@ -38,6 +41,7 @@ type Nav interface {
 type Panel struct {
 	Mode string
 	Tab  string
+	Run  string
 }
 
 func Chat(conversationParam string) string {
@@ -52,6 +56,13 @@ func ChatPanel(conversationParam, panel string) string {
 		return Chat(conversationParam)
 	}
 	return Chat(conversationParam) + "?" + url.Values{PanelQuery: {panel}}.Encode()
+}
+
+func ChatRun(conversationParam, executionID string) string {
+	if executionID == "" {
+		return Chat(conversationParam)
+	}
+	return Chat(conversationParam) + "?" + url.Values{PanelQuery: {PanelRun}, RunQuery: {executionID}}.Encode()
 }
 
 func Settings(section, plugin string) string {
@@ -88,10 +99,15 @@ func Param(conversationID string) string {
 	return id
 }
 
-func ParsePanel(param, panel string) Panel {
+func ParsePanel(param, panel, run string) Panel {
 	switch panel {
 	case PanelNew:
 		return Panel{Mode: ModeNew}
+	case PanelRun:
+		if param == "" || run == "" {
+			return Panel{}
+		}
+		return Panel{Mode: ModeRun, Run: run}
 	case PanelConstraints, PanelPermissions, PanelEnv:
 		if param == "" || param == api.BeeConversation {
 			return Panel{}

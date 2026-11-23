@@ -75,7 +75,7 @@ func (f *fixture) build(c *ui.Context) {
 			if f.Store.Active() != cid {
 				f.Store.SetActive(cid)
 			}
-			f.view.View(c, cid, route.ParsePanel(param, f.router.Query(route.PanelQuery)))
+			f.view.View(c, cid, route.ParsePanel(param, f.router.Query(route.PanelQuery), f.router.Query(route.RunQuery)))
 		}).Grow(1)
 	})
 	kit.ShowToasts(c, tk, &f.Store.Toasts)

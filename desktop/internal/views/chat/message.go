@@ -45,6 +45,10 @@ const (
 	senderSystem       = "system"
 	kindReset          = "reset"
 	kindHandoff        = "handoff"
+	processLinkGap     = 4
+	processLinkPadX    = 6
+	processLinkPadY    = 2
+	processLinkGlyph   = 12
 )
 
 type rowContext struct {
@@ -131,10 +135,13 @@ func (v *View) senderMessage(c *ui.Context, rc rowContext, m model.Message, who 
 				if stamp != "" {
 					ui.Text(c, stamp).TextColor(tk.TextMuted).FontFeatures("tnum").SingleLine()
 				}
+				if m.ExecutionID != "" {
+					v.processLink(c, tk, rc.cid, m.ExecutionID, reveal)
+				}
 			})
 			switch {
 			case m.Kind == kindHandoff && m.Handoff != nil:
-				v.handoffCard(c, tk, m, rc.workers)
+				v.handoffCard(c, tk, rc.cid, m, rc.workers)
 			default:
 				v.attachments(c, tk, m, false)
 				if hasText(m.Content) {
@@ -144,6 +151,25 @@ func (v *View) senderMessage(c *ui.Context, rc rowContext, m model.Message, who 
 				}
 			}
 		})
+	})
+}
+
+func (v *View) processLink(c *ui.Context, tk theme.Tokens, cid, executionID string, reveal bool) {
+	label := locales.ExecutionShow()
+	b := ui.ButtonBase(c).Label(label).Gap(processLinkGap).AlignItems(ui.Center).Padding(processLinkPadY, processLinkPadX).
+		Radius(theme.RadiusControl)
+	bg, fg := tk.SurfaceMuted.Alpha(0), tk.TextSecondary
+	if b.Hovered() || b.Pressed() {
+		bg, fg = tk.SurfaceMuted, tk.Foreground
+	}
+	shown := float32(0)
+	if reveal {
+		shown = 1
+	}
+	b.Background(b.AnimateColor("bg", bg, colorFade)).TextColor(b.AnimateColor("fg", fg, colorFade)).
+		Opacity(b.AnimateTo("reveal", shown, colorFade)).OnClick(func() { v.showRun(cid, executionID) }).Children(func() {
+		ui.Icon(c, icons.Get("list-tree")).Size(processLinkGlyph, processLinkGlyph)
+		ui.Text(c, label).SingleLine()
 	})
 }
 

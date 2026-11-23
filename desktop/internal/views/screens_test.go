@@ -993,7 +993,7 @@ func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens, processScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.WithOptions
 			if s.signedIn {

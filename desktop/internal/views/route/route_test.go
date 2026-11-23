@@ -52,6 +52,9 @@ func TestChatPaths(t *testing.T) {
 		{route.ChatPanel("bee", route.PanelNew), "/chat/bee?panel=new"},
 		{route.ChatPanel("", route.PanelNew), "/chat?panel=new"},
 		{route.ChatPanel("w1", ""), "/chat/w1"},
+		{route.ChatRun("w1", "e1"), "/chat/w1?panel=run&run=e1"},
+		{route.ChatRun("bee", "a&b"), "/chat/bee?panel=run&run=a%26b"},
+		{route.ChatRun("w1", ""), "/chat/w1"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
@@ -73,7 +76,7 @@ func TestParsePanelRoundTrip(t *testing.T) {
 		if state.Mode == route.ModeNew {
 			value = route.PanelNew
 		}
-		if got := route.ParsePanel("w1", value); got != state {
+		if got := route.ParsePanel("w1", value, ""); got != state {
 			t.Errorf("ParsePanel(w1, %q) = %+v, want %+v", value, got, state)
 		}
 	}
@@ -81,7 +84,7 @@ func TestParsePanelRoundTrip(t *testing.T) {
 
 func TestParsePanelUnknownIsClosed(t *testing.T) {
 	for _, value := range []string{"", "tasks", "overview", "sessions"} {
-		if got := route.ParsePanel("w1", value); got != (route.Panel{}) {
+		if got := route.ParsePanel("w1", value, ""); got != (route.Panel{}) {
 			t.Errorf("ParsePanel(w1, %q) = %+v, want closed", value, got)
 		}
 	}
@@ -89,7 +92,7 @@ func TestParsePanelUnknownIsClosed(t *testing.T) {
 
 func TestParsePanelNewOnAnyChat(t *testing.T) {
 	for _, param := range []string{"bee", "w1", ""} {
-		if got := route.ParsePanel(param, route.PanelNew); got != (route.Panel{Mode: route.ModeNew}) {
+		if got := route.ParsePanel(param, route.PanelNew, ""); got != (route.Panel{Mode: route.ModeNew}) {
 			t.Errorf("ParsePanel(%q, new) = %+v, want the new worker form", param, got)
 		}
 	}
@@ -97,13 +100,30 @@ func TestParsePanelNewOnAnyChat(t *testing.T) {
 
 func TestParsePanelWorkerTabsOnlyInWorkerChats(t *testing.T) {
 	want := route.Panel{Mode: route.ModeWorker, Tab: route.PanelEnv}
-	if got := route.ParsePanel("w1", route.PanelEnv); got != want {
+	if got := route.ParsePanel("w1", route.PanelEnv, ""); got != want {
 		t.Errorf("ParsePanel(w1, env) = %+v, want %+v", got, want)
 	}
 	for _, param := range []string{"bee", ""} {
-		if got := route.ParsePanel(param, route.PanelConstraints); got != (route.Panel{}) {
+		if got := route.ParsePanel(param, route.PanelConstraints, ""); got != (route.Panel{}) {
 			t.Errorf("ParsePanel(%q, constraints) = %+v, want closed", param, got)
 		}
+	}
+}
+
+func TestParsePanelRunInAnyConversation(t *testing.T) {
+	for _, param := range []string{"bee", "w1"} {
+		want := route.Panel{Mode: route.ModeRun, Run: "e1"}
+		if got := route.ParsePanel(param, route.PanelRun, "e1"); got != want {
+			t.Errorf("ParsePanel(%q, run, e1) = %+v, want %+v", param, got, want)
+		}
+	}
+	for _, c := range []struct{ param, run string }{{"w1", ""}, {"", "e1"}} {
+		if got := route.ParsePanel(c.param, route.PanelRun, c.run); got != (route.Panel{}) {
+			t.Errorf("ParsePanel(%q, run, %q) = %+v, want closed", c.param, c.run, got)
+		}
+	}
+	if got := route.ParsePanel("w1", route.PanelEnv, "e1"); got.Run != "" {
+		t.Errorf("ParsePanel(w1, env, e1) = %+v, want no run", got)
 	}
 }
 
@@ -120,6 +140,7 @@ func TestIsTabSwitch(t *testing.T) {
 		{constraints, route.Panel{}, false},
 		{constraints, created, false},
 		{created, constraints, false},
+		{route.Panel{Mode: route.ModeRun, Run: "e1"}, constraints, false},
 	}
 	for _, c := range cases {
 		if got := route.IsTabSwitch(c.from, c.to); got != c.want {

@@ -146,6 +146,12 @@ func (v *View) markdownTheme(tk theme.Tokens) *markdown.Theme {
 	return v.themes[k]
 }
 
+func (v *View) Prose(c *ui.Context, text string) {
+	v.tk = theme.Apply(c)
+	v.md.Theme = v.markdownTheme(v.tk)
+	ui.Column(c).MinWidth(0).Children(func() { markdown.View(c, hardBreaks(text), v.md) })
+}
+
 func (v *View) renderBody(c *ui.Context, m model.Message, collapsed bool) bool {
 	box := ui.Column(c).MinWidth(0)
 	src := ui.Local(box, bodyKey{}, func() bodySource { return bodySource{} })

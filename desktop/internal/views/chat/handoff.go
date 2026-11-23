@@ -7,6 +7,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 	"github.com/theopenbee/openbee/desktop/internal/theme"
+	"github.com/theopenbee/openbee/desktop/internal/views/execution"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/locales"
 )
@@ -26,6 +27,10 @@ const (
 	taskRowTop      = 4
 	taskCountdown   = "countdown"
 	taskScheduled   = "scheduled"
+	runRowHeight    = 44
+	runRowGap       = 8
+	runLinkGap      = 2
+	runGlyph        = 14
 )
 
 func taskTypeLabel(taskType string) string {
@@ -38,7 +43,21 @@ func taskTypeLabel(taskType string) string {
 	return ""
 }
 
-func (v *View) handoffCard(c *ui.Context, tk theme.Tokens, m model.Message, workers map[string]api.Worker) {
+func (v *View) handoffCard(c *ui.Context, tk theme.Tokens, cid string, m model.Message, workers map[string]api.Worker) {
+	info := m.Handoff
+	inner := theme.Concentric(theme.RadiusPanel, 1)
+	ui.Column(c).WidthPercent(100).MaxWidth(handoffMaxWidth).MinWidth(0).Radius(theme.RadiusPanel).
+		Background(tk.Surface).Border(1, tk.Border).Children(func() {
+		if info.Run == nil {
+			v.handoffTask(c, tk, m, workers, corners(inner, inner))
+			return
+		}
+		v.handoffTask(c, tk, m, workers, corners(inner, 0))
+		v.handoffRun(c, tk, cid, *info.Run, info.TaskType == taskScheduled, corners(0, inner))
+	})
+}
+
+func (v *View) handoffTask(c *ui.Context, tk theme.Tokens, m model.Message, workers map[string]api.Worker, radius []float32) {
 	info := m.Handoff
 	w, known := workers[info.WorkerID]
 	name := locales.ChatDeletedWorker()
@@ -47,13 +66,13 @@ func (v *View) handoffCard(c *ui.Context, tk theme.Tokens, m model.Message, work
 	}
 	title := locales.ChatHandedOffTo(name)
 	b := ui.ButtonBase(c).Label(title).Disabled(!known).AlignItems(ui.Start).Justify(ui.Start).Gap(handoffGap).
-		Padding(handoffPadY, handoffPadX).Radius(theme.RadiusPanel).WidthPercent(100).MaxWidth(handoffMaxWidth).MinWidth(0)
+		Padding(handoffPadY, handoffPadX).Radius(radius...).MinWidth(0)
 	hovered := known && b.Hovered()
-	bg, border := tk.Surface, tk.Border
+	bg := tk.SurfaceMuted.Alpha(0)
 	if hovered {
-		bg, border = tk.SurfaceMuted, tk.BorderStrong
+		bg = tk.SurfaceMuted
 	}
-	b.Background(b.AnimateColor("bg", bg, colorFade)).Border(1, b.AnimateColor("border", border, colorFade))
+	b.Background(b.AnimateColor("bg", bg, colorFade))
 	if known {
 		param := route.Param(info.ConversationID)
 		if param == "" {
@@ -94,4 +113,44 @@ func (v *View) handoffCard(c *ui.Context, tk theme.Tokens, m model.Message, work
 			}
 		})
 	})
+}
+
+func corners(top, bottom float32) []float32 {
+	return []float32{top, top, bottom, bottom}
+}
+
+func (v *View) handoffRun(c *ui.Context, tk theme.Tokens, cid string, run api.ExecutionSummary, latest bool, radius []float32) {
+	label := execution.RunLabel(run, latest)
+	show := locales.ExecutionShow()
+	b := ui.ButtonBase(c).Label(show).Description(label).Height(runRowHeight).MinWidth(0).AlignItems(ui.Center).Justify(ui.Start).
+		Gap(runRowGap).PaddingX(handoffPadX).Radius(radius...).BorderWidth(1, 0, 0, 0).BorderColor(tk.Border).
+		FontSize(metaSize)
+	bg, fg := tk.SurfaceMuted.Alpha(0), tk.TextSecondary
+	if b.Hovered() || b.Pressed() {
+		bg, fg = tk.SurfaceMuted, tk.Foreground
+	}
+	failed := run.Status == model.ExecutionFailed
+	if failed {
+		fg = tk.Danger
+	}
+	b.Background(b.AnimateColor("bg", bg, colorFade)).OnClick(func() { v.showRun(cid, run.ID) }).Children(func() {
+		runStatusIcon(c, tk, run.Status)
+		ui.Text(c, label).TextColor(b.AnimateColor("fg", fg, colorFade)).SingleLine().Shrink(1).MinWidth(0)
+		ui.Box(c).Grow(1)
+		ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(runLinkGap).TextColor(tk.Foreground).Children(func() {
+			ui.Text(c, show).FontWeight(mediumWeight).SingleLine()
+			ui.Icon(c, icons.Get("chevron-right")).Size(runGlyph, runGlyph)
+		})
+	})
+}
+
+func runStatusIcon(c *ui.Context, tk theme.Tokens, status string) {
+	switch status {
+	case model.ExecutionRunning:
+		kit.Spinner(c, tk, runGlyph).TextColor(tk.TextSecondary)
+	case model.ExecutionCompleted:
+		ui.Icon(c, icons.Get("check")).Size(runGlyph, runGlyph).Shrink(0).TextColor(tk.Success)
+	default:
+		ui.Icon(c, icons.Get("circle-alert")).Size(runGlyph, runGlyph).Shrink(0).TextColor(tk.Danger)
+	}
 }

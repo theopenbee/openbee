@@ -11,6 +11,7 @@ import (
 	"github.com/theopenbee/openbee/desktop/internal/views/account"
 	"github.com/theopenbee/openbee/desktop/internal/views/auth"
 	"github.com/theopenbee/openbee/desktop/internal/views/chat"
+	"github.com/theopenbee/openbee/desktop/internal/views/execution"
 	"github.com/theopenbee/openbee/desktop/internal/views/route"
 	"github.com/theopenbee/openbee/desktop/internal/views/search"
 	"github.com/theopenbee/openbee/desktop/internal/views/settings"
@@ -40,7 +41,8 @@ func NewRoot(s *store.Store) *Root {
 	r.auth = auth.New(s, r.router)
 	r.chat = chat.New(s, r.router, r.togglePanel)
 	r.chat.OnStep(r.step)
-	r.shell = shell.New(s, r.router, r.chat, worker.New(s, r.router), r.account, r.OpenSettings)
+	r.shell = shell.New(s, r.router, r.chat, panels{worker: worker.New(s, r.router), run: execution.New(s, r.router, r.chat.Prose)},
+		r.account, r.OpenSettings)
 	r.search = search.New(s, search.Actions{
 		OpenConversation: r.openConversation,
 		OpenPanel:        r.openPanel,
@@ -53,9 +55,22 @@ func NewRoot(s *store.Store) *Root {
 	return r
 }
 
+type panels struct {
+	worker *worker.Panel
+	run    *execution.Panel
+}
+
+func (p panels) View(c *ui.Context, conversationID string, panel route.Panel) {
+	if panel.Mode == route.ModeRun {
+		p.run.View(c, conversationID, panel)
+		return
+	}
+	p.worker.View(c, conversationID, panel)
+}
+
 func (r *Root) togglePanel(cid string) {
 	param := route.Param(cid)
-	if route.ParsePanel(param, r.router.Query(route.PanelQuery)).Mode == route.ModeWorker {
+	if route.ParsePanel(param, r.router.Query(route.PanelQuery), r.router.Query(route.RunQuery)).Mode == route.ModeWorker {
 		r.router.Push(route.Chat(param))
 		return
 	}
@@ -85,6 +100,7 @@ func (r *Root) View(c *ui.Context) {
 	if !route.IsSettings(r.router.Path()) || r.s.Phase != store.PhaseReady {
 		r.settings.Hide()
 	}
+	r.s.WatchExecution(r.shownRun())
 	if ready {
 		r.account.Dialogs(c)
 		r.search.View(c, tk, r.current(), r.current() != "")
@@ -198,6 +214,14 @@ func (r *Root) shortcuts(c *ui.Context) {
 	shortcuts.NewConversation.Register(c, r.startOver)
 	shortcuts.PreviousConversation.Register(c, func() { r.step(-1) })
 	shortcuts.NextConversation.Register(c, func() { r.step(1) })
+}
+
+func (r *Root) shownRun() string {
+	path := r.router.Path()
+	if r.s.Phase != store.PhaseReady || !route.IsChat(path) {
+		return ""
+	}
+	return route.ParsePanel(conversationParam(path), r.router.Query(route.PanelQuery), r.router.Query(route.RunQuery)).Run
 }
 
 func (r *Root) current() string {
