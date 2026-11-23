@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.10] - 2026-11-22
 
 ### Added
 - OpenCode engine plugin with its icon on web and desktop.
