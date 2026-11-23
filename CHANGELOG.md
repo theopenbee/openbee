@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- OpenCode engine plugin with its icon on web and desktop.
+
 ### Changed
 - Account menu no longer shows the Administrator role.
 - Chat message avatars no longer show worker status.
