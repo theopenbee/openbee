@@ -752,6 +752,26 @@ func TestFeederWorkerChatMergesBurst(t *testing.T) {
 	assert.Empty(t, env.runner.getCalls())
 }
 
+func TestFeederDirectMentionKeepsMergedMessages(t *testing.T) {
+	env := startWorkerChatFeeder(t)
+	w := env.createWorker(t, "writer")
+	base := time.Now().Add(-time.Minute).UnixMilli()
+	_, err := env.ms.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "m1", SessionKey: "beta:c1:u1", Platform: "beta", Content: "check this log first", MessageTime: base, Status: store.MsgStatusMerged, MergedInto: "m3"},
+		{ID: "m2", SessionKey: "beta:c1:u1", Platform: "beta", Content: "it fails on startup", MessageTime: base + 1, Status: store.MsgStatusMerged, MergedInto: "m3"},
+		{ID: "m3", SessionKey: "beta:c1:u1", Platform: "beta", Content: "writer analyse it", MessageTime: base + 2, Status: store.MsgStatusReceived},
+	})
+	require.NoError(t, err)
+
+	env.awaitStatus(t, "m3", store.MsgStatusBeeProcessed)
+
+	task := env.onlyTask(t)
+	assert.Equal(t, "m3", task.messageID)
+	assert.Equal(t, w.ID, task.workerID)
+	assert.Equal(t, "check this log first\n\nit fails on startup\n\nanalyse it", task.instruction)
+	assert.Empty(t, env.runner.getCalls())
+}
+
 func TestFeederWorkerChatRendersAttachments(t *testing.T) {
 	env := startWorkerChatFeeder(t)
 	w := env.createWorker(t, "writer")

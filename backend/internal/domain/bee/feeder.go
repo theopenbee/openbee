@@ -425,12 +425,19 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		return false
 	}
 
+	parts, err := f.msgStore.FetchMergedContent(ctx, primary.ID)
+	if err != nil {
+		log.Error("direct: fetch merged content", zap.String("msgID", primary.ID), zap.Error(err))
+		return false
+	}
+	parts = append(parts, instruction)
+
 	task := model.Task{
 		MessageID:   primary.ID,
 		SessionKey:  primary.SessionKey,
 		Platform:    primary.Platform,
 		WorkerID:    worker.ID,
-		Instruction: instruction,
+		Instruction: strings.Join(parts, "\n\n"),
 		Type:        model.TaskTypeImmediate,
 		Status:      model.TaskStatusPending,
 	}
