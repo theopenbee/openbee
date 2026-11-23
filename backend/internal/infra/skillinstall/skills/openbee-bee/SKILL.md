@@ -170,6 +170,12 @@ Create a task and assign it to a worker:
 return await openbee.create_task({ message_id: "<id>", worker_id: "<worker id>", instruction: "<instruction>", type: "immediate" });
 ```
 
+Look up the enabled engines and an engine's model ids before setting `engine` or `engine_models`:
+
+```js
+return { engines: await openbee.list_engines(), models: await openbee.list_models({ engine: "<engine>" }) };
+```
+
 Create, update or delete a worker:
 
 ```js

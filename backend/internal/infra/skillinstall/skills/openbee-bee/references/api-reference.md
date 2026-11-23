@@ -49,6 +49,21 @@ return await openbee.delete_worker({ worker_id: "<id>", delete_work_dir: false }
 - `work_dir` is the worker's working directory; on update, pass a new path to change it
 - `delete_work_dir: true` also deletes the working directory from disk
 
+### Engines and Models
+
+```js
+return await openbee.list_engines();
+```
+
+```js
+return await openbee.list_models({ engine: "opencode", worker_id: "<id>" });
+```
+
+- `list_engines` returns the enabled engines; `default: true` marks the server default, which workers without an `engine` use
+- `list_models` returns the model ids an engine offers. Take `engine_models` values from it instead of guessing names
+- Pass `worker_id` for an existing worker: its Env settings, such as a provider key, can change the list
+- An empty list means the engine does not list its models; use the name the user gave
+
 ### Worker Permission Scopes
 
 Permission scopes control which read-only calls a worker may make. The Bee is never scope-restricted. Workers can only send messages and make the read-only calls below; every other call is refused for them.

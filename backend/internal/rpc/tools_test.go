@@ -16,6 +16,7 @@ import (
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/domain/worker"
@@ -104,6 +105,18 @@ func newTestServerWithCards(t *testing.T, senders platform.SenderMap, cards plat
 
 func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter, chats rpc.WorkerChatCleaner) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
 	t.Helper()
+	engines := aitest.NewSource(map[string]ai.EngineAdapter{"claude": &aitest.Engine{}})
+	return buildTestServer(t, senders, cards, chats, engines, "claude")
+}
+
+func newTestServerWithEngines(t *testing.T, engines *aitest.Source, defaultEngine string) (*rpc.Server, *sql.DB) {
+	t.Helper()
+	srv, db, _, _ := buildTestServer(t, nil, &mockSender{}, nil, engines, defaultEngine)
+	return srv, db
+}
+
+func buildTestServer(t *testing.T, senders platform.SenderMap, cards platform.PlatformSenderAdapter, chats rpc.WorkerChatCleaner, engines *aitest.Source, defaultEngine string) (*rpc.Server, *sql.DB, *mockExecStopper, *mockClearDispatcher) {
+	t.Helper()
 	db, err := store.InitDB(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
@@ -115,9 +128,10 @@ func newTestServerFull(t *testing.T, senders platform.SenderMap, cards platform.
 	es := store.NewExecutionStore(db, t.TempDir())
 	ts := store.NewTaskStore(db)
 	ss := store.NewSessionStore(db)
-	engines := aitest.NewSource(map[string]ai.EngineAdapter{"claude": &aitest.Engine{}})
-	engineCfg := enginecfg.NewStore("claude", "", engines.IDs)
-	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, nil, nil)
+	engineCfg := enginecfg.NewStore(defaultEngine, "", engines.IDs)
+	envs, err := env.NewService(store.NewEnvConfigStore(db), "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+	require.NoError(t, err)
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, ws, es, engines, engineCfg, envs, nil)
 	stopper := &mockExecStopper{}
 	disp := &mockClearDispatcher{}
 	clearSvc := session.NewClearService(session.ClearServiceDeps{

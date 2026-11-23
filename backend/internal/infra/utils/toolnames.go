@@ -7,6 +7,8 @@ const (
 	CreateWorker         = "create_worker"
 	UpdateWorker         = "update_worker"
 	DeleteWorker         = "delete_worker"
+	ListEngines          = "list_engines"
+	ListModels           = "list_models"
 	CreateTask           = "create_task"
 	ListTasks            = "list_tasks"
 	CancelTask           = "cancel_task"

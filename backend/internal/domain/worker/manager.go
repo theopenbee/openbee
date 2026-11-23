@@ -89,6 +89,14 @@ func (m *Manager) EnabledEngines() []string {
 	return ai.EngineIDs(m.engines)
 }
 
+func (m *Manager) Engines() []ai.EngineInfo {
+	return m.engines.Engines()
+}
+
+func (m *Manager) DefaultEngine() string {
+	return m.engineCfg.Get()
+}
+
 func (m *Manager) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {
 	if m.sysConfigStore == nil {
 		return nil

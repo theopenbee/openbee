@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
@@ -77,6 +79,10 @@ func (s *Server) beeCallTool(ctx context.Context, name string, args json.RawMess
 		return s.toolUpdateWorker(args)
 	case utils.DeleteWorker:
 		return s.toolDeleteWorker(ctx, args)
+	case utils.ListEngines:
+		return s.toolListEngines(), nil
+	case utils.ListModels:
+		return s.toolListModels(ctx, args)
 	case utils.CreateTask:
 		return s.toolCreateTask(ctx, args)
 	case utils.ListTasks:
@@ -273,6 +279,55 @@ func (s *Server) toolUpdateWorker(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return w, nil
+}
+
+type engineSummary struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Default bool   `json:"default"`
+}
+
+func (s *Server) toolListEngines() []engineSummary {
+	defaultEngine := s.manager.DefaultEngine()
+	engines := s.manager.Engines()
+	out := make([]engineSummary, 0, len(engines))
+	for _, e := range engines {
+		out = append(out, engineSummary{ID: e.ID, Name: engineName(e), Default: e.ID == defaultEngine})
+	}
+	return out
+}
+
+func engineName(e ai.EngineInfo) string {
+	if name := e.Name["en"]; name != "" {
+		return name
+	}
+	for _, lang := range slices.Sorted(maps.Keys(e.Name)) {
+		if name := e.Name[lang]; name != "" {
+			return name
+		}
+	}
+	return e.ID
+}
+
+func (s *Server) toolListModels(ctx context.Context, args json.RawMessage) (any, error) {
+	var params struct {
+		Engine   string `json:"engine"`
+		WorkerID string `json:"worker_id"`
+	}
+	if err := json.Unmarshal(args, &params); err != nil {
+		return nil, fmt.Errorf("invalid args: %w", err)
+	}
+	if params.Engine == "" {
+		return nil, fmt.Errorf("engine is required")
+	}
+	models, err := s.manager.EngineModels(ctx, params.Engine, params.WorkerID)
+	if errors.Is(err, worker.ErrNotFound) {
+		return nil, fmt.Errorf("worker %s not found", params.WorkerID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("list %s models: %w", params.Engine, err)
+	}
+	return models, nil
 }
 
 func (s *Server) toolDeleteWorker(ctx context.Context, args json.RawMessage) (any, error) {
