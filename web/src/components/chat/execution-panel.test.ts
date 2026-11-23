@@ -136,4 +136,21 @@ describe("ExecutionView", () => {
     expect(render(execution({ runs: [runs[1]] }))).not.toContain('role="combobox"')
     expect(render(execution())).not.toContain('role="combobox"')
   })
+
+  it("keeps an execution older than the listed runs selectable", () => {
+    const runs = [
+      { id: "e3", status: "completed" as const, started_at: 9_000, completed_at: 10_000 },
+      { id: "e2", status: "completed" as const, started_at: 5_000, completed_at: 6_000 },
+    ]
+    const html = render(execution({ status: "failed", runs }))
+    expect(html).toContain('role="combobox"')
+    expect(html).toContain(" · Failed</span>")
+  })
+
+  it("renders a tool without output as a plain row", () => {
+    const html = render(execution({ steps: [{ type: "tool", kind: "read", name: "Read", summary: "a.md", status: "done" }] }))
+    expect(html).toContain("Read a file")
+    expect(html).not.toContain("<button")
+    expect(html).not.toContain("aria-expanded")
+  })
 })

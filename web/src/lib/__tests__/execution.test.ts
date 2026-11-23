@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { testI18n } from "@/test/i18n"
-import type { ExecutionStep } from "../types"
-import { formatDuration, handoffRunLabel, isToolKind, knownSteps, stepStats, toolDuration } from "../execution"
+import type { ExecutionDetail, ExecutionStep } from "../types"
+import { formatDuration, handoffRunLabel, isToolKind, knownSteps, stepStats, switcherRuns, toolDuration } from "../execution"
 
 const en = testI18n("en").t
 const zh = testI18n("zh").t
@@ -94,5 +94,45 @@ describe("isToolKind", () => {
     expect(["command", "read", "edit", "search", "web", "message", "other"].every(isToolKind)).toBe(true)
     expect(isToolKind("constructor")).toBe(false)
     expect(isToolKind("browser")).toBe(false)
+  })
+})
+
+describe("switcherRuns", () => {
+  const detail = (extra: Partial<ExecutionDetail> = {}): ExecutionDetail => ({
+    id: "e1",
+    task_id: "t1",
+    worker_id: "w1",
+    engine: "claude",
+    status: "failed",
+    instruction: "go",
+    started_at: 1_000,
+    completed_at: 9_000,
+    error: "",
+    steps: [],
+    steps_error: "",
+    ...extra,
+  })
+
+  it("is empty for a task that ran once", () => {
+    expect(switcherRuns(detail())).toEqual([])
+  })
+
+  it("keeps the runs when they include the open execution", () => {
+    const runs = [
+      { id: "e2", status: "running" as const, started_at: 20_000 },
+      { id: "e1", status: "failed" as const, started_at: 1_000, completed_at: 9_000 },
+    ]
+    expect(switcherRuns(detail({ runs }))).toEqual(runs)
+  })
+
+  it("appends an open execution older than the listed runs", () => {
+    const runs = [
+      { id: "e3", status: "completed" as const, started_at: 30_000, completed_at: 31_000 },
+      { id: "e2", status: "completed" as const, started_at: 20_000, completed_at: 21_000 },
+    ]
+    expect(switcherRuns(detail({ runs }))).toEqual([
+      ...runs,
+      { id: "e1", status: "failed", started_at: 1_000, completed_at: 9_000 },
+    ])
   })
 })

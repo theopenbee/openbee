@@ -64,7 +64,7 @@ function ShowExecutionButton({ executionId, onShow }: { executionId: string; onS
       type="button"
       onClick={() => onShow(executionId)}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-secondary hover:bg-surface-muted hover:text-foreground",
+        "inline-flex items-center gap-1 rounded-control px-1.5 py-0.5 text-secondary hover:bg-surface-muted hover:text-foreground",
         COPY_REVEAL,
       )}
     >

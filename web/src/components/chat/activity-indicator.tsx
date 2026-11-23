@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ListTreeIcon } from "lucide-react"
+import { Button } from "@/components/arc/button/button"
 import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { CHAT_COLUMN } from "@/lib/styles"
 import { cn } from "@/lib/utils"
@@ -20,14 +21,10 @@ export function ActivityIndicator({ label, avatar, onShowExecution }: ActivityIn
           {avatar}
           <TextShimmer className="text-sm text-secondary">{label}</TextShimmer>
           {onShowExecution && (
-            <button
-              type="button"
-              onClick={onShowExecution}
-              className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-control px-3 text-xs text-secondary transition-colors hover:bg-surface-muted hover:text-foreground"
-            >
+            <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={onShowExecution}>
               <ListTreeIcon size={14} strokeWidth={1.75} aria-hidden="true" />
               {t("execution.show")}
-            </button>
+            </Button>
           )}
         </div>
       )}

@@ -108,3 +108,7 @@ export function instructionPreview(content: string): string {
     .slice(0, INSTRUCTION_PREVIEW_LINES)
     .join("\n")
 }
+
+export function showsHandoffTask(messages: readonly ChatMessage[], taskId: string): boolean {
+  return messages.some((message) => message.handoff?.task_id === taskId)
+}

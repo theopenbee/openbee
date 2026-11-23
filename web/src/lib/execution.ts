@@ -1,4 +1,4 @@
-import type { ExecutionStep, ExecutionSummary, ToolKind } from "@/lib/types"
+import type { ExecutionDetail, ExecutionStep, ExecutionSummary, ToolKind } from "@/lib/types"
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -51,4 +51,11 @@ export function handoffRunLabel(run: ExecutionSummary, latest: boolean, t: Trans
 
 export function stepStats(steps: readonly ExecutionStep[]): { steps: number; tools: number } {
   return { steps: steps.length, tools: steps.filter((step) => step.type === "tool").length }
+}
+
+export function switcherRuns(execution: ExecutionDetail): ExecutionSummary[] {
+  const runs = execution.runs ?? []
+  if (runs.length === 0 || runs.some((run) => run.id === execution.id)) return runs
+  const { id, status, started_at, completed_at } = execution
+  return [...runs, { id, status, started_at, completed_at }]
 }

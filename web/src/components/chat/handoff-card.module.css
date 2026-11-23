@@ -1,0 +1,18 @@
+.card {
+  --handoff-radius: max(6px, calc(var(--radius-panel) - 1px));
+}
+
+.section {
+  --focus-outline-offset: -2px;
+  border-radius: var(--handoff-radius);
+}
+
+.section:not(:last-child) {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.section:not(:first-child) {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}

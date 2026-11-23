@@ -8,6 +8,7 @@ import {
   headerSubtitle,
   instructionPreview,
   senderDisplay,
+  showsHandoffTask,
   statusText,
   taskTypeLabelKey,
 } from "../chat-view"
@@ -225,5 +226,23 @@ describe("taskTypeLabelKey", () => {
 describe("instructionPreview", () => {
   it("keeps the first three non-blank lines", () => {
     expect(instructionPreview("  one\n\n two \nthree\nfour")).toBe("one\ntwo\nthree")
+  })
+})
+
+describe("showsHandoffTask", () => {
+  const handoff = (taskId: string): ChatMessage =>
+    message({ type: "bee" }, 1, {
+      kind: "handoff",
+      handoff: { worker_id: "w1", task_id: taskId, task_type: "immediate", conversation_id: "worker:w1" },
+    })
+
+  it("matches a task shown in a handoff card", () => {
+    expect(showsHandoffTask([message({ type: "user" }), handoff("t1"), handoff("t2")], "t2")).toBe(true)
+  })
+
+  it("ignores other tasks and plain messages", () => {
+    expect(showsHandoffTask([handoff("t1")], "t3")).toBe(false)
+    expect(showsHandoffTask([message({ type: "worker", id: "w1" })], "t1")).toBe(false)
+    expect(showsHandoffTask([], "t1")).toBe(false)
   })
 })

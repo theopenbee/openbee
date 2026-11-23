@@ -15,8 +15,8 @@ import { useWorkers } from "@/hooks/use-workers"
 import { ApiError } from "@/lib/api"
 import { formatMessageTimestamp } from "@/lib/chat-format"
 import { findEngine } from "@/lib/engines"
-import { formatDuration, knownSteps, stepStats } from "@/lib/execution"
-import type { EngineChoice, ExecutionDetail, ExecutionStatus, ExecutionStep, Worker } from "@/lib/types"
+import { formatDuration, knownSteps, stepStats, switcherRuns } from "@/lib/execution"
+import type { EngineChoice, ExecutionDetail, ExecutionStatus, ExecutionStep, ExecutionSummary, Worker } from "@/lib/types"
 
 const STATUS_TONE: Record<ExecutionStatus, BadgeTone> = {
   running: "info",
@@ -113,6 +113,7 @@ function ExecutionSummary({ execution, worker, engine, onSelectRun }: ExecutionV
   const end = execution.completed_at ?? (running ? now : null)
   const duration = end === null ? null : formatDuration(end - execution.started_at, t)
   const instruction = execution.instruction.replaceAll("`", "").trim()
+  const runs = switcherRuns(execution)
 
   return (
     <div className="grid gap-3 border-b border-border pb-5">
@@ -149,9 +150,7 @@ function ExecutionSummary({ execution, worker, engine, onSelectRun }: ExecutionV
             <span>{t("execution.took", { duration })}</span>
           ))}
       </div>
-      {execution.runs && execution.runs.length > 1 && (
-        <RunSwitcher current={execution.id} runs={execution.runs} onSelectRun={onSelectRun} />
-      )}
+      {runs.length > 1 && <RunSwitcher current={execution.id} runs={runs} onSelectRun={onSelectRun} />}
     </div>
   )
 }
@@ -162,7 +161,7 @@ function RunSwitcher({
   onSelectRun,
 }: {
   current: string
-  runs: NonNullable<ExecutionDetail["runs"]>
+  runs: ExecutionSummary[]
   onSelectRun: (executionId: string) => void
 }) {
   const { t, i18n } = useTranslation()

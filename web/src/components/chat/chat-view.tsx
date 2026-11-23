@@ -34,12 +34,13 @@ import {
   groupStarts,
   headerSubtitle,
   senderDisplay,
+  showsHandoffTask,
   statusText,
   type SenderDisplay,
 } from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
 import { parseEngineModels } from "@/lib/engine-models"
-import { isRoutedConversation, panelFromSearch, panelReplacesHistory, panelToSearch, type PanelState } from "@/lib/routes"
+import { isRoutedConversation, panelToSearch } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
@@ -149,7 +150,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       if (isShowing(conversation)) markRead(message.ts)
     },
     onTask: (event) => {
-      if (messages.some((message) => message.handoff?.task_id === event.task_id)) void refetch()
+      if (showsHandoffTask(messages, event.task_id)) void refetch()
     },
     onResync: () => {
       void refetch()
@@ -199,15 +200,15 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   )
 
   const openConversation = useCallback((id: ConversationId) => navigate(conversationPath(id)), [navigate])
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [, setSearchParams] = useSearchParams()
+  const setSearchParamsRef = useRef(setSearchParams)
+  useEffect(() => {
+    setSearchParamsRef.current = setSearchParams
+  })
   const showExecution = useCallback(
-    (executionId: string) => {
-      const next: PanelState = { mode: "run", executionId }
-      setSearchParams((current) => panelToSearch(next, current), {
-        replace: panelReplacesHistory(panelFromSearch(searchParams), next),
-      })
-    },
-    [searchParams, setSearchParams],
+    (executionId: string) =>
+      setSearchParamsRef.current((current) => panelToSearch({ mode: "run", executionId }, current)),
+    [],
   )
 
   const senderCache = useMemo(() => new Map<string, MessageSender | null>(), [conversation, workers, t])

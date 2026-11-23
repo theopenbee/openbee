@@ -128,6 +128,27 @@ function ToolStepItem({ step, running }: { step: ToolStep; running: boolean }) {
   const failed = step.status === "error"
   const label = kind === "other" ? t("execution.tool.other", { name: step.name }) : t(`execution.tool.${kind}`)
   const duration = toolDuration(step.duration_ms, t)
+  const header = (
+    <>
+      {active ? (
+        <TextShimmer className="truncate text-sm font-medium text-foreground">{label}</TextShimmer>
+      ) : (
+        <span className="truncate font-medium text-foreground">{label}</span>
+      )}
+      <ToolMark step={step} active={active} />
+      <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted tabular">
+        {duration}
+        {step.output && (
+          <ChevronDownIcon
+            size={14}
+            strokeWidth={1.75}
+            aria-hidden="true"
+            className={cn("transition-transform duration-150", open && "rotate-180")}
+          />
+        )}
+      </span>
+    </>
+  )
 
   return (
     <>
@@ -139,31 +160,18 @@ function ToolStepItem({ step, running }: { step: ToolStep; running: boolean }) {
         )}
       </StepIcon>
       <div className="grid min-w-0 flex-1 gap-1.5 pt-1">
-        <button
-          type="button"
-          disabled={!step.output}
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={step.output ? open : undefined}
-          className="flex min-w-0 items-center gap-2 text-left text-sm enabled:cursor-pointer"
-        >
-          {active ? (
-            <TextShimmer className="truncate text-sm font-medium text-foreground">{label}</TextShimmer>
-          ) : (
-            <span className="truncate font-medium text-foreground">{label}</span>
-          )}
-          <ToolMark step={step} active={active} />
-          <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted tabular">
-            {duration}
-            {step.output && (
-              <ChevronDownIcon
-                size={14}
-                strokeWidth={1.75}
-                aria-hidden="true"
-                className={cn("transition-transform duration-150", open && "rotate-180")}
-              />
-            )}
-          </span>
-        </button>
+        {step.output ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            className="flex min-w-0 cursor-pointer items-center gap-2 rounded-control text-left text-sm"
+          >
+            {header}
+          </button>
+        ) : (
+          <div className="flex min-w-0 items-center gap-2 text-sm">{header}</div>
+        )}
         {step.summary &&
           (kind === "message" ? (
             <p className="line-clamp-2 border-l-2 border-border pl-3 text-sm whitespace-pre-line text-secondary">
