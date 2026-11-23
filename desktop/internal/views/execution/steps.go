@@ -177,7 +177,7 @@ func toolStep(c *ui.Context, tk theme.Tokens, step api.ExecutionStep, running bo
 	}
 	stepIcon(c, tk, tone, func() {
 		if active {
-			kit.Spinner(c, tk, stepGlyph).TextColor(tk.Foreground)
+			kit.Spinner(c, tk, stepGlyph).TextColor(tk.Foreground).Label(locales.ExecutionStatusRunning())
 			return
 		}
 		glyph(c, toolIcons[kind])()
@@ -194,7 +194,7 @@ func toolStep(c *ui.Context, tk theme.Tokens, step api.ExecutionStep, running bo
 			toolTrailing(c, tk, step, expanded)
 		}
 		if step.Output != "" {
-			ui.ButtonBase(c).Label(label).Expanded(expanded).MinWidth(0).AlignItems(ui.Center).Justify(ui.Start).
+			ui.ButtonBase(c).Label(toolName(label, step.Status, active)).Expanded(expanded).MinWidth(0).AlignItems(ui.Center).Justify(ui.Start).
 				Gap(toolHeaderGap).Radius(theme.RadiusControl).OnClick(func() { open[index] = !open[index] }).Children(header)
 		} else {
 			ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(toolHeaderGap).Children(header)
@@ -204,6 +204,16 @@ func toolStep(c *ui.Context, tk theme.Tokens, step api.ExecutionStep, running bo
 			toolOutput(c, tk, step.Output, failed)
 		}
 	})
+}
+
+func toolName(label, status string, active bool) string {
+	switch {
+	case status == model.ToolError:
+		return label + runJoin + locales.ExecutionStatusFailed()
+	case status == model.ToolDone || active:
+		return label
+	}
+	return label + runJoin + locales.ExecutionToolStopped()
 }
 
 func toolMark(c *ui.Context, tk theme.Tokens, status string, active bool) {

@@ -115,10 +115,10 @@ func (p *Panel) View(c *ui.Context, conversationID string, panel route.Panel) {
 	r.Ensure()
 	ui.Column(c).Key(panel.Run).MinWidth(0).Gap(sectionGap).Children(func() {
 		switch {
+		case api.IsStatus(r.Err, http.StatusNotFound):
+			ui.Text(c, locales.ExecutionNotFound()).FontSize(textSize).TextColor(tk.TextSecondary)
 		case r.Loaded:
 			p.detail(c, tk, route.Param(conversationID), r.Data)
-		case r.Err != nil && api.IsStatus(r.Err, http.StatusNotFound):
-			ui.Text(c, locales.ExecutionNotFound()).FontSize(textSize).TextColor(tk.TextSecondary)
 		case r.Err != nil:
 			ui.Column(c).AlignItems(ui.Start).Gap(stateGap).Children(func() {
 				ui.Text(c, locales.CommonLoadError()).FontSize(textSize).TextColor(tk.TextSecondary)

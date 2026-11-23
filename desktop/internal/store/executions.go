@@ -42,12 +42,13 @@ func (s *Store) WatchExecution(id string) {
 		r.Invalidate()
 		return
 	}
+	refetchIfStale(r)
 	r.Ensure()
 }
 
 func (s *Store) scheduleExecution() {
 	r, ok := s.executions[s.watchedRun]
-	if !ok || s.stopRunPoll != nil || r.Loading || !executionRunning(r) || api.IsStatus(r.Err, http.StatusNotFound) {
+	if !ok || !s.foreground || s.stopRunPoll != nil || r.Loading || !executionRunning(r) || api.IsStatus(r.Err, http.StatusNotFound) {
 		return
 	}
 	s.stopRunPoll = s.after(executionPollEvery, func() {
@@ -62,6 +63,12 @@ func (s *Store) stopExecutionPoll() {
 	if s.stopRunPoll != nil {
 		s.stopRunPoll()
 		s.stopRunPoll = nil
+	}
+}
+
+func (s *Store) resumeExecution() {
+	if r, ok := s.executions[s.watchedRun]; ok && !r.Loading && executionRunning(r) && !api.IsStatus(r.Err, http.StatusNotFound) {
+		r.Invalidate()
 	}
 }
 

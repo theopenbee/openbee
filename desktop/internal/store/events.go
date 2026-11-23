@@ -67,6 +67,9 @@ func (s *Store) OnSessionReset(fn func()) (off func()) {
 
 func (s *Store) SetForeground(visible bool) {
 	s.foreground = visible
+	if !visible {
+		s.stopExecutionPoll()
+	}
 	if !visible || s.Phase != PhaseReady {
 		return
 	}
@@ -75,6 +78,7 @@ func (s *Store) SetForeground(visible bool) {
 		ch.MarkRead(0)
 	}
 	s.refetchStale()
+	s.resumeExecution()
 	s.ReconnectNow()
 }
 

@@ -1000,10 +1000,18 @@ func TestRunningTaskEventCarriesExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, sum := range sums {
-		if sum.ID == cid && sum.Activity != (api.ConversationActivity{State: "running", ExecutionID: "e1"}) {
+		if sum.ID != cid {
+			continue
+		}
+		found = true
+		if sum.Activity != (api.ConversationActivity{State: "running", ExecutionID: "e1"}) {
 			t.Fatalf("activity = %+v", sum.Activity)
 		}
+	}
+	if !found {
+		t.Fatalf("conversation %q missing from %+v", cid, sums)
 	}
 }
 

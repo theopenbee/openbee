@@ -90,16 +90,41 @@ func TestUnwatchedExecutionStopsPolling(t *testing.T) {
 	}
 }
 
-func TestFinishedExecutionIsNotRefetchedOnReopen(t *testing.T) {
+func TestFinishedExecutionRefetchedOnlyWhenStale(t *testing.T) {
 	st, fake, fix := loaded(t, withExecution("failed"))
 	watched(t, st, fix, "e1")
 	st.WatchExecution("")
+	fix.Clock.Advance(29 * time.Second)
 	watched(t, st, fix, "e1")
 	fix.Clock.Advance(10 * time.Second)
 	fix.Settle(t)
 	if n := countCalls(fake, http.MethodGet, executionPath); n != 1 {
-		t.Fatalf("%d fetches of a finished execution, want 1", n)
+		t.Fatalf("%d fetches after reopening within 30s, want 1", n)
 	}
+
+	st.WatchExecution("")
+	setExecution(fake, "completed")
+	r := watched(t, st, fix, "e1")
+	if n := countCalls(fake, http.MethodGet, executionPath); n != 2 || r.Data.Status != "completed" {
+		t.Fatalf("reopening after 30s: %d fetches, status %q; want a refetch", n, r.Data.Status)
+	}
+}
+
+func TestExecutionPollingPausesInTheBackground(t *testing.T) {
+	st, fake, fix := loaded(t, withExecution("running"))
+	watched(t, st, fix, "e1")
+	fix.Clock.AwaitSleepers(t, 1)
+
+	st.SetForeground(false)
+	fix.Clock.Advance(10 * time.Second)
+	fix.Settle(t)
+	if n := countCalls(fake, http.MethodGet, executionPath); n != 1 {
+		t.Fatalf("%d fetches in the background, want 1", n)
+	}
+
+	st.SetForeground(true)
+	fix.Await(t, func() bool { return countCalls(fake, http.MethodGet, executionPath) == 2 })
+	pollOnce(t, fake, fix, 3)
 }
 
 func TestMissingExecutionStopsPolling(t *testing.T) {

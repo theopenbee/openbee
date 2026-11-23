@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/fakeapi"
 	"github.com/theopenbee/openbee/desktop/internal/views/execution"
@@ -24,6 +25,22 @@ func (f *fixture) wantLocation(want string) {
 	if got := f.router.Location(); got != want {
 		f.t.Fatalf("location = %q, want %q", got, want)
 	}
+}
+
+func (f *fixture) inked(r ui.Rect) bool {
+	img := f.T.Image()
+	scale := float32(img.Bounds().Dx()) / wideW
+	x0, y0 := int(r.X*scale), int(r.Y*scale)
+	x1, y1 := int((r.X+r.W)*scale), int((r.Y+r.H)*scale)
+	base := img.RGBAAt(x0, y0)
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			if img.RGBAAt(x, y) != base {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func withRun(m api.ChatMessage, status string, took time.Duration) api.ChatMessage {
@@ -68,6 +85,19 @@ func TestWorkerMessageOpensItsProcess(t *testing.T) {
 	traced := message("m1", "worker", "w1", "Changed the install command", time.Now().Add(-time.Hour))
 	traced.ExecutionID = "e1"
 	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID, traced))
+	link, ok := f.T.Find(locales.ExecutionShow())
+	if !ok {
+		t.Fatalf("no process link; texts %q", f.T.Texts())
+	}
+	if f.inked(link) {
+		t.Fatal("the process link shows before the reply is hovered")
+	}
+	reply, _ := f.T.Find("Changed the install command")
+	f.T.Move(reply.X+reply.W/2, reply.Y+reply.H/2)
+	f.settleMotion()
+	if !f.inked(link) {
+		t.Fatal("the process link stays hidden while the reply is hovered")
+	}
 	f.click(locales.ExecutionShow())
 	f.wantLocation(route.ChatRun("w1", "e1"))
 

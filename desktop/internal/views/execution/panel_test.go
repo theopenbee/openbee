@@ -140,12 +140,37 @@ func TestStepsErrors(t *testing.T) {
 	}
 }
 
+func (f *fixture) count(text string) int {
+	n := 0
+	for _, shown := range f.T.Texts() {
+		if shown == text {
+			n++
+		}
+	}
+	return n
+}
+
 func TestRunningWithoutStepsWaits(t *testing.T) {
-	f := open(t, wideW, "w1", "e1", seeded(detail("running")))
+	e := detail("running")
+	f := open(t, wideW, "w1", "e1", seeded(e))
 	f.wantShown(locales.ExecutionStatusRunning(), locales.ExecutionWaiting(), locales.ExecutionLive())
 	f.wantHidden(locales.ExecutionNoSteps())
-	if !f.T.HasText(locales.ExecutionElapsed("")) {
+	shown := func() string {
+		for _, text := range f.T.Texts() {
+			if strings.HasSuffix(text, locales.ExecutionElapsed("")) {
+				return text
+			}
+		}
 		t.Fatalf("no elapsed time; texts %q", f.T.Texts())
+		return ""
+	}
+	first := shown()
+	f.T.Advance(65 * time.Second)
+	span := f.T.Now().UnixMilli() - e.StartedAt
+	later := shown()
+	if later == first || later != locales.ExecutionElapsed(execution.Duration(span)) &&
+		later != locales.ExecutionElapsed(execution.Duration(span-1000)) {
+		t.Fatalf("elapsed time %q after 65s, was %q; want about %q", later, first, locales.ExecutionElapsed(execution.Duration(span)))
 	}
 }
 
@@ -155,6 +180,9 @@ func TestRunningToolSpinsWhileTheRunRuns(t *testing.T) {
 	})))
 	f.wantShown(locales.ExecutionToolCommand(), "pnpm test")
 	f.wantHidden(locales.ExecutionToolStopped())
+	if n := f.count(locales.ExecutionStatusRunning()); n != 2 {
+		t.Fatalf("%q shown %d times, want the badge and the tool's spinner; texts %q", locales.ExecutionStatusRunning(), n, f.T.Texts())
+	}
 }
 
 func TestUnfinishedToolIsStoppedAfterTheRun(t *testing.T) {
@@ -164,6 +192,38 @@ func TestUnfinishedToolIsStoppedAfterTheRun(t *testing.T) {
 	})))
 	f.wantShown(locales.ExecutionStatusFailed(), locales.ExecutionToolStopped(), locales.ExecutionFailedTitle(), "timed out after 10 minutes")
 	f.wantShown(locales.ExecutionStepCount(locales.ExecutionSteps(1), locales.ExecutionToolCalls(1)))
+	f.wantHidden(locales.ExecutionStatusRunning())
+}
+
+func TestToolToggleNamesItsStatus(t *testing.T) {
+	withOutput := func(status string) api.ExecutionStep {
+		step := runningTool()
+		step.Status, step.Output = status, "log"
+		return step
+	}
+	f := open(t, wideW, "w1", "e1", seeded(detail("failed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{withOutput("error"), withOutput("running"), withOutput("done")}
+	})))
+	label := locales.ExecutionToolCommand()
+	f.wantShown(label+" · "+locales.ExecutionStatusFailed(), label+" · "+locales.ExecutionToolStopped())
+	f.click(label + " · " + locales.ExecutionToolStopped())
+	f.wantShown("log")
+}
+
+func TestRunGoneWhilePollingIsNotLive(t *testing.T) {
+	f := open(t, wideW, "w1", "e1", seeded(detail("running", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{runningTool()}
+	})))
+	f.wantShown(locales.ExecutionLive())
+	f.Fake.Update(func(st *fakeapi.State) { delete(st.Executions, "e1") })
+	f.poll(2)
+	f.wantShown(locales.ExecutionNotFound())
+	f.wantHidden(locales.ExecutionLive(), locales.ExecutionStatusRunning(), locales.ExecutionToolCommand())
+	f.Fix.Clock.Advance(10 * time.Second)
+	f.Motion()
+	if n := f.fetches(); n != 2 {
+		t.Fatalf("%d fetches after the run was gone, want 2", n)
+	}
 }
 
 func TestTimelineAndToolOutput(t *testing.T) {
