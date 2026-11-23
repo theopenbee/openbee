@@ -3,6 +3,7 @@ package localchat
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/theopenbee/openbee/internal/domain/session"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -18,17 +19,18 @@ type ConversationStopper interface {
 	StopConversation(ctx context.Context, sessionKey string, w model.Worker) (session.StopWorkerResult, error)
 }
 
-type TaskCanceller interface {
+type WorkerTasks interface {
+	List(ctx context.Context, f store.TaskFilter) ([]model.Task, error)
 	Cancel(ctx context.Context, f store.CancelFilter) (int64, error)
 }
 
 type ChatCleanup struct {
 	chats   ChatStore
 	stopper ConversationStopper
-	tasks   TaskCanceller
+	tasks   WorkerTasks
 }
 
-func NewChatCleanup(chats ChatStore, stopper ConversationStopper, tasks TaskCanceller) *ChatCleanup {
+func NewChatCleanup(chats ChatStore, stopper ConversationStopper, tasks WorkerTasks) *ChatCleanup {
 	return &ChatCleanup{chats: chats, stopper: stopper, tasks: tasks}
 }
 
@@ -36,6 +38,15 @@ func (c *ChatCleanup) DeleteWorkerChats(ctx context.Context, w model.Worker) err
 	keys, err := c.chats.WorkerChatSessionKeys(ctx, w.ID)
 	if err != nil {
 		return err
+	}
+	active, err := c.tasks.List(ctx, store.TaskFilter{WorkerID: w.ID, Status: model.TaskStatusActive})
+	if err != nil {
+		return fmt.Errorf("list active tasks: %w", err)
+	}
+	for _, t := range active {
+		if !slices.Contains(keys, t.SessionKey) {
+			keys = append(keys, t.SessionKey)
+		}
 	}
 	for _, key := range keys {
 		if _, err := c.stopper.StopConversation(ctx, key, w); err != nil {

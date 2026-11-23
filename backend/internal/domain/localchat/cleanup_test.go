@@ -66,8 +66,14 @@ func (f *fakeStopper) StopConversation(_ context.Context, sessionKey string, w m
 }
 
 type fakeTaskCanceller struct {
-	log *cleanupLog
-	err error
+	log     *cleanupLog
+	err     error
+	active  []model.Task
+	listErr error
+}
+
+func (f *fakeTaskCanceller) List(_ context.Context, _ store.TaskFilter) ([]model.Task, error) {
+	return f.active, f.listErr
 }
 
 func (f *fakeTaskCanceller) Cancel(_ context.Context, filter store.CancelFilter) (int64, error) {
@@ -90,6 +96,42 @@ func TestChatCleanupStopsThenDeletes(t *testing.T) {
 		"cancel:local:u2:worker:w1:w1",
 		"delete:w1",
 	}, log.list())
+}
+
+func TestChatCleanupStopsWorkerTasksOutsideWorkerChats(t *testing.T) {
+	log := &cleanupLog{}
+	chats := &fakeChatStore{log: log, keys: []string{"local:u1:worker:w1"}}
+	tasks := &fakeTaskCanceller{log: log, active: []model.Task{
+		{ID: "t1", SessionKey: "beta:c1:u1"},
+		{ID: "t2", SessionKey: "local:u1:worker:w1"},
+		{ID: "t3", SessionKey: "beta:c1:u1"},
+		{ID: "t4", SessionKey: "beta:c2:u2"},
+	}}
+	cleanup := localchat.NewChatCleanup(chats, &fakeStopper{log: log}, tasks)
+
+	require.NoError(t, cleanup.DeleteWorkerChats(context.Background(), model.Worker{ID: "w1"}))
+
+	assert.Equal(t, []string{
+		"keys:w1",
+		"stop:local:u1:worker:w1:w1",
+		"cancel:local:u1:worker:w1:w1",
+		"stop:beta:c1:u1:w1",
+		"cancel:beta:c1:u1:w1",
+		"stop:beta:c2:u2:w1",
+		"cancel:beta:c2:u2:w1",
+		"delete:w1",
+	}, log.list())
+}
+
+func TestChatCleanupTaskLookupFailureSkipsDelete(t *testing.T) {
+	log := &cleanupLog{}
+	listErr := errors.New("list failed")
+	cleanup := localchat.NewChatCleanup(&fakeChatStore{log: log}, &fakeStopper{log: log}, &fakeTaskCanceller{log: log, listErr: listErr})
+
+	err := cleanup.DeleteWorkerChats(context.Background(), model.Worker{ID: "w1"})
+
+	require.ErrorIs(t, err, listErr)
+	assert.Equal(t, []string{"keys:w1"}, log.list())
 }
 
 func TestChatCleanupDeletesWhenWorkerHasNoChats(t *testing.T) {
@@ -190,4 +232,39 @@ func TestChatCleanupCancelsEveryPendingWorkerChatTask(t *testing.T) {
 		dueIDs = append(dueIDs, d.ID)
 	}
 	assert.Equal(t, []string{otherSchedule}, dueIDs)
+}
+
+func TestChatCleanupCancelsWorkerTasksInChannelSessions(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	tasks := store.NewTaskStore(db)
+	ctx := context.Background()
+	past := time.Now().Add(-time.Minute).UnixMilli()
+	create := func(workerID, taskType string) string {
+		t.Helper()
+		tk := model.Task{SessionKey: "beta:c1:u1", Platform: "beta", WorkerID: workerID, Instruction: "report", Type: taskType, Status: model.TaskStatusPending}
+		if taskType == model.TaskTypeScheduled {
+			tk.CronExpr = "*/5 * * * *"
+			tk.NextRunAt = &past
+		}
+		id, err := tasks.Create(ctx, tk)
+		require.NoError(t, err)
+		return id
+	}
+	scheduled := create("w1", model.TaskTypeScheduled)
+	immediate := create("w1", model.TaskTypeImmediate)
+	otherSchedule := create("w2", model.TaskTypeScheduled)
+	cleanup := localchat.NewChatCleanup(store.NewLocalChatStore(db), &fakeStopper{log: &cleanupLog{}}, tasks)
+
+	require.NoError(t, cleanup.DeleteWorkerChats(ctx, model.Worker{ID: "w1"}))
+
+	for _, id := range []string{scheduled, immediate} {
+		got, err := tasks.GetByID(ctx, id)
+		require.NoError(t, err)
+		assert.Equal(t, model.TaskStatusCancelled, got.Status, got.Type)
+	}
+	got, err := tasks.GetByID(ctx, otherSchedule)
+	require.NoError(t, err)
+	assert.Equal(t, model.TaskStatusPending, got.Status)
 }
