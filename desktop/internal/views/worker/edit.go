@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"maps"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -31,11 +31,7 @@ type editState struct {
 type editKey struct{}
 
 func newEdit(w api.Worker) editState {
-	args := maps.Clone(w.EngineArgs)
-	if args == nil {
-		args = map[string]string{}
-	}
-	return editState{form: model.EditForm{Name: w.Name, Description: w.Description, WorkDir: w.WorkDir, Engine: w.Engine, EngineArgs: args}}
+	return editState{form: model.NewEditForm(w)}
 }
 
 func (es *editState) complete() bool {
@@ -70,6 +66,7 @@ func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 				kit.Select(c, tk, &es.form.Engine, locales.WorkersFormEngine(), options, placeholder).Disabled(len(options) == 0)
 			})
 			if followed != "" {
+				p.modelField(c, tk, installed, followed, w.ID, es.form.EngineModels, submit)
 				engineArgsField(c, tk, model.FindEngine(installed, followed), es.form.EngineArgs, submit)
 			}
 		})
@@ -102,6 +99,48 @@ func engineArgsField(c *ui.Context, tk theme.Tokens, engine api.EngineInfo, all 
 				OnChange(func() { all[engine.ID] = args }).OnSubmit(submit)
 		})
 	})
+}
+
+func (p *Panel) modelField(c *ui.Context, tk theme.Tokens, installed []api.EngineInfo, engineID, workerID string, all map[string]string, submit func()) {
+	engine := model.FindEngine(installed, engineID)
+	listed := slices.Contains(model.EngineIDs(installed), engineID)
+	value := all[engineID]
+	kit.Field(c, tk, locales.WorkersFormModel(), "", "", func() {
+		box := ui.Column(c).Key(engineID).MinWidth(0)
+		opts := kit.ComboOpts{Help: locales.WorkersFormModelHelper(l10n.EngineName(engine)), NoMatches: locales.WorkersFormModelNoMatches()}
+		if listed {
+			opts = p.modelOptions(box, engineID, workerID, opts)
+		}
+		box.Children(func() {
+			kit.Combobox(c, tk, &value, locales.WorkersFormModel(), locales.WorkersFormModelPlaceholder(), opts).
+				OnChange(func() { all[engineID] = value }).OnSubmit(submit)
+		})
+	})
+}
+
+type modelRetryKey struct{}
+
+func (p *Panel) modelOptions(box ui.Element, engineID, workerID string, opts kit.ComboOpts) kit.ComboOpts {
+	list := p.s.EngineModels(engineID, workerID)
+	ui.Local(box, modelRetryKey{}, func() bool {
+		if list.Err != nil && !list.Loading {
+			list.Invalidate()
+		}
+		return true
+	})
+	list.Ensure()
+	switch {
+	case list.Loaded:
+		opts.Options = make([]kit.ComboOption, len(list.Data))
+		for i, m := range list.Data {
+			opts.Options[i] = kit.ComboOption{Value: m.ID, Detail: m.Name}
+		}
+	case list.Err != nil && !list.Loading:
+		opts.Failed = locales.WorkersFormModelListError()
+	default:
+		opts.Loading = locales.WorkersFormModelLoading()
+	}
+	return opts
 }
 
 func (p *Panel) saveInfo(st *panelState, es *editState, w api.Worker) {

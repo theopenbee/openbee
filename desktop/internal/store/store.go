@@ -97,6 +97,7 @@ type Store struct {
 
 	details    map[string]*Resource[api.Worker]
 	envs       map[envScope]*Resource[[]api.EnvConfig]
+	models     map[modelsKey]*Resource[[]api.EngineModel]
 	plugins    *PluginsState
 	active     string
 	foreground bool

@@ -6628,6 +6628,68 @@ func (msgs Messages) WorkersFormEngineUnavailable(engine string) string {
 	return Catalog.Format(msgs.locale, "workersFormEngineUnavailable", map[string]any{"engine": engine})
 }
 
+// WorkersFormModel says "Model"
+// in the language the app shows.
+func WorkersFormModel() string { return In(i18n.Locale()).WorkersFormModel() }
+
+// WorkersFormModel says "Model"
+// in the language of msgs.
+func (msgs Messages) WorkersFormModel() string {
+	return Catalog.Format(msgs.locale, "workersFormModel", nil)
+}
+
+// WorkersFormModelHelper says "Leave blank to use {engine}'s default model."
+// in the language the app shows.
+func WorkersFormModelHelper(engine string) string {
+	return In(i18n.Locale()).WorkersFormModelHelper(engine)
+}
+
+// WorkersFormModelHelper says "Leave blank to use {engine}'s default model."
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelHelper(engine string) string {
+	return Catalog.Format(msgs.locale, "workersFormModelHelper", map[string]any{"engine": engine})
+}
+
+// WorkersFormModelListError says "Couldn't load the model list. You can still type a model."
+// in the language the app shows.
+func WorkersFormModelListError() string { return In(i18n.Locale()).WorkersFormModelListError() }
+
+// WorkersFormModelListError says "Couldn't load the model list. You can still type a model."
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelListError() string {
+	return Catalog.Format(msgs.locale, "workersFormModelListError", nil)
+}
+
+// WorkersFormModelLoading says "Loading models…"
+// in the language the app shows.
+func WorkersFormModelLoading() string { return In(i18n.Locale()).WorkersFormModelLoading() }
+
+// WorkersFormModelLoading says "Loading models…"
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelLoading() string {
+	return Catalog.Format(msgs.locale, "workersFormModelLoading", nil)
+}
+
+// WorkersFormModelNoMatches says "No matching models. The typed name is used as is."
+// in the language the app shows.
+func WorkersFormModelNoMatches() string { return In(i18n.Locale()).WorkersFormModelNoMatches() }
+
+// WorkersFormModelNoMatches says "No matching models. The typed name is used as is."
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelNoMatches() string {
+	return Catalog.Format(msgs.locale, "workersFormModelNoMatches", nil)
+}
+
+// WorkersFormModelPlaceholder says "Engine default"
+// in the language the app shows.
+func WorkersFormModelPlaceholder() string { return In(i18n.Locale()).WorkersFormModelPlaceholder() }
+
+// WorkersFormModelPlaceholder says "Engine default"
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelPlaceholder() string {
+	return Catalog.Format(msgs.locale, "workersFormModelPlaceholder", nil)
+}
+
 // WorkersFormName says "Name"
 // in the language the app shows.
 func WorkersFormName() string { return In(i18n.Locale()).WorkersFormName() }

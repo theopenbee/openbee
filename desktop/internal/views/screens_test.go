@@ -513,7 +513,8 @@ func panelCrew(st *fakeapi.State) {
 		if st.Workers[i].ID == "ada" {
 			st.Workers[i].Constraints = adaRules
 			st.Workers[i].PermissionScopes = "read:workers,read:tasks"
-			st.Workers[i].EngineArgs = map[string]string{"claude": "--model opus"}
+			st.Workers[i].EngineArgs = map[string]string{"claude": "--effort high"}
+			st.Workers[i].EngineModels = map[string]string{"claude": "opus"}
 		}
 	}
 }
@@ -561,6 +562,17 @@ func typeInto(t *testing.T, h *testkit.Harness, field, text string) {
 func newWorkerSeed(st *fakeapi.State) {
 	panelCrew(st)
 	st.SystemConfigs = map[string]string{"default_engine": "codex"}
+	st.Models = map[string][]api.EngineModel{"codex": {
+		{ID: "gpt-5.1-codex", Name: "GPT-5.1 Codex"}, {ID: "gpt-5.1-codex-mini", Name: "GPT-5.1 Codex Mini"}, {ID: "gpt-5.1", Name: "GPT-5.1"},
+	}}
+}
+
+func newWorkerModels(t *testing.T, h *testkit.Harness) {
+	openPanel(api.BeeConversation, route.PanelNew)(t, h)
+	typeInto(t, h, locales.WorkersFormName(), "Nova")
+	typeInto(t, h, locales.WorkersFormModel(), "mini")
+	h.T.Advance(time.Second)
+	h.Settle()
 }
 
 func fillNewWorker(t *testing.T, h *testkit.Harness) {
@@ -606,6 +618,8 @@ func deleteDialog(t *testing.T, h *testkit.Harness) {
 var createScreens = []screen{
 	{name: "panel-new", seed: newWorkerSeed, signedIn: true, prepare: openPanel(api.BeeConversation, route.PanelNew), shots: wideOnly,
 		want: locales.WorkersFormSectionBasic},
+	{name: "panel-new-models", seed: newWorkerSeed, signedIn: true, prepare: newWorkerModels, shots: wideOnly,
+		want: func() string { return "GPT-5.1 Codex Mini" }},
 	{name: "panel-new-advanced", seed: newWorkerSeed, signedIn: true, prepare: newWorkerAdvanced, shots: wideOnly,
 		want: locales.WorkersFormSectionPermissions},
 	{name: "panel-new-badge", seed: newWorkerSeed, signedIn: true, prepare: newWorkerBadge, shots: wideOnly,

@@ -61,6 +61,7 @@ func (s *Store) DeleteWorker(id string, deleteWorkDir bool, done func(error)) {
 				delete(s.details, id)
 				delete(s.chats, api.WorkerConversation(id))
 				delete(s.envs, envScope{scope: envScopeWorker, scopeID: id})
+				s.forgetModels(id)
 				s.invalidateWorkers()
 				s.Conversations.Invalidate()
 			}

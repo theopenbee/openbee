@@ -27,6 +27,7 @@ func (s *Store) initData() {
 	s.ServerVersion = NewResource(s, serverVersion)
 	s.details = map[string]*Resource[api.Worker]{}
 	s.envs = map[envScope]*Resource[[]api.EnvConfig]{}
+	s.models = map[modelsKey]*Resource[[]api.EngineModel]{}
 	s.initPlugins()
 }
 

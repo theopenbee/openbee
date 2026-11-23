@@ -187,3 +187,68 @@ func TestParseEngineArgsConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanEngineModels(t *testing.T) {
+	got := CleanEngineModels(map[string]string{"claude": " opus ", "codex": "", "pi": " \t"})
+	if want := (map[string]string{"claude": "opus"}); !maps.Equal(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+	if got := CleanEngineModels(nil); got == nil || len(got) != 0 {
+		t.Fatalf("got %#v for nil, want an empty map", got)
+	}
+}
+
+func TestChangedEngineModels(t *testing.T) {
+	tests := []struct {
+		name           string
+		stored, edited map[string]string
+		want           map[string]string
+	}{
+		{"nothing changed", map[string]string{"claude": "opus"}, map[string]string{"claude": " opus", "pi": ""}, map[string]string{}},
+		{"a new model", nil, map[string]string{"pi": "openai/gpt-5"}, map[string]string{"pi": "openai/gpt-5"}},
+		{"a changed model", map[string]string{"claude": "opus"}, map[string]string{"claude": "sonnet"}, map[string]string{"claude": "sonnet"}},
+		{"a cleared model", map[string]string{"claude": "opus", "pi": "x"}, map[string]string{"claude": " ", "pi": "x"}, map[string]string{"claude": ""}},
+		{"a missing entry", map[string]string{"claude": "opus"}, nil, map[string]string{"claude": ""}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ChangedEngineModels(tc.stored, tc.edited); !maps.Equal(got, tc.want) {
+				t.Fatalf("got %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestProfileEngine(t *testing.T) {
+	enabled := []string{"claude", "pi"}
+	tests := []struct {
+		name                 string
+		worker               api.Worker
+		systemDefault        string
+		wantEngine, wantName string
+	}{
+		{"the worker engine without a model", api.Worker{Engine: "claude"}, "pi", "claude", ""},
+		{"the worker engine with its model", api.Worker{Engine: "claude", EngineModels: map[string]string{"claude": "opus", "pi": "x"}}, "pi", "claude", "opus"},
+		{"the model of another engine is not shown", api.Worker{Engine: "claude", EngineModels: map[string]string{"pi": "x"}}, "pi", "claude", ""},
+		{"the system default with a model", api.Worker{EngineModels: map[string]string{"pi": "openai/gpt-5"}}, "pi", "pi", "openai/gpt-5"},
+		{"the system default without a model stays hidden", api.Worker{EngineModels: map[string]string{"claude": "opus"}}, "pi", "", ""},
+		{"an uninstalled system default stays hidden", api.Worker{EngineModels: map[string]string{"gone": "x"}}, "gone", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine, name := ProfileEngine(tc.worker, tc.systemDefault, enabled)
+			if engine != tc.wantEngine || name != tc.wantName {
+				t.Fatalf("got (%q, %q), want (%q, %q)", engine, name, tc.wantEngine, tc.wantName)
+			}
+		})
+	}
+}
+
+func TestEngineLabel(t *testing.T) {
+	if got := EngineLabel("OpenCode", "deepseek/deepseek-flash"); got != "OpenCode · deepseek/deepseek-flash" {
+		t.Fatalf("got %q", got)
+	}
+	if got := EngineLabel("Claude Code", ""); got != "Claude Code" {
+		t.Fatalf("got %q without a model", got)
+	}
+}

@@ -15,6 +15,7 @@ type State struct {
 	Password     string
 	Language     string
 	Engines      []api.EngineInfo
+	Models       map[string][]api.EngineModel
 	LegacyConfig bool
 	Version      api.ServerVersion
 
@@ -75,14 +76,22 @@ func (st *State) normalize() {
 	if st.Media == nil {
 		st.Media = map[string][]byte{}
 	}
+	if st.Models == nil {
+		st.Models = map[string][]api.EngineModel{}
+	}
 }
 
 func cloneState(st State) State {
 	out := st
 	out.Engines = slices.Clone(st.Engines)
+	out.Models = make(map[string][]api.EngineModel, len(st.Models))
+	for engine, models := range st.Models {
+		out.Models[engine] = slices.Clone(models)
+	}
 	out.Workers = make([]api.Worker, len(st.Workers))
 	for i, w := range st.Workers {
 		w.EngineArgs = maps.Clone(w.EngineArgs)
+		w.EngineModels = maps.Clone(w.EngineModels)
 		out.Workers[i] = w
 	}
 	out.Conversations = slices.Clone(st.Conversations)

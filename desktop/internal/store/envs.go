@@ -50,6 +50,7 @@ func (s *Store) mutateEnv(scope, scopeID string, done func(error), do func(ctx c
 		return func() {
 			if err == nil {
 				s.Envs(scope, scopeID).Invalidate()
+				s.staleModels()
 			}
 			done(err)
 		}

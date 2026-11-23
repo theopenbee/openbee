@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
 )
 
 var permissionScopes = []string{"read:workers", "read:tasks", "read:messages"}
+
+const maxModelLength = 200
 
 func (s *Server) workerRoutes() {
 	s.route("GET /api/workers", authUser, s.listWorkers)
@@ -19,6 +22,7 @@ func (s *Server) workerRoutes() {
 	s.route("GET /api/workers/{id}", authUser, s.getWorker)
 	s.route("PUT /api/workers/{id}", authUser, s.updateWorker)
 	s.route("DELETE /api/workers/{id}", authUser, s.deleteWorker)
+	s.route("GET /api/engines/{id}/models", authUser, s.engineModels)
 }
 
 func workerNotFound() reply {
@@ -37,6 +41,10 @@ func outWorker(w api.Worker) api.Worker {
 	w.EngineArgs = maps.Clone(w.EngineArgs)
 	if w.EngineArgs == nil {
 		w.EngineArgs = map[string]string{}
+	}
+	w.EngineModels = maps.Clone(w.EngineModels)
+	if w.EngineModels == nil {
+		w.EngineModels = map[string]string{}
 	}
 	return w
 }
@@ -72,6 +80,64 @@ func changedEngineArgs(stored, submitted map[string]string) map[string]string {
 		}
 	}
 	return changed
+}
+
+func trimmedModels(models map[string]string) map[string]string {
+	out := make(map[string]string, len(models))
+	for engine, name := range models {
+		out[engine] = strings.TrimSpace(name)
+	}
+	return out
+}
+
+func (s *Server) validateEngineModels(stored, submitted map[string]string) error {
+	for _, engine := range slices.Sorted(maps.Keys(submitted)) {
+		name := submitted[engine]
+		if name == "" || name == stored[engine] {
+			continue
+		}
+		if engine == "" {
+			return fmt.Errorf("invalid engine_models: empty engine name")
+		}
+		if err := s.validateEngine(engine); err != nil {
+			return fmt.Errorf("engine_models[%q]: %w", engine, err)
+		}
+		if err := validateModel(name); err != nil {
+			return fmt.Errorf("engine_models[%q]: %w", engine, err)
+		}
+	}
+	return nil
+}
+
+func validateModel(name string) error {
+	if len(name) > maxModelLength {
+		return fmt.Errorf("model is longer than %d characters", maxModelLength)
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("model must not start with -")
+	}
+	if strings.IndexFunc(name, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
+		return fmt.Errorf("model must not contain whitespace or control characters")
+	}
+	return nil
+}
+
+func mergeEngineModels(current, update map[string]string) map[string]string {
+	if len(update) == 0 {
+		return map[string]string{}
+	}
+	out := maps.Clone(current)
+	if out == nil {
+		out = map[string]string{}
+	}
+	for engine, name := range update {
+		if name == "" {
+			delete(out, engine)
+			continue
+		}
+		out[engine] = name
+	}
+	return out
 }
 
 func validatePermissionScopes(scopes string) error {
@@ -142,6 +208,10 @@ func (s *Server) createWorker(q *request) reply {
 	if err := s.validateEngineArgs(req.EngineArgs); err != nil {
 		return errReply(http.StatusBadRequest, err.Error())
 	}
+	models := trimmedModels(req.EngineModels)
+	if err := s.validateEngineModels(nil, models); err != nil {
+		return workerInvalid("%s", err)
+	}
 	name := strings.TrimSpace(req.Name)
 	if bad, rejected := s.rejectWorkerName(name, ""); rejected {
 		return bad
@@ -160,6 +230,7 @@ func (s *Server) createWorker(q *request) reply {
 		WorkDir:          workDir,
 		Engine:           req.Engine,
 		EngineArgs:       maps.Clone(req.EngineArgs),
+		EngineModels:     mergeEngineModels(nil, models),
 		Status:           "idle",
 		PermissionScopes: req.PermissionScopes,
 		CreatedAt:        now,
@@ -202,6 +273,13 @@ func (s *Server) updateWorker(q *request) reply {
 	if i < 0 {
 		return workerNotFound()
 	}
+	var models map[string]string
+	if req.EngineModels != nil {
+		models = trimmedModels(*req.EngineModels)
+		if err := s.validateEngineModels(s.st.Workers[i].EngineModels, models); err != nil {
+			return workerInvalid("%s", err)
+		}
+	}
 	w := s.st.Workers[i]
 	changed := false
 	if req.Name != nil {
@@ -236,6 +314,10 @@ func (s *Server) updateWorker(q *request) reply {
 	}
 	if req.EngineArgs != nil {
 		w.EngineArgs = mergeEngineArgs(w.EngineArgs, *req.EngineArgs)
+		changed = true
+	}
+	if models != nil {
+		w.EngineModels = mergeEngineModels(w.EngineModels, models)
 		changed = true
 	}
 	if changed {
@@ -276,6 +358,21 @@ func (s *Server) deleteWorker(q *request) reply {
 	delete(s.st.ActiveTasks, cid)
 	delete(s.reads, cid)
 	return ok(map[string]string{"status": "deleted"})
+}
+
+func (s *Server) engineModels(q *request) reply {
+	engine := q.param("id")
+	if !s.engineEnabled(engine) {
+		return codedReply(http.StatusNotFound, "engine_not_found", fmt.Sprintf("engine %q is not enabled", engine), nil)
+	}
+	if id := q.query("worker_id"); id != "" && s.workerIndex(id) < 0 {
+		return workerNotFound()
+	}
+	models := slices.Clone(s.st.Models[engine])
+	if models == nil {
+		models = []api.EngineModel{}
+	}
+	return ok(map[string]any{"models": models})
 }
 
 func (s *Server) randomName(*request) reply {

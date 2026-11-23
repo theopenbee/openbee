@@ -240,6 +240,47 @@ func TestEndpoints(t *testing.T) {
 			want: workerValue,
 		},
 		{
+			name:   "worker with engine models",
+			call:   func(c *Client) (any, error) { return c.Worker(ctx, "w1") },
+			method: "GET", uri: "/api/workers/w1",
+			status: 200, response: `{"id":"w1","name":"Ada","engine":"opencode","engine_args":{},"engine_models":{"opencode":"deepseek/deepseek-flash"}}`,
+			want: Worker{ID: "w1", Name: "Ada", Engine: "opencode", EngineArgs: map[string]string{}, EngineModels: map[string]string{"opencode": "deepseek/deepseek-flash"}},
+		},
+		{
+			name: "create worker with engine models",
+			call: func(c *Client) (any, error) {
+				return c.CreateWorker(ctx, CreateWorkerRequest{Name: "Ada", Engine: "claude", EngineModels: map[string]string{"claude": "opus"}})
+			},
+			method: "POST", uri: "/api/workers",
+			body:   `{"name":"Ada","engine":"claude","description":"","engine_models":{"claude":"opus"}}`,
+			status: 201, response: workerJSON,
+			want: workerValue,
+		},
+		{
+			name: "update worker engine models",
+			call: func(c *Client) (any, error) {
+				return c.UpdateWorker(ctx, "w1", UpdateWorkerRequest{EngineModels: mapPtr(map[string]string{"claude": "", "pi": "openai/gpt-5"})})
+			},
+			method: "PUT", uri: "/api/workers/w1",
+			body:   `{"engine_models":{"claude":"","pi":"openai/gpt-5"}}`,
+			status: 200, response: workerJSON,
+			want: workerValue,
+		},
+		{
+			name:   "engine models",
+			call:   func(c *Client) (any, error) { return c.EngineModels(ctx, "opencode", "") },
+			method: "GET", uri: "/api/engines/opencode/models",
+			status: 200, response: `{"models":[{"id":"deepseek/deepseek-flash","name":"DeepSeek Flash"},{"id":"openai/gpt-5"}]}`,
+			want: []EngineModel{{ID: "deepseek/deepseek-flash", Name: "DeepSeek Flash"}, {ID: "openai/gpt-5"}},
+		},
+		{
+			name:   "engine models for a worker",
+			call:   func(c *Client) (any, error) { return c.EngineModels(ctx, "pi", "w 1") },
+			method: "GET", uri: "/api/engines/pi/models?worker_id=w+1",
+			status: 200, response: `{"models":null}`,
+			want: []EngineModel{},
+		},
+		{
 			name:   "delete worker with work dir",
 			call:   func(c *Client) (any, error) { return nil, c.DeleteWorker(ctx, "w1", true) },
 			method: "DELETE", uri: "/api/workers/w1?delete_work_dir=true",
@@ -620,6 +661,15 @@ func TestEndpoints(t *testing.T) {
 				t.Fatalf("result = %#v, want %#v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestEngineModelsErrorCarriesServerMessage(t *testing.T) {
+	c, _ := serveCanned(t, 502, `{"error":"opencode: unknown method \"models\""}`)
+	_, err := c.EngineModels(context.Background(), "opencode", "")
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Status != 502 || apiErr.Message != `opencode: unknown method "models"` {
+		t.Fatalf("err = %#v", err)
 	}
 }
 

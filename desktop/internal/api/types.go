@@ -43,6 +43,7 @@ type Worker struct {
 	WorkDir          string            `json:"work_dir"`
 	Engine           string            `json:"engine"`
 	EngineArgs       map[string]string `json:"engine_args"`
+	EngineModels     map[string]string `json:"engine_models"`
 	Status           string            `json:"status"`
 	PermissionScopes string            `json:"permission_scopes"`
 	CreatedAt        int64             `json:"created_at"`
@@ -57,6 +58,7 @@ type CreateWorkerRequest struct {
 	WorkDir          string            `json:"work_dir,omitempty"`
 	PermissionScopes string            `json:"permission_scopes,omitempty"`
 	EngineArgs       map[string]string `json:"engine_args,omitempty"`
+	EngineModels     map[string]string `json:"engine_models,omitempty"`
 }
 
 type UpdateWorkerRequest struct {
@@ -67,6 +69,12 @@ type UpdateWorkerRequest struct {
 	PermissionScopes *string            `json:"permission_scopes,omitempty"`
 	Engine           *string            `json:"engine,omitempty"`
 	EngineArgs       *map[string]string `json:"engine_args,omitempty"`
+	EngineModels     *map[string]string `json:"engine_models,omitempty"`
+}
+
+type EngineModel struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
 }
 
 type RandomName struct {

@@ -360,7 +360,7 @@ func TestKitGallery(t *testing.T) {
 		}
 	}
 	shoot(t, tt, "kit-gallery", nil)
-	for _, s := range overlayShots() {
+	for _, s := range append(overlayShots(), comboShots()...) {
 		tt := calmTester(s.view, s.w, s.h)
 		tt.SetScale(2)
 		for _, text := range s.texts {

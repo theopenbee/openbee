@@ -8,13 +8,14 @@ import (
 )
 
 type CreateForm struct {
-	Name        string
-	Engine      string
-	Description string
-	Constraints string
-	WorkDir     string
-	EngineArgs  map[string]string
-	Scopes      []string
+	Name         string
+	Engine       string
+	Description  string
+	Constraints  string
+	WorkDir      string
+	EngineArgs   map[string]string
+	EngineModels map[string]string
+	Scopes       []string
 }
 
 func (f CreateForm) AdvancedCount() int {
@@ -42,15 +43,32 @@ func (f CreateForm) Request() api.CreateWorkerRequest {
 	if args := CleanEngineArgs(f.EngineArgs); len(args) > 0 {
 		req.EngineArgs = args
 	}
+	if name := strings.TrimSpace(f.EngineModels[f.Engine]); f.Engine != "" && name != "" {
+		req.EngineModels = map[string]string{f.Engine: name}
+	}
 	return req
 }
 
 type EditForm struct {
-	Name        string
-	Description string
-	WorkDir     string
-	Engine      string
-	EngineArgs  map[string]string
+	Name                string
+	Description         string
+	WorkDir             string
+	Engine              string
+	EngineArgs          map[string]string
+	EngineModels        map[string]string
+	InitialEngineModels map[string]string
+}
+
+func NewEditForm(w api.Worker) EditForm {
+	return EditForm{Name: w.Name, Description: w.Description, WorkDir: w.WorkDir, Engine: w.Engine,
+		EngineArgs: cloneMap(w.EngineArgs), EngineModels: cloneMap(w.EngineModels), InitialEngineModels: cloneMap(w.EngineModels)}
+}
+
+func cloneMap(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return maps.Clone(m)
 }
 
 func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
@@ -58,24 +76,26 @@ func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
 	nameChanged := f.Name != w.Name
 	workDirChanged := workDir != w.WorkDir
 	engineChanged := f.Engine != w.Engine
+	models := ChangedEngineModels(f.InitialEngineModels, f.EngineModels)
 	changed := nameChanged ||
 		workDirChanged ||
 		engineChanged ||
+		len(models) > 0 ||
 		f.Description != w.Description ||
 		!maps.Equal(CleanEngineArgs(f.EngineArgs), w.EngineArgs)
 	if !changed {
 		return api.UpdateWorkerRequest{}, false
 	}
-	args := maps.Clone(f.EngineArgs)
-	if args == nil {
-		args = map[string]string{}
-	}
+	args := cloneMap(f.EngineArgs)
 	req := api.UpdateWorkerRequest{
 		Description: &f.Description,
 		EngineArgs:  &args,
 	}
 	if engineChanged {
 		req.Engine = &f.Engine
+	}
+	if len(models) > 0 {
+		req.EngineModels = &models
 	}
 	if nameChanged {
 		req.Name = &f.Name

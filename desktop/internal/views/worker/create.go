@@ -49,7 +49,7 @@ type createState struct {
 type createKey struct{}
 
 func newCreate() createState {
-	return createState{form: model.CreateForm{EngineArgs: map[string]string{}}}
+	return createState{form: model.CreateForm{EngineArgs: map[string]string{}, EngineModels: map[string]string{}}}
 }
 
 func (cs *createState) fail(err error) {
@@ -108,6 +108,9 @@ func (p *Panel) basicSection(c *ui.Context, tk theme.Tokens, cs *createState, in
 		kit.Field(c, tk, locales.WorkersFormEngine(), engineHelper(options), "", func() {
 			kit.Select(c, tk, &cs.form.Engine, locales.WorkersFormEngine(), options, locales.WorkersFormEngineDefault()).Disabled(len(options) == 0)
 		})
+		if cs.form.Engine != "" {
+			p.modelField(c, tk, installed, cs.form.Engine, "", cs.form.EngineModels, submit)
+		}
 		kit.Field(c, tk, locales.WorkersFormDescriptionOptional(), locales.WorkersFormDescriptionCreateHelper(), "", func() {
 			kit.TextArea(c, tk, &cs.form.Description, locales.WorkersFormDescriptionOptional(), locales.WorkersFormDescriptionPlaceholder(),
 				descriptionRows, descriptionRows).MinHeight(descriptionMinHeight)

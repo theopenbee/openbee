@@ -73,6 +73,50 @@ func CleanEngineArgs(m map[string]string) map[string]string {
 	return out
 }
 
+func CleanEngineModels(m map[string]string) map[string]string {
+	out := make(map[string]string, len(m))
+	for engine, name := range m {
+		if name = strings.TrimSpace(name); name != "" {
+			out[engine] = name
+		}
+	}
+	return out
+}
+
+func ChangedEngineModels(stored, edited map[string]string) map[string]string {
+	current, next := CleanEngineModels(stored), CleanEngineModels(edited)
+	changed := map[string]string{}
+	for engine, name := range next {
+		if current[engine] != name {
+			changed[engine] = name
+		}
+	}
+	for engine := range current {
+		if _, kept := next[engine]; !kept {
+			changed[engine] = ""
+		}
+	}
+	return changed
+}
+
+func ProfileEngine(w api.Worker, systemDefault string, enabled []string) (engine, modelName string) {
+	if w.Engine != "" {
+		return w.Engine, strings.TrimSpace(w.EngineModels[w.Engine])
+	}
+	followed := FollowedEngine("", systemDefault, enabled)
+	if name := strings.TrimSpace(w.EngineModels[followed]); followed != "" && name != "" {
+		return followed, name
+	}
+	return "", ""
+}
+
+func EngineLabel(engineName, modelName string) string {
+	if modelName == "" {
+		return engineName
+	}
+	return engineName + " · " + modelName
+}
+
 func ParseEngineArgsConfig(raw string) map[string]string {
 	out := map[string]string{}
 	var parsed map[string]any

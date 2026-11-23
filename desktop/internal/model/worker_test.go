@@ -249,3 +249,132 @@ func TestEditUpdateDoesNotAliasTheForm(t *testing.T) {
 		t.Fatalf("request aliases the form map: %v", *got.EngineArgs)
 	}
 }
+
+func TestCreateFormRequestSendsOnlyTheSelectedEngineModel(t *testing.T) {
+	got := CreateForm{Name: "sam", Engine: "pi", EngineModels: map[string]string{"pi": " openai/gpt-5 ", "claude": "opus", "codex": ""}}.Request()
+	if want := (map[string]string{"pi": "openai/gpt-5"}); !maps.Equal(got.EngineModels, want) {
+		t.Fatalf("EngineModels = %#v, want %#v", got.EngineModels, want)
+	}
+}
+
+func TestCreateFormRequestOmitsBlankEngineModels(t *testing.T) {
+	tests := []struct {
+		name string
+		form CreateForm
+	}{
+		{"a blank model", CreateForm{Name: "sam", Engine: "pi", EngineModels: map[string]string{"pi": " ", "claude": "opus"}}},
+		{"no model for the engine", CreateForm{Name: "sam", Engine: "pi", EngineModels: map[string]string{"claude": "opus"}}},
+		{"no engine", CreateForm{Name: "sam", EngineModels: map[string]string{"": "opus", "claude": "opus"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.form.Request(); got.EngineModels != nil {
+				t.Fatalf("EngineModels = %#v, want nil", got.EngineModels)
+			}
+		})
+	}
+}
+
+func modelWorker() api.Worker {
+	return existingWorker(func(w *api.Worker) {
+		w.EngineModels = map[string]string{"claude": "opus", "gone": "old-model"}
+	})
+}
+
+func modelEdit(w api.Worker) EditForm {
+	return NewEditForm(w)
+}
+
+func TestNewEditFormCopiesTheWorker(t *testing.T) {
+	w := modelWorker()
+	f := NewEditForm(w)
+	if want := unchangedEdit(w); f.Name != want.Name || f.Description != want.Description || f.WorkDir != want.WorkDir ||
+		f.Engine != want.Engine || !maps.Equal(f.EngineArgs, want.EngineArgs) {
+		t.Fatalf("form = %#v, want the worker's fields", f)
+	}
+	f.EngineArgs["claude"] = "--x"
+	f.EngineModels["claude"] = "sonnet"
+	if w.EngineArgs["claude"] != "--effort high" || w.EngineModels["claude"] != "opus" || f.InitialEngineModels["claude"] != "opus" {
+		t.Fatalf("form aliases the worker: args %v, models %v, initial %v", w.EngineArgs, w.EngineModels, f.InitialEngineModels)
+	}
+	if empty := NewEditForm(api.Worker{}); empty.EngineArgs == nil || empty.EngineModels == nil || empty.InitialEngineModels == nil {
+		t.Fatalf("form = %#v, want empty maps for a worker without them", empty)
+	}
+}
+
+func TestEditUpdateUnchangedModels(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	f.EngineModels["claude"] = "  opus "
+	f.EngineModels["pi"] = " "
+	if got, ok := EditUpdate(w, f); ok {
+		t.Fatalf("got (%#v, true), want padding and blank models to count as unchanged", got)
+	}
+}
+
+func TestEditUpdateSendsOnlyChangedModels(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	f.EngineModels["claude"] = " sonnet "
+	f.EngineModels["pi"] = "openai/gpt-5"
+	got, ok := EditUpdate(w, f)
+	if !ok || got.EngineModels == nil {
+		t.Fatalf("got (%#v, %v), want engine models", got, ok)
+	}
+	if want := (map[string]string{"claude": "sonnet", "pi": "openai/gpt-5"}); !maps.Equal(*got.EngineModels, want) {
+		t.Fatalf("EngineModels = %v, want %v", *got.EngineModels, want)
+	}
+}
+
+func TestEditUpdateClearedModelRemovesTheEntry(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	f.EngineModels["claude"] = "  "
+	got, ok := EditUpdate(w, f)
+	if !ok || got.EngineModels == nil {
+		t.Fatalf("got (%#v, %v), want engine models", got, ok)
+	}
+	if want := (map[string]string{"claude": ""}); !maps.Equal(*got.EngineModels, want) {
+		t.Fatalf("EngineModels = %v, want %v", *got.EngineModels, want)
+	}
+}
+
+func TestEditUpdateOmitsUnchangedModels(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	f.Description = "new helper"
+	got, ok := EditUpdate(w, f)
+	if !ok || got.EngineModels != nil {
+		t.Fatalf("got (%#v, %v), want the unchanged models left out", got, ok)
+	}
+}
+
+func TestEditUpdateKeepsModelsChangedWhileEditing(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	f.EngineModels["claude"] = "sonnet"
+	live := modelWorker()
+	live.EngineModels = map[string]string{"claude": "haiku", "gone": "new-model", "pi": "openai/gpt-5"}
+	got, ok := EditUpdate(live, f)
+	if !ok || got.EngineModels == nil {
+		t.Fatalf("got (%#v, %v), want engine models", got, ok)
+	}
+	if want := (map[string]string{"claude": "sonnet"}); !maps.Equal(*got.EngineModels, want) {
+		t.Fatalf("EngineModels = %v, want only the model edited in the form", *got.EngineModels)
+	}
+}
+
+func TestEditUpdateLeavesModelsChangedElsewhereAlone(t *testing.T) {
+	w := modelWorker()
+	f := modelEdit(w)
+	live := modelWorker()
+	live.EngineModels = map[string]string{"pi": "openai/gpt-5"}
+	if got, ok := EditUpdate(live, f); ok {
+		t.Fatalf("got (%#v, true), want no update when only another client changed the models", got)
+	}
+	f.Description = "new helper"
+	got, ok := EditUpdate(live, f)
+	if !ok || got.EngineModels != nil {
+		t.Fatalf("got (%#v, %v), want the models left out", got, ok)
+	}
+}

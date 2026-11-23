@@ -330,6 +330,95 @@ func TestUpdateWorkerEngineArgsMerge(t *testing.T) {
 	}
 }
 
+func TestUpdateWorkerEngineModelsMerge(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	w, err := s.client.CreateWorker(c, api.CreateWorkerRequest{
+		Name: "sam", EngineModels: map[string]string{"claude": " opus ", "codex": "gpt-5", "pi": ""},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]string{"claude": "opus", "codex": "gpt-5"}; !reflect.DeepEqual(w.EngineModels, want) {
+		t.Fatalf("created models = %v, want %v", w.EngineModels, want)
+	}
+	models := map[string]string{"claude": "", "pi": "openai/gpt-5"}
+	got, err := s.client.UpdateWorker(c, w.ID, api.UpdateWorkerRequest{EngineModels: &models})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]string{"codex": "gpt-5", "pi": "openai/gpt-5"}; !reflect.DeepEqual(got.EngineModels, want) {
+		t.Fatalf("merged models = %v, want %v", got.EngineModels, want)
+	}
+	untouched, err := s.client.UpdateWorker(c, w.ID, api.UpdateWorkerRequest{Constraints: new(string)})
+	if err != nil || !reflect.DeepEqual(untouched.EngineModels, got.EngineModels) {
+		t.Fatalf("models after an update without them = %v (%v), want %v", untouched.EngineModels, err, got.EngineModels)
+	}
+	cleared := map[string]string{}
+	got, err = s.client.UpdateWorker(c, w.ID, api.UpdateWorkerRequest{EngineModels: &cleared})
+	if err != nil || got.EngineModels == nil || len(got.EngineModels) != 0 {
+		t.Fatalf("cleared models = %#v, %v", got.EngineModels, err)
+	}
+	if bare := mustWorker(t, s, "bare"); bare.EngineModels == nil || len(bare.EngineModels) != 0 {
+		t.Fatalf("models of a worker without them = %#v, want an empty object", bare.EngineModels)
+	}
+}
+
+func TestEngineModelsValidation(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	for _, name := range []string{"--model", "two words", "tab\tname", strings.Repeat("m", 201)} {
+		_, err := s.client.CreateWorker(c, api.CreateWorkerRequest{Name: "x", EngineModels: map[string]string{"claude": name}})
+		if e := apiError(t, err); e.Status != 400 || e.Code != "worker_validation" {
+			t.Fatalf("create with model %q: %v", name, err)
+		}
+	}
+	_, err := s.client.CreateWorker(c, api.CreateWorkerRequest{Name: "x", EngineModels: map[string]string{"gemini": "flash"}})
+	if e := apiError(t, err); e.Status != 400 || !strings.Contains(e.Message, `engine "gemini" is not enabled`) {
+		t.Fatalf("create with a disabled engine: %v", err)
+	}
+	w := mustWorker(t, s, "sam")
+	s.fake.Update(func(st *fakeapi.State) {
+		st.Workers[len(st.Workers)-1].EngineModels = map[string]string{"gone": "old"}
+	})
+	kept := map[string]string{"gone": "old", "claude": "opus"}
+	got, err := s.client.UpdateWorker(c, w.ID, api.UpdateWorkerRequest{EngineModels: &kept})
+	if err != nil || got.EngineModels["claude"] != "opus" || got.EngineModels["gone"] != "old" {
+		t.Fatalf("update keeping an uninstalled engine's model = %v, %v", got.EngineModels, err)
+	}
+	bad := map[string]string{"claude": "-x"}
+	_, err = s.client.UpdateWorker(c, w.ID, api.UpdateWorkerRequest{EngineModels: &bad})
+	if e := apiError(t, err); e.Status != 400 || e.Code != "worker_validation" {
+		t.Fatalf("update with a bad model: %v", err)
+	}
+}
+
+func TestEngineModelsList(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	w := mustWorker(t, s, "sam")
+	s.fake.Update(func(st *fakeapi.State) {
+		st.Models = map[string][]api.EngineModel{"claude": {{ID: "opus", Name: "Opus"}, {ID: "sonnet"}}}
+	})
+	got, err := s.client.EngineModels(c, "claude", w.ID)
+	if want := []api.EngineModel{{ID: "opus", Name: "Opus"}, {ID: "sonnet"}}; err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("claude models = %v, %v; want %v", got, err, want)
+	}
+	if got, err := s.client.EngineModels(c, "pi", ""); err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("pi models = %#v, %v; want an empty list", got, err)
+	}
+	if _, err := s.client.EngineModels(c, "gemini", ""); apiError(t, err).Status != 404 {
+		t.Fatalf("disabled engine: %v", err)
+	}
+	if _, err := s.client.EngineModels(c, "claude", "missing"); apiError(t, err).Code != "worker_not_found" {
+		t.Fatalf("unknown worker: %v", err)
+	}
+	calls := s.fake.Calls(http.MethodGet, "/api/engines/claude/models")
+	if len(calls) != 2 || calls[0].Query != "worker_id="+w.ID || calls[1].Query != "worker_id=missing" {
+		t.Fatalf("calls = %+v, want the worker id in the query", calls)
+	}
+}
+
 func TestRandomWorkerName(t *testing.T) {
 	s := signedIn(t)
 	c := ctx(t)
