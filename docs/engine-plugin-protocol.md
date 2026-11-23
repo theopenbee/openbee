@@ -17,6 +17,7 @@ An engine plugin uses the same `openbee.plugin.json` manifest as a channel plugi
   "description": { "en": "Runs tasks with Claude Code", "zh": "用 Claude Code 执行任务" },
   "command": ["node", "dist/index.js"],
   "version": "0.1.0",
+  "icon": "icon.svg",
   "config": [
     { "key": "path", "type": "string", "label": { "en": "Claude Code path" }, "help": { "en": "Leave empty to use claude on PATH" } }
   ]
@@ -31,10 +32,22 @@ An engine plugin uses the same `openbee.plugin.json` manifest as a channel plugi
 | `name`, `description` | As for channel plugins. `name` is shown wherever engines are listed. |
 | `command` | As for channel plugins, including the [runtime](channel-plugin-protocol.md#runtime) openbee picks for `node`. Run with the plugin directory as working directory. |
 | `version` | Optional. `package.json` `version` wins when present. |
+| `icon` | Optional. Path of an SVG file inside the plugin, shown next to the engine name; without it openbee shows a generic icon. See [Icon](#icon). |
 | `config[]` | As for channel plugins: `type` is `string`, `secret`, `bool`, `int` or `list`; `required`, `default`, `random_default`, `label` and `help` are optional. `enabled` and `bot_name` are reserved keys. |
 | `setup` | Not allowed; a manifest that declares it is rejected. Logging in to the CLI is up to the user. |
 
 One plugin provides exactly one engine.
+
+### Icon
+
+openbee paints the icon in the colour of the text around it, so draw it in one colour with `currentColor`; only its shape and opacity are kept. A manifest whose icon breaks these rules is rejected:
+
+| Rule | |
+|---|---|
+| Location | A relative path inside the plugin directory, ending in `.svg`; not a symlink. Include the file in the npm package. |
+| Size | At most 32 KB. |
+| Root | One `<svg xmlns="http://www.w3.org/2000/svg">` element. A square `viewBox` fits best. |
+| Not allowed | `<script>`, `<foreignObject>`, `on*` attributes, `href` values other than `#id`, DOCTYPE or ENTITY declarations, processing instructions other than `<?xml ...?>`. |
 
 ## Installation
 
@@ -103,7 +116,7 @@ A run fails with the usual failure notice when no engine can be used:
 | `no engine is installed or enabled` | The run needs the default engine and no engine is enabled. |
 | `<cli> not found on PATH` | By convention, the message a plugin reports when its CLI cannot be found, for example `claude not found on PATH`. It shows up as the `failed` error and as the run error. |
 
-`GET /api/config` lists the enabled engines on every request: `enabled_engines` as an array of ids, and `engines` as `[{"id": "...", "name": {"en": "..."}}]`. An empty list means no engine is enabled.
+`GET /api/config` lists the enabled engines on every request: `enabled_engines` as an array of ids, and `engines` as `[{"id": "...", "name": {"en": "..."}, "icon": "<svg ...>"}]`, where `icon` is the SVG markup and is left out when the plugin has none. An empty list means no engine is enabled.
 
 ## Process rules
 
