@@ -5,10 +5,12 @@
 ### Added
 - Engine plugins can ship their own icon.
 - Bee can list enabled engines and their models.
+- Default and Bee models in settings, web and desktop.
 
 ### Changed
 - Engine icons come from plugins, not built into OpenBee.
 - Chat header shows the worker's model after the engine.
+- Upgrade moves `--model` from engine args into model fields.
 
 ## [1.0.10] - 2026-11-22
 
