@@ -176,6 +176,16 @@ describe("headerSubtitle", () => {
     expect(headerSubtitle(follower, withPi, "claude")).toBe("Builds openbee")
     expect(headerSubtitle(follower, withPi)).toBe("Builds openbee")
   })
+
+  it("shows the default model when the worker has none of its own", () => {
+    const defaults = { claude: "sonnet" }
+    expect(headerSubtitle(lin("claude", "Builds openbee"), engines, undefined, defaults)).toBe(
+      "Claude Code · sonnet · Builds openbee",
+    )
+    expect(headerSubtitle(lin("", "Builds openbee"), engines, "claude", defaults)).toBe(
+      "Claude Code · sonnet · Builds openbee",
+    )
+  })
 })
 
 describe("activeTasksOf", () => {

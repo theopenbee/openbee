@@ -41,6 +41,8 @@
       "model": "Model",
       "modelPlaceholder": "Engine default",
       "modelHelper": "Leave blank to use {{engine}}'s default model.",
+      "modelDefault": "Default: {{model}}",
+      "modelHelperDefault": "Leave blank to use the default model.",
       "modelLoading": "Loading models…",
       "modelListError": "Couldn't load the model list. You can still type a model.",
       "modelNoMatches": "No matching models. The typed name is used as is.",
@@ -343,6 +345,18 @@
       "rowTitle": "Bee and new workers",
       "description": "The Bee runs on it, and new workers start with it selected.",
       "label": "Engine"
+    },
+    "modelsSection": {
+      "title": "Models",
+      "description": "The model each engine runs. Leave a field empty to use the engine's own default."
+    },
+    "globalModelsSection": {
+      "title": "All workers",
+      "description": "Used by workers without a model of their own."
+    },
+    "beeModelsSection": {
+      "title": "Bee coordinator",
+      "description": "Used by the Bee. Empty uses the model for all workers."
     },
     "globalArgsSection": {
       "title": "All workers",

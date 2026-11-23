@@ -169,6 +169,23 @@ describe("profileEngine", () => {
     expect(profileEngine(worker({ engine: "" }), "claude", ["pi", "claude"])).toBeNull()
     expect(profileEngine(followed, "codex", ["pi", "claude"])).toBeNull()
   })
+
+  it("falls back to the default model when the worker has none for the engine", () => {
+    const defaults = { pi: "deepseek/deepseek-flash", claude: "sonnet" }
+    expect(profileEngine(worker({ engine: "pi" }), "claude", ["pi", "claude"], defaults)).toEqual({
+      engine: "pi",
+      model: "deepseek/deepseek-flash",
+    })
+    expect(profileEngine(worker({ engine: "pi", engine_models: { pi: "a/b" } }), "claude", ["pi"], defaults)).toEqual({
+      engine: "pi",
+      model: "a/b",
+    })
+    expect(profileEngine(worker({ engine: "" }), "claude", ["pi", "claude"], defaults)).toEqual({
+      engine: "claude",
+      model: "sonnet",
+    })
+    expect(profileEngine(worker({ engine: "" }), "codex", ["pi", "claude"], defaults)).toBeNull()
+  })
 })
 
 describe("followedEngine", () => {

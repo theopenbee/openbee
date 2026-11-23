@@ -15,10 +15,17 @@ import { WorkerNameField } from "@/components/worker-name-field"
 import { useAppConfig, useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
-import { buildCreateEngineModels } from "@/lib/engine-models"
+import { buildCreateEngineModels, engineModel, parseEngineModels } from "@/lib/engine-models"
 import { findEngine } from "@/lib/engines"
 import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
-import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
+import {
+  SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
+  SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL,
+  availableEngine,
+  newWorkerEngine,
+  type Engine,
+  type Worker,
+} from "@/lib/types"
 import { cn, getErrorMessage } from "@/lib/utils"
 import { countAdvancedSettings } from "@/lib/worker-create"
 
@@ -119,6 +126,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
   const { isPending: configPending } = useAppConfig()
   const { data: sysConfigs, isPending: sysConfigsPending } = useSystemConfigs()
   const systemDefaultEngine = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE]
+  const defaultModels = parseEngineModels(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL])
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -205,6 +213,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
             engine={findEngine(enabledEngines, selectedEngine)}
             value={engineModels[selectedEngine] ?? ""}
             onChange={(model) => setEngineModels((prev) => ({ ...prev, [selectedEngine]: model }))}
+            defaultModel={engineModel(defaultModels, selectedEngine)}
             disabled={isPending}
           />
         )}

@@ -38,10 +38,12 @@ import {
   type SenderDisplay,
 } from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
+import { parseEngineModels } from "@/lib/engine-models"
 import { isRoutedConversation } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
+  SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL,
   type ChatMessage,
   type ConversationActivity,
   type ConversationId,
@@ -95,7 +97,13 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const busy = activity.state !== "idle"
   const engines = useEnabledEngines()
   const { data: sysConfigs } = useSystemConfigs()
-  const subtitle = isBee ? status : headerSubtitle(worker, engines, sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE])
+  const defaultModels = useMemo(
+    () => parseEngineModels(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL]),
+    [sysConfigs],
+  )
+  const subtitle = isBee
+    ? status
+    : headerSubtitle(worker, engines, sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE], defaultModels)
 
   const { data, isPending, isError, refetch } = useConversationMessages(conversation)
   const { mutateAsync: sendMessage } = useSendToConversation(conversation)

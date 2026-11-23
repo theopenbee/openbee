@@ -210,10 +210,23 @@ interface ModelFieldProps {
   workerId?: string
   value: string
   onChange: (value: string) => void
+  label?: string
+  description?: string
+  defaultModel?: string
   disabled?: boolean
 }
 
-export function ModelField({ id, engine, workerId, value, onChange, disabled }: ModelFieldProps) {
+export function ModelField({
+  id,
+  engine,
+  workerId,
+  value,
+  onChange,
+  label,
+  description,
+  defaultModel,
+  disabled,
+}: ModelFieldProps) {
   const { t } = useTranslation()
   const [activated, setActivated] = useState(false)
   const { models, status } = useEngineModels(engine.id, workerId, activated)
@@ -229,9 +242,14 @@ export function ModelField({ id, engine, workerId, value, onChange, disabled }: 
   return (
     <ModelCombobox
       id={id}
-      label={t("workers.form.model")}
-      description={t("workers.form.modelHelper", { engine: engine.name })}
-      placeholder={t("workers.form.modelPlaceholder")}
+      label={label ?? t("workers.form.model")}
+      description={
+        description ??
+        (defaultModel ? t("workers.form.modelHelperDefault") : t("workers.form.modelHelper", { engine: engine.name }))
+      }
+      placeholder={
+        defaultModel ? t("workers.form.modelDefault", { model: defaultModel }) : t("workers.form.modelPlaceholder")
+      }
       value={value}
       onChange={onChange}
       models={models}

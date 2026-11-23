@@ -3,11 +3,13 @@ import {
   CLOSED_SUGGESTIONS,
   buildCreateEngineModels,
   changedEngineModels,
+  cleanEngineModels,
   engineModel,
   filterModels,
   highlightedModel,
   modelListNotice,
   normalizeModelList,
+  parseEngineModels,
   suggestionReducer,
   visibleModels,
   type SuggestionAction,
@@ -183,5 +185,26 @@ describe("suggestionReducer", () => {
 
   it("ignores hover while closed", () => {
     expect(run([{ type: "hover", index: 1 }])).toBe(CLOSED_SUGGESTIONS)
+  })
+})
+
+describe("parseEngineModels", () => {
+  it("reads trimmed, non-empty models per engine", () => {
+    expect(parseEngineModels('{"pi":" deepseek/deepseek-flash ","claude":"","codex":3}')).toEqual({
+      pi: "deepseek/deepseek-flash",
+    })
+  })
+
+  it("is empty for missing or unreadable values", () => {
+    expect(parseEngineModels(undefined)).toEqual({})
+    expect(parseEngineModels("")).toEqual({})
+    expect(parseEngineModels("{")).toEqual({})
+    expect(parseEngineModels('["pi"]')).toEqual({})
+  })
+})
+
+describe("cleanEngineModels", () => {
+  it("trims models and drops empty ones", () => {
+    expect(cleanEngineModels({ pi: " a/b ", claude: " ", codex: "o3" })).toEqual({ pi: "a/b", codex: "o3" })
   })
 })

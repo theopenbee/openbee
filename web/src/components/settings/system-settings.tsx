@@ -7,15 +7,19 @@ import { Button } from "@/components/arc/button/button"
 import { FadeIn } from "@/components/fade-in"
 import { EngineSelect } from "@/components/engine-select-items"
 import { EngineArgsSection } from "@/components/engine-args-section"
+import { EngineModelsSection } from "@/components/engine-models-section"
 import { SettingsGroup, SettingsRow, SettingsSkeleton } from "@/components/settings/settings-layout"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { api } from "@/lib/api"
 import { getErrorMessage } from "@/lib/utils"
 import { engineArgsEqual, parseEngineArgs, stripEmptyEngineArgs } from "@/lib/engine-args"
+import { cleanEngineModels, parseEngineModels } from "@/lib/engine-models"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_GLOBAL,
   SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE,
+  SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL,
+  SYSTEM_CONFIG_KEY_ENGINE_MODELS_BEE,
 } from "@/lib/types"
 
 const SAVED_RESET_MS = 2400
@@ -34,23 +38,35 @@ export function SystemSettings() {
   const beeArgsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE]
   const savedGlobalArgs = useMemo(() => parseEngineArgs(globalArgsRaw), [globalArgsRaw])
   const savedBeeArgs = useMemo(() => parseEngineArgs(beeArgsRaw), [beeArgsRaw])
+  const globalModelsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL]
+  const beeModelsRaw = sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_BEE]
+  const savedGlobalModels = useMemo(() => parseEngineModels(globalModelsRaw), [globalModelsRaw])
+  const savedBeeModels = useMemo(() => parseEngineModels(beeModelsRaw), [beeModelsRaw])
 
   const [pendingEngine, setPendingEngine] = useState<string | null>(null)
   const [pendingGlobalArgs, setPendingGlobalArgs] = useState<Record<string, string> | null>(null)
   const [pendingBeeArgs, setPendingBeeArgs] = useState<Record<string, string> | null>(null)
+  const [pendingGlobalModels, setPendingGlobalModels] = useState<Record<string, string> | null>(null)
+  const [pendingBeeModels, setPendingBeeModels] = useState<Record<string, string> | null>(null)
   const [status, setStatus] = useState<SaveStatus>("idle")
   const [saveError, setSaveError] = useState("")
 
   const engine = pendingEngine ?? savedEngine
   const globalArgs = pendingGlobalArgs ?? savedGlobalArgs
   const beeArgs = pendingBeeArgs ?? savedBeeArgs
+  const globalModels = pendingGlobalModels ?? savedGlobalModels
+  const beeModels = pendingBeeModels ?? savedBeeModels
 
   const engineDirty = pendingEngine !== null && pendingEngine !== savedEngine
   const globalDirty =
     pendingGlobalArgs !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingGlobalArgs), savedGlobalArgs)
   const beeDirty =
     pendingBeeArgs !== null && !engineArgsEqual(stripEmptyEngineArgs(pendingBeeArgs), savedBeeArgs)
-  const dirty = engineDirty || globalDirty || beeDirty
+  const globalModelsDirty =
+    pendingGlobalModels !== null && !engineArgsEqual(cleanEngineModels(pendingGlobalModels), savedGlobalModels)
+  const beeModelsDirty =
+    pendingBeeModels !== null && !engineArgsEqual(cleanEngineModels(pendingBeeModels), savedBeeModels)
+  const dirty = engineDirty || globalDirty || beeDirty || globalModelsDirty || beeModelsDirty
   const saving = status === "saving"
 
   useEffect(() => {
@@ -81,6 +97,14 @@ export function SystemSettings() {
         api.systemConfigs.set(SYSTEM_CONFIG_KEY_ENGINE_ARGS_BEE, JSON.stringify(stripEmptyEngineArgs(beeArgs))),
       )
     }
+    if (globalModelsDirty) {
+      writes.push(
+        api.systemConfigs.set(SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL, JSON.stringify(cleanEngineModels(globalModels))),
+      )
+    }
+    if (beeModelsDirty) {
+      writes.push(api.systemConfigs.set(SYSTEM_CONFIG_KEY_ENGINE_MODELS_BEE, JSON.stringify(cleanEngineModels(beeModels))))
+    }
     const results = await Promise.allSettled(writes)
     await queryClient.invalidateQueries({ queryKey: ["system-configs"] })
     const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected")
@@ -92,6 +116,8 @@ export function SystemSettings() {
     setPendingEngine(null)
     setPendingGlobalArgs(null)
     setPendingBeeArgs(null)
+    setPendingGlobalModels(null)
+    setPendingBeeModels(null)
     setStatus("saved")
   }
 
@@ -124,6 +150,42 @@ export function SystemSettings() {
                   engines={enabledEngines}
                   value={engine}
                   onValueChange={edit(setPendingEngine)}
+                  disabled={saving}
+                />
+              </SettingsRow>
+            </SettingsGroup>
+          </section>
+
+          <section className="grid gap-4" aria-labelledby="settings-models">
+            <div className="grid gap-1">
+              <h2 id="settings-models" className="text-base font-medium text-foreground">
+                {t("systemSettings.modelsSection.title")}
+              </h2>
+              <p className="text-sm text-secondary">{t("systemSettings.modelsSection.description")}</p>
+            </div>
+            <SettingsGroup>
+              <SettingsRow
+                title={t("systemSettings.globalModelsSection.title")}
+                description={t("systemSettings.globalModelsSection.description")}
+              >
+                <EngineModelsSection
+                  engines={enabledEngines}
+                  value={globalModels}
+                  onChange={edit(setPendingGlobalModels)}
+                  idPrefix="global-models"
+                  disabled={saving}
+                />
+              </SettingsRow>
+              <SettingsRow
+                title={t("systemSettings.beeModelsSection.title")}
+                description={t("systemSettings.beeModelsSection.description")}
+              >
+                <EngineModelsSection
+                  engines={enabledEngines}
+                  value={beeModels}
+                  onChange={edit(setPendingBeeModels)}
+                  defaults={cleanEngineModels(globalModels)}
+                  idPrefix="bee-models"
                   disabled={saving}
                 />
               </SettingsRow>

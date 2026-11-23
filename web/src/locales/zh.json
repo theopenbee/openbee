@@ -41,6 +41,8 @@
       "model": "模型",
       "modelPlaceholder": "引擎默认",
       "modelHelper": "留空则使用 {{engine}} 的默认模型。",
+      "modelDefault": "默认：{{model}}",
+      "modelHelperDefault": "留空则使用默认模型。",
       "modelLoading": "正在读取模型…",
       "modelListError": "读取模型列表失败，仍可直接输入模型。",
       "modelNoMatches": "没有匹配的模型，将直接使用输入的名称。",
@@ -340,6 +342,18 @@
       "rowTitle": "Bee 与新员工",
       "description": "Bee 用它运行，新建员工时默认选中它。",
       "label": "引擎"
+    },
+    "modelsSection": {
+      "title": "模型",
+      "description": "各引擎使用的模型，留空则用引擎自己的默认模型。"
+    },
+    "globalModelsSection": {
+      "title": "全部员工",
+      "description": "没有单独设置模型的员工使用它。"
+    },
+    "beeModelsSection": {
+      "title": "Bee 协调器",
+      "description": "Bee 使用它，留空则沿用全部员工的模型。"
     },
     "globalArgsSection": {
       "title": "全部员工",

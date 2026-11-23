@@ -46,9 +46,15 @@ export interface ProfileEngine {
   model: string
 }
 
-export function profileEngine(worker: Worker, systemDefault: string | undefined, enabled: readonly Engine[]): ProfileEngine | null {
-  if (worker.engine) return { engine: worker.engine, model: engineModel(worker.engine_models, worker.engine) }
+export function profileEngine(
+  worker: Worker,
+  systemDefault: string | undefined,
+  enabled: readonly Engine[],
+  defaultModels: Record<string, string> = {},
+): ProfileEngine | null {
+  const modelFor = (engine: Engine) => engineModel(worker.engine_models, engine) || engineModel(defaultModels, engine)
+  if (worker.engine) return { engine: worker.engine, model: modelFor(worker.engine) }
   const followed = followedEngine("", systemDefault, enabled)
-  const model = engineModel(worker.engine_models, followed)
+  const model = modelFor(followed)
   return model ? { engine: followed, model } : null
 }

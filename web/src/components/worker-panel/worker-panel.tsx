@@ -19,9 +19,10 @@ import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
 import { findEngine } from "@/lib/engines"
 import { formatEngineModelLabel } from "@/lib/format"
 import { DEFAULT_PANEL_SECTION, isPanelSection, type PanelSection, type PanelState } from "@/lib/routes"
-import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, type Worker } from "@/lib/types"
+import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 import { profileEngine } from "@/lib/worker-edit"
+import { parseEngineModels } from "@/lib/engine-models"
 
 const SECTIONS: { key: PanelSection; labelKey: string }[] = [
   { key: "constraints", labelKey: "chat.panelTabs.constraints" },
@@ -122,6 +123,7 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
     worker,
     sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE],
     enabledEngines.map((engine) => engine.id),
+    parseEngineModels(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL]),
   )
   const engineLabel = shown ? formatEngineModelLabel(shown.engine, shown.model, enabledEngines) : ""
 

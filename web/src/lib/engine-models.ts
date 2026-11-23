@@ -41,6 +41,29 @@ export function engineModel(models: Record<string, string> | undefined, engine: 
   return engine ? (models?.[engine] ?? "").trim() : ""
 }
 
+export function parseEngineModels(raw: string | undefined): Record<string, string> {
+  if (!raw) return {}
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {}
+    const models: Record<string, string> = {}
+    for (const [engine, value] of Object.entries(parsed)) {
+      if (typeof value === "string" && value.trim() !== "") models[engine] = value.trim()
+    }
+    return models
+  } catch {
+    return {}
+  }
+}
+
+export function cleanEngineModels(models: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [engine, value] of Object.entries(models)) {
+    if (value.trim() !== "") result[engine] = value.trim()
+  }
+  return result
+}
+
 export function filterModels(models: readonly EngineModel[], query: string): EngineModel[] {
   const needle = query.trim().toLocaleLowerCase()
   if (!needle) return [...models]

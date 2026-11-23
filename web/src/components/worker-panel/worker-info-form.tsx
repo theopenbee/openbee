@@ -10,8 +10,9 @@ import { ModelField } from "@/components/model-field"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useUpdateWorker } from "@/hooks/use-workers"
+import { engineModel, parseEngineModels } from "@/lib/engine-models"
 import { findEngine } from "@/lib/engines"
-import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, type Engine, type Worker } from "@/lib/types"
+import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL, type Engine, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
 import { buildWorkerUpdate, followedEngine } from "@/lib/worker-edit"
 
@@ -28,6 +29,7 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const engineIds = useMemo(() => enabledEngines.map((e) => e.id), [enabledEngines])
   const { data: sysConfigs } = useSystemConfigs()
   const systemDefault = sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE]
+  const defaultModels = parseEngineModels(sysConfigs?.[SYSTEM_CONFIG_KEY_ENGINE_MODELS_GLOBAL])
 
   const [name, setName] = useState(worker.name ?? "")
   const [description, setDescription] = useState(worker.description ?? "")
@@ -125,6 +127,7 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
             workerId={worker.id}
             value={engineModels[argsEngine] ?? ""}
             onChange={(model) => setEngineModels((prev) => ({ ...prev, [argsEngine]: model }))}
+            defaultModel={engineModel(defaultModels, argsEngine)}
             disabled={isPending}
           />
         )}

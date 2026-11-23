@@ -69,10 +69,15 @@ export function statusText(activity: ConversationActivity, worker: Worker | unde
   return worker?.status === "error" ? t("statuses.error") : t("statuses.idle")
 }
 
-export function headerSubtitle(worker: Worker | undefined, engines: readonly EngineChoice[], systemDefault?: string): string {
+export function headerSubtitle(
+  worker: Worker | undefined,
+  engines: readonly EngineChoice[],
+  systemDefault?: string,
+  defaultModels?: Record<string, string>,
+): string {
   if (!worker) return ""
   const description = worker.description.split(/\s+/).filter(Boolean).join(" ")
-  const shown = profileEngine(worker, systemDefault, engines.map((engine) => engine.id))
+  const shown = profileEngine(worker, systemDefault, engines.map((engine) => engine.id), defaultModels)
   const parts = shown ? [findEngine(engines, shown.engine).name, shown.model, description] : [description]
   return parts.filter(Boolean).join(SUBTITLE_JOIN)
 }
