@@ -20,6 +20,7 @@ type ComboOpts struct {
 	Loading   string
 	Failed    string
 	NoMatches string
+	Load      func()
 }
 
 const (
@@ -55,6 +56,9 @@ func comboInput(c *ui.Context, tk theme.Tokens, value *string, label, placeholde
 		*caretToEnd = false
 		end := utf8.RuneCountInString(*value)
 		in.SetTextSelection(end, end)
+	}
+	if cb.Open() && o.Load != nil {
+		o.Load()
 	}
 	typed := cb.Open() && in.Changed()
 	*typing = cb.Open() && (*typing || typed)

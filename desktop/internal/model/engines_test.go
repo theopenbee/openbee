@@ -236,7 +236,31 @@ func TestProfileEngine(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			engine, name := ProfileEngine(tc.worker, tc.systemDefault, enabled)
+			engine, name := ProfileEngine(tc.worker, tc.systemDefault, enabled, nil)
+			if engine != tc.wantEngine || name != tc.wantName {
+				t.Fatalf("got (%q, %q), want (%q, %q)", engine, name, tc.wantEngine, tc.wantName)
+			}
+		})
+	}
+}
+
+func TestProfileEngineFallsBackToDefaultModels(t *testing.T) {
+	enabled := []string{"claude", "pi"}
+	defaults := map[string]string{"claude": "sonnet", "pi": " deepseek/deepseek-flash "}
+	tests := []struct {
+		name                 string
+		worker               api.Worker
+		systemDefault        string
+		wantEngine, wantName string
+	}{
+		{"the worker engine uses the default model", api.Worker{Engine: "claude"}, "pi", "claude", "sonnet"},
+		{"the worker model wins", api.Worker{Engine: "claude", EngineModels: map[string]string{"claude": "opus"}}, "pi", "claude", "opus"},
+		{"the system default shows with the default model", api.Worker{}, "pi", "pi", "deepseek/deepseek-flash"},
+		{"an engine without a default model stays hidden", api.Worker{}, "codex", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine, name := ProfileEngine(tc.worker, tc.systemDefault, enabled, defaults)
 			if engine != tc.wantEngine || name != tc.wantName {
 				t.Fatalf("got (%q, %q), want (%q, %q)", engine, name, tc.wantEngine, tc.wantName)
 			}

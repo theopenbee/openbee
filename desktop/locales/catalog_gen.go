@@ -5746,6 +5746,30 @@ func (msgs Messages) SystemSettingsBeeArgsSectionTitle() string {
 	return Catalog.Format(msgs.locale, "systemSettingsBeeArgsSectionTitle", nil)
 }
 
+// SystemSettingsBeeModelsSectionDescription says "Used by the Bee. Empty uses the model for all workers."
+// in the language the app shows.
+func SystemSettingsBeeModelsSectionDescription() string {
+	return In(i18n.Locale()).SystemSettingsBeeModelsSectionDescription()
+}
+
+// SystemSettingsBeeModelsSectionDescription says "Used by the Bee. Empty uses the model for all workers."
+// in the language of msgs.
+func (msgs Messages) SystemSettingsBeeModelsSectionDescription() string {
+	return Catalog.Format(msgs.locale, "systemSettingsBeeModelsSectionDescription", nil)
+}
+
+// SystemSettingsBeeModelsSectionTitle says "Bee coordinator"
+// in the language the app shows.
+func SystemSettingsBeeModelsSectionTitle() string {
+	return In(i18n.Locale()).SystemSettingsBeeModelsSectionTitle()
+}
+
+// SystemSettingsBeeModelsSectionTitle says "Bee coordinator"
+// in the language of msgs.
+func (msgs Messages) SystemSettingsBeeModelsSectionTitle() string {
+	return Catalog.Format(msgs.locale, "systemSettingsBeeModelsSectionTitle", nil)
+}
+
 // SystemSettingsEngineSectionDescription says "The Bee runs on it, and new workers start with it selected."
 // in the language the app shows.
 func SystemSettingsEngineSectionDescription() string {
@@ -5818,6 +5842,30 @@ func (msgs Messages) SystemSettingsGlobalArgsSectionTitle() string {
 	return Catalog.Format(msgs.locale, "systemSettingsGlobalArgsSectionTitle", nil)
 }
 
+// SystemSettingsGlobalModelsSectionDescription says "Used by workers without a model of their own."
+// in the language the app shows.
+func SystemSettingsGlobalModelsSectionDescription() string {
+	return In(i18n.Locale()).SystemSettingsGlobalModelsSectionDescription()
+}
+
+// SystemSettingsGlobalModelsSectionDescription says "Used by workers without a model of their own."
+// in the language of msgs.
+func (msgs Messages) SystemSettingsGlobalModelsSectionDescription() string {
+	return Catalog.Format(msgs.locale, "systemSettingsGlobalModelsSectionDescription", nil)
+}
+
+// SystemSettingsGlobalModelsSectionTitle says "All workers"
+// in the language the app shows.
+func SystemSettingsGlobalModelsSectionTitle() string {
+	return In(i18n.Locale()).SystemSettingsGlobalModelsSectionTitle()
+}
+
+// SystemSettingsGlobalModelsSectionTitle says "All workers"
+// in the language of msgs.
+func (msgs Messages) SystemSettingsGlobalModelsSectionTitle() string {
+	return Catalog.Format(msgs.locale, "systemSettingsGlobalModelsSectionTitle", nil)
+}
+
 // SystemSettingsLoadError says "Couldn't load settings"
 // in the language the app shows.
 func SystemSettingsLoadError() string { return In(i18n.Locale()).SystemSettingsLoadError() }
@@ -5826,6 +5874,30 @@ func SystemSettingsLoadError() string { return In(i18n.Locale()).SystemSettingsL
 // in the language of msgs.
 func (msgs Messages) SystemSettingsLoadError() string {
 	return Catalog.Format(msgs.locale, "systemSettingsLoadError", nil)
+}
+
+// SystemSettingsModelsSectionDescription says "The model each engine runs. Leave a field empty to use the engine's own default."
+// in the language the app shows.
+func SystemSettingsModelsSectionDescription() string {
+	return In(i18n.Locale()).SystemSettingsModelsSectionDescription()
+}
+
+// SystemSettingsModelsSectionDescription says "The model each engine runs. Leave a field empty to use the engine's own default."
+// in the language of msgs.
+func (msgs Messages) SystemSettingsModelsSectionDescription() string {
+	return Catalog.Format(msgs.locale, "systemSettingsModelsSectionDescription", nil)
+}
+
+// SystemSettingsModelsSectionTitle says "Models"
+// in the language the app shows.
+func SystemSettingsModelsSectionTitle() string {
+	return In(i18n.Locale()).SystemSettingsModelsSectionTitle()
+}
+
+// SystemSettingsModelsSectionTitle says "Models"
+// in the language of msgs.
+func (msgs Messages) SystemSettingsModelsSectionTitle() string {
+	return Catalog.Format(msgs.locale, "systemSettingsModelsSectionTitle", nil)
 }
 
 // SystemSettingsSave says "Save changes"
@@ -6638,6 +6710,18 @@ func (msgs Messages) WorkersFormModel() string {
 	return Catalog.Format(msgs.locale, "workersFormModel", nil)
 }
 
+// WorkersFormModelDefault says "Default: {model}"
+// in the language the app shows.
+func WorkersFormModelDefault(model string) string {
+	return In(i18n.Locale()).WorkersFormModelDefault(model)
+}
+
+// WorkersFormModelDefault says "Default: {model}"
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelDefault(model string) string {
+	return Catalog.Format(msgs.locale, "workersFormModelDefault", map[string]any{"model": model})
+}
+
 // WorkersFormModelHelper says "Leave blank to use {engine}'s default model."
 // in the language the app shows.
 func WorkersFormModelHelper(engine string) string {
@@ -6648,6 +6732,16 @@ func WorkersFormModelHelper(engine string) string {
 // in the language of msgs.
 func (msgs Messages) WorkersFormModelHelper(engine string) string {
 	return Catalog.Format(msgs.locale, "workersFormModelHelper", map[string]any{"engine": engine})
+}
+
+// WorkersFormModelHelperDefault says "Leave blank to use the default model."
+// in the language the app shows.
+func WorkersFormModelHelperDefault() string { return In(i18n.Locale()).WorkersFormModelHelperDefault() }
+
+// WorkersFormModelHelperDefault says "Leave blank to use the default model."
+// in the language of msgs.
+func (msgs Messages) WorkersFormModelHelperDefault() string {
+	return Catalog.Format(msgs.locale, "workersFormModelHelperDefault", nil)
 }
 
 // WorkersFormModelListError says "Couldn't load the model list. You can still type a model."

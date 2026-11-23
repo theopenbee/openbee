@@ -20,6 +20,8 @@ const (
 	keyDefaultEngine = "default_engine"
 	keyArgsGlobal    = "engine_args_global"
 	keyArgsBee       = "engine_args_bee"
+	keyModelsGlobal  = "engine_models_global"
+	keyModelsBee     = "engine_models_bee"
 )
 
 const (
@@ -61,21 +63,33 @@ const (
 )
 
 type systemState struct {
-	engine    string
-	engineSet bool
-	global    map[string]string
-	bee       map[string]string
-	status    saveStatus
-	savedAt   time.Time
-	err       error
+	engine       string
+	engineSet    bool
+	global       map[string]string
+	bee          map[string]string
+	globalModels map[string]string
+	beeModels    map[string]string
+	status       saveStatus
+	savedAt      time.Time
+	err          error
 }
 
 type systemKey struct{}
 
 type values struct {
-	engine string
-	global map[string]string
-	bee    map[string]string
+	engine       string
+	global       map[string]string
+	bee          map[string]string
+	globalModels map[string]string
+	beeModels    map[string]string
+}
+
+type dirtyFlags struct {
+	engine, global, bee, globalModels, beeModels bool
+}
+
+func (f dirtyFlags) any() bool {
+	return f.engine || f.global || f.bee || f.globalModels || f.beeModels
 }
 
 func (st *systemState) edited() {
@@ -84,10 +98,14 @@ func (st *systemState) edited() {
 	}
 }
 
-func (st *systemState) dirty(saved values) (engine, global, bee bool) {
-	return st.engineSet && st.engine != saved.engine,
-		st.global != nil && !maps.Equal(model.CleanEngineArgs(st.global), saved.global),
-		st.bee != nil && !maps.Equal(model.CleanEngineArgs(st.bee), saved.bee)
+func (st *systemState) dirty(saved values) dirtyFlags {
+	return dirtyFlags{
+		engine:       st.engineSet && st.engine != saved.engine,
+		global:       st.global != nil && !maps.Equal(model.CleanEngineArgs(st.global), saved.global),
+		bee:          st.bee != nil && !maps.Equal(model.CleanEngineArgs(st.bee), saved.bee),
+		globalModels: st.globalModels != nil && !maps.Equal(model.CleanEngineModels(st.globalModels), saved.globalModels),
+		beeModels:    st.beeModels != nil && !maps.Equal(model.CleanEngineModels(st.beeModels), saved.beeModels),
+	}
 }
 
 func (d *Page) system(c *ui.Context, tk theme.Tokens) {
@@ -104,9 +122,11 @@ func (d *Page) system(c *ui.Context, tk theme.Tokens) {
 			d.systemSkeleton(c, tk)
 		default:
 			d.systemForm(c, tk, st, values{
-				engine: r.Data[keyDefaultEngine],
-				global: model.CleanEngineArgs(model.ParseEngineArgsConfig(r.Data[keyArgsGlobal])),
-				bee:    model.CleanEngineArgs(model.ParseEngineArgsConfig(r.Data[keyArgsBee])),
+				engine:       r.Data[keyDefaultEngine],
+				global:       model.CleanEngineArgs(model.ParseEngineArgsConfig(r.Data[keyArgsGlobal])),
+				bee:          model.CleanEngineArgs(model.ParseEngineArgsConfig(r.Data[keyArgsBee])),
+				globalModels: model.ParseEngineModelsConfig(r.Data[keyModelsGlobal]),
+				beeModels:    model.ParseEngineModelsConfig(r.Data[keyModelsBee]),
 			})
 		}
 	})
@@ -126,27 +146,41 @@ func (d *Page) systemForm(c *ui.Context, tk theme.Tokens, st *systemState, saved
 	if st.bee != nil {
 		bee = st.bee
 	}
-	engineDirty, globalDirty, beeDirty := st.dirty(saved)
-	dirty := engineDirty || globalDirty || beeDirty
+	globalModels, beeModels := saved.globalModels, saved.beeModels
+	if st.globalModels != nil {
+		globalModels = st.globalModels
+	}
+	if st.beeModels != nil {
+		beeModels = st.beeModels
+	}
+	flags := st.dirty(saved)
+	dirty := flags.any()
 	submit := func() {
 		if !dirty || saving {
 			return
 		}
 		changes := map[string]string{}
-		if engineDirty {
+		if flags.engine {
 			changes[keyDefaultEngine] = engine
 		}
-		if globalDirty {
+		if flags.global {
 			changes[keyArgsGlobal] = argsJSON(global)
 		}
-		if beeDirty {
+		if flags.bee {
 			changes[keyArgsBee] = argsJSON(bee)
+		}
+		if flags.globalModels {
+			changes[keyModelsGlobal] = modelsJSON(globalModels)
+		}
+		if flags.beeModels {
+			changes[keyModelsBee] = modelsJSON(beeModels)
 		}
 		st.status, st.err = statusSaving, nil
 		d.s.SaveSystemConfigs(changes, func(err error) { st.finish(err) })
 	}
 	ui.Column(c).MinWidth(0).Gap(formGap).Children(func() {
 		d.engineGroup(c, tk, st, &engine, saved.engine, engines, saving)
+		d.modelsGroup(c, tk, st, engines, globalModels, beeModels, saving, submit)
 		d.argsGroup(c, tk, st, engines, global, bee, saving, submit)
 		if st.status == statusError {
 			kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: locales.SystemSettingsSaveError(), Body: l10n.ErrorText(st.err)})
@@ -163,12 +197,18 @@ func (st *systemState) finish(err error) {
 		st.status, st.err = statusError, err
 	default:
 		st.engineSet, st.global, st.bee = false, nil, nil
+		st.globalModels, st.beeModels = nil, nil
 		st.status, st.savedAt = statusSaved, time.Time{}
 	}
 }
 
 func argsJSON(args map[string]string) string {
 	out, _ := json.Marshal(model.CleanEngineArgs(args))
+	return string(out)
+}
+
+func modelsJSON(models map[string]string) string {
+	out, _ := json.Marshal(model.CleanEngineModels(models))
 	return string(out)
 }
 
@@ -268,6 +308,84 @@ func (d *Page) engineArgs(c *ui.Context, tk theme.Tokens, group string, engines 
 	})
 }
 
+func (d *Page) modelsGroup(c *ui.Context, tk theme.Tokens, st *systemState, engines []api.EngineInfo, global, bee map[string]string, saving bool, submit func()) {
+	ui.Column(c).MinWidth(0).Gap(groupGap).Children(func() {
+		ui.Column(c).MinWidth(0).Gap(headingGap).Children(func() {
+			heading(c, locales.SystemSettingsModelsSectionTitle())
+			ui.Text(c, locales.SystemSettingsModelsSectionDescription()).TextColor(tk.TextSecondary)
+		})
+		section := locales.SystemSettingsModelsSectionTitle() + argsLabelJoin
+		card(c, tk, func() {
+			d.row(c, tk, true, locales.SystemSettingsGlobalModelsSectionTitle(), locales.SystemSettingsGlobalModelsSectionDescription(), func() {
+				d.engineModels(c, tk, section+locales.SystemSettingsGlobalModelsSectionTitle(), engines, global, nil, saving, submit, func(models map[string]string) {
+					st.globalModels = models
+					st.edited()
+				})
+			})
+			d.row(c, tk, false, locales.SystemSettingsBeeModelsSectionTitle(), locales.SystemSettingsBeeModelsSectionDescription(), func() {
+				d.engineModels(c, tk, section+locales.SystemSettingsBeeModelsSectionTitle(), engines, bee, model.CleanEngineModels(global), saving, submit, func(models map[string]string) {
+					st.beeModels = models
+					st.edited()
+				})
+			})
+		})
+	})
+}
+
+func (d *Page) engineModels(c *ui.Context, tk theme.Tokens, group string, engines []api.EngineInfo, models, defaults map[string]string, saving bool, submit func(), changed func(map[string]string)) {
+	ui.Column(c).MinWidth(0).Gap(argsGap).Children(func() {
+		if len(engines) == 0 {
+			ui.Text(c, locales.WorkersFormNoEngine()).TextColor(tk.TextSecondary)
+		}
+		for _, info := range engines {
+			engine := info.ID
+			name := l10n.EngineName(info)
+			label, help, placeholder := name, "", locales.WorkersFormModelPlaceholder()
+			if len(engines) == 1 {
+				label, help = locales.WorkersFormModel(), locales.WorkersFormModelHelper(name)
+			}
+			if fallback := defaults[engine]; fallback != "" {
+				placeholder = locales.WorkersFormModelDefault(fallback)
+				if len(engines) == 1 {
+					help = locales.WorkersFormModelHelperDefault()
+				}
+			}
+			value := models[engine]
+			ui.Column(c).Key(engine).MinWidth(0).Children(func() {
+				kit.Field(c, tk, label, "", "", func() {
+					opts := d.modelOptions(engine, kit.ComboOpts{Help: help, NoMatches: locales.WorkersFormModelNoMatches()})
+					kit.Combobox(c, tk, &value, group+argsLabelJoin+label, placeholder, opts).
+						Disabled(saving).OnSubmit(submit).OnChange(func() {
+						next := maps.Clone(models)
+						if next == nil {
+							next = map[string]string{}
+						}
+						next[engine] = value
+						changed(next)
+					})
+				})
+			})
+		}
+	})
+}
+
+func (d *Page) modelOptions(engine string, opts kit.ComboOpts) kit.ComboOpts {
+	list := d.s.EngineModels(engine, "")
+	opts.Load = list.Ensure
+	switch {
+	case list.Loaded:
+		opts.Options = make([]kit.ComboOption, len(list.Data))
+		for i, m := range list.Data {
+			opts.Options[i] = kit.ComboOption{Value: m.ID, Detail: m.Name}
+		}
+	case list.Err != nil && !list.Loading:
+		opts.Failed = locales.WorkersFormModelListError()
+	default:
+		opts.Loading = locales.WorkersFormModelLoading()
+	}
+	return opts
+}
+
 func heading(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).FontSize(headingSize).FontWeight(mediumWeight).Role(ui.RoleHeading).Level(2)
 }
@@ -308,8 +426,8 @@ func (d *Page) row(c *ui.Context, tk theme.Tokens, first bool, title, descriptio
 func (d *Page) systemSkeleton(c *ui.Context, tk theme.Tokens) {
 	wide := d.contentWidth() >= container2XL
 	ui.Column(c).MinWidth(0).Gap(formGap).Children(func() {
-		for rows := 1; rows <= 2; rows++ {
-			ui.Column(c).Key(rows).MinWidth(0).Gap(groupGap).Children(func() {
+		for group, rows := range []int{1, 2, 2} {
+			ui.Column(c).Key(group).MinWidth(0).Gap(groupGap).Children(func() {
 				kit.SkeletonBar(c, tk, skeletonHead, skeletonHeadH)
 				card(c, tk, func() {
 					for i := range rows {

@@ -18,8 +18,9 @@ const (
 
 var (
 	envScopes     = []string{scopeGlobal, "bee", "worker"}
-	configKeys    = []string{"default_engine", "engine_args_global", "engine_args_bee"}
-	engineArgKeys = []string{"engine_args_global", "engine_args_bee"}
+	configKeys      = []string{"default_engine", "engine_args_global", "engine_args_bee", "engine_models_global", "engine_models_bee"}
+	engineArgKeys   = []string{"engine_args_global", "engine_args_bee"}
+	engineModelKeys = []string{"engine_models_global", "engine_models_bee"}
 )
 
 func (s *Server) envRoutes() {
@@ -194,6 +195,18 @@ func (s *Server) setSystemConfig(q *request) reply {
 				return errReply(http.StatusBadRequest, "value must be a JSON object mapping engine to CLI args string")
 			}
 			if err := s.validateEngineArgs(args); err != nil {
+				return errReply(http.StatusBadRequest, err.Error())
+			}
+		}
+	case slices.Contains(engineModelKeys, key):
+		var models map[string]string
+		if req.Value != "" {
+			if err := json.Unmarshal([]byte(req.Value), &models); err != nil {
+				return errReply(http.StatusBadRequest, "value must be a JSON object mapping engine to model")
+			}
+		}
+		for engine := range models {
+			if err := s.validateEngine(engine); err != nil {
 				return errReply(http.StatusBadRequest, err.Error())
 			}
 		}

@@ -1252,7 +1252,7 @@ func TestSystemConfigs(t *testing.T) {
 	s := signedIn(t)
 	c := ctx(t)
 	got, err := s.client.SystemConfigs(c)
-	want := map[string]string{"default_engine": "", "engine_args_global": "", "engine_args_bee": ""}
+	want := map[string]string{"default_engine": "", "engine_args_global": "", "engine_args_bee": "", "engine_models_global": "", "engine_models_bee": ""}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("SystemConfigs = %v, %v", got, err)
 	}

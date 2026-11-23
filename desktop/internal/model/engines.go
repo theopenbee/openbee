@@ -99,12 +99,18 @@ func ChangedEngineModels(stored, edited map[string]string) map[string]string {
 	return changed
 }
 
-func ProfileEngine(w api.Worker, systemDefault string, enabled []string) (engine, modelName string) {
+func ProfileEngine(w api.Worker, systemDefault string, enabled []string, defaults map[string]string) (engine, modelName string) {
+	modelFor := func(engine string) string {
+		if name := strings.TrimSpace(w.EngineModels[engine]); name != "" {
+			return name
+		}
+		return strings.TrimSpace(defaults[engine])
+	}
 	if w.Engine != "" {
-		return w.Engine, strings.TrimSpace(w.EngineModels[w.Engine])
+		return w.Engine, modelFor(w.Engine)
 	}
 	followed := FollowedEngine("", systemDefault, enabled)
-	if name := strings.TrimSpace(w.EngineModels[followed]); followed != "" && name != "" {
+	if name := modelFor(followed); followed != "" && name != "" {
 		return followed, name
 	}
 	return "", ""
@@ -115,6 +121,10 @@ func EngineLabel(engineName, modelName string) string {
 		return engineName
 	}
 	return engineName + " · " + modelName
+}
+
+func ParseEngineModelsConfig(raw string) map[string]string {
+	return CleanEngineModels(ParseEngineArgsConfig(raw))
 }
 
 func ParseEngineArgsConfig(raw string) map[string]string {

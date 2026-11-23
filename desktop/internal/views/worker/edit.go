@@ -105,14 +105,18 @@ func (p *Panel) modelField(c *ui.Context, tk theme.Tokens, installed []api.Engin
 	engine := model.FindEngine(installed, engineID)
 	listed := slices.Contains(model.EngineIDs(installed), engineID)
 	value := all[engineID]
+	help, placeholder := locales.WorkersFormModelHelper(l10n.EngineName(engine)), locales.WorkersFormModelPlaceholder()
+	if fallback := p.s.DefaultModels()[engineID]; fallback != "" {
+		help, placeholder = locales.WorkersFormModelHelperDefault(), locales.WorkersFormModelDefault(fallback)
+	}
 	kit.Field(c, tk, locales.WorkersFormModel(), "", "", func() {
 		box := ui.Column(c).Key(engineID).MinWidth(0)
-		opts := kit.ComboOpts{Help: locales.WorkersFormModelHelper(l10n.EngineName(engine)), NoMatches: locales.WorkersFormModelNoMatches()}
+		opts := kit.ComboOpts{Help: help, NoMatches: locales.WorkersFormModelNoMatches()}
 		if listed {
 			opts = p.modelOptions(box, engineID, workerID, opts)
 		}
 		box.Children(func() {
-			kit.Combobox(c, tk, &value, locales.WorkersFormModel(), locales.WorkersFormModelPlaceholder(), opts).
+			kit.Combobox(c, tk, &value, locales.WorkersFormModel(), placeholder, opts).
 				OnChange(func() { all[engineID] = value }).OnSubmit(submit)
 		})
 	})
