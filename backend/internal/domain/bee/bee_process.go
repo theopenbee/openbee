@@ -53,6 +53,7 @@ func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.Ru
 	opts.ExtraEnv = extraEnv
 	opts.APIKey = token
 	opts.ExtraArgs = p.resolveEngineArgs(ctx)
+	opts.Model = p.resolveModel(ctx)
 	return p.engine.Run(ctx, workDir, prompt, opts, logPath)
 }
 
@@ -66,6 +67,24 @@ func (p *BeeProcess) resolveEngineArgs(ctx context.Context) []string {
 	beeMap := p.loadEngineArgs(ctx, model.SystemConfigKeyEngineArgsBee)
 	merged := ai.MergeEngineArgs(globalMap, beeMap)
 	return merged[engineName]
+}
+
+func (p *BeeProcess) resolveModel(ctx context.Context) string {
+	return ai.ResolveEngineModel(p.engineCfg.Get(),
+		p.loadEngineModels(ctx, model.SystemConfigKeyEngineModelsBee),
+		p.loadEngineModels(ctx, model.SystemConfigKeyEngineModelsGlobal),
+	)
+}
+
+func (p *BeeProcess) loadEngineModels(ctx context.Context, key string) map[string]string {
+	if p.sysConfigStore == nil {
+		return nil
+	}
+	cfg, found, err := p.sysConfigStore.Get(ctx, key)
+	if err != nil || !found {
+		return nil
+	}
+	return ai.ParseEngineModelsJSON(cfg.Value)
 }
 
 func (p *BeeProcess) loadEngineArgs(ctx context.Context, key string) ai.EngineArgsMap {

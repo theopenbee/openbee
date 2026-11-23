@@ -861,7 +861,7 @@ func TestCreateWorker_EngineModels(t *testing.T) {
 		long := strings.Repeat("模", 200)
 		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "long", EngineModels: map[string]string{"pi": long}})
 		require.NoError(t, err)
-		assert.Equal(t, long, resolveModel(w, "pi"))
+		assert.Equal(t, long, mgr.resolveModel(context.Background(), w, "pi"))
 	})
 }
 
@@ -967,6 +967,39 @@ func TestExecuteWorker_PassesModelForEffectiveEngine(t *testing.T) {
 	require.Len(t, opencode.Runs(), 2)
 	assert.Equal(t, "deepseek/deepseek-flash", opencode.Runs()[0].Model)
 	assert.Equal(t, "", opencode.Runs()[1].Model)
+}
+
+type mapSystemConfigs map[string]string
+
+func (m mapSystemConfigs) Get(_ context.Context, key string) (model.SystemConfig, bool, error) {
+	value, ok := m[key]
+	return model.SystemConfig{Key: key, Value: value}, ok, nil
+}
+
+func TestExecuteWorker_FallsBackToGlobalModel(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	opencode := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi, "opencode": opencode})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	mgr.sysConfigStore = mapSystemConfigs{model.SystemConfigKeyEngineModelsGlobal: `{"pi":"deepseek/deepseek-flash"}`}
+
+	own, err := mgr.CreateWorker(CreateWorkerParams{Name: "own", EngineModels: map[string]string{"pi": "openai/gpt-5"}})
+	require.NoError(t, err)
+	inherits, err := mgr.CreateWorker(CreateWorkerParams{Name: "inherits"})
+	require.NoError(t, err)
+	other, err := mgr.CreateWorker(CreateWorkerParams{Name: "other", Engine: "opencode"})
+	require.NoError(t, err)
+
+	for i, w := range []model.Worker{own, inherits, other} {
+		_, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s" + strconv.Itoa(i)})
+		require.NoError(t, err)
+	}
+
+	require.Len(t, pi.Runs(), 2)
+	assert.Equal(t, "openai/gpt-5", pi.Runs()[0].Model)
+	assert.Equal(t, "deepseek/deepseek-flash", pi.Runs()[1].Model)
+	require.Len(t, opencode.Runs(), 1)
+	assert.Equal(t, "", opencode.Runs()[0].Model)
 }
 
 func TestManager_EngineModels(t *testing.T) {

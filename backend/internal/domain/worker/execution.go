@@ -108,7 +108,7 @@ func (m *Manager) launchRuntime(ctx context.Context, exec model.WorkerExecution,
 		APIKey:    token,
 		ExtraEnv:  extraEnv,
 		ExtraArgs: extraArgs,
-		Model:     resolveModel(worker, engineName),
+		Model:     m.resolveModel(ctx, worker, engineName),
 	}, logPath)
 	if err != nil {
 		cancel()

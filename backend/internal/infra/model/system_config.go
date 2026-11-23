@@ -15,3 +15,7 @@ const SystemConfigKeyEngineArgsGlobal = "engine_args_global"
 
 // SystemConfigKeyEngineArgsBee is the key for bee-level engine args.
 const SystemConfigKeyEngineArgsBee = "engine_args_bee"
+
+const SystemConfigKeyEngineModelsGlobal = "engine_models_global"
+
+const SystemConfigKeyEngineModelsBee = "engine_models_bee"

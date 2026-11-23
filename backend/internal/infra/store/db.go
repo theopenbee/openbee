@@ -14,6 +14,7 @@ type migration struct {
 	version int
 	name    string
 	sql     string
+	run     func(tx *sql.Tx) error
 }
 
 var migrations = []migration{
@@ -602,6 +603,11 @@ DROP TABLE IF EXISTS bee_local_sessions;`,
 		name:    "add_engine_models_to_workers",
 		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_models TEXT NOT NULL DEFAULT '{}'`,
 	},
+	{
+		version: 62,
+		name:    "move_model_args_to_engine_models",
+		run:     moveModelArgs,
+	},
 }
 
 type whereBuilder struct {
@@ -692,9 +698,17 @@ func applyMigrations(db *sql.DB, migrations []migration) error {
 		if err != nil {
 			return fmt.Errorf("begin tx for migration %d: %w", m.version, err)
 		}
-		if _, err = tx.Exec(m.sql); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migration %d %q: %w", m.version, m.name, err)
+		if m.sql != "" {
+			if _, err = tx.Exec(m.sql); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("migration %d %q: %w", m.version, m.name, err)
+			}
+		}
+		if m.run != nil {
+			if err = m.run(tx); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("migration %d %q: %w", m.version, m.name, err)
+			}
 		}
 		if _, err = tx.Exec(`INSERT INTO bee_migrations (version, name) VALUES (?, ?)`, m.version, m.name); err != nil {
 			tx.Rollback()

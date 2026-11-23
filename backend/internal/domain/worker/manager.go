@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -11,8 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -133,8 +130,6 @@ func (m *Manager) ValidateEngineArgs(raw map[string]string) error {
 	return nil
 }
 
-const maxModelLength = 200
-
 func (m *Manager) ValidateEngineModels(raw map[string]string) error {
 	for _, engine := range slices.Sorted(maps.Keys(raw)) {
 		if engine == "" {
@@ -143,34 +138,29 @@ func (m *Manager) ValidateEngineModels(raw map[string]string) error {
 		if err := m.ValidateEngine(engine); err != nil {
 			return fmt.Errorf("engine_models[%q]: %w: %w", engine, err, ErrValidation)
 		}
-		if err := validateModel(raw[engine]); err != nil {
+		if err := ai.ValidateModel(raw[engine]); err != nil {
 			return fmt.Errorf("engine_models[%q]: %w: %w", engine, err, ErrValidation)
 		}
 	}
 	return nil
 }
 
-func validateModel(value string) error {
-	if utf8.RuneCountInString(value) > maxModelLength {
-		return fmt.Errorf("model is longer than %d characters", maxModelLength)
-	}
-	if strings.HasPrefix(value, "-") {
-		return errors.New(`model must not start with "-"`)
-	}
-	for _, r := range value {
-		if unicode.IsSpace(r) || unicode.IsControl(r) {
-			return errors.New("model must not contain whitespace or control characters")
-		}
-	}
-	return nil
+func (m *Manager) resolveModel(ctx context.Context, worker model.Worker, engineName string) string {
+	return ai.ResolveEngineModel(engineName,
+		ai.ParseEngineModelsJSON(worker.EngineModels),
+		m.loadEngineModels(ctx, model.SystemConfigKeyEngineModelsGlobal),
+	)
 }
 
-func resolveModel(worker model.Worker, engineName string) string {
-	var models map[string]string
-	if err := json.Unmarshal([]byte(worker.EngineModels), &models); err != nil {
-		return ""
+func (m *Manager) loadEngineModels(ctx context.Context, key string) map[string]string {
+	if m.sysConfigStore == nil {
+		return nil
 	}
-	return models[engineName]
+	cfg, found, err := m.sysConfigStore.Get(ctx, key)
+	if err != nil || !found {
+		return nil
+	}
+	return ai.ParseEngineModelsJSON(cfg.Value)
 }
 
 func (m *Manager) EngineModels(ctx context.Context, engineID, workerID string) ([]ai.ModelInfo, error) {

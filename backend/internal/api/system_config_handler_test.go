@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/aitest"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -61,6 +62,18 @@ func (f *fakeEngineValidatorForSys) ValidateEngine(name string) error {
 func (f *fakeEngineValidatorForSys) ValidateEngineArgs(raw map[string]string) error {
 	for engine := range raw {
 		if err := f.ValidateEngine(engine); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *fakeEngineValidatorForSys) ValidateEngineModels(raw map[string]string) error {
+	for engine, name := range raw {
+		if err := f.ValidateEngine(engine); err != nil {
+			return err
+		}
+		if err := ai.ValidateModel(name); err != nil {
 			return err
 		}
 	}
@@ -267,4 +280,58 @@ func TestSystemConfigHandler_Set_EngineArgsReplacesUnreadableStoredValue(t *test
 	w = putEngineArgs(t, router, key, map[string]string{"pi": "--y"})
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.JSONEq(t, `{"pi":"--y"}`, store.vals[key])
+}
+
+func TestSystemConfigHandler_Get_ReturnsEngineModels(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{model.SystemConfigKeyEngineModelsGlobal: `{"pi":"deepseek/deepseek-flash"}`}}
+	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/system-configs", nil))
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, `{"pi":"deepseek/deepseek-flash"}`, resp[model.SystemConfigKeyEngineModelsGlobal])
+	value, present := resp[model.SystemConfigKeyEngineModelsBee]
+	assert.True(t, present)
+	assert.Empty(t, value)
+}
+
+func TestSystemConfigHandler_Set_EngineModels(t *testing.T) {
+	for _, key := range []string{model.SystemConfigKeyEngineModelsGlobal, model.SystemConfigKeyEngineModelsBee} {
+		t.Run(key, func(t *testing.T) {
+			store := &fakeSysConfigStore{vals: map[string]string{key: `{"codex":"o3"}`}}
+			validator := &fakeEngineValidatorForSys{valid: map[string]bool{"pi": true}}
+			router, _ := newSysConfigRouter(store, validator, "pi")
+
+			w := putEngineArgs(t, router, key, map[string]string{"codex": "o3", "pi": " deepseek/deepseek-flash ", "claude": ""})
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			assert.JSONEq(t, `{"codex":"o3","pi":"deepseek/deepseek-flash"}`, store.vals[key])
+
+			w = putEngineArgs(t, router, key, map[string]string{"codex": "o4"})
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+			w = putEngineArgs(t, router, key, map[string]string{"pi": "--dangerous"})
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			assert.JSONEq(t, `{"codex":"o3","pi":"deepseek/deepseek-flash"}`, store.vals[key])
+
+			w = putEngineArgs(t, router, key, map[string]string{})
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			assert.JSONEq(t, `{}`, store.vals[key])
+		})
+	}
+}
+
+func TestSystemConfigHandler_Set_EngineModelsRejectsNonObject(t *testing.T) {
+	store := &fakeSysConfigStore{vals: map[string]string{}}
+	router, _ := newSysConfigRouter(store, &fakeEngineValidatorForSys{})
+
+	body, err := json.Marshal(map[string]string{"value": `["pi"]`})
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/system-configs/"+model.SystemConfigKeyEngineModelsGlobal, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Empty(t, store.vals)
 }

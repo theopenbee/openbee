@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/model"
@@ -19,6 +20,7 @@ type sysConfigStore interface {
 type engineValidatorForSys interface {
 	ValidateEngine(name string) error
 	ValidateEngineArgs(raw map[string]string) error
+	ValidateEngineModels(raw map[string]string) error
 }
 
 // SystemConfigHandler serves GET /system-configs and PUT /system-configs/:key.
@@ -42,6 +44,8 @@ func (h *SystemConfigHandler) Get(c *gin.Context) {
 	keys := []string{
 		model.SystemConfigKeyEngineArgsGlobal,
 		model.SystemConfigKeyEngineArgsBee,
+		model.SystemConfigKeyEngineModelsGlobal,
+		model.SystemConfigKeyEngineModelsBee,
 	}
 	result := make(map[string]string, len(keys)+1)
 	result[model.SystemConfigKeyDefaultEngine] = h.engineCfg.Get()
@@ -111,10 +115,49 @@ func (h *SystemConfigHandler) Set(c *gin.Context) {
 			return
 		}
 
+	case model.SystemConfigKeyEngineModelsGlobal, model.SystemConfigKeyEngineModelsBee:
+		var raw map[string]string
+		if req.Value != "" {
+			if err := json.Unmarshal([]byte(req.Value), &raw); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "value must be a JSON object mapping engine to model"})
+				return
+			}
+		}
+		stored, _, err := h.store.Get(c.Request.Context(), key)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		next := ai.CleanEngineModels(raw)
+		changed := changedModels(ai.ParseEngineModelsJSON(stored.Value), next)
+		if err := h.validator.ValidateEngineModels(changed); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err := h.store.Set(c.Request.Context(), key, modelsJSON(next)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown config key"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func changedModels(stored, next map[string]string) map[string]string {
+	changed := make(map[string]string)
+	for engine, name := range next {
+		if stored[engine] != name {
+			changed[engine] = name
+		}
+	}
+	return changed
+}
+
+func modelsJSON(models map[string]string) string {
+	b, _ := json.Marshal(models)
+	return string(b)
 }

@@ -199,7 +199,7 @@ Runs one task. The call lasts as long as the task.
 | `session_id` | openbee's session id. The plugin keeps the mapping to its CLI's own session (for example a thread id) in `state_dir`. |
 | `resume` | `true` when the session has run before and the plugin should continue the CLI conversation instead of starting one. |
 | `extra_args` | The merged global and worker engine arguments; always an array, possibly empty. Append them after the plugin's own arguments. |
-| `model` | The worker's model for this engine, from the worker's Model field. Omitted when empty and for Bee. Pass it to the CLI's model option before `extra_args`; when `extra_args` already choose a model, keep theirs. Older plugins ignore it. |
+| `model` | The model for this engine: for a worker its Model field, otherwise the default model in Settings; for Bee the Bee model, otherwise the default model. Omitted when empty. Pass it to the CLI's model option before `extra_args`; when `extra_args` already choose a model, keep theirs. Older plugins ignore it. |
 | `log_path` | A file in an existing directory. The plugin writes the CLI's output to it; the format is up to the plugin. |
 | `mcp` | Omitted when openbee has no external address. Otherwise the plugin registers an MCP server called `name` at `url` with the CLI, in whatever way that CLI supports. `api_key_env` is the name of the environment variable that holds the API key; refer to the key by that name and never write its value into arguments or files. |
 
@@ -252,7 +252,7 @@ Sessions that cannot be found are left out of `usage`. The call times out after 
 
 ### `models`
 
-Lists the models a worker can pick for this engine. openbee calls it when the user opens the Model field. `params` is `{}`.
+Lists the models a worker, the default model or Bee can use with this engine. openbee calls it when the user opens a Model field, and when Bee calls `list_models`. `params` is `{}`.
 
 ```json
 { "result": { "models": [ { "id": "deepseek/deepseek-flash", "name": "DeepSeek Flash" }, { "id": "opus" } ] } }
