@@ -128,6 +128,34 @@ func TestWorkerStore_EngineField(t *testing.T) {
 	assert.Equal(t, "pi", updated.Engine, "after update")
 }
 
+func TestWorkerStore_EngineModels(t *testing.T) {
+	ws := setupTestDB(t)
+
+	plain, err := ws.Create(model.Worker{Name: "plain", WorkDir: "/tmp/plain"})
+	require.NoError(t, err)
+	assert.Equal(t, "{}", plain.EngineModels)
+	got, err := ws.GetByID(plain.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", got.EngineModels)
+
+	w, err := ws.Create(model.Worker{Name: "coder", WorkDir: "/tmp/coder", EngineModels: `{"opencode":"deepseek/deepseek-flash"}`})
+	require.NoError(t, err)
+	got, err = ws.GetByID(w.ID)
+	require.NoError(t, err)
+	assert.Equal(t, `{"opencode":"deepseek/deepseek-flash"}`, got.EngineModels)
+
+	got.EngineModels = `{"pi":"openai/gpt-5"}`
+	_, err = ws.Update(got)
+	require.NoError(t, err)
+	list, err := ws.List()
+	require.NoError(t, err)
+	models := map[string]string{}
+	for _, item := range list {
+		models[item.Name] = item.EngineModels
+	}
+	assert.Equal(t, map[string]string{"plain": "{}", "coder": `{"pi":"openai/gpt-5"}`}, models)
+}
+
 func TestWorkerStore_CountByStatus(t *testing.T) {
 	db := newTestDB(t,
 		`INSERT INTO bee_workers (id,name,work_dir,status,created_at,updated_at) VALUES ('w1','a','/tmp','idle',0,0)`,

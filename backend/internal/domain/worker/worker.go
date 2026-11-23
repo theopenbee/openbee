@@ -23,6 +23,7 @@ type CreateWorkerParams struct {
 	PermissionScopes string
 	Engine           string
 	EngineArgs       string // JSON: map[engine]rawCLIString
+	EngineModels     map[string]string
 }
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
@@ -34,12 +35,14 @@ type UpdateWorkerParams struct {
 	PermissionScopes *string `json:"permission_scopes"`
 	Engine           *string `json:"engine"`
 	// nil = no change; empty map clears all; per-engine empty string deletes that entry.
-	EngineArgs map[string]string `json:"engine_args"`
+	EngineArgs   map[string]string `json:"engine_args"`
+	EngineModels map[string]string `json:"engine_models"`
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
 	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
-		p.WorkDir != nil || p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil
+		p.WorkDir != nil || p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil ||
+		p.EngineModels != nil
 }
 
 func (p UpdateWorkerParams) Validate() error {
@@ -62,46 +65,88 @@ func (p UpdateWorkerParams) validateEngineChanges(m *Manager, current model.Work
 			return fmt.Errorf("%w: %w", err, ErrValidation)
 		}
 	}
-	if len(p.EngineArgs) == 0 {
-		return nil
+	if len(p.EngineArgs) > 0 {
+		changed, err := ChangedEngineArgs(current.EngineArgs, p.EngineArgs)
+		if err != nil {
+			return err
+		}
+		if err := m.ValidateEngineArgs(changed); err != nil {
+			return fmt.Errorf("%w: %w", err, ErrValidation)
+		}
 	}
-	changed, err := ChangedEngineArgs(current.EngineArgs, p.EngineArgs)
-	if err != nil {
-		return err
-	}
-	if err := m.ValidateEngineArgs(changed); err != nil {
-		return fmt.Errorf("%w: %w", err, ErrValidation)
+	if len(p.EngineModels) > 0 {
+		changed, err := changedEngineEntries(current.EngineModels, p.EngineModels, "engine_models")
+		if err != nil {
+			return err
+		}
+		if err := m.ValidateEngineModels(changed); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func ChangedEngineArgs(stored string, submitted map[string]string) (map[string]string, error) {
-	existing, err := storedEngineArgs(stored)
+	return changedEngineEntries(stored, submitted, "engine_args")
+}
+
+func changedEngineEntries(stored string, submitted map[string]string, field string) (map[string]string, error) {
+	existing, err := storedEngineEntries(stored, field)
 	if err != nil {
 		return nil, err
 	}
 	changed := make(map[string]string)
-	for engine, args := range submitted {
-		if args == "" {
+	for engine, value := range submitted {
+		if value == "" {
 			continue
 		}
-		if prev, ok := existing[engine]; ok && prev == args {
+		if prev, ok := existing[engine]; ok && prev == value {
 			continue
 		}
-		changed[engine] = args
+		changed[engine] = value
 	}
 	return changed, nil
 }
 
-func storedEngineArgs(raw string) (map[string]string, error) {
+func storedEngineEntries(raw, field string) (map[string]string, error) {
 	existing := make(map[string]string)
 	if raw == "" || raw == "{}" {
 		return existing, nil
 	}
 	if err := json.Unmarshal([]byte(raw), &existing); err != nil {
-		return nil, fmt.Errorf("parse existing engine_args: %w", err)
+		return nil, fmt.Errorf("parse existing %s: %w", field, err)
 	}
 	return existing, nil
+}
+
+func mergeEngineEntries(stored string, submitted map[string]string, field string) (string, error) {
+	if len(submitted) == 0 {
+		return "{}", nil
+	}
+	existing, err := storedEngineEntries(stored, field)
+	if err != nil {
+		return "", err
+	}
+	for engine, value := range submitted {
+		if value == "" {
+			delete(existing, engine)
+		} else {
+			existing[engine] = value
+		}
+	}
+	b, _ := json.Marshal(existing)
+	return string(b), nil
+}
+
+func trimEngineModels(raw map[string]string) map[string]string {
+	if raw == nil {
+		return nil
+	}
+	trimmed := make(map[string]string, len(raw))
+	for engine, value := range raw {
+		trimmed[engine] = strings.TrimSpace(value)
+	}
+	return trimmed
 }
 
 func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
@@ -123,27 +168,35 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 	if p.Engine != nil {
 		w.Engine = *p.Engine
 	}
-	if p.EngineArgs == nil {
-		return nil
+	if p.EngineArgs != nil {
+		merged, err := mergeEngineEntries(w.EngineArgs, p.EngineArgs, "engine_args")
+		if err != nil {
+			return err
+		}
+		w.EngineArgs = merged
 	}
-	if len(p.EngineArgs) == 0 {
-		w.EngineArgs = "{}"
-		return nil
+	if p.EngineModels != nil {
+		merged, err := mergeEngineEntries(w.EngineModels, p.EngineModels, "engine_models")
+		if err != nil {
+			return err
+		}
+		w.EngineModels = merged
 	}
-	existing, err := storedEngineArgs(w.EngineArgs)
-	if err != nil {
-		return err
-	}
-	for engine, args := range p.EngineArgs {
-		if args == "" {
-			delete(existing, engine)
-		} else {
-			existing[engine] = args
+	return nil
+}
+
+func (m *Manager) engineModelsJSON(raw map[string]string) (string, error) {
+	models := make(map[string]string, len(raw))
+	for engine, value := range trimEngineModels(raw) {
+		if value != "" {
+			models[engine] = value
 		}
 	}
-	b, _ := json.Marshal(existing)
-	w.EngineArgs = string(b)
-	return nil
+	if err := m.ValidateEngineModels(models); err != nil {
+		return "", err
+	}
+	b, _ := json.Marshal(models)
+	return string(b), nil
 }
 
 func (m *Manager) validateWorkerName(name, excludeID string) error {
@@ -174,6 +227,7 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 		}
 		return model.Worker{}, fmt.Errorf("get worker: %w", err)
 	}
+	p.EngineModels = trimEngineModels(p.EngineModels)
 	if err := p.validateEngineChanges(m, w); err != nil {
 		return model.Worker{}, err
 	}
@@ -203,6 +257,10 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	if err := m.validateWorkerName(p.Name, ""); err != nil {
 		return model.Worker{}, err
 	}
+	engineModels, err := m.engineModelsJSON(p.EngineModels)
+	if err != nil {
+		return model.Worker{}, err
+	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
 		p.WorkDir = filepath.Join(m.workerBaseDir, id)
@@ -224,6 +282,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		WorkDir:          p.WorkDir,
 		Engine:           p.Engine,
 		EngineArgs:       engineArgs,
+		EngineModels:     engineModels,
 		PermissionScopes: p.PermissionScopes,
 	}
 	return m.workerStore.Create(workerModel)

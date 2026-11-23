@@ -166,6 +166,14 @@ func (s *Service) ResolveWorkerEnv(workerID string) ([]string, error) {
 	return s.decryptMerged(merge(globalEnvs, workerEnvs))
 }
 
+func (s *Service) ResolveGlobalEnv() ([]string, error) {
+	globalEnvs, err := s.store.List(ScopeGlobal, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.decryptMerged(merge(globalEnvs))
+}
+
 // ResolveBeeEnv returns complete env vars for Bee execution (KEY=VALUE slice).
 // Resolution chain: global <- bee
 func (s *Service) ResolveBeeEnv(beeID string) ([]string, error) {

@@ -50,6 +50,30 @@ func (e *Engine) UsageCalls() [][]string {
 	return slices.Clone(e.usageCalls)
 }
 
+type ModelEngine struct {
+	Engine
+	ModelsFunc func(ctx context.Context, extraEnv []string) ([]ai.ModelInfo, error)
+
+	modelsMu   sync.Mutex
+	modelCalls [][]string
+}
+
+func (e *ModelEngine) Models(ctx context.Context, extraEnv []string) ([]ai.ModelInfo, error) {
+	e.modelsMu.Lock()
+	e.modelCalls = append(e.modelCalls, slices.Clone(extraEnv))
+	e.modelsMu.Unlock()
+	if e.ModelsFunc != nil {
+		return e.ModelsFunc(ctx, extraEnv)
+	}
+	return nil, nil
+}
+
+func (e *ModelEngine) ModelCalls() [][]string {
+	e.modelsMu.Lock()
+	defer e.modelsMu.Unlock()
+	return slices.Clone(e.modelCalls)
+}
+
 type Source struct {
 	mu      sync.RWMutex
 	engines map[string]entry

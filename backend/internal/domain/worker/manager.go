@@ -2,10 +2,17 @@ package worker
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
@@ -116,6 +123,82 @@ func (m *Manager) ValidateEngineArgs(raw map[string]string) error {
 		return fmt.Errorf("invalid engine_args: %w", err)
 	}
 	return nil
+}
+
+const maxModelLength = 200
+
+func (m *Manager) ValidateEngineModels(raw map[string]string) error {
+	for _, engine := range slices.Sorted(maps.Keys(raw)) {
+		if engine == "" {
+			return fmt.Errorf("engine_models contains an empty engine name: %w", ErrValidation)
+		}
+		if err := m.ValidateEngine(engine); err != nil {
+			return fmt.Errorf("engine_models[%q]: %w: %w", engine, err, ErrValidation)
+		}
+		if err := validateModel(raw[engine]); err != nil {
+			return fmt.Errorf("engine_models[%q]: %w: %w", engine, err, ErrValidation)
+		}
+	}
+	return nil
+}
+
+func validateModel(value string) error {
+	if utf8.RuneCountInString(value) > maxModelLength {
+		return fmt.Errorf("model is longer than %d characters", maxModelLength)
+	}
+	if strings.HasPrefix(value, "-") {
+		return errors.New(`model must not start with "-"`)
+	}
+	for _, r := range value {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return errors.New("model must not contain whitespace or control characters")
+		}
+	}
+	return nil
+}
+
+func resolveModel(worker model.Worker, engineName string) string {
+	var models map[string]string
+	if err := json.Unmarshal([]byte(worker.EngineModels), &models); err != nil {
+		return ""
+	}
+	return models[engineName]
+}
+
+func (m *Manager) EngineModels(ctx context.Context, engineID, workerID string) ([]ai.ModelInfo, error) {
+	engine, ok := m.engines.Engine(engineID)
+	if !ok {
+		return nil, ai.ErrEngineUnavailable(engineID)
+	}
+	extraEnv, err := m.modelsEnv(workerID)
+	if err != nil {
+		return nil, err
+	}
+	lister, ok := engine.(ai.ModelLister)
+	if !ok {
+		return []ai.ModelInfo{}, nil
+	}
+	models, err := lister.Models(ctx, extraEnv)
+	if err != nil {
+		return nil, &EngineModelsError{Err: err}
+	}
+	if models == nil {
+		models = []ai.ModelInfo{}
+	}
+	return models, nil
+}
+
+func (m *Manager) modelsEnv(workerID string) ([]string, error) {
+	if workerID == "" {
+		return m.envService.ResolveGlobalEnv()
+	}
+	if _, err := m.workerStore.GetByID(workerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get worker: %w", err)
+	}
+	return m.envService.ResolveWorkerEnv(workerID)
 }
 
 // An empty name is accepted (means "use server default").

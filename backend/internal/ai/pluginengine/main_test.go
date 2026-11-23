@@ -100,6 +100,13 @@ func runFakeEngine(mode string) int {
 			}}
 		}
 		respond(map[string]any{"result": map[string]any{"usage": usage}})
+	case "models":
+		writeRecord(rec)
+		respond(map[string]any{"result": map[string]any{"models": []map[string]any{
+			{"id": "deepseek/deepseek-flash", "name": "DeepSeek Flash"},
+			{"id": "opencode/big-pickle"},
+			{"id": "", "name": "Nameless"},
+		}}})
 	case "sleep-with-child":
 		child, ok := spawnChild(&rec, nil)
 		if !ok {

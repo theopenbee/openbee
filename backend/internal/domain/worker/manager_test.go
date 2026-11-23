@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -802,4 +804,247 @@ func TestChangedEngineArgs(t *testing.T) {
 
 	_, err = ChangedEngineArgs("{", map[string]string{"pi": "--model x"})
 	require.Error(t, err)
+}
+
+func TestCreateWorker_EngineModels(t *testing.T) {
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": &aitest.Engine{}, "opencode": &aitest.Engine{}})
+
+	t.Run("TrimsAndDropsEmpty", func(t *testing.T) {
+		mgr := newTestManagerWithSource(t, src, "pi", nil)
+		w, err := mgr.CreateWorker(CreateWorkerParams{
+			Name:         "coder",
+			EngineModels: map[string]string{"opencode": "  deepseek/deepseek-flash  ", "pi": "   "},
+		})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash"}`, w.EngineModels)
+		stored, err := mgr.workerStore.GetByID(w.ID)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash"}`, stored.EngineModels)
+	})
+
+	t.Run("NilStoresEmptyObject", func(t *testing.T) {
+		mgr := newTestManagerWithSource(t, src, "pi", nil)
+		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "plain"})
+		require.NoError(t, err)
+		assert.Equal(t, "{}", w.EngineModels)
+	})
+
+	cases := []struct {
+		name   string
+		models map[string]string
+		want   string
+	}{
+		{name: "UnknownEngine", models: map[string]string{"codex": "o3"}, want: `engine "codex" is not installed or enabled`},
+		{name: "EmptyEngineName", models: map[string]string{"": "o3"}, want: "empty engine name"},
+		{name: "InnerWhitespace", models: map[string]string{"pi": "openai/gpt 5"}, want: "whitespace or control characters"},
+		{name: "ControlCharacter", models: map[string]string{"pi": "openai/gpt\x005"}, want: "whitespace or control characters"},
+		{name: "LeadingDash", models: map[string]string{"pi": "--yolo"}, want: `must not start with "-"`},
+		{name: "TooLong", models: map[string]string{"pi": strings.Repeat("m", 201)}, want: "longer than 200 characters"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := newTestManagerWithSource(t, src, "pi", nil)
+			workDir := filepath.Join(t.TempDir(), "never-created")
+			_, err := mgr.CreateWorker(CreateWorkerParams{Name: "bad", WorkDir: workDir, EngineModels: tc.models})
+			require.ErrorIs(t, err, ErrValidation)
+			assert.Contains(t, err.Error(), tc.want)
+			_, statErr := os.Stat(workDir)
+			assert.True(t, os.IsNotExist(statErr))
+			exists, err := mgr.workerStore.ExistsByName("bad", "")
+			require.NoError(t, err)
+			assert.False(t, exists)
+		})
+	}
+
+	t.Run("MaxLengthAccepted", func(t *testing.T) {
+		mgr := newTestManagerWithSource(t, src, "pi", nil)
+		long := strings.Repeat("模", 200)
+		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "long", EngineModels: map[string]string{"pi": long}})
+		require.NoError(t, err)
+		assert.Equal(t, long, resolveModel(w, "pi"))
+	})
+}
+
+func TestUpdateWorker_EngineModels(t *testing.T) {
+	newWorker := func(t *testing.T) (*Manager, *aitest.Source, model.Worker) {
+		t.Helper()
+		src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": &aitest.Engine{}, "opencode": &aitest.Engine{}, "codex": &aitest.Engine{}})
+		mgr := newTestManagerWithSource(t, src, "pi", nil)
+		w, err := mgr.CreateWorker(CreateWorkerParams{
+			Name:         "coder",
+			EngineModels: map[string]string{"opencode": "deepseek/deepseek-flash", "codex": "o3"},
+		})
+		require.NoError(t, err)
+		return mgr, src, w
+	}
+
+	t.Run("NilLeavesModels", func(t *testing.T) {
+		mgr, _, w := newWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{Description: strPtr("edited")})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash","codex":"o3"}`, updated.EngineModels)
+	})
+
+	t.Run("SetTrimmedAndRemove", func(t *testing.T) {
+		mgr, _, w := newWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+			EngineModels: map[string]string{"pi": " openai/gpt-5 ", "codex": ""},
+		})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash","pi":"openai/gpt-5"}`, updated.EngineModels)
+		stored, err := mgr.workerStore.GetByID(w.ID)
+		require.NoError(t, err)
+		assert.Equal(t, updated.EngineModels, stored.EngineModels)
+	})
+
+	t.Run("WhitespaceOnlyRemoves", func(t *testing.T) {
+		mgr, _, w := newWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineModels: map[string]string{"codex": "  "}})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash"}`, updated.EngineModels)
+	})
+
+	t.Run("EmptyMapClearsAll", func(t *testing.T) {
+		mgr, _, w := newWorker(t)
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineModels: map[string]string{}})
+		require.NoError(t, err)
+		assert.Equal(t, "{}", updated.EngineModels)
+	})
+
+	t.Run("UnchangedModelForUninstalledEngineSucceeds", func(t *testing.T) {
+		mgr, src, w := newWorker(t)
+		src.Remove("codex")
+		updated, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{
+			EngineModels: map[string]string{"codex": "o3", "opencode": "deepseek/deepseek-pro"},
+		})
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-pro","codex":"o3"}`, updated.EngineModels)
+	})
+
+	t.Run("ChangedModelForUninstalledEngineFails", func(t *testing.T) {
+		mgr, src, w := newWorker(t)
+		src.Remove("codex")
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineModels: map[string]string{"codex": "o4"}})
+		require.ErrorIs(t, err, ErrValidation)
+		assert.True(t, ai.IsEngineMissing(err))
+	})
+
+	t.Run("InvalidModelFails", func(t *testing.T) {
+		mgr, _, w := newWorker(t)
+		for _, bad := range []string{"-m", "a b", "a\tb", strings.Repeat("x", 201)} {
+			_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineModels: map[string]string{"pi": bad}})
+			require.ErrorIs(t, err, ErrValidation, bad)
+		}
+		_, err := mgr.UpdateWorker(w.ID, UpdateWorkerParams{EngineModels: map[string]string{"": "x"}})
+		require.ErrorIs(t, err, ErrValidation)
+		stored, err := mgr.workerStore.GetByID(w.ID)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"opencode":"deepseek/deepseek-flash","codex":"o3"}`, stored.EngineModels)
+	})
+}
+
+func TestExecuteWorker_PassesModelForEffectiveEngine(t *testing.T) {
+	pi := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	opencode := &aitest.Engine{RunFunc: (&mockEngine{}).Run}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"pi": pi, "opencode": opencode})
+	mgr := newTestManagerWithSource(t, src, "pi", nil)
+	models := map[string]string{"pi": "openai/gpt-5", "opencode": "deepseek/deepseek-flash"}
+
+	followsDefault, err := mgr.CreateWorker(CreateWorkerParams{Name: "default", EngineModels: models})
+	require.NoError(t, err)
+	pinned, err := mgr.CreateWorker(CreateWorkerParams{Name: "pinned", Engine: "opencode", EngineModels: models})
+	require.NoError(t, err)
+	bare, err := mgr.CreateWorker(CreateWorkerParams{Name: "bare", Engine: "opencode", EngineModels: map[string]string{"pi": "openai/gpt-5"}})
+	require.NoError(t, err)
+
+	for i, w := range []model.Worker{followsDefault, pinned, bare} {
+		_, err := mgr.ExecuteWorker(context.Background(), ExecuteRequest{WorkerID: w.ID, TriggerInput: "hi", SessionID: "s" + strconv.Itoa(i)})
+		require.NoError(t, err)
+	}
+
+	require.Len(t, pi.Runs(), 1)
+	assert.Equal(t, "openai/gpt-5", pi.Runs()[0].Model)
+	require.Len(t, opencode.Runs(), 2)
+	assert.Equal(t, "deepseek/deepseek-flash", opencode.Runs()[0].Model)
+	assert.Equal(t, "", opencode.Runs()[1].Model)
+}
+
+func TestManager_EngineModels(t *testing.T) {
+	newModelsManager := func(t *testing.T) (*Manager, *aitest.ModelEngine, *aitest.Source) {
+		t.Helper()
+		lister := &aitest.ModelEngine{ModelsFunc: func(context.Context, []string) ([]ai.ModelInfo, error) {
+			return []ai.ModelInfo{{ID: "deepseek/deepseek-flash", Name: "DeepSeek Flash"}}, nil
+		}}
+		src := aitest.NewSource(map[string]ai.EngineAdapter{"opencode": lister, "pi": &aitest.Engine{}})
+		mgr := newTestManagerWithSource(t, src, "pi", nil)
+		_, err := mgr.envService.Create(env.ScopeGlobal, "", "FAKE_GLOBAL", "g")
+		require.NoError(t, err)
+		_, err = mgr.envService.Create(env.ScopeGlobal, "", "FAKE_SHARED", "global")
+		require.NoError(t, err)
+		return mgr, lister, src
+	}
+
+	t.Run("GlobalEnv", func(t *testing.T) {
+		mgr, lister, _ := newModelsManager(t)
+		got, err := mgr.EngineModels(context.Background(), "opencode", "")
+		require.NoError(t, err)
+		assert.Equal(t, []ai.ModelInfo{{ID: "deepseek/deepseek-flash", Name: "DeepSeek Flash"}}, got)
+		assert.Equal(t, [][]string{{"FAKE_GLOBAL=g", "FAKE_SHARED=global"}}, lister.ModelCalls())
+	})
+
+	t.Run("WorkerEnv", func(t *testing.T) {
+		mgr, lister, _ := newModelsManager(t)
+		w, err := mgr.CreateWorker(CreateWorkerParams{Name: "coder"})
+		require.NoError(t, err)
+		_, err = mgr.envService.Create(env.ScopeWorker, w.ID, "FAKE_SHARED", "worker")
+		require.NoError(t, err)
+
+		_, err = mgr.EngineModels(context.Background(), "opencode", w.ID)
+		require.NoError(t, err)
+		assert.Equal(t, [][]string{{"FAKE_GLOBAL=g", "FAKE_SHARED=worker"}}, lister.ModelCalls())
+	})
+
+	t.Run("UnknownEngine", func(t *testing.T) {
+		mgr, lister, src := newModelsManager(t)
+		src.Remove("opencode")
+		_, err := mgr.EngineModels(context.Background(), "opencode", "")
+		require.EqualError(t, err, `engine "opencode" is not installed or enabled`)
+		assert.True(t, ai.IsEngineMissing(err))
+		assert.Empty(t, lister.ModelCalls())
+	})
+
+	t.Run("UnknownWorker", func(t *testing.T) {
+		mgr, lister, _ := newModelsManager(t)
+		_, err := mgr.EngineModels(context.Background(), "opencode", "missing")
+		require.ErrorIs(t, err, ErrNotFound)
+		assert.Empty(t, lister.ModelCalls())
+	})
+
+	t.Run("EngineWithoutList", func(t *testing.T) {
+		mgr, _, _ := newModelsManager(t)
+		got, err := mgr.EngineModels(context.Background(), "pi", "")
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("NilListBecomesEmpty", func(t *testing.T) {
+		mgr, lister, _ := newModelsManager(t)
+		lister.ModelsFunc = nil
+		got, err := mgr.EngineModels(context.Background(), "opencode", "")
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("PluginError", func(t *testing.T) {
+		mgr, lister, _ := newModelsManager(t)
+		lister.ModelsFunc = func(context.Context, []string) ([]ai.ModelInfo, error) {
+			return nil, errors.New(`unknown method "models"`)
+		}
+		_, err := mgr.EngineModels(context.Background(), "opencode", "")
+		var modelsErr *EngineModelsError
+		require.ErrorAs(t, err, &modelsErr)
+		assert.EqualError(t, err, `unknown method "models"`)
+	})
 }

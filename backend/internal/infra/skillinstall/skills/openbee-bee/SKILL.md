@@ -173,7 +173,7 @@ return await openbee.create_task({ message_id: "<id>", worker_id: "<worker id>",
 Create, update or delete a worker:
 
 ```js
-return await openbee.create_worker({ name: "<name>", description: "<description>", engine: "<engine>", engine_args: { claude: "--model claude-sonnet-4-6" } });
+return await openbee.create_worker({ name: "<name>", description: "<description>", engine: "<engine>", engine_models: { claude: "claude-sonnet-4-6" } });
 ```
 
 ```js

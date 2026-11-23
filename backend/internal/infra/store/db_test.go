@@ -612,3 +612,20 @@ func TestMigrationDropsLegacyLocalChatTables(t *testing.T) {
 		assert.Zero(t, n, name)
 	}
 }
+
+func TestMigrationAddsEngineModelsToWorkers(t *testing.T) {
+	db := openPreMigrationDB(t, 61)
+	_, err := db.Exec(`INSERT INTO bee_workers (id,name,work_dir,status,engine_args,created_at,updated_at) VALUES ('w1','a','/','idle','{"pi":"--x"}',1,1)`)
+	require.NoError(t, err)
+
+	require.NoError(t, migrate(db))
+
+	var models, args string
+	require.NoError(t, db.QueryRow(`SELECT engine_models, engine_args FROM bee_workers WHERE id = 'w1'`).Scan(&models, &args))
+	assert.Equal(t, "{}", models)
+	assert.Equal(t, `{"pi":"--x"}`, args)
+
+	w, err := NewWorkerStore(db).GetByID("w1")
+	require.NoError(t, err)
+	assert.Equal(t, "{}", w.EngineModels)
+}

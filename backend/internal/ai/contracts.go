@@ -22,6 +22,7 @@ type RunOptions struct {
 	APIKey    string
 	ExtraEnv  []string // additional KEY=VALUE env vars to inject
 	ExtraArgs []string // additional CLI args to pass to the engine
+	Model     string
 }
 
 // OutputType classifies a lifecycle event from a running process.
@@ -72,6 +73,15 @@ type EngineAdapter interface {
 		opts RunOptions, logPath string) (RunResult, error)
 
 	CollectTokenUsage(ctx context.Context, sessionIDs []string) (map[string][]TokenUsage, error)
+}
+
+type ModelInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
+type ModelLister interface {
+	Models(ctx context.Context, extraEnv []string) ([]ModelInfo, error)
 }
 
 type EngineInfo struct {

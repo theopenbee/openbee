@@ -15,7 +15,7 @@ type apiMethod struct {
 
 const apiTypes = `type Page<T> = { items: T[]; total: number; page: number; page_size: number };
 type WorkerBrief = { id: string; name: string; description: string; engine: string };
-type Worker = WorkerBrief & { constraints: string; work_dir: string; engine_args: string; status: "idle" | "working" | "error"; permission_scopes: string; created_at: number; updated_at: number };
+type Worker = WorkerBrief & { constraints: string; work_dir: string; engine_args: string; engine_models: string; status: "idle" | "working" | "error"; permission_scopes: string; created_at: number; updated_at: number };
 type Execution = { id: string; task_id?: string; worker_id?: string; session_id: string; engine?: string; trigger_input?: string; status: "pending" | "running" | "completed" | "failed"; result?: string; started_at?: number; completed_at?: number };
 type Task = { ID: string; MessageID: string; SessionKey: string; Platform: string; WorkerID: string; Instruction: string; Type: "immediate" | "countdown" | "scheduled"; Status: "pending" | "running" | "completed" | "failed" | "cancelled"; ScheduledAt: number | null; CronExpr: string; NextRunAt: number | null; CreatedAt: number; UpdatedAt: number; executions: Execution[] };
 type Message = { id: string; session_key: string; platform: string; content: string; status: "received" | "feeding" | "bee_processed" | "merged" | "failed"; received_at: number };
@@ -30,10 +30,10 @@ send_message(args: { message_id?: string; session_key?: string; content?: string
 list_workers(args?: { name?: string; id?: string; page?: number; page_size?: number }): Promise<Page<WorkerBrief>>;`},
 	{utils.GetWorker, `get_worker(args: { worker_id: string }): Promise<Worker>;`},
 	{utils.GetWorkerStatus, `get_worker_status(args: { worker_id: string }): Promise<{ worker_id: string; name: string; status: string; pending_tasks_count: number; current_execution: { id: string; task_id: string; instruction: string; started_at: number } | null }>;`},
-	{utils.CreateWorker, `/** engine: one of the enabled engines, empty for the server default. permission_scopes: comma-separated, from read:workers, read:tasks, read:messages. engine_args: extra CLI flags per engine, e.g. { claude: "--model claude-sonnet-4-6" }. */
-create_worker(args: { name: string; description?: string; constraints?: string; work_dir?: string; engine?: string; permission_scopes?: string; engine_args?: Record<string, string> }): Promise<Worker>;`},
-	{utils.UpdateWorker, `/** Only the fields you pass change. permission_scopes replaces all scopes ("" clears them). In engine_args an empty string removes that engine's flags and {} clears all. */
-update_worker(args: { worker_id: string; name?: string; description?: string; constraints?: string; work_dir?: string; engine?: string; permission_scopes?: string; engine_args?: Record<string, string> }): Promise<Worker>;`},
+	{utils.CreateWorker, `/** engine: one of the enabled engines, empty for the server default. permission_scopes: comma-separated, from read:workers, read:tasks, read:messages. engine_args: extra CLI flags per engine, e.g. { claude: "--effort high" }. engine_models: model per engine, e.g. { opencode: "deepseek/deepseek-flash" }. */
+create_worker(args: { name: string; description?: string; constraints?: string; work_dir?: string; engine?: string; permission_scopes?: string; engine_args?: Record<string, string>; engine_models?: Record<string, string> }): Promise<Worker>;`},
+	{utils.UpdateWorker, `/** Only the fields you pass change. permission_scopes replaces all scopes ("" clears them). In engine_args and engine_models an empty string removes that engine's entry and {} clears all. */
+update_worker(args: { worker_id: string; name?: string; description?: string; constraints?: string; work_dir?: string; engine?: string; permission_scopes?: string; engine_args?: Record<string, string>; engine_models?: Record<string, string> }): Promise<Worker>;`},
 	{utils.DeleteWorker, `delete_worker(args: { worker_id: string; delete_work_dir?: boolean }): Promise<{ status: "deleted" }>;`},
 	{utils.ListTasks, `/** Needs at least one of task_id, message_id, session_key, worker_id; task_id cannot be combined with the others. page_size defaults to 50, max 100. Each task carries its newest executions: 10 by default, execution_limit sets another count, and execution_limit 0 with task_id returns all of them. */
 list_tasks(args: { task_id?: string; message_id?: string; session_key?: string; worker_id?: string; status?: string; type?: "immediate" | "countdown" | "scheduled"; page?: number; page_size?: number; execution_limit?: number }): Promise<Page<Task>>;`},

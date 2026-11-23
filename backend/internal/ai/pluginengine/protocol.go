@@ -11,9 +11,10 @@ import (
 const ProtocolVersion = plugin.EngineProtocolVersion
 
 const (
-	methodRun   = "run"
-	methodCheck = "check"
-	methodUsage = "usage"
+	methodRun    = "run"
+	methodCheck  = "check"
+	methodUsage  = "usage"
+	methodModels = "models"
 )
 
 type request struct {
@@ -36,6 +37,7 @@ type runParams struct {
 	Resume    bool       `json:"resume"`
 	ExtraArgs []string   `json:"extra_args"`
 	LogPath   string     `json:"log_path"`
+	Model     string     `json:"model,omitempty"`
 	MCP       *mcpParams `json:"mcp,omitempty"`
 }
 
@@ -69,6 +71,15 @@ type usageEntry struct {
 	OutputTokens        int64  `json:"output_tokens"`
 	CacheCreationTokens int64  `json:"cache_creation_tokens"`
 	CacheReadTokens     int64  `json:"cache_read_tokens"`
+}
+
+type modelsResult struct {
+	Models []modelEntry `json:"models"`
+}
+
+type modelEntry struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type response struct {

@@ -216,6 +216,7 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 		Engine           string            `json:"engine"`
 		PermissionScopes string            `json:"permission_scopes"`
 		EngineArgs       map[string]string `json:"engine_args"`
+		EngineModels     map[string]string `json:"engine_models"`
 	}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("invalid args: %w", err)
@@ -248,6 +249,7 @@ func (s *Server) toolCreateWorker(args json.RawMessage) (any, error) {
 		Engine:           params.Engine,
 		PermissionScopes: params.PermissionScopes,
 		EngineArgs:       engineArgs,
+		EngineModels:     params.EngineModels,
 	})
 	if err != nil {
 		return nil, err

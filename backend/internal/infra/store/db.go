@@ -597,6 +597,11 @@ UPDATE bee_workers
 		sql: `DROP TABLE IF EXISTS bee_local_replies;
 DROP TABLE IF EXISTS bee_local_sessions;`,
 	},
+	{
+		version: 61,
+		name:    "add_engine_models_to_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN engine_models TEXT NOT NULL DEFAULT '{}'`,
+	},
 }
 
 type whereBuilder struct {

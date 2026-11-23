@@ -236,6 +236,35 @@ func TestCallTool_UpdateWorker(t *testing.T) {
 	assert.Equal(t, w.Description, updated.Description)
 }
 
+func TestCallTool_WorkerEngineModels(t *testing.T) {
+	s := setupServerWithMessaging(t)
+	w := mustCreateWorker(t, s, map[string]any{"name": "Coder", "engine_models": map[string]any{"claude": " sonnet "}})
+	assert.JSONEq(t, `{"claude":"sonnet"}`, w.EngineModels)
+	assert.Contains(t, decodeResult(t, w), "engine_models")
+
+	result, err := s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id":     w.ID,
+		"engine_models": map[string]any{"claude": "opus"},
+	}))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"claude":"opus"}`, result.(model.Worker).EngineModels)
+
+	result, err = s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id":     w.ID,
+		"engine_models": map[string]any{"claude": ""},
+	}))
+	require.NoError(t, err)
+	assert.Equal(t, "{}", result.(model.Worker).EngineModels)
+
+	_, err = s.CallTool(context.Background(), "create_worker", mustMarshal(t, map[string]any{"name": "Bad", "engine_models": map[string]any{"claude": "--dangerously"}}))
+	require.ErrorIs(t, err, worker.ErrValidation)
+	_, err = s.CallTool(context.Background(), "update_worker", mustMarshal(t, map[string]any{
+		"worker_id":     w.ID,
+		"engine_models": map[string]any{"codex": "o3"},
+	}))
+	require.ErrorIs(t, err, worker.ErrValidation)
+}
+
 func TestCallTool_DeleteWorker(t *testing.T) {
 	s := setupServerWithMessaging(t)
 	w := mustCreateWorker(t, s, map[string]any{"name": "Bot"})

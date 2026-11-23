@@ -110,6 +110,8 @@ func TestMCPBeeSeesFullAPI(t *testing.T) {
 	for _, name := range []string{"create_worker(", "create_task(", "clear_session(", "save_constraint(", "list_workers("} {
 		assert.Contains(t, desc, name)
 	}
+	assert.Equal(t, 2, strings.Count(desc, "engine_models?: Record<string, string>"))
+	assert.Contains(t, desc, "engine_models: string;")
 }
 
 func TestMCPWorkerSeesReadOnlyAPI(t *testing.T) {

@@ -28,7 +28,8 @@ return await openbee.create_worker({
   work_dir: "<directory>",
   engine: "<engine>",
   permission_scopes: "read:workers,read:tasks",
-  engine_args: { claude: "--model claude-sonnet-4-6 --effort high" },
+  engine_models: { claude: "claude-sonnet-4-6" },
+  engine_args: { claude: "--effort high" },
 });
 ```
 
@@ -43,6 +44,7 @@ return await openbee.delete_worker({ worker_id: "<id>", delete_work_dir: false }
 - `list_workers`: `name` matches part of the name, case-insensitive; `id` matches exactly; default 50 per page, max 200
 - `update_worker` changes only the fields you pass
 - `engine` is one of the enabled engines; leave it out for the server default
+- `engine_models` holds the model per engine, e.g. `{ opencode: "deepseek/deepseek-flash" }`. On update, an empty string removes that engine's model and `{}` clears all of them
 - `engine_args` holds extra CLI flags per engine. On update, an empty string removes that engine's flags and `{}` clears all of them
 - `work_dir` is the worker's working directory; on update, pass a new path to change it
 - `delete_work_dir: true` also deletes the working directory from disk

@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/ai/aitest"
+	"github.com/theopenbee/openbee/internal/domain/enginecfg"
+	"github.com/theopenbee/openbee/internal/domain/env"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/config"
@@ -182,4 +184,150 @@ func TestUpdateWorker_UninstalledEngineFormEdit(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, code)
 	assert.Contains(t, body["error"], `engine "codex" is not installed or enabled`)
 	assert.Equal(t, "worker_validation", body["code"])
+}
+
+type engineModelsEnv struct {
+	router  *gin.Engine
+	workers *store.WorkerStore
+	envs    *env.Service
+	lister  *aitest.ModelEngine
+	src     *aitest.Source
+}
+
+func newEngineModelsEnv(t *testing.T) *engineModelsEnv {
+	t.Helper()
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+	envs, err := env.NewService(store.NewEnvConfigStore(db), "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+	require.NoError(t, err)
+	lister := &aitest.ModelEngine{}
+	src := aitest.NewSource(map[string]ai.EngineAdapter{"opencode": lister, "pi": &aitest.Engine{}})
+	workers := store.NewWorkerStore(db)
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, workers, nil, src, enginecfg.NewStore("pi", "", src.IDs), envs, nil)
+	h := NewWorkerHandler(workers, mgr, nil, "en")
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/workers", h.Create)
+	router.GET("/workers/:id", h.Get)
+	router.PUT("/workers/:id", h.Update)
+	router.GET("/engines/:id/models", h.EngineModels)
+	return &engineModelsEnv{router: router, workers: workers, envs: envs, lister: lister, src: src}
+}
+
+func (e *engineModelsEnv) do(t *testing.T, method, path, body string) (int, map[string]any) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	e.router.ServeHTTP(rec, httptest.NewRequest(method, path, strings.NewReader(body)))
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
+	return rec.Code, out
+}
+
+func TestWorkerEngineModelsFields(t *testing.T) {
+	e := newEngineModelsEnv(t)
+
+	code, body := e.do(t, http.MethodPost, "/workers", `{"name":"plain"}`)
+	require.Equal(t, http.StatusCreated, code, body)
+	assert.Equal(t, map[string]any{}, body["engine_models"])
+
+	code, body = e.do(t, http.MethodPost, "/workers", `{"name":"coder","engine_models":{"opencode":" deepseek/deepseek-flash ","pi":""}}`)
+	require.Equal(t, http.StatusCreated, code, body)
+	assert.Equal(t, map[string]any{"opencode": "deepseek/deepseek-flash"}, body["engine_models"])
+	id := body["id"].(string)
+
+	code, body = e.do(t, http.MethodGet, "/workers/"+id, "")
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, map[string]any{"opencode": "deepseek/deepseek-flash"}, body["engine_models"])
+
+	code, body = e.do(t, http.MethodPut, "/workers/"+id, `{"description":"edited"}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, map[string]any{"opencode": "deepseek/deepseek-flash"}, body["engine_models"])
+
+	code, body = e.do(t, http.MethodPut, "/workers/"+id, `{"engine_models":{"pi":"openai/gpt-5","opencode":""}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, map[string]any{"pi": "openai/gpt-5"}, body["engine_models"])
+
+	code, body = e.do(t, http.MethodPut, "/workers/"+id, `{"engine_models":{}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, map[string]any{}, body["engine_models"])
+
+	for _, req := range []struct{ method, path, body string }{
+		{http.MethodPost, "/workers", `{"name":"bad","engine_models":{"pi":"--yolo"}}`},
+		{http.MethodPost, "/workers", `{"name":"bad","engine_models":{"codex":"o3"}}`},
+		{http.MethodPut, "/workers/" + id, `{"engine_models":{"pi":"openai/gpt 5"}}`},
+		{http.MethodPut, "/workers/" + id, `{"engine_models":{"claude":"sonnet"}}`},
+	} {
+		code, body = e.do(t, req.method, req.path, req.body)
+		assert.Equal(t, http.StatusBadRequest, code, req.body)
+		assert.Equal(t, "worker_validation", body["code"], req.body)
+	}
+}
+
+func TestEngineModelsEndpoint(t *testing.T) {
+	t.Run("ListsWithGlobalEnv", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		_, err := e.envs.Create(env.ScopeGlobal, "", "DEEPSEEK_API_KEY", "sk-global")
+		require.NoError(t, err)
+		e.lister.ModelsFunc = func(context.Context, []string) ([]ai.ModelInfo, error) {
+			return []ai.ModelInfo{{ID: "deepseek/deepseek-flash", Name: "DeepSeek Flash"}, {ID: "opencode/big-pickle"}}, nil
+		}
+
+		rec := httptest.NewRecorder()
+		e.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/engines/opencode/models", nil))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.JSONEq(t, `{"models":[{"id":"deepseek/deepseek-flash","name":"DeepSeek Flash"},{"id":"opencode/big-pickle"}]}`, rec.Body.String())
+		assert.Equal(t, [][]string{{"DEEPSEEK_API_KEY=sk-global"}}, e.lister.ModelCalls())
+	})
+
+	t.Run("UsesWorkerEnv", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		w, err := e.workers.Create(model.Worker{Name: "coder"})
+		require.NoError(t, err)
+		_, err = e.envs.Create(env.ScopeGlobal, "", "DEEPSEEK_API_KEY", "sk-global")
+		require.NoError(t, err)
+		_, err = e.envs.Create(env.ScopeWorker, w.ID, "DEEPSEEK_API_KEY", "sk-worker")
+		require.NoError(t, err)
+
+		code, body := e.do(t, http.MethodGet, "/engines/opencode/models?worker_id="+w.ID, "")
+
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Equal(t, []any{}, body["models"])
+		assert.Equal(t, [][]string{{"DEEPSEEK_API_KEY=sk-worker"}}, e.lister.ModelCalls())
+	})
+
+	t.Run("EngineWithoutListReturnsEmpty", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		code, body := e.do(t, http.MethodGet, "/engines/pi/models", "")
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Equal(t, []any{}, body["models"])
+	})
+
+	t.Run("UnknownEngine", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		e.src.Remove("opencode")
+		code, body := e.do(t, http.MethodGet, "/engines/opencode/models", "")
+		assert.Equal(t, http.StatusNotFound, code)
+		assert.Equal(t, "engine_not_found", body["code"])
+		assert.Empty(t, e.lister.ModelCalls())
+	})
+
+	t.Run("UnknownWorker", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		code, body := e.do(t, http.MethodGet, "/engines/opencode/models?worker_id=missing", "")
+		assert.Equal(t, http.StatusNotFound, code)
+		assert.Equal(t, "worker_not_found", body["code"])
+		assert.Empty(t, e.lister.ModelCalls())
+	})
+
+	t.Run("PluginErrorIsBadGateway", func(t *testing.T) {
+		e := newEngineModelsEnv(t)
+		e.lister.ModelsFunc = func(context.Context, []string) ([]ai.ModelInfo, error) {
+			return nil, errors.New(`unknown method "models"`)
+		}
+		code, body := e.do(t, http.MethodGet, "/engines/opencode/models", "")
+		assert.Equal(t, http.StatusBadGateway, code)
+		assert.Equal(t, map[string]any{"error": `unknown method "models"`}, body)
+	})
 }

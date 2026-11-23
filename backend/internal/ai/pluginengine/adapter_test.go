@@ -126,7 +126,8 @@ func TestRun_SendsRequestFields(t *testing.T) {
 			Role:      ai.RoleWorker,
 			APIKey:    "secret-key-123",
 			ExtraEnv:  []string{"FAKE_EXTRA=from-worker"},
-			ExtraArgs: []string{"--model", "opus"},
+			ExtraArgs: []string{"--effort", "high"},
+			Model:     "deepseek/deepseek-flash",
 		}, logPath)
 		require.NoError(t, err)
 		require.NotNil(t, res.Process)
@@ -149,8 +150,9 @@ func TestRun_SendsRequestFields(t *testing.T) {
 			"prompt":     "hello there",
 			"session_id": "sess-1",
 			"resume":     true,
-			"extra_args": []any{"--model", "opus"},
+			"extra_args": []any{"--effort", "high"},
 			"log_path":   logPath,
+			"model":      "deepseek/deepseek-flash",
 			"mcp": map[string]any{
 				"name":        "openbee",
 				"url":         "http://127.0.0.1:9999/mcp",
@@ -181,6 +183,7 @@ func TestRun_SendsRequestFields(t *testing.T) {
 		req, params := decodeRequest(t, rec.Request)
 		assert.Equal(t, map[string]any{}, req.Config)
 		assert.NotContains(t, params, "mcp")
+		assert.NotContains(t, params, "model")
 		assert.Equal(t, []any{}, params["extra_args"])
 		assert.Equal(t, "bee", params["role"])
 		assert.Equal(t, false, params["resume"])
@@ -360,6 +363,59 @@ func TestCheck_OKAndError(t *testing.T) {
 		_, err := New(spec).Check(context.Background())
 		require.Error(t, err)
 		assert.Equal(t, "fakecli not found on PATH", err.Error())
+	})
+}
+
+func TestModels(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		spec, recordDir := fakeSpec(t, "models")
+		t.Setenv(ai.APIKeyEnv, "outer-key")
+		t.Setenv("FAKE_SHARED", "from-server")
+		t.Setenv("FAKE_BASE", "kept")
+
+		got, err := New(spec).Models(context.Background(), []string{
+			"FAKE_PROVIDER_KEY=sk-test",
+			"FAKE_SHARED=from-env-settings",
+			ai.APIKeyEnv + "=leaked",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []ai.ModelInfo{
+			{ID: "deepseek/deepseek-flash", Name: "DeepSeek Flash"},
+			{ID: "opencode/big-pickle"},
+		}, got)
+
+		recs := readRecords(t, recordDir)
+		require.Len(t, recs, 1)
+		req, params := decodeRequest(t, recs[0].Request)
+		assert.Equal(t, "models", req.Method)
+		assert.Equal(t, "fake", req.EngineID)
+		assert.Equal(t, map[string]any{}, params)
+		assert.Equal(t, "sk-test", recs[0].Env["FAKE_PROVIDER_KEY"])
+		assert.Equal(t, "from-env-settings", recs[0].Env["FAKE_SHARED"])
+		assert.Equal(t, "kept", recs[0].Env["FAKE_BASE"])
+		assert.NotContains(t, recs[0].Env, ai.APIKeyEnv)
+		sameDir(t, spec.Dir, recs[0].Cwd)
+	})
+
+	t.Run("no models field", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "echo")
+		got, err := New(spec).Models(context.Background(), nil)
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "check-fail")
+		got, err := New(spec).Models(context.Background(), nil)
+		require.EqualError(t, err, "fakecli not found on PATH")
+		assert.Nil(t, got)
+	})
+
+	t.Run("no response", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "noresp")
+		_, err := New(spec).Models(context.Background(), nil)
+		require.EqualError(t, err, "engine plugin exited without a response: boom")
 	})
 }
 

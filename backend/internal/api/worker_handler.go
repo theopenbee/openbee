@@ -3,10 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/apperr"
 	"github.com/theopenbee/openbee/internal/domain/worker"
 	"github.com/theopenbee/openbee/internal/infra/auth"
@@ -26,6 +28,7 @@ type createWorkerRequest struct {
 	WorkDir          string            `json:"work_dir"`
 	PermissionScopes string            `json:"permission_scopes"`
 	EngineArgs       map[string]string `json:"engine_args"`
+	EngineModels     map[string]string `json:"engine_models"`
 }
 
 type workerResponse struct {
@@ -36,13 +39,14 @@ type workerResponse struct {
 	WorkDir          string             `json:"work_dir"`
 	Engine           string             `json:"engine"`
 	EngineArgs       map[string]string  `json:"engine_args"`
+	EngineModels     map[string]string  `json:"engine_models"`
 	Status           model.WorkerStatus `json:"status"`
 	PermissionScopes string             `json:"permission_scopes"`
 	CreatedAt        int64              `json:"created_at"`
 	UpdatedAt        int64              `json:"updated_at"`
 }
 
-func parseWorkerEngineArgs(raw string) (map[string]string, error) {
+func parseWorkerEngineMap(raw string) (map[string]string, error) {
 	if raw == "" || raw == "{}" {
 		return map[string]string{}, nil
 	}
@@ -54,9 +58,13 @@ func parseWorkerEngineArgs(raw string) (map[string]string, error) {
 }
 
 func toWorkerResponse(w model.Worker) (workerResponse, error) {
-	engineArgs, err := parseWorkerEngineArgs(w.EngineArgs)
+	engineArgs, err := parseWorkerEngineMap(w.EngineArgs)
 	if err != nil {
 		return workerResponse{}, fmt.Errorf("parse worker %s engine_args: %w", w.ID, err)
+	}
+	engineModels, err := parseWorkerEngineMap(w.EngineModels)
+	if err != nil {
+		return workerResponse{}, fmt.Errorf("parse worker %s engine_models: %w", w.ID, err)
 	}
 	return workerResponse{
 		ID:               w.ID,
@@ -66,6 +74,7 @@ func toWorkerResponse(w model.Worker) (workerResponse, error) {
 		WorkDir:          w.WorkDir,
 		Engine:           w.Engine,
 		EngineArgs:       engineArgs,
+		EngineModels:     engineModels,
 		Status:           w.Status,
 		PermissionScopes: w.PermissionScopes,
 		CreatedAt:        w.CreatedAt,
@@ -125,6 +134,7 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		WorkDir:          req.WorkDir,
 		PermissionScopes: req.PermissionScopes,
 		EngineArgs:       engineArgsJSON,
+		EngineModels:     req.EngineModels,
 	})
 	if err != nil {
 		respondWorkerError(c, err)
@@ -226,4 +236,25 @@ func (h *WorkerHandler) RandomName(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"name": name})
+}
+
+type engineModelsResponse struct {
+	Models []ai.ModelInfo `json:"models"`
+}
+
+func (h *WorkerHandler) EngineModels(c *gin.Context) {
+	models, err := h.manager.EngineModels(c.Request.Context(), c.Param("id"), c.Query("worker_id"))
+	var modelsErr *worker.EngineModelsError
+	switch {
+	case err == nil:
+		c.JSON(http.StatusOK, engineModelsResponse{Models: models})
+	case ai.IsEngineMissing(err):
+		respondError(c, http.StatusNotFound, apperr.New("engine_not_found", err.Error()))
+	case errors.Is(err, worker.ErrNotFound):
+		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
+	case errors.As(err, &modelsErr):
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+	default:
+		respondError(c, http.StatusInternalServerError, err)
+	}
 }

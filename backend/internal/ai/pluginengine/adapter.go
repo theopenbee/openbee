@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	checkTimeout = 30 * time.Second
-	usageTimeout = 60 * time.Second
-	stopGrace    = 3 * time.Second
+	checkTimeout  = 30 * time.Second
+	usageTimeout  = 60 * time.Second
+	modelsTimeout = 30 * time.Second
+	stopGrace     = 3 * time.Second
 )
 
 type Spec struct {
@@ -43,7 +44,10 @@ type Adapter struct {
 	grace time.Duration
 }
 
-var _ ai.EngineAdapter = (*Adapter)(nil)
+var (
+	_ ai.EngineAdapter = (*Adapter)(nil)
+	_ ai.ModelLister   = (*Adapter)(nil)
+)
 
 func New(spec Spec) *Adapter {
 	return &Adapter{spec: spec, log: logger.With(zap.String("component", "engine:"+spec.ID)), grace: stopGrace}
@@ -58,6 +62,7 @@ func (a *Adapter) Run(ctx context.Context, workDir, prompt string, opts ai.RunOp
 		Resume:    opts.Resume,
 		ExtraArgs: opts.ExtraArgs,
 		LogPath:   logPath,
+		Model:     opts.Model,
 	}
 	if params.ExtraArgs == nil {
 		params.ExtraArgs = []string{}
@@ -123,7 +128,7 @@ func (a *Adapter) CollectTokenUsage(ctx context.Context, sessionIDs []string) (m
 		return usage, nil
 	}
 	var res usageResult
-	if err := a.call(ctx, methodUsage, usageParams{SessionIDs: sessionIDs}, usageTimeout, &res); err != nil {
+	if err := a.call(ctx, methodUsage, usageParams{SessionIDs: sessionIDs}, nil, usageTimeout, &res); err != nil {
 		return nil, err
 	}
 	for id, entries := range res.Usage {
@@ -144,17 +149,33 @@ func (a *Adapter) CollectTokenUsage(ctx context.Context, sessionIDs []string) (m
 
 func (a *Adapter) Check(ctx context.Context) (CheckResult, error) {
 	var res CheckResult
-	if err := a.call(ctx, methodCheck, struct{}{}, checkTimeout, &res); err != nil {
+	if err := a.call(ctx, methodCheck, struct{}{}, nil, checkTimeout, &res); err != nil {
 		return CheckResult{}, err
 	}
 	return res, nil
 }
 
-func (a *Adapter) call(ctx context.Context, method string, params any, timeout time.Duration, out any) error {
+func (a *Adapter) Models(ctx context.Context, extraEnv []string) ([]ai.ModelInfo, error) {
+	var res modelsResult
+	if err := a.call(ctx, methodModels, struct{}{}, extraEnv, modelsTimeout, &res); err != nil {
+		return nil, err
+	}
+	models := make([]ai.ModelInfo, 0, len(res.Models))
+	for _, m := range res.Models {
+		if m.ID == "" {
+			continue
+		}
+		models = append(models, ai.ModelInfo{ID: m.ID, Name: m.Name})
+	}
+	return models, nil
+}
+
+func (a *Adapter) call(ctx context.Context, method string, params any, extraEnv []string, timeout time.Duration, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	p, err := a.start(ctx, method, params, func(runtimeEnv []string) []string {
-		return withoutEnv(append(ai.BuildBaseEnv(), runtimeEnv...), ai.APIKeyEnv)
+		env := append(append(ai.BuildBaseEnv(), runtimeEnv...), extraEnv...)
+		return withoutEnv(env, ai.APIKeyEnv)
 	})
 	if err != nil {
 		return err
