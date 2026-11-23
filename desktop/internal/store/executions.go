@@ -3,13 +3,17 @@ package store
 import (
 	"context"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/model"
 )
 
-const executionPollEvery = 2 * time.Second
+const (
+	executionPollEvery = 2 * time.Second
+	cachedRuns         = 4
+)
 
 func (s *Store) initExecutions() {
 	s.executions = map[string]*Resource[api.ExecutionDetail]{}
@@ -17,15 +21,34 @@ func (s *Store) initExecutions() {
 }
 
 func (s *Store) Execution(id string) *Resource[api.ExecutionDetail] {
+	s.runOrder = append(slices.DeleteFunc(s.runOrder, func(v string) bool { return v == id }), id)
 	if r, ok := s.executions[id]; ok {
 		return r
 	}
-	r := NewResource(s, func(ctx context.Context, c *api.Client) (api.ExecutionDetail, error) {
+	r := newResource(s, func(ctx context.Context, c *api.Client) (api.ExecutionDetail, error) {
 		return c.Execution(ctx, id)
 	})
 	r.settled = s.scheduleExecution
 	s.executions[id] = r
+	s.pruneRuns()
 	return r
+}
+
+func (s *Store) pruneRuns() {
+	for {
+		others := len(s.runOrder)
+		if slices.Contains(s.runOrder, s.watchedRun) {
+			others--
+		}
+		if others <= cachedRuns {
+			return
+		}
+		i := slices.IndexFunc(s.runOrder, func(id string) bool { return id != s.watchedRun })
+		id := s.runOrder[i]
+		s.runOrder = slices.Delete(s.runOrder, i, i+1)
+		s.executions[id].Reset()
+		delete(s.executions, id)
+	}
 }
 
 func (s *Store) WatchExecution(id string) {
@@ -34,6 +57,7 @@ func (s *Store) WatchExecution(id string) {
 	}
 	s.stopExecutionPoll()
 	s.watchedRun = id
+	s.pruneRuns()
 	if id == "" {
 		return
 	}
@@ -75,6 +99,11 @@ func (s *Store) resumeExecution() {
 func (s *Store) resetExecutions() {
 	s.stopExecutionPoll()
 	s.watchedRun = ""
+	for _, r := range s.executions {
+		r.Reset()
+	}
+	s.executions = map[string]*Resource[api.ExecutionDetail]{}
+	s.runOrder = nil
 }
 
 func executionRunning(r *Resource[api.ExecutionDetail]) bool {

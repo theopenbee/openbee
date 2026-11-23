@@ -252,6 +252,63 @@ func TestTimelineAndToolOutput(t *testing.T) {
 	f.wantHidden("+npm i -g openbee")
 }
 
+func TestLongThinkingExpands(t *testing.T) {
+	long := strings.TrimSpace(strings.Repeat("Check the install section and the release notes before shipping. ", 12))
+	short := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "thinking", Text: "Short thought"}}
+	})))
+	short.Motion()
+	short.wantShown("Short thought")
+	short.wantHidden(locales.ArcExpandableTextMore())
+
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "thinking", Text: long}}
+	})))
+	f.Motion()
+	f.wantShown(locales.ArcExpandableTextMore())
+	height := func() float32 {
+		r, ok := f.T.Find(long)
+		if !ok {
+			t.Fatalf("thinking text missing; texts %q", f.T.Texts())
+		}
+		return r.H
+	}
+	clamped := height()
+
+	f.click(locales.ArcExpandableTextMore())
+	f.wantShown(locales.ArcExpandableTextLess())
+	f.wantHidden(locales.ArcExpandableTextMore())
+	if full := height(); full <= clamped {
+		t.Fatalf("expanded thinking is %v tall, clamped %v; want it taller", full, clamped)
+	}
+
+	f.click(locales.ArcExpandableTextLess())
+	f.wantShown(locales.ArcExpandableTextMore())
+	if again := height(); again != clamped {
+		t.Fatalf("collapsed thinking is %v tall, want %v", again, clamped)
+	}
+}
+
+func TestToolSummaryShowsInFullOnHover(t *testing.T) {
+	summary := "pnpm vitest run src/components/chat --reporter verbose " + strings.Repeat("--project web ", 12)
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "command", Name: "Bash", Summary: summary, Status: "done"}}
+	})))
+	chip, ok := f.T.Find(summary)
+	if !ok {
+		t.Fatalf("summary missing; texts %q", f.T.Texts())
+	}
+	if n := f.count(summary); n != 1 {
+		t.Fatalf("summary shown %d times before hover, want 1", n)
+	}
+	f.T.Move(chip.X+chip.W/2, chip.Y+chip.H/2)
+	f.T.Advance(2 * time.Second)
+	f.Motion()
+	if n := f.count(summary); n != 2 {
+		t.Fatalf("summary shown %d times on hover, want the chip and its tooltip; texts %q", n, f.T.Texts())
+	}
+}
+
 func TestRunSwitcher(t *testing.T) {
 	older := detail("completed", func(e *api.ExecutionDetail) {
 		e.Runs = []api.ExecutionSummary{

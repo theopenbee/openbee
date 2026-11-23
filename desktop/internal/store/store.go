@@ -100,6 +100,7 @@ type Store struct {
 	models      map[modelsKey]*Resource[[]api.EngineModel]
 	plugins     *PluginsState
 	executions  map[string]*Resource[api.ExecutionDetail]
+	runOrder    []string
 	watchedRun  string
 	stopRunPoll func()
 	active      string

@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -140,6 +141,63 @@ func TestMissingExecutionStopsPolling(t *testing.T) {
 	fix.Settle(t)
 	if n := countCalls(fake, http.MethodGet, executionPath); n != 2 {
 		t.Fatalf("%d fetches after a 404, want 2", n)
+	}
+}
+
+func withRuns(ids ...string) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		team(st)
+		st.Executions = map[string]api.ExecutionDetail{}
+		for _, id := range ids {
+			d := execution("completed")
+			d.ID = id
+			st.Executions[id] = d
+		}
+	}
+}
+
+func TestExecutionCacheKeepsTheWatchedRunAndFourRecent(t *testing.T) {
+	ids := []string{"e1", "e2", "e3", "e4", "e5", "e6"}
+	st, fake, fix := loaded(t, withRuns(ids...))
+	hooks := store.ResetHooks(st)
+	for _, id := range ids {
+		watched(t, st, fix, id)
+	}
+	if got := store.CachedRuns(st); !slices.Equal(got, ids[1:]) {
+		t.Fatalf("cached runs = %v, want %v", got, ids[1:])
+	}
+	if n := store.ResetHooks(st); n != hooks {
+		t.Fatalf("opening runs added %d reset hooks", n-hooks)
+	}
+
+	watched(t, st, fix, "e3")
+	watched(t, st, fix, "e1")
+	if n := countCalls(fake, http.MethodGet, "/api/executions/e1"); n != 2 {
+		t.Fatalf("an evicted run was fetched %d times when reopened, want 2", n)
+	}
+	if n := countCalls(fake, http.MethodGet, "/api/executions/e3"); n != 1 {
+		t.Fatalf("a cached run was fetched %d times when reopened, want 1", n)
+	}
+	if got, want := store.CachedRuns(st), []string{"e1", "e3", "e4", "e5", "e6"}; !slices.Equal(got, want) {
+		t.Fatalf("cached runs = %v, want %v", got, want)
+	}
+
+	for _, id := range []string{"e2", "e3", "e4", "e5", "e6"} {
+		st.Execution(id)
+	}
+	if got, want := store.CachedRuns(st), []string{"e1", "e3", "e4", "e5", "e6"}; !slices.Equal(got, want) {
+		t.Fatalf("cached runs = %v, want the watched run and the four most recent %v", got, want)
+	}
+
+	st.WatchExecution("")
+	if got, want := store.CachedRuns(st), []string{"e3", "e4", "e5", "e6"}; !slices.Equal(got, want) {
+		t.Fatalf("cached runs after closing the panel = %v, want %v", got, want)
+	}
+
+	st.Logout()
+	fix.Settle(t)
+	if got := store.CachedRuns(st); len(got) != 0 {
+		t.Fatalf("cached runs after sign-out = %v, want none", got)
 	}
 }
 

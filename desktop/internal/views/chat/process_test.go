@@ -107,6 +107,25 @@ func TestWorkerMessageOpensItsProcess(t *testing.T) {
 	plain.wantHidden(locales.ExecutionShow())
 }
 
+func TestFailureNoticeOpensItsProcess(t *testing.T) {
+	failed := message("n1", "system", "", "Task execution failed", time.Now().Add(-time.Hour))
+	failed.ExecutionID = "e1"
+	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID, failed))
+	f.wantShown("Task execution failed", locales.ExecutionShow())
+	f.click(locales.ExecutionShow())
+	f.wantLocation(route.ChatRun("w1", "e1"))
+}
+
+func TestLiveStopNoticeOpensItsProcess(t *testing.T) {
+	f := newFixture(t, wideW, wideH, "w1", seedChat(team(), workerCID))
+	f.wantHidden(locales.ExecutionShow())
+	f.Fake.Reply(workerCID, api.ChatMessage{ID: "n2", Sender: api.ChatSender{Type: "system"}, Content: "Task was cancelled", ExecutionID: "e2"})
+	f.Fix.Await(t, func() bool { f.T.Frame(); return f.shows("Task was cancelled") })
+	f.settleMotion()
+	f.click(locales.ExecutionShow())
+	f.wantLocation(route.ChatRun("w1", "e2"))
+}
+
 func TestHandoffRunRow(t *testing.T) {
 	at := time.Now().Add(-time.Hour)
 	scheduled := withRun(handoff("h1", "w1", "scheduled", "0 9 * * *", "Check the links", at), "completed", 108*time.Second)

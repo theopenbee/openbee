@@ -1,6 +1,8 @@
 package execution
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
 	"github.com/theopenbee/openbee/desktop/internal/icons"
@@ -30,6 +32,7 @@ const (
 	quotePad       = 12
 	messageLines   = 2
 	thinkingLines  = 3
+	clipSlack      = 0.5
 	outputMaxH     = 224
 	outputSize     = 11
 	outputLeading  = 1.625
@@ -89,7 +92,7 @@ func (p *Panel) timeline(c *ui.Context, tk theme.Tokens, steps []api.ExecutionSt
 			stepItem(c, tk, last, func() {
 				switch step.Type {
 				case model.StepThinking:
-					thinkingStep(c, tk, step.Text)
+					thinkingStep(c, tk, step.Text, *open, i)
 				case model.StepText:
 					p.textStep(c, tk, step.Text)
 				case model.StepError:
@@ -134,11 +137,57 @@ func stepBody(c *ui.Context, gap, top float32) ui.Element {
 	return ui.Column(c).Grow(1).MinWidth(0).Gap(gap).Padding(top, 0, 0, 0)
 }
 
-func thinkingStep(c *ui.Context, tk theme.Tokens, text string) {
+func thinkingStep(c *ui.Context, tk theme.Tokens, text string, open map[int]bool, index int) {
+	expanded := open[index]
 	stepIcon(c, tk, toneQuiet, glyph(c, "brain"))
 	stepBody(c, stepLabelGap, stepBodyTop).Children(func() {
 		ui.Text(c, locales.ExecutionThinking()).FontSize(metaSize).TextColor(tk.TextMuted)
-		ui.Text(c, text).FontSize(textSize).TextColor(tk.TextSecondary).MaxLines(thinkingLines)
+		body := ui.Text(c, text).FontSize(textSize).TextColor(tk.TextSecondary)
+		if !expanded {
+			body.MaxLines(thinkingLines)
+		}
+		if expanded || clipsLines(c, body, text, thinkingLines) {
+			expandToggle(c, tk, expanded, func() { open[index] = !expanded })
+		}
+	})
+}
+
+func clipsLines(c *ui.Context, e ui.Element, text string, lines int) bool {
+	decided := false
+	if w := e.LayoutBounds().W; w > 0 {
+		decided = overLines(c.MeasureText, w, text, lines)
+	}
+	services := c.Services()
+	e.Draw(func(p *ui.Painter, r ui.Rect) {
+		if overLines(p.MeasureText, r.W, text, lines) != decided {
+			services.Invalidate()
+		}
+	})
+	return decided
+}
+
+func overLines(measure func(float32, ...ui.Span) (float32, float32), width float32, text string, lines int) bool {
+	_, full := measure(width, ui.Span{Text: text, Size: textSize})
+	_, limit := measure(width, ui.Span{Text: strings.Repeat("M\n", lines-1) + "M", Size: textSize})
+	return full > limit+clipSlack
+}
+
+func expandToggle(c *ui.Context, tk theme.Tokens, expanded bool, toggle func()) {
+	label := locales.ArcExpandableTextMore()
+	turn := float32(0)
+	if expanded {
+		label, turn = locales.ArcExpandableTextLess(), 180
+	}
+	b := ui.ButtonBase(c).Label(label).Expanded(expanded).AlignSelf(ui.Start).AlignItems(ui.Center).Gap(trailingGap).
+		Radius(theme.RadiusControl).FontSize(textSize).FontWeight(mediumWeight)
+	fg := tk.Foreground
+	if b.Hovered() || b.Pressed() {
+		fg = tk.TextSecondary
+	}
+	b.TextColor(fg).OnClick(toggle).Children(func() {
+		ui.Text(c, label).SingleLine()
+		chevron := ui.Icon(c, icons.Get("chevron-down")).Size(stepGlyph, stepGlyph).TextColor(tk.TextMuted)
+		chevron.Rotate(chevron.AnimateTo("turn", turn, ui.Snappy))
 	})
 }
 
@@ -258,9 +307,10 @@ func toolSummary(c *ui.Context, tk theme.Tokens, kind, summary string) {
 		})
 		return
 	}
-	ui.Row(c).MinWidth(0).Radius(theme.RadiusControl).Background(tk.SurfaceMuted).Padding(chipPadY, chipPadX).Children(func() {
+	chip := ui.Row(c).MinWidth(0).Radius(theme.RadiusControl).Background(tk.SurfaceMuted).Padding(chipPadY, chipPadX).Children(func() {
 		ui.Text(c, summary).Font(theme.FontMono).FontSize(metaSize).TextColor(tk.TextSecondary).SingleLine().Grow(1).MinWidth(0)
 	})
+	kit.Tooltip(c, tk, chip, summary)
 }
 
 func toolOutput(c *ui.Context, tk theme.Tokens, output string, failed bool) {

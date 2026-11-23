@@ -30,7 +30,7 @@ func (v *View) activityBar(c *ui.Context, tk theme.Tokens, p pane) {
 	if act.State == stateRunning {
 		run = act.ExecutionID
 	}
-	ui.Column(c).Key(activityKey{}).Shrink(0).Background(tk.Background).Role(ui.RoleStatus).Children(func() {
+	ui.Column(c).Key(activityKey{}).Shrink(0).Background(tk.Background).Children(func() {
 		column(c, func() {
 			ui.Row(c).AlignItems(ui.Center).Gap(activityGap).Padding(0, 0, activityGap, 0).Children(func() {
 				if p.worker == nil {
@@ -38,7 +38,7 @@ func (v *View) activityBar(c *ui.Context, tk theme.Tokens, p pane) {
 				} else {
 					kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, kit.AvatarSM, false)
 				}
-				kit.Shimmer(c, tk, statusText(kind, ahead))
+				kit.Shimmer(c, tk, statusText(kind, ahead)).Role(ui.RoleStatus)
 				if run != "" {
 					ui.Box(c).Grow(1)
 					kit.Button(c, tk, locales.ExecutionShow(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM, Icon: "list-tree"}).

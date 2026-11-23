@@ -24,9 +24,13 @@ type Resource[T any] struct {
 }
 
 func NewResource[T any](s *Store, fetch func(ctx context.Context, c *api.Client) (T, error)) *Resource[T] {
-	r := &Resource[T]{s: s, fetch: fetch}
+	r := newResource(s, fetch)
 	s.resets = append(s.resets, r.Reset)
 	return r
+}
+
+func newResource[T any](s *Store, fetch func(ctx context.Context, c *api.Client) (T, error)) *Resource[T] {
+	return &Resource[T]{s: s, fetch: fetch}
 }
 
 func (r *Resource[T]) Ensure() {
