@@ -1,10 +1,12 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { I18nextProvider } from "react-i18next"
 import { describe, expect, it } from "vitest"
+import { ApiError } from "@/lib/api"
 import type { ExecutionDetail, ExecutionStep, Worker } from "@/lib/types"
 import { testI18n } from "@/test/i18n"
-import { ExecutionView } from "./execution-panel"
+import { ExecutionPanel, ExecutionView } from "./execution-panel"
 
 const worker: Worker = {
   id: "w1",
@@ -152,5 +154,56 @@ describe("ExecutionView", () => {
     expect(html).toContain("Read a file")
     expect(html).not.toContain("<button")
     expect(html).not.toContain("aria-expanded")
+  })
+
+  it("keeps line breaks in text steps", () => {
+    const html = render(execution({ steps: [{ type: "text", text: "First line\nSecond line" }] }))
+    expect(html).toMatch(/First line<br\s*\/?>\s*Second line/)
+  })
+
+  it("lets a long thinking step expand", () => {
+    const html = render(execution({ steps: [{ type: "thinking", text: "Plan\nthe\nwhole\nrelease" }] }))
+    expect(html).toContain("Read more")
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-controls=/)
+    expect(html).not.toContain("line-clamp-3 text-sm whitespace-pre-line text-secondary")
+  })
+
+  it("shows the whole tool summary on hover", () => {
+    const summary = "pnpm vitest run src/components/chat --reporter verbose"
+    const html = render(execution({ steps: [{ type: "tool", kind: "command", name: "Bash", summary, status: "done" }] }))
+    expect(html).toContain(`title="${summary}"`)
+  })
+
+  it("names a failed tool for screen readers", () => {
+    const html = render(execution({ steps: [{ type: "tool", kind: "command", name: "Bash", summary: "make", status: "error" }] }))
+    expect(html).toContain('<span class="sr-only">Failed</span>')
+    expect(render(execution({ steps: [{ type: "tool", kind: "command", name: "Bash", summary: "make", status: "done" }] }))).not.toContain(
+      '<span class="sr-only">Failed</span>',
+    )
+  })
+})
+
+describe("ExecutionPanel", () => {
+  it("shows the run as gone when it disappears after loading", () => {
+    const client = new QueryClient()
+    client.setQueryData(["executions", "e1"], execution({ status: "running", completed_at: null }))
+    client
+      .getQueryCache()
+      .find({ queryKey: ["executions", "e1"] })
+      ?.setState({ error: new ApiError(404, "execution not found", "execution_not_found"), status: "error" })
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(
+          I18nextProvider,
+          { i18n: testI18n("en") },
+          createElement(ExecutionPanel, { executionId: "e1", onSelectRun: () => {} }),
+        ),
+      ),
+    )
+    expect(html).toContain("This process is no longer available.")
+    expect(html).not.toContain("Updating live")
+    expect(html).not.toContain("Running")
   })
 })

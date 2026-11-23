@@ -17,6 +17,7 @@ import {
   XIcon,
   type LucideIcon,
 } from "lucide-react"
+import { ExpandableText } from "@/components/arc/expandable-text/expandable-text"
 import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { ChatMarkdown } from "@/components/chat-markdown"
 import { isToolKind, toolDuration } from "@/lib/execution"
@@ -86,7 +87,9 @@ function ThinkingStep({ text }: { text: string }) {
       </StepIcon>
       <div className="grid min-w-0 flex-1 gap-1 pt-1">
         <span className="text-xs text-muted">{t("execution.thinking")}</span>
-        <p className="line-clamp-3 text-sm whitespace-pre-line text-secondary">{text}</p>
+        <ExpandableText lines={3}>
+          <p className="whitespace-pre-line">{text}</p>
+        </ExpandableText>
       </div>
     </>
   )
@@ -99,7 +102,7 @@ function TextStep({ text }: { text: string }) {
         <span className="size-1.5 rounded-full bg-current" />
       </StepIcon>
       <div className="min-w-0 flex-1 pt-0.5 text-sm text-foreground">
-        <ChatMarkdown>{text}</ChatMarkdown>
+        <ChatMarkdown breaks>{text}</ChatMarkdown>
       </div>
     </>
   )
@@ -107,7 +110,14 @@ function TextStep({ text }: { text: string }) {
 
 function ToolMark({ step, active }: { step: ToolStep; active: boolean }) {
   const { t } = useTranslation()
-  if (step.status === "error") return <XIcon size={14} strokeWidth={2} className="shrink-0 text-danger" aria-hidden="true" />
+  if (step.status === "error") {
+    return (
+      <span className="inline-flex shrink-0 items-center text-danger">
+        <XIcon size={14} strokeWidth={2} aria-hidden="true" />
+        <span className="sr-only">{t("execution.status.failed")}</span>
+      </span>
+    )
+  }
   if (step.status === "done") return <CheckIcon size={14} strokeWidth={2} className="shrink-0 text-success" aria-hidden="true" />
   if (active) return null
   const stopped = t("execution.toolStopped")
@@ -178,7 +188,10 @@ function ToolStepItem({ step, running }: { step: ToolStep; running: boolean }) {
               {step.summary}
             </p>
           ) : (
-            <code className="block truncate rounded-control bg-surface-muted px-3 py-1.5 font-mono text-xs text-secondary">
+            <code
+              title={step.summary}
+              className="block truncate rounded-control bg-surface-muted px-3 py-1.5 font-mono text-xs text-secondary"
+            >
               {step.summary}
             </code>
           ))}

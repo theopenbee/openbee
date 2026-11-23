@@ -10,9 +10,8 @@ import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { ExecutionSteps } from "@/components/chat/execution-steps"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { useEnabledEngines } from "@/hooks/use-config"
-import { useExecution } from "@/hooks/use-execution"
+import { executionGone, useExecution } from "@/hooks/use-execution"
 import { useWorkers } from "@/hooks/use-workers"
-import { ApiError } from "@/lib/api"
 import { formatMessageTimestamp } from "@/lib/chat-format"
 import { findEngine } from "@/lib/engines"
 import { formatDuration, knownSteps, stepStats, switcherRuns } from "@/lib/execution"
@@ -60,10 +59,11 @@ export function ExecutionPanel({ executionId, onSelectRun }: ExecutionPanelProps
     )
   }
 
+  if (executionGone(error)) {
+    return <p className="text-sm text-secondary">{t("execution.notFound")}</p>
+  }
+
   if (!data) {
-    if (error instanceof ApiError && error.status === 404) {
-      return <p className="text-sm text-secondary">{t("execution.notFound")}</p>
-    }
     return (
       <div className="grid justify-items-start gap-3">
         <p className="text-sm text-secondary">{t("common.loadError")}</p>

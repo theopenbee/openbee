@@ -15,19 +15,19 @@ interface ActivityIndicatorProps {
 export function ActivityIndicator({ label, avatar, onShowExecution }: ActivityIndicatorProps) {
   const { t } = useTranslation()
   return (
-    <div role="status" className="shrink-0 bg-background">
-      {label && (
-        <div className={cn(CHAT_COLUMN, "flex items-center gap-3 pb-3")}>
-          {avatar}
-          <TextShimmer className="text-sm text-secondary">{label}</TextShimmer>
-          {onShowExecution && (
-            <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={onShowExecution}>
-              <ListTreeIcon size={14} strokeWidth={1.75} aria-hidden="true" />
-              {t("execution.show")}
-            </Button>
-          )}
+    <div className="shrink-0 bg-background">
+      <div className={cn(CHAT_COLUMN, "flex items-center gap-3", label && "pb-3")}>
+        {label && avatar}
+        <div role="status" className="min-w-0">
+          {label && <TextShimmer className="text-sm text-secondary">{label}</TextShimmer>}
         </div>
-      )}
+        {label && onShowExecution && (
+          <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={onShowExecution}>
+            <ListTreeIcon size={14} strokeWidth={1.75} aria-hidden="true" />
+            {t("execution.show")}
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
