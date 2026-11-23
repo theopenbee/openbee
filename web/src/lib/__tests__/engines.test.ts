@@ -34,6 +34,20 @@ describe("listEnabledEngines", () => {
     ])
   })
 
+  it("passes the plugin icon through", () => {
+    const icon = `<svg xmlns="http://www.w3.org/2000/svg"/>`
+    const data = config({
+      engines: [
+        { id: "pi", name: { en: "Pi" }, icon },
+        { id: "codex", name: { en: "Codex" } },
+      ],
+    })
+    expect(listEnabledEngines(data, "en")).toStrictEqual([
+      { id: "pi", name: "Pi", icon },
+      { id: "codex", name: "Codex" },
+    ])
+  })
+
   it("falls back to the id when a name is missing", () => {
     const data = config({ engines: [{ id: "custom", name: {} }, { id: "other" } as never] })
     expect(listEnabledEngines(data, "en")).toEqual([

@@ -16,6 +16,7 @@ import { WorkerPermissions } from "@/components/worker-panel/worker-permissions"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useWorker } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
+import { findEngine } from "@/lib/engines"
 import { formatEngineModelLabel } from "@/lib/format"
 import { DEFAULT_PANEL_SECTION, isPanelSection, type PanelSection, type PanelState } from "@/lib/routes"
 import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, type Worker } from "@/lib/types"
@@ -132,7 +133,7 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
           <h3 className="truncate text-lg font-medium text-foreground">{worker.name}</h3>
           {shown && (
             <span className="flex min-w-0 items-center gap-1.5 text-sm text-secondary">
-              <EngineIcon engine={shown.engine} className="size-3.5 shrink-0" />
+              <EngineIcon icon={findEngine(enabledEngines, shown.engine).icon} className="size-3.5 shrink-0" />
               <span className="truncate" title={shown.model ? engineLabel : undefined}>
                 {engineLabel}
               </span>

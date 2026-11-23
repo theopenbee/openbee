@@ -91,6 +91,7 @@ export type Engine = string
 export interface EngineChoice {
   id: Engine
   name: string
+  icon?: string
 }
 
 export interface EngineModel {
@@ -119,6 +120,7 @@ export interface EnvConfig {
 export interface EngineInfo {
   id: Engine
   name: LocalizedText
+  icon?: string
 }
 
 export interface AppConfig {

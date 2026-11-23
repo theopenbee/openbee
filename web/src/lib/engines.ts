@@ -11,6 +11,7 @@ export function listEnabledEngines(config: AppConfig | undefined, lang: string):
   return (config?.engines ?? []).map((engine) => ({
     id: engine.id,
     name: localize(engine.name, lang) || engine.id,
+    ...(engine.icon ? { icon: engine.icon } : {}),
   }))
 }
 
