@@ -13,15 +13,15 @@ describe("EngineIcon", () => {
   })
 
   it("renders a distinct brand icon for each built-in engine", () => {
-    const icons = ["claude", "codex", "pi"].map(render)
+    const icons = ["claude", "codex", "pi", "opencode"].map(render)
     icons.forEach((markup) => expect(markup).toContain("<svg"))
-    expect(new Set(icons).size).toBe(3)
+    expect(new Set(icons).size).toBe(4)
   })
 
   it("renders a generic icon for any other engine id", () => {
     const generic = render("my-engine")
     expect(generic).toContain("<svg")
-    expect(["claude", "codex", "pi"].map(render)).not.toContain(generic)
+    expect(["claude", "codex", "pi", "opencode"].map(render)).not.toContain(generic)
     expect(render("other-engine")).toBe(generic)
   })
 

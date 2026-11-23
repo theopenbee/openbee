@@ -42,7 +42,7 @@ func Get(name string) *ui.SVG {
 
 func Engine(engine string) *ui.SVG {
 	switch engine {
-	case "claude", "codex", "pi":
+	case "claude", "codex", "pi", "opencode":
 		return cached("brand/"+engine, func() *ui.SVG { return ui.MustParseSVG(brandData(engine)) })
 	}
 	return Get("cpu")

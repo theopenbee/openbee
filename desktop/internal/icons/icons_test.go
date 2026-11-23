@@ -85,7 +85,7 @@ func TestLogoUsesBrand(t *testing.T) {
 }
 
 func TestEngineMarks(t *testing.T) {
-	for _, engine := range []string{"claude", "codex", "pi"} {
+	for _, engine := range []string{"claude", "codex", "pi", "opencode"} {
 		if Engine(engine) == nil {
 			t.Errorf("Engine(%q) = nil", engine)
 		}
@@ -97,7 +97,7 @@ func TestEngineMarks(t *testing.T) {
 	if Engine("another-plugin") != generic {
 		t.Error("unknown engines do not share the generic icon")
 	}
-	for _, engine := range []string{"claude", "codex", "pi"} {
+	for _, engine := range []string{"claude", "codex", "pi", "opencode"} {
 		if Engine(engine) == generic {
 			t.Errorf("Engine(%q) is the generic icon", engine)
 		}

@@ -51,10 +51,20 @@ function PiIcon(props: SvgProps) {
   )
 }
 
+function OpenCodeIcon(props: SvgProps) {
+  return (
+    <svg viewBox="-30 0 300 300" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path fill="currentColor" fillOpacity={0.2} d="M180 240H60V120H180V240Z" />
+      <path fill="currentColor" fillRule="evenodd" d="M180 60H60V240H180V60ZM240 300H0V0H240V300Z" />
+    </svg>
+  )
+}
+
 const ICONS = {
   claude: ClaudeIcon,
   codex: CodexIcon,
   pi: PiIcon,
+  opencode: OpenCodeIcon,
 } as const
 
 interface EngineIconProps extends SvgProps {
