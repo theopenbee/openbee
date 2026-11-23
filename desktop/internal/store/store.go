@@ -95,22 +95,25 @@ type Store struct {
 	lang   atomic.Value
 	writes writer
 
-	details    map[string]*Resource[api.Worker]
-	envs       map[envScope]*Resource[[]api.EnvConfig]
-	models     map[modelsKey]*Resource[[]api.EngineModel]
-	plugins    *PluginsState
-	active     string
-	foreground bool
-	lastSeq    *uint64
-	wake       chan struct{}
-	restart    chan struct{}
-	stopGrace  context.CancelFunc
-	stopHold   context.CancelFunc
-	retrying   bool
-	unread     int
-	onMessage  hooks[func(cid string, m api.ChatMessage)]
-	onResync   hooks[func()]
-	onReset    hooks[func()]
+	details     map[string]*Resource[api.Worker]
+	envs        map[envScope]*Resource[[]api.EnvConfig]
+	models      map[modelsKey]*Resource[[]api.EngineModel]
+	plugins     *PluginsState
+	executions  map[string]*Resource[api.ExecutionDetail]
+	watchedRun  string
+	stopRunPoll func()
+	active      string
+	foreground  bool
+	lastSeq     *uint64
+	wake        chan struct{}
+	restart     chan struct{}
+	stopGrace   context.CancelFunc
+	stopHold    context.CancelFunc
+	retrying    bool
+	unread      int
+	onMessage   hooks[func(cid string, m api.ChatMessage)]
+	onResync    hooks[func()]
+	onReset     hooks[func()]
 
 	chats map[string]*Chat
 	media map[string]*mediaFetch
@@ -155,6 +158,7 @@ func New(o Options) *Store {
 	})
 	s.Config.settled = s.configSettled
 	s.initData()
+	s.initExecutions()
 	s.resets = append(s.resets, s.resetLive)
 	s.chats = map[string]*Chat{}
 	s.resets = append(s.resets, s.resetChats)

@@ -96,6 +96,7 @@ func (s *Server) routes() {
 	s.authRoutes()
 	s.workerRoutes()
 	s.chatRoutes()
+	s.executionRoutes()
 	s.envRoutes()
 	s.pluginRoutes()
 }

@@ -312,6 +312,9 @@ func (s *Store) handleEvent(ev api.ChatEvent) {
 	if ev.Type == "worker_status" {
 		s.patchDetailStatus(ev.WorkerID, ev.Status)
 	}
+	if ev.Type == "task" {
+		s.refreshHandoffs(ev.TaskID)
+	}
 	if ev.Type != "message" || ev.Message == nil {
 		return
 	}

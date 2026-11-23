@@ -14,6 +14,8 @@ func errorText(code string, params map[string]any) (string, bool) {
 		return locales.ErrorsEnvReservedKey(param(params, "key")), true
 	case "env_scope_id_required":
 		return locales.ErrorsEnvScopeIdRequired(param(params, "scope")), true
+	case "execution_not_found":
+		return locales.ErrorsExecutionNotFound(), true
 	case "old_password_incorrect":
 		return locales.ErrorsOldPasswordIncorrect(), true
 	case "plugin_bot_name_conflict":

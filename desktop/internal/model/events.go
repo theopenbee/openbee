@@ -86,7 +86,7 @@ func activityOf(ev api.ChatEvent) api.ConversationActivity {
 	if ev.State != "queued" && ev.State != "running" {
 		return api.ConversationActivity{State: "idle"}
 	}
-	return api.ConversationActivity{State: ev.State, QueuedAhead: ev.QueuedAhead}
+	return api.ConversationActivity{State: ev.State, QueuedAhead: ev.QueuedAhead, ExecutionID: ev.ExecutionID}
 }
 
 func withMessage(c api.ConversationSummary, m api.ChatMessage, seen bool) api.ConversationSummary {

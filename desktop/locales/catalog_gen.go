@@ -3282,6 +3282,16 @@ func (msgs Messages) ErrorsEnvScopeIdRequired(scope string) string {
 	return Catalog.Format(msgs.locale, "errorsEnvScopeIdRequired", map[string]any{"scope": scope})
 }
 
+// ErrorsExecutionNotFound says "This process is no longer available."
+// in the language the app shows.
+func ErrorsExecutionNotFound() string { return In(i18n.Locale()).ErrorsExecutionNotFound() }
+
+// ErrorsExecutionNotFound says "This process is no longer available."
+// in the language of msgs.
+func (msgs Messages) ErrorsExecutionNotFound() string {
+	return Catalog.Format(msgs.locale, "errorsExecutionNotFound", nil)
+}
+
 // ErrorsOldPasswordIncorrect says "The current password is incorrect."
 // in the language the app shows.
 func ErrorsOldPasswordIncorrect() string { return In(i18n.Locale()).ErrorsOldPasswordIncorrect() }
@@ -3432,6 +3442,390 @@ func ErrorsWorkerNotFound() string { return In(i18n.Locale()).ErrorsWorkerNotFou
 // in the language of msgs.
 func (msgs Messages) ErrorsWorkerNotFound() string {
 	return Catalog.Format(msgs.locale, "errorsWorkerNotFound", nil)
+}
+
+// ExecutionElapsed says "{duration} so far"
+// in the language the app shows.
+func ExecutionElapsed(duration string) string { return In(i18n.Locale()).ExecutionElapsed(duration) }
+
+// ExecutionElapsed says "{duration} so far"
+// in the language of msgs.
+func (msgs Messages) ExecutionElapsed(duration string) string {
+	return Catalog.Format(msgs.locale, "executionElapsed", map[string]any{"duration": duration})
+}
+
+// ExecutionFailedTitle says "Run failed"
+// in the language the app shows.
+func ExecutionFailedTitle() string { return In(i18n.Locale()).ExecutionFailedTitle() }
+
+// ExecutionFailedTitle says "Run failed"
+// in the language of msgs.
+func (msgs Messages) ExecutionFailedTitle() string {
+	return Catalog.Format(msgs.locale, "executionFailedTitle", nil)
+}
+
+// ExecutionHours says "{count}h"
+// in the language the app shows.
+func ExecutionHours(count int) string { return In(i18n.Locale()).ExecutionHours(count) }
+
+// ExecutionHours says "{count}h"
+// in the language of msgs.
+func (msgs Messages) ExecutionHours(count int) string {
+	return Catalog.Format(msgs.locale, "executionHours", map[string]any{"count": count})
+}
+
+// ExecutionHoursMinutes says "{hours}h {minutes}m"
+// in the language the app shows.
+func ExecutionHoursMinutes(hours string, minutes string) string {
+	return In(i18n.Locale()).ExecutionHoursMinutes(hours, minutes)
+}
+
+// ExecutionHoursMinutes says "{hours}h {minutes}m"
+// in the language of msgs.
+func (msgs Messages) ExecutionHoursMinutes(hours string, minutes string) string {
+	return Catalog.Format(msgs.locale, "executionHoursMinutes", map[string]any{"hours": hours, "minutes": minutes})
+}
+
+// ExecutionLatest says "Latest: "
+// in the language the app shows.
+func ExecutionLatest() string { return In(i18n.Locale()).ExecutionLatest() }
+
+// ExecutionLatest says "Latest: "
+// in the language of msgs.
+func (msgs Messages) ExecutionLatest() string {
+	return Catalog.Format(msgs.locale, "executionLatest", nil)
+}
+
+// ExecutionLive says "Updating live"
+// in the language the app shows.
+func ExecutionLive() string { return In(i18n.Locale()).ExecutionLive() }
+
+// ExecutionLive says "Updating live"
+// in the language of msgs.
+func (msgs Messages) ExecutionLive() string {
+	return Catalog.Format(msgs.locale, "executionLive", nil)
+}
+
+// ExecutionLoading says "Loading…"
+// in the language the app shows.
+func ExecutionLoading() string { return In(i18n.Locale()).ExecutionLoading() }
+
+// ExecutionLoading says "Loading…"
+// in the language of msgs.
+func (msgs Messages) ExecutionLoading() string {
+	return Catalog.Format(msgs.locale, "executionLoading", nil)
+}
+
+// ExecutionMinutes says "{count}m"
+// in the language the app shows.
+func ExecutionMinutes(count int) string { return In(i18n.Locale()).ExecutionMinutes(count) }
+
+// ExecutionMinutes says "{count}m"
+// in the language of msgs.
+func (msgs Messages) ExecutionMinutes(count int) string {
+	return Catalog.Format(msgs.locale, "executionMinutes", map[string]any{"count": count})
+}
+
+// ExecutionMinutesSeconds says "{minutes}m {seconds}s"
+// in the language the app shows.
+func ExecutionMinutesSeconds(minutes string, seconds string) string {
+	return In(i18n.Locale()).ExecutionMinutesSeconds(minutes, seconds)
+}
+
+// ExecutionMinutesSeconds says "{minutes}m {seconds}s"
+// in the language of msgs.
+func (msgs Messages) ExecutionMinutesSeconds(minutes string, seconds string) string {
+	return Catalog.Format(msgs.locale, "executionMinutesSeconds", map[string]any{"minutes": minutes, "seconds": seconds})
+}
+
+// ExecutionNoSteps says "No steps were recorded."
+// in the language the app shows.
+func ExecutionNoSteps() string { return In(i18n.Locale()).ExecutionNoSteps() }
+
+// ExecutionNoSteps says "No steps were recorded."
+// in the language of msgs.
+func (msgs Messages) ExecutionNoSteps() string {
+	return Catalog.Format(msgs.locale, "executionNoSteps", nil)
+}
+
+// ExecutionNotFound says "This process is no longer available."
+// in the language the app shows.
+func ExecutionNotFound() string { return In(i18n.Locale()).ExecutionNotFound() }
+
+// ExecutionNotFound says "This process is no longer available."
+// in the language of msgs.
+func (msgs Messages) ExecutionNotFound() string {
+	return Catalog.Format(msgs.locale, "executionNotFound", nil)
+}
+
+// ExecutionPanelTitle says "Process"
+// in the language the app shows.
+func ExecutionPanelTitle() string { return In(i18n.Locale()).ExecutionPanelTitle() }
+
+// ExecutionPanelTitle says "Process"
+// in the language of msgs.
+func (msgs Messages) ExecutionPanelTitle() string {
+	return Catalog.Format(msgs.locale, "executionPanelTitle", nil)
+}
+
+// ExecutionRunOption says "{time} · {status}"
+// in the language the app shows.
+func ExecutionRunOption(time_ string, status string) string {
+	return In(i18n.Locale()).ExecutionRunOption(time_, status)
+}
+
+// ExecutionRunOption says "{time} · {status}"
+// in the language of msgs.
+func (msgs Messages) ExecutionRunOption(time_ string, status string) string {
+	return Catalog.Format(msgs.locale, "executionRunOption", map[string]any{"time": time_, "status": status})
+}
+
+// ExecutionRuns says "Run"
+// in the language the app shows.
+func ExecutionRuns() string { return In(i18n.Locale()).ExecutionRuns() }
+
+// ExecutionRuns says "Run"
+// in the language of msgs.
+func (msgs Messages) ExecutionRuns() string {
+	return Catalog.Format(msgs.locale, "executionRuns", nil)
+}
+
+// ExecutionSeconds says "{count}s"
+// in the language the app shows.
+func ExecutionSeconds(count int) string { return In(i18n.Locale()).ExecutionSeconds(count) }
+
+// ExecutionSeconds says "{count}s"
+// in the language of msgs.
+func (msgs Messages) ExecutionSeconds(count int) string {
+	return Catalog.Format(msgs.locale, "executionSeconds", map[string]any{"count": count})
+}
+
+// ExecutionShow says "View process"
+// in the language the app shows.
+func ExecutionShow() string { return In(i18n.Locale()).ExecutionShow() }
+
+// ExecutionShow says "View process"
+// in the language of msgs.
+func (msgs Messages) ExecutionShow() string {
+	return Catalog.Format(msgs.locale, "executionShow", nil)
+}
+
+// ExecutionStartedAt says "Started {time}"
+// in the language the app shows.
+func ExecutionStartedAt(time_ string) string { return In(i18n.Locale()).ExecutionStartedAt(time_) }
+
+// ExecutionStartedAt says "Started {time}"
+// in the language of msgs.
+func (msgs Messages) ExecutionStartedAt(time_ string) string {
+	return Catalog.Format(msgs.locale, "executionStartedAt", map[string]any{"time": time_})
+}
+
+// ExecutionStatusCompleted says "Completed"
+// in the language the app shows.
+func ExecutionStatusCompleted() string { return In(i18n.Locale()).ExecutionStatusCompleted() }
+
+// ExecutionStatusCompleted says "Completed"
+// in the language of msgs.
+func (msgs Messages) ExecutionStatusCompleted() string {
+	return Catalog.Format(msgs.locale, "executionStatusCompleted", nil)
+}
+
+// ExecutionStatusFailed says "Failed"
+// in the language the app shows.
+func ExecutionStatusFailed() string { return In(i18n.Locale()).ExecutionStatusFailed() }
+
+// ExecutionStatusFailed says "Failed"
+// in the language of msgs.
+func (msgs Messages) ExecutionStatusFailed() string {
+	return Catalog.Format(msgs.locale, "executionStatusFailed", nil)
+}
+
+// ExecutionStatusRunning says "Running"
+// in the language the app shows.
+func ExecutionStatusRunning() string { return In(i18n.Locale()).ExecutionStatusRunning() }
+
+// ExecutionStatusRunning says "Running"
+// in the language of msgs.
+func (msgs Messages) ExecutionStatusRunning() string {
+	return Catalog.Format(msgs.locale, "executionStatusRunning", nil)
+}
+
+// ExecutionStepCount says "{steps}, {tools}"
+// in the language the app shows.
+func ExecutionStepCount(steps string, tools string) string {
+	return In(i18n.Locale()).ExecutionStepCount(steps, tools)
+}
+
+// ExecutionStepCount says "{steps}, {tools}"
+// in the language of msgs.
+func (msgs Messages) ExecutionStepCount(steps string, tools string) string {
+	return Catalog.Format(msgs.locale, "executionStepCount", map[string]any{"steps": steps, "tools": tools})
+}
+
+// ExecutionSteps says "{count, plural, one {# step} other {# steps}}"
+// in the language the app shows.
+func ExecutionSteps(count int) string { return In(i18n.Locale()).ExecutionSteps(count) }
+
+// ExecutionSteps says "{count, plural, one {# step} other {# steps}}"
+// in the language of msgs.
+func (msgs Messages) ExecutionSteps(count int) string {
+	return Catalog.Format(msgs.locale, "executionSteps", map[string]any{"count": count})
+}
+
+// ExecutionStepsErrorEngineUnavailable says "The engine plugin isn't installed or is turned off, so the process can't be shown."
+// in the language the app shows.
+func ExecutionStepsErrorEngineUnavailable() string {
+	return In(i18n.Locale()).ExecutionStepsErrorEngineUnavailable()
+}
+
+// ExecutionStepsErrorEngineUnavailable says "The engine plugin isn't installed or is turned off, so the process can't be shown."
+// in the language of msgs.
+func (msgs Messages) ExecutionStepsErrorEngineUnavailable() string {
+	return Catalog.Format(msgs.locale, "executionStepsErrorEngineUnavailable", nil)
+}
+
+// ExecutionStepsErrorTranscriptFailed says "Couldn't read the process. Try again later."
+// in the language the app shows.
+func ExecutionStepsErrorTranscriptFailed() string {
+	return In(i18n.Locale()).ExecutionStepsErrorTranscriptFailed()
+}
+
+// ExecutionStepsErrorTranscriptFailed says "Couldn't read the process. Try again later."
+// in the language of msgs.
+func (msgs Messages) ExecutionStepsErrorTranscriptFailed() string {
+	return Catalog.Format(msgs.locale, "executionStepsErrorTranscriptFailed", nil)
+}
+
+// ExecutionStepsErrorTranscriptUnsupported says "This engine plugin can't show the process yet. Update it in Settings → Plugins."
+// in the language the app shows.
+func ExecutionStepsErrorTranscriptUnsupported() string {
+	return In(i18n.Locale()).ExecutionStepsErrorTranscriptUnsupported()
+}
+
+// ExecutionStepsErrorTranscriptUnsupported says "This engine plugin can't show the process yet. Update it in Settings → Plugins."
+// in the language of msgs.
+func (msgs Messages) ExecutionStepsErrorTranscriptUnsupported() string {
+	return Catalog.Format(msgs.locale, "executionStepsErrorTranscriptUnsupported", nil)
+}
+
+// ExecutionThinking says "Thinking"
+// in the language the app shows.
+func ExecutionThinking() string { return In(i18n.Locale()).ExecutionThinking() }
+
+// ExecutionThinking says "Thinking"
+// in the language of msgs.
+func (msgs Messages) ExecutionThinking() string {
+	return Catalog.Format(msgs.locale, "executionThinking", nil)
+}
+
+// ExecutionTook says "Took {duration}"
+// in the language the app shows.
+func ExecutionTook(duration string) string { return In(i18n.Locale()).ExecutionTook(duration) }
+
+// ExecutionTook says "Took {duration}"
+// in the language of msgs.
+func (msgs Messages) ExecutionTook(duration string) string {
+	return Catalog.Format(msgs.locale, "executionTook", map[string]any{"duration": duration})
+}
+
+// ExecutionToolCalls says "{count, plural, one {# tool call} other {# tool calls}}"
+// in the language the app shows.
+func ExecutionToolCalls(count int) string { return In(i18n.Locale()).ExecutionToolCalls(count) }
+
+// ExecutionToolCalls says "{count, plural, one {# tool call} other {# tool calls}}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolCalls(count int) string {
+	return Catalog.Format(msgs.locale, "executionToolCalls", map[string]any{"count": count})
+}
+
+// ExecutionToolCommand says "Ran a command"
+// in the language the app shows.
+func ExecutionToolCommand() string { return In(i18n.Locale()).ExecutionToolCommand() }
+
+// ExecutionToolCommand says "Ran a command"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolCommand() string {
+	return Catalog.Format(msgs.locale, "executionToolCommand", nil)
+}
+
+// ExecutionToolEdit says "Edited a file"
+// in the language the app shows.
+func ExecutionToolEdit() string { return In(i18n.Locale()).ExecutionToolEdit() }
+
+// ExecutionToolEdit says "Edited a file"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolEdit() string {
+	return Catalog.Format(msgs.locale, "executionToolEdit", nil)
+}
+
+// ExecutionToolMessage says "Sent a message"
+// in the language the app shows.
+func ExecutionToolMessage() string { return In(i18n.Locale()).ExecutionToolMessage() }
+
+// ExecutionToolMessage says "Sent a message"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolMessage() string {
+	return Catalog.Format(msgs.locale, "executionToolMessage", nil)
+}
+
+// ExecutionToolOther says "Called {name}"
+// in the language the app shows.
+func ExecutionToolOther(name string) string { return In(i18n.Locale()).ExecutionToolOther(name) }
+
+// ExecutionToolOther says "Called {name}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolOther(name string) string {
+	return Catalog.Format(msgs.locale, "executionToolOther", map[string]any{"name": name})
+}
+
+// ExecutionToolRead says "Read a file"
+// in the language the app shows.
+func ExecutionToolRead() string { return In(i18n.Locale()).ExecutionToolRead() }
+
+// ExecutionToolRead says "Read a file"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolRead() string {
+	return Catalog.Format(msgs.locale, "executionToolRead", nil)
+}
+
+// ExecutionToolSearch says "Searched"
+// in the language the app shows.
+func ExecutionToolSearch() string { return In(i18n.Locale()).ExecutionToolSearch() }
+
+// ExecutionToolSearch says "Searched"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolSearch() string {
+	return Catalog.Format(msgs.locale, "executionToolSearch", nil)
+}
+
+// ExecutionToolStopped says "Stopped"
+// in the language the app shows.
+func ExecutionToolStopped() string { return In(i18n.Locale()).ExecutionToolStopped() }
+
+// ExecutionToolStopped says "Stopped"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolStopped() string {
+	return Catalog.Format(msgs.locale, "executionToolStopped", nil)
+}
+
+// ExecutionToolWeb says "Opened a web page"
+// in the language the app shows.
+func ExecutionToolWeb() string { return In(i18n.Locale()).ExecutionToolWeb() }
+
+// ExecutionToolWeb says "Opened a web page"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolWeb() string {
+	return Catalog.Format(msgs.locale, "executionToolWeb", nil)
+}
+
+// ExecutionWaiting says "Waiting for the first step…"
+// in the language the app shows.
+func ExecutionWaiting() string { return In(i18n.Locale()).ExecutionWaiting() }
+
+// ExecutionWaiting says "Waiting for the first step…"
+// in the language of msgs.
+func (msgs Messages) ExecutionWaiting() string {
+	return Catalog.Format(msgs.locale, "executionWaiting", nil)
 }
 
 // FileOpenFailed says "Couldn't open the file"

@@ -88,28 +88,61 @@ type ChatSender struct {
 	ID   string `json:"id,omitempty"`
 }
 
+type ExecutionSummary struct {
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	StartedAt   int64  `json:"started_at"`
+	CompletedAt *int64 `json:"completed_at,omitempty"`
+}
+
+type ExecutionStep struct {
+	Type       string `json:"type"`
+	Text       string `json:"text,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	Output     string `json:"output,omitempty"`
+	Status     string `json:"status,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+}
+
+type ExecutionDetail struct {
+	ExecutionSummary
+	TaskID      string             `json:"task_id"`
+	WorkerID    string             `json:"worker_id"`
+	Engine      string             `json:"engine"`
+	Instruction string             `json:"instruction"`
+	Error       string             `json:"error"`
+	Steps       []ExecutionStep    `json:"steps"`
+	StepsError  string             `json:"steps_error"`
+	Runs        []ExecutionSummary `json:"runs,omitempty"`
+}
+
 type HandoffInfo struct {
-	WorkerID       string `json:"worker_id"`
-	TaskID         string `json:"task_id"`
-	TaskType       string `json:"task_type"`
-	CronExpr       string `json:"cron_expr,omitempty"`
-	ScheduledAt    *int64 `json:"scheduled_at,omitempty"`
-	ConversationID string `json:"conversation_id"`
+	WorkerID       string            `json:"worker_id"`
+	TaskID         string            `json:"task_id"`
+	TaskType       string            `json:"task_type"`
+	CronExpr       string            `json:"cron_expr,omitempty"`
+	ScheduledAt    *int64            `json:"scheduled_at,omitempty"`
+	ConversationID string            `json:"conversation_id"`
+	Run            *ExecutionSummary `json:"run,omitempty"`
 }
 
 type ChatMessage struct {
-	ID         string       `json:"id"`
-	Sender     ChatSender   `json:"sender"`
-	Kind       string       `json:"kind"`
-	Content    string       `json:"content"`
-	MediaPaths []string     `json:"media_paths,omitempty"`
-	TS         int64        `json:"ts"`
-	Handoff    *HandoffInfo `json:"handoff,omitempty"`
+	ID          string       `json:"id"`
+	Sender      ChatSender   `json:"sender"`
+	Kind        string       `json:"kind"`
+	Content     string       `json:"content"`
+	MediaPaths  []string     `json:"media_paths,omitempty"`
+	TS          int64        `json:"ts"`
+	Handoff     *HandoffInfo `json:"handoff,omitempty"`
+	ExecutionID string       `json:"execution_id,omitempty"`
 }
 
 type ConversationActivity struct {
 	State       string `json:"state"`
 	QueuedAhead int    `json:"queued_ahead,omitempty"`
+	ExecutionID string `json:"execution_id,omitempty"`
 }
 
 type LastMessage struct {
@@ -162,6 +195,7 @@ type ChatEvent struct {
 	TaskID         string       `json:"task_id,omitempty"`
 	State          string       `json:"state,omitempty"`
 	QueuedAhead    int          `json:"queued_ahead,omitempty"`
+	ExecutionID    string       `json:"execution_id,omitempty"`
 }
 
 type EnvConfig struct {

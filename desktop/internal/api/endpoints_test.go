@@ -312,13 +312,13 @@ func TestEndpoints(t *testing.T) {
 			method: "GET", uri: "/api/local/conversations",
 			status: 200,
 			response: `[{"id":"bee","kind":"bee","unread":0,"activity":{"state":"idle"}},` +
-				`{"id":"worker:w1","kind":"worker","worker_id":"w1","last_message":{"sender":{"type":"worker","id":"w1"},"kind":"handoff","preview":"hi","handoff_worker_id":"w1","ts":1700},"unread":2,"activity":{"state":"queued","queued_ahead":3}}]`,
+				`{"id":"worker:w1","kind":"worker","worker_id":"w1","last_message":{"sender":{"type":"worker","id":"w1"},"kind":"handoff","preview":"hi","handoff_worker_id":"w1","ts":1700},"unread":2,"activity":{"state":"running","execution_id":"e1"}}]`,
 			want: []ConversationSummary{
 				{ID: "bee", Kind: "bee", Activity: ConversationActivity{State: "idle"}},
 				{
 					ID: "worker:w1", Kind: "worker", WorkerID: "w1", Unread: 2,
 					LastMessage: &LastMessage{Sender: ChatSender{Type: "worker", ID: "w1"}, Kind: "handoff", Preview: "hi", HandoffWorkerID: "w1", TS: 1700},
-					Activity:    ConversationActivity{State: "queued", QueuedAhead: 3},
+					Activity:    ConversationActivity{State: "running", ExecutionID: "e1"},
 				},
 			},
 		},
@@ -336,14 +336,18 @@ func TestEndpoints(t *testing.T) {
 			status: 200,
 			response: `{"messages":[` +
 				`{"id":"m1","sender":{"type":"user"},"kind":"message","content":"hi","media_paths":["a.png"],"ts":1600},` +
-				`{"id":"m2","sender":{"type":"bee"},"kind":"handoff","content":"do it","ts":1650,"handoff":{"worker_id":"w1","task_id":"t1","task_type":"countdown","scheduled_at":1800,"conversation_id":"worker:w1"}}],"has_more":true}`,
+				`{"id":"m2","sender":{"type":"bee"},"kind":"handoff","content":"do it","ts":1650,"handoff":{"worker_id":"w1","task_id":"t1","task_type":"countdown","scheduled_at":1800,"conversation_id":"worker:w1",` +
+				`"run":{"id":"e1","status":"completed","started_at":1810,"completed_at":1890}}},` +
+				`{"id":"m3","sender":{"type":"worker","id":"w1"},"kind":"message","content":"done","ts":1700,"execution_id":"e1"}],"has_more":true}`,
 			want: MessagesPage{
 				Messages: []ChatMessage{
 					{ID: "m1", Sender: ChatSender{Type: "user"}, Kind: "message", Content: "hi", MediaPaths: []string{"a.png"}, TS: 1600},
 					{
 						ID: "m2", Sender: ChatSender{Type: "bee"}, Kind: "handoff", Content: "do it", TS: 1650,
-						Handoff: &HandoffInfo{WorkerID: "w1", TaskID: "t1", TaskType: "countdown", ScheduledAt: int64Ptr(1800), ConversationID: "worker:w1"},
+						Handoff: &HandoffInfo{WorkerID: "w1", TaskID: "t1", TaskType: "countdown", ScheduledAt: int64Ptr(1800), ConversationID: "worker:w1",
+							Run: &ExecutionSummary{ID: "e1", Status: "completed", StartedAt: 1810, CompletedAt: int64Ptr(1890)}},
 					},
+					{ID: "m3", Sender: ChatSender{Type: "worker", ID: "w1"}, Kind: "message", Content: "done", TS: 1700, ExecutionID: "e1"},
 				},
 				HasMore: true,
 			},
@@ -635,6 +639,44 @@ func TestEndpoints(t *testing.T) {
 			method: "DELETE", uri: "/api/plugins/setup/sid-1",
 			status: 204,
 		},
+		{
+			name:   "execution",
+			call:   func(c *Client) (any, error) { return c.Execution(ctx, "e1") },
+			method: "GET", uri: "/api/executions/e1",
+			status: 200,
+			response: `{"id":"e1","task_id":"t1","worker_id":"w1","engine":"claude","status":"failed","instruction":"Ship it",` +
+				`"started_at":1700,"completed_at":1900,"error":"timed out","steps":[` +
+				`{"type":"thinking","text":"plan"},` +
+				`{"type":"tool","kind":"command","name":"Bash","summary":"pnpm test","output":"ok","status":"done","duration_ms":4100},` +
+				`{"type":"text","text":"done"}],"steps_error":"",` +
+				`"runs":[{"id":"e2","status":"running","started_at":2000,"completed_at":null},{"id":"e1","status":"failed","started_at":1700,"completed_at":1900}]}`,
+			want: ExecutionDetail{
+				ExecutionSummary: ExecutionSummary{ID: "e1", Status: "failed", StartedAt: 1700, CompletedAt: int64Ptr(1900)},
+				TaskID:           "t1", WorkerID: "w1", Engine: "claude", Instruction: "Ship it", Error: "timed out",
+				Steps: []ExecutionStep{
+					{Type: "thinking", Text: "plan"},
+					{Type: "tool", Kind: "command", Name: "Bash", Summary: "pnpm test", Output: "ok", Status: "done", DurationMS: 4100},
+					{Type: "text", Text: "done"},
+				},
+				Runs: []ExecutionSummary{
+					{ID: "e2", Status: "running", StartedAt: 2000},
+					{ID: "e1", Status: "failed", StartedAt: 1700, CompletedAt: int64Ptr(1900)},
+				},
+			},
+		},
+		{
+			name:   "running execution without steps",
+			call:   func(c *Client) (any, error) { return c.Execution(ctx, "a/b") },
+			method: "GET", uri: "/api/executions/a%2Fb",
+			status: 200,
+			response: `{"id":"a/b","task_id":"t1","worker_id":"w1","engine":"pi","status":"running","instruction":"x",` +
+				`"started_at":1700,"completed_at":null,"error":"","steps":[],"steps_error":"transcript_unsupported"}`,
+			want: ExecutionDetail{
+				ExecutionSummary: ExecutionSummary{ID: "a/b", Status: "running", StartedAt: 1700},
+				TaskID:           "t1", WorkerID: "w1", Engine: "pi", Instruction: "x",
+				Steps: []ExecutionStep{}, StepsError: "transcript_unsupported",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -736,6 +778,15 @@ func TestActiveTasksFromConflict(t *testing.T) {
 	}
 }
 
+func TestMissingExecutionCarriesCode(t *testing.T) {
+	c, _ := serveCanned(t, 404, `{"error":"execution not found","code":"execution_not_found"}`)
+	_, err := c.Execution(context.Background(), "gone")
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Status != 404 || apiErr.Code != "execution_not_found" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestEndpointErrorsCarryServerMessage(t *testing.T) {
 	c, _ := serveCanned(t, 404, `{"error":"worker not found","code":"worker_not_found"}`)
 	_, err := c.Worker(context.Background(), "nope")
@@ -768,6 +819,11 @@ func TestChatEventDecoding(t *testing.T) {
 			name: "task",
 			raw:  `{"type":"task","seq":9,"conversation_id":"worker:w1","task_id":"t1","worker_id":"w1","state":"queued","queued_ahead":2}`,
 			want: ChatEvent{Type: "task", Seq: 9, ConversationID: "worker:w1", TaskID: "t1", WorkerID: "w1", State: "queued", QueuedAhead: 2},
+		},
+		{
+			name: "running task",
+			raw:  `{"type":"task","seq":10,"conversation_id":"worker:w1","task_id":"t1","worker_id":"w1","state":"running","execution_id":"e1"}`,
+			want: ChatEvent{Type: "task", Seq: 10, ConversationID: "worker:w1", TaskID: "t1", WorkerID: "w1", State: "running", ExecutionID: "e1"},
 		},
 	}
 	for _, tc := range cases {

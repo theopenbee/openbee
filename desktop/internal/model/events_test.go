@@ -233,6 +233,22 @@ func TestApplyEventTask(t *testing.T) {
 		}
 	})
 
+	t.Run("a running task keeps its execution until it ends", func(t *testing.T) {
+		list := []api.ConversationSummary{summary("worker:w1")}
+		ev := taskEvent("running", 0)
+		ev.ExecutionID = "e1"
+
+		running := ApplyEvent(ev, list, nil, "", true)
+		if running.Summaries[0].Activity != (api.ConversationActivity{State: "running", ExecutionID: "e1"}) {
+			t.Fatalf("running activity = %+v", running.Summaries[0].Activity)
+		}
+		ev.State = "completed"
+		done := ApplyEvent(ev, running.Summaries, nil, "", true)
+		if done.Summaries[0].Activity != (api.ConversationActivity{State: "idle"}) {
+			t.Fatalf("completed activity = %+v", done.Summaries[0].Activity)
+		}
+	})
+
 	for _, state := range []string{"failed", "cancelled"} {
 		t.Run("task "+state+" sets activity to idle", func(t *testing.T) {
 			list := []api.ConversationSummary{summaryWith("worker:w1", func(s *api.ConversationSummary) { s.Activity.State = "running" })}

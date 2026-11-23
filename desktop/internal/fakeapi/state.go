@@ -23,6 +23,7 @@ type State struct {
 	Conversations []api.ConversationSummary
 	Messages      map[string][]api.ChatMessage
 	ActiveTasks   map[string][]api.ActiveTask
+	Executions    map[string]api.ExecutionDetail
 
 	Envs          []api.EnvConfig
 	SystemConfigs map[string]string
@@ -70,6 +71,9 @@ func (st *State) normalize() {
 	if st.ActiveTasks == nil {
 		st.ActiveTasks = map[string][]api.ActiveTask{}
 	}
+	if st.Executions == nil {
+		st.Executions = map[string]api.ExecutionDetail{}
+	}
 	if st.SystemConfigs == nil {
 		st.SystemConfigs = map[string]string{}
 	}
@@ -102,6 +106,10 @@ func cloneState(st State) State {
 	out.ActiveTasks = make(map[string][]api.ActiveTask, len(st.ActiveTasks))
 	for cid, tasks := range st.ActiveTasks {
 		out.ActiveTasks[cid] = slices.Clone(tasks)
+	}
+	out.Executions = make(map[string]api.ExecutionDetail, len(st.Executions))
+	for id, e := range st.Executions {
+		out.Executions[id] = cloneExecution(e)
 	}
 	out.Envs = slices.Clone(st.Envs)
 	out.SystemConfigs = maps.Clone(st.SystemConfigs)

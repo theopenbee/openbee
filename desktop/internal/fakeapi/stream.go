@@ -98,7 +98,7 @@ func (s *Server) applyEvent(ev api.ChatEvent) {
 		activity := api.ConversationActivity{State: activityIdle}
 		switch ev.State {
 		case "running":
-			activity.State = ev.State
+			activity = api.ConversationActivity{State: ev.State, ExecutionID: ev.ExecutionID}
 		case "queued":
 			activity = api.ConversationActivity{State: ev.State, QueuedAhead: ev.QueuedAhead}
 		}

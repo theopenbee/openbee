@@ -973,6 +973,40 @@ func TestStopConversation(t *testing.T) {
 	}
 }
 
+func TestExecutionDetail(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	want := api.ExecutionDetail{
+		ExecutionSummary: api.ExecutionSummary{ID: "e1", Status: "running", StartedAt: 1700},
+		TaskID:           "t1", WorkerID: "w1", Engine: "claude", Instruction: "Ship it",
+		Steps: []api.ExecutionStep{{Type: "tool", Kind: "command", Name: "Bash", Summary: "pnpm test", Status: "running"}},
+	}
+	s.fake.Update(func(st *fakeapi.State) { st.Executions = map[string]api.ExecutionDetail{"e1": want} })
+	got, err := s.client.Execution(c, "e1")
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Execution = %+v, %v; want %+v", got, err, want)
+	}
+	if _, err := s.client.Execution(c, "gone"); apiError(t, err).Code != "execution_not_found" || apiError(t, err).Status != 404 {
+		t.Fatalf("missing execution: %v", err)
+	}
+}
+
+func TestRunningTaskEventCarriesExecution(t *testing.T) {
+	s := signedIn(t)
+	w := mustWorker(t, s, "sam")
+	cid := api.WorkerConversation(w.ID)
+	s.fake.Emit(api.ChatEvent{Type: "task", ConversationID: cid, TaskID: "t1", WorkerID: w.ID, State: "running", ExecutionID: "e1"})
+	sums, err := s.client.Conversations(ctx(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sum := range sums {
+		if sum.ID == cid && sum.Activity != (api.ConversationActivity{State: "running", ExecutionID: "e1"}) {
+			t.Fatalf("activity = %+v", sum.Activity)
+		}
+	}
+}
+
 func TestFailNextReturnsCannedErrorOnce(t *testing.T) {
 	s := signedIn(t)
 	c := ctx(t)
