@@ -74,6 +74,30 @@ func (e *ModelEngine) ModelCalls() [][]string {
 	return slices.Clone(e.modelCalls)
 }
 
+type TranscriptEngine struct {
+	Engine
+	TranscriptFunc func(ctx context.Context, logPath string) ([]ai.TranscriptStep, error)
+
+	transcriptMu    sync.Mutex
+	transcriptCalls []string
+}
+
+func (e *TranscriptEngine) Transcript(ctx context.Context, logPath string) ([]ai.TranscriptStep, error) {
+	e.transcriptMu.Lock()
+	e.transcriptCalls = append(e.transcriptCalls, logPath)
+	e.transcriptMu.Unlock()
+	if e.TranscriptFunc != nil {
+		return e.TranscriptFunc(ctx, logPath)
+	}
+	return nil, nil
+}
+
+func (e *TranscriptEngine) TranscriptCalls() []string {
+	e.transcriptMu.Lock()
+	defer e.transcriptMu.Unlock()
+	return slices.Clone(e.transcriptCalls)
+}
+
 type Source struct {
 	mu      sync.RWMutex
 	engines map[string]entry

@@ -25,6 +25,8 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.DELETE("/workers/:id", s.Workers.Delete)
 	r.GET("/engines/:id/models", s.Workers.EngineModels)
 
+	r.GET("/executions/:id", s.Executions.Get)
+
 	// Local chat & messages
 	r.GET("/local/conversations", s.LocalChat.ListConversations)
 	r.GET("/local/conversations/:cid/messages", s.LocalChat.GetMessages)

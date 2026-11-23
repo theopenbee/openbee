@@ -24,6 +24,7 @@ type ServerParams struct {
 	Setup             *api.SetupHandler
 	Plugins           *api.PluginHandler
 	Version           *api.VersionHandler
+	Executions        *api.ExecutionHandler
 	BeeRPC            *rpc.Server
 	RPCAuthMiddleware gin.HandlerFunc
 	StaticFS          fs.FS

@@ -26,6 +26,7 @@ import (
 	"github.com/theopenbee/openbee/internal/domain/command"
 	"github.com/theopenbee/openbee/internal/domain/enginecfg"
 	"github.com/theopenbee/openbee/internal/domain/env"
+	"github.com/theopenbee/openbee/internal/domain/execution"
 	"github.com/theopenbee/openbee/internal/domain/localchat"
 	"github.com/theopenbee/openbee/internal/domain/msgingest"
 	"github.com/theopenbee/openbee/internal/domain/pluginmgr"
@@ -382,6 +383,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
 		Plugins:           api.NewPluginHandler(plugins),
 		Version:           api.NewVersionHandler(buildinfo.Version, buildinfo.Bundled),
+		Executions:        api.NewExecutionHandler(execution.New(s.execStore, s.taskStore, plugins)),
 		BeeRPC:            beeRPCSrv,
 		RPCAuthMiddleware: rpcAuthMiddleware,
 		StaticFS:          webui.DistFS,
