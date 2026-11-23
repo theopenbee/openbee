@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.11] - 2026-11-23
 
 ### Added
 - Engine plugins can ship their own icon.
