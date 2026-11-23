@@ -14,6 +14,11 @@ export function formatEngineLabel(engine: string | null | undefined, engines: re
   return engine ? findEngine(engines, engine).name : "—"
 }
 
+export function formatEngineModelLabel(engine: string, model: string, engines: readonly EngineChoice[]): string {
+  const label = formatEngineLabel(engine, engines)
+  return model ? `${label} · ${model}` : label
+}
+
 export function isSameDay(left: number, right: number) {
   const leftDate = new Date(left)
   const rightDate = new Date(right)

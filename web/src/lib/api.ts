@@ -1,7 +1,8 @@
-import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
+import { normalizeModelList } from "./engine-models"
 
 const API_BASE = config.apiUrl
 
@@ -94,12 +95,20 @@ export const api = {
       work_dir?: string
       permission_scopes?: string
       engine_args?: Record<string, string>
+      engine_models?: Record<string, string>
     }) => fetchAPI<Worker>("/workers", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Worker>) =>
       fetchAPI<Worker>(`/workers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
+  },
+  engines: {
+    models: async (engine: Engine, workerId?: string): Promise<EngineModel[]> => {
+      const qs = workerId ? `?${new URLSearchParams({ worker_id: workerId })}` : ""
+      const res = await fetchAPI<{ models?: unknown }>(`/engines/${encodeURIComponent(engine)}/models${qs}`)
+      return normalizeModelList(res?.models)
+    },
   },
   chat: {
     conversations: async () => {

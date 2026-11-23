@@ -9,11 +9,13 @@ import { Input } from "@/components/arc/input/input"
 import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { EngineSelect } from "@/components/engine-select-items"
+import { ModelField } from "@/components/model-field"
 import { SectionHeading } from "@/components/section-heading"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useAppConfig, useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useCreateWorker } from "@/hooks/use-workers"
 import { stripEmptyEngineArgs } from "@/lib/engine-args"
+import { buildCreateEngineModels } from "@/lib/engine-models"
 import { findEngine } from "@/lib/engines"
 import { KNOWN_SCOPES, serializeScopes, toggleScope } from "@/lib/scopes"
 import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, availableEngine, newWorkerEngine, type Engine, type Worker } from "@/lib/types"
@@ -125,6 +127,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
   const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [engine, setEngine] = useState<Engine>("")
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>({})
+  const [engineModels, setEngineModels] = useState<Record<string, string>>({})
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitError, setSubmitError] = useState("")
   const selectedEngine = availableEngine(engine, engineIds)
@@ -161,6 +164,7 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
         work_dir: workDir || undefined,
         permission_scopes: serializeScopes(selectedScopes) || undefined,
         engine_args: buildCreateEngineArgsPayload(engineArgs),
+        engine_models: buildCreateEngineModels(selectedEngine, engineModels),
       })
       onCreated(worker)
     } catch (err) {
@@ -195,6 +199,15 @@ export function WorkerCreateForm({ onCreated, onCancel }: WorkerCreateFormProps)
           onValueChange={setEngine}
           disabled={isPending}
         />
+        {selectedEngine && (
+          <ModelField
+            id="cw-model"
+            engine={findEngine(enabledEngines, selectedEngine)}
+            value={engineModels[selectedEngine] ?? ""}
+            onChange={(model) => setEngineModels((prev) => ({ ...prev, [selectedEngine]: model }))}
+            disabled={isPending}
+          />
+        )}
         <Textarea
           id="cw-desc"
           label={t("workers.form.descriptionOptional")}

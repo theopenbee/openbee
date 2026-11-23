@@ -8,6 +8,7 @@ export interface Worker {
   work_dir: string
   engine: Engine
   engine_args?: Record<string, string>
+  engine_models?: Record<string, string>
   permission_scopes?: string
   status: WorkerStatus
   created_at: number
@@ -90,6 +91,11 @@ export type Engine = string
 export interface EngineChoice {
   id: Engine
   name: string
+}
+
+export interface EngineModel {
+  id: string
+  name?: string
 }
 
 export function newWorkerEngine(systemDefault: string | undefined, enabled: readonly Engine[]): Engine {

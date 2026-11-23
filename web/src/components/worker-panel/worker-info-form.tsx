@@ -6,6 +6,7 @@ import { Input } from "@/components/arc/input/input"
 import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { EngineSelect } from "@/components/engine-select-items"
+import { ModelField } from "@/components/model-field"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useUpdateWorker } from "@/hooks/use-workers"
@@ -33,6 +34,8 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const [workDir, setWorkDir] = useState(worker.work_dir ?? "")
   const [engine, setEngine] = useState<Engine>(worker.engine ?? "")
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>(worker.engine_args ?? {})
+  const [initialEngineModels] = useState<Record<string, string>>(() => worker.engine_models ?? {})
+  const [engineModels, setEngineModels] = useState<Record<string, string>>(initialEngineModels)
   const [submitError, setSubmitError] = useState("")
 
   const trimmedWorkDir = workDir.trim()
@@ -45,7 +48,11 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
     e.preventDefault()
     setSubmitError("")
     try {
-      const data = buildWorkerUpdate(worker, { name, description, workDir, engine, engineArgs })
+      const data = buildWorkerUpdate(
+        worker,
+        { name, description, workDir, engine, engineArgs, engineModels },
+        initialEngineModels,
+      )
       if (data) await updateWorker.mutateAsync({ id: worker.id, data })
       onDone()
     } catch (err) {
@@ -110,6 +117,17 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
           onValueChange={setEngine}
           disabled={isPending}
         />
+
+        {argsEngine && (
+          <ModelField
+            id="ewis-model"
+            engine={findEngine(enabledEngines, argsEngine)}
+            workerId={worker.id}
+            value={engineModels[argsEngine] ?? ""}
+            onChange={(model) => setEngineModels((prev) => ({ ...prev, [argsEngine]: model }))}
+            disabled={isPending}
+          />
+        )}
 
         {argsEngine && (
           <EngineArgsSection

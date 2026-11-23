@@ -36,6 +36,7 @@ export function useCreateWorker() {
       work_dir?: string
       permission_scopes?: string
       engine_args?: Record<string, string>
+      engine_models?: Record<string, string>
     }) => api.workers.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workers"] })

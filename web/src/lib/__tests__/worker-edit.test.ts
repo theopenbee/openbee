@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildWorkerUpdate, followedEngine, type WorkerEditValues } from "../worker-edit"
+import { buildWorkerUpdate, followedEngine, profileEngine, type WorkerEditValues } from "../worker-edit"
 import type { Worker } from "../types"
 
 const worker = (over: Partial<Worker>): Worker => ({
@@ -10,6 +10,7 @@ const worker = (over: Partial<Worker>): Worker => ({
   work_dir: "/tmp/sam",
   engine: "pi",
   engine_args: {},
+  engine_models: {},
   status: "idle",
   created_at: 0,
   updated_at: 0,
@@ -22,6 +23,7 @@ const values = (w: Worker, over: Partial<WorkerEditValues> = {}): WorkerEditValu
   workDir: w.work_dir,
   engine: w.engine ?? "",
   engineArgs: w.engine_args ?? {},
+  engineModels: w.engine_models ?? {},
   ...over,
 })
 
@@ -80,6 +82,92 @@ describe("buildWorkerUpdate", () => {
       engine_args: { pi: "--model b" },
     })
     expect(buildWorkerUpdate(w, values(w, { engineArgs: { pi: "--model a", claude: "  " } }))).toBeNull()
+  })
+})
+
+describe("buildWorkerUpdate engine_models", () => {
+  it("leaves engine_models out when no model changed", () => {
+    const w = worker({ engine_models: { pi: "deepseek/deepseek-flash" } })
+    expect(buildWorkerUpdate(w, values(w, { description: "edited" }))).not.toHaveProperty("engine_models")
+  })
+
+  it("treats a worker without engine_models like an empty map", () => {
+    const w = worker({ engine_models: undefined })
+    expect(buildWorkerUpdate(w, values(w))).toBeNull()
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { pi: "  " } }))).toBeNull()
+  })
+
+  it("sends only the engine whose model changed", () => {
+    const w = worker({ engine_models: { pi: "a/b", claude: "opus" } })
+    const data = buildWorkerUpdate(w, values(w, { engineModels: { pi: "a/c", claude: "opus" } }))
+    expect(data).toMatchObject({ engine_models: { pi: "a/c" } })
+    expect(data?.engine_models).not.toHaveProperty("claude")
+  })
+
+  it("sends an empty string to remove a cleared model", () => {
+    const w = worker({ engine_models: { pi: "a/b" } })
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { pi: "" } }))).toMatchObject({ engine_models: { pi: "" } })
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { pi: "   " } }))).toMatchObject({ engine_models: { pi: "" } })
+  })
+
+  it("trims a typed model and ignores whitespace-only edits", () => {
+    const w = worker({ engine_models: { pi: "a/b" } })
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { pi: " a/b " } }))).toBeNull()
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { pi: " a/c\t" } }))).toMatchObject({
+      engine_models: { pi: "a/c" },
+    })
+  })
+
+  it("does not revert models another client changed while the form was open", () => {
+    const opened = { pi: "a/b", claude: "opus" }
+    const refetched = worker({ engine_models: { pi: "a/b", claude: "sonnet" } })
+    expect(buildWorkerUpdate(refetched, values(refetched, { engineModels: opened }), opened)).toBeNull()
+    const data = buildWorkerUpdate(refetched, values(refetched, { engineModels: { ...opened, pi: "a/c" } }), opened)
+    expect(data).toMatchObject({ engine_models: { pi: "a/c" } })
+    expect(data?.engine_models).not.toHaveProperty("claude")
+  })
+
+  it("sends a model the user changed even when the live worker moved on", () => {
+    const opened = { pi: "a/b" }
+    const refetched = worker({ engine_models: { pi: "x/y" } })
+    expect(buildWorkerUpdate(refetched, values(refetched, { engineModels: { pi: "a/c" } }), opened)).toMatchObject({
+      engine_models: { pi: "a/c" },
+    })
+    expect(buildWorkerUpdate(refetched, values(refetched, { engineModels: { pi: "" } }), opened)).toMatchObject({
+      engine_models: { pi: "" },
+    })
+  })
+
+  it("adds a model for a new engine without touching the others", () => {
+    const w = worker({ engine: "", engine_models: { claude: "opus" } })
+    expect(buildWorkerUpdate(w, values(w, { engineModels: { claude: "opus", pi: "x/y" } }))).toEqual({
+      description: "writes code",
+      engine_args: {},
+      engine_models: { pi: "x/y" },
+    })
+  })
+})
+
+describe("profileEngine", () => {
+  it("shows the worker engine with its model", () => {
+    expect(profileEngine(worker({ engine: "pi", engine_models: { pi: "a/b" } }), "claude", ["pi", "claude"])).toEqual({
+      engine: "pi",
+      model: "a/b",
+    })
+  })
+
+  it("shows the worker engine without a model when none is set for it", () => {
+    expect(profileEngine(worker({ engine: "pi", engine_models: { claude: "opus" } }), "claude", ["pi"])).toEqual({
+      engine: "pi",
+      model: "",
+    })
+  })
+
+  it("shows the system default engine for an unset engine only when it has a model", () => {
+    const followed = worker({ engine: "", engine_models: { claude: "opus" } })
+    expect(profileEngine(followed, "claude", ["pi", "claude"])).toEqual({ engine: "claude", model: "opus" })
+    expect(profileEngine(worker({ engine: "" }), "claude", ["pi", "claude"])).toBeNull()
+    expect(profileEngine(followed, "codex", ["pi", "claude"])).toBeNull()
   })
 })
 

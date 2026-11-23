@@ -1,5 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { ENGINE_MODELS_QUERY_KEY } from "@/hooks/use-engine-models"
 import { api } from "@/lib/api"
+
+export function invalidateEnvs(queryClient: QueryClient, scope: string, scopeId?: string) {
+  queryClient.invalidateQueries({ queryKey: ["envs", scope, scopeId ?? null] })
+  queryClient.invalidateQueries({ queryKey: [ENGINE_MODELS_QUERY_KEY] })
+}
 
 export function useEnvList(scope: string, scopeId?: string) {
   return useQuery({
@@ -14,9 +20,7 @@ export function useCreateEnv() {
   return useMutation({
     mutationFn: (data: { scope: string; scope_id?: string; key: string; value: string }) =>
       api.envs.create(data),
-    onSuccess: (_, { scope, scope_id }) => {
-      queryClient.invalidateQueries({ queryKey: ["envs", scope, scope_id ?? null] })
-    },
+    onSuccess: (_, { scope, scope_id }) => invalidateEnvs(queryClient, scope, scope_id),
   })
 }
 
@@ -25,9 +29,7 @@ export function useUpdateEnv(scope: string, scopeId?: string) {
   return useMutation({
     mutationFn: ({ id, value }: { id: string; value: string }) =>
       api.envs.update(id, value),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["envs", scope, scopeId ?? null] })
-    },
+    onSuccess: () => invalidateEnvs(queryClient, scope, scopeId),
   })
 }
 
@@ -35,8 +37,6 @@ export function useDeleteEnv(scope: string, scopeId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.envs.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["envs", scope, scopeId ?? null] })
-    },
+    onSuccess: () => invalidateEnvs(queryClient, scope, scopeId),
   })
 }

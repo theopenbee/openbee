@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatEngineLabel, formatListTime } from "../format"
+import { formatEngineLabel, formatEngineModelLabel, formatListTime } from "../format"
 
 const at = (year: number, month: number, day: number, hour = 12, minute = 0) =>
   new Date(year, month - 1, day, hour, minute).getTime()
@@ -50,5 +50,18 @@ describe("formatEngineLabel", () => {
     expect(formatEngineLabel("", engines)).toBe("—")
     expect(formatEngineLabel(undefined, engines)).toBe("—")
     expect(formatEngineLabel(null, engines)).toBe("—")
+  })
+})
+
+describe("formatEngineModelLabel", () => {
+  const engines = [{ id: "opencode", name: "OpenCode" }]
+
+  it("appends the model after the engine name", () => {
+    expect(formatEngineModelLabel("opencode", "deepseek/deepseek-flash", engines)).toBe("OpenCode · deepseek/deepseek-flash")
+  })
+
+  it("shows only the engine name without a model", () => {
+    expect(formatEngineModelLabel("opencode", "", engines)).toBe("OpenCode")
+    expect(formatEngineModelLabel("codex", "", engines)).toBe("codex")
   })
 })

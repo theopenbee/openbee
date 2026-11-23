@@ -13,13 +13,14 @@ import { DeleteWorkerDialog, type DeleteTarget } from "@/components/worker-panel
 import { WorkerEnvSection } from "@/components/worker-panel/worker-env-section"
 import { WorkerInfoForm } from "@/components/worker-panel/worker-info-form"
 import { WorkerPermissions } from "@/components/worker-panel/worker-permissions"
-import { useEnabledEngines } from "@/hooks/use-config"
+import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useWorker } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath } from "@/lib/conversations"
-import { formatEngineLabel } from "@/lib/format"
+import { formatEngineModelLabel } from "@/lib/format"
 import { DEFAULT_PANEL_SECTION, isPanelSection, type PanelSection, type PanelState } from "@/lib/routes"
-import type { Worker } from "@/lib/types"
+import { SYSTEM_CONFIG_KEY_DEFAULT_ENGINE, type Worker } from "@/lib/types"
 import { getErrorMessage } from "@/lib/utils"
+import { profileEngine } from "@/lib/worker-edit"
 
 const SECTIONS: { key: PanelSection; labelKey: string }[] = [
   { key: "constraints", labelKey: "chat.panelTabs.constraints" },
@@ -115,6 +116,13 @@ interface WorkerHeaderProps {
 function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) {
   const { t } = useTranslation()
   const enabledEngines = useEnabledEngines()
+  const { data: sysConfigs } = useSystemConfigs()
+  const shown = profileEngine(
+    worker,
+    sysConfigs?.[SYSTEM_CONFIG_KEY_DEFAULT_ENGINE],
+    enabledEngines.map((engine) => engine.id),
+  )
+  const engineLabel = shown ? formatEngineModelLabel(shown.engine, shown.model, enabledEngines) : ""
 
   return (
     <div className="grid gap-4">
@@ -122,10 +130,12 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
         <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="lg" />
         <div className="grid min-w-0 flex-1 gap-1.5">
           <h3 className="truncate text-lg font-medium text-foreground">{worker.name}</h3>
-          {worker.engine && (
+          {shown && (
             <span className="flex min-w-0 items-center gap-1.5 text-sm text-secondary">
-              <EngineIcon engine={worker.engine} className="size-3.5 shrink-0" />
-              <span className="truncate">{formatEngineLabel(worker.engine, enabledEngines)}</span>
+              <EngineIcon engine={shown.engine} className="size-3.5 shrink-0" />
+              <span className="truncate" title={shown.model ? engineLabel : undefined}>
+                {engineLabel}
+              </span>
             </span>
           )}
         </div>
