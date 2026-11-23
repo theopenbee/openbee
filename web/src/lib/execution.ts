@@ -1,4 +1,4 @@
-import type { ExecutionDetail, ExecutionStep, ExecutionSummary, ToolKind } from "@/lib/types"
+import type { ExecutionDetail, ExecutionStep, ExecutionSummary, ToolKind, ToolStep } from "@/lib/types"
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -22,6 +22,48 @@ export function knownSteps(steps: readonly ExecutionStep[]): ExecutionStep[] {
 
 export function isToolKind(kind: string): kind is ToolKind {
   return TOOL_KINDS.includes(kind)
+}
+
+export function toolKind(step: ToolStep): ToolKind {
+  return isToolKind(step.kind) ? step.kind : "other"
+}
+
+export function toolTitle(step: ToolStep, t: Translate): string {
+  const kind = toolKind(step)
+  if (kind === "other") return t("execution.tool.other", { name: step.name })
+  const summary = step.summary?.replace(/\s+/g, " ").trim()
+  return summary ? t(`execution.toolTitle.${kind}`, { summary }) : t(`execution.tool.${kind}`)
+}
+
+export function splitThinking(text: string): { title: string; rest: string } {
+  const [first, ...rest] = text.trim().split("\n")
+  return { title: first.trim().replace(/^(\*\*|__)((?:(?!\*\*|__).)+)\1$/, "$2"), rest: rest.join("\n").trim() }
+}
+
+export type DiffLineType = "add" | "remove" | "context" | "note"
+
+export interface DiffLine {
+  type: DiffLineType
+  text: string
+}
+
+const DIFF_MARKERS: Record<string, DiffLineType> = { "+": "add", "-": "remove", " ": "context" }
+
+export function diffLines(diff: string): DiffLine[] {
+  return diff
+    .replace(/\n$/, "")
+    .split("\n")
+    .map((line): DiffLine => {
+      const type = DIFF_MARKERS[line.charAt(0)]
+      return type ? { type, text: line.slice(1) } : { type: "note", text: line }
+    })
+}
+
+export function diffStats(lines: readonly DiffLine[]): { added: number; removed: number } {
+  return {
+    added: lines.filter((line) => line.type === "add").length,
+    removed: lines.filter((line) => line.type === "remove").length,
+  }
 }
 
 export function formatDuration(ms: number, t: Translate): string {

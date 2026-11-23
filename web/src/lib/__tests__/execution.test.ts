@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest"
 import { testI18n } from "@/test/i18n"
-import type { ExecutionDetail, ExecutionStep } from "../types"
-import { formatDuration, handoffRunLabel, isToolKind, knownSteps, stepStats, switcherRuns, toolDuration } from "../execution"
+import type { ExecutionDetail, ExecutionStep, ToolStep } from "../types"
+import {
+  diffLines,
+  diffStats,
+  formatDuration,
+  handoffRunLabel,
+  isToolKind,
+  knownSteps,
+  splitThinking,
+  stepStats,
+  switcherRuns,
+  toolDuration,
+  toolKind,
+  toolTitle,
+} from "../execution"
 
 const en = testI18n("en").t
 const zh = testI18n("zh").t
@@ -134,5 +147,69 @@ describe("switcherRuns", () => {
       ...runs,
       { id: "e1", status: "failed", started_at: 1_000, completed_at: 9_000 },
     ])
+  })
+})
+
+describe("toolTitle", () => {
+  const step = (kind: string, summary?: string, name = "Tool") =>
+    ({ type: "tool", kind, name, summary, status: "done" }) as ToolStep
+
+  it("joins the verb and the summary", () => {
+    expect(toolTitle(step("read", "src/app.ts"), en)).toBe("Read src/app.ts")
+    expect(toolTitle(step("search", "rate limit"), zh)).toBe("搜索 rate limit")
+    expect(toolTitle(step("message", "On it"), zh)).toBe("发送消息：On it")
+  })
+
+  it("collapses whitespace in the summary", () => {
+    expect(toolTitle(step("message", "  Done.\n\nSee   the PR "), en)).toBe("Sent a message: Done. See the PR")
+  })
+
+  it("uses the bare verb without a summary", () => {
+    expect(toolTitle(step("command"), en)).toBe("Ran a command")
+    expect(toolTitle(step("edit", "   "), zh)).toBe("修改文件")
+  })
+
+  it("names other and unknown kinds by the tool name", () => {
+    expect(toolTitle(step("other", "3 todos", "todo_write"), en)).toBe("Called todo_write")
+    expect(toolTitle(step("browser", "x", "navigate"), zh)).toBe("调用 navigate")
+    expect(toolKind(step("browser"))).toBe("other")
+  })
+})
+
+describe("splitThinking", () => {
+  it("takes the first non-empty line as the title", () => {
+    expect(splitThinking("\n  Plan the change \nCheck routes\n\nThen tests\n")).toEqual({
+      title: "Plan the change",
+      rest: "Check routes\n\nThen tests",
+    })
+  })
+
+  it("drops bold markers around the title", () => {
+    expect(splitThinking("**Planning**\n\nRead first").title).toBe("Planning")
+    expect(splitThinking("__Planning__").title).toBe("Planning")
+    expect(splitThinking("**a** and **b**").title).toBe("**a** and **b**")
+  })
+
+  it("has no rest for a single line", () => {
+    expect(splitThinking("One line")).toEqual({ title: "One line", rest: "" })
+    expect(splitThinking("")).toEqual({ title: "", rest: "" })
+  })
+})
+
+describe("diffLines", () => {
+  it("reads the marker of each line", () => {
+    expect(diffLines(" keep\n-old\n+new\n+\n…\n@@ -1 +1 @@\n")).toEqual([
+      { type: "context", text: "keep" },
+      { type: "remove", text: "old" },
+      { type: "add", text: "new" },
+      { type: "add", text: "" },
+      { type: "note", text: "…" },
+      { type: "note", text: "@@ -1 +1 @@" },
+    ])
+  })
+
+  it("counts added and removed lines", () => {
+    expect(diffStats(diffLines("-a\n+b\n+c\n d"))).toEqual({ added: 2, removed: 1 })
+    expect(diffStats([])).toEqual({ added: 0, removed: 0 })
   })
 })

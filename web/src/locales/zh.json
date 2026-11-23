@@ -814,7 +814,15 @@
       "message": "发送消息",
       "other": "调用 {{name}}"
     },
-    "toolStopped": "已停止",
+    "toolTitle": {
+      "command": "运行 {{summary}}",
+      "read": "读取 {{summary}}",
+      "edit": "修改 {{summary}}",
+      "search": "搜索 {{summary}}",
+      "web": "访问 {{summary}}",
+      "message": "发送消息：{{summary}}"
+    },
+    "toolStopped": "已中止",
     "failedTitle": "执行失败",
     "live": "实时更新中",
     "stepCount": "{{steps}}，{{tools}}",

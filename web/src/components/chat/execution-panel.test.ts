@@ -117,12 +117,10 @@ describe("ExecutionView", () => {
       }),
     )
     expect(html).toContain("Find the install section")
-    expect(html).toContain("Edited a file")
-    expect(html).toContain("README.md")
+    expect(html).toContain("Edited README.md")
     expect(html).toContain("41s")
     expect(html).toContain('aria-expanded="false"')
-    expect(html).toContain("Sent a message")
-    expect(html).toContain("On it")
+    expect(html).toContain("Sent a message: On it")
     expect(html).toContain("Called todo_write")
     expect(html).toContain("rate limited")
     expect(html).toContain("All done")
@@ -151,7 +149,7 @@ describe("ExecutionView", () => {
 
   it("renders a tool without output as a plain row", () => {
     const html = render(execution({ steps: [{ type: "tool", kind: "read", name: "Read", summary: "a.md", status: "done" }] }))
-    expect(html).toContain("Read a file")
+    expect(html).toContain("Read a.md")
     expect(html).not.toContain("<button")
     expect(html).not.toContain("aria-expanded")
   })
@@ -163,15 +161,16 @@ describe("ExecutionView", () => {
 
   it("lets a long thinking step expand", () => {
     const html = render(execution({ steps: [{ type: "thinking", text: "Plan\nthe\nwhole\nrelease" }] }))
-    expect(html).toContain("Read more")
-    expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-controls=/)
-    expect(html).not.toContain("line-clamp-3 text-sm whitespace-pre-line text-secondary")
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"/)
+    expect(html).toContain('<span class="sr-only">Thinking</span>')
+    expect(html).toContain("Plan")
+    expect(html).not.toContain("release")
   })
 
   it("shows the whole tool summary on hover", () => {
     const summary = "pnpm vitest run src/components/chat --reporter verbose"
     const html = render(execution({ steps: [{ type: "tool", kind: "command", name: "Bash", summary, status: "done" }] }))
-    expect(html).toContain(`title="${summary}"`)
+    expect(html).toContain(`title="Ran ${summary}"`)
   })
 
   it("names a failed tool for screen readers", () => {

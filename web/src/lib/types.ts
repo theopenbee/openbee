@@ -56,6 +56,7 @@ export interface ToolStep {
   name: string
   summary?: string
   output?: string
+  diff?: string
   status: ToolStatus
   duration_ms?: number
 }

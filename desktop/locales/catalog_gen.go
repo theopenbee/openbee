@@ -3808,6 +3808,78 @@ func (msgs Messages) ExecutionToolStopped() string {
 	return Catalog.Format(msgs.locale, "executionToolStopped", nil)
 }
 
+// ExecutionToolTitleCommand says "Ran {summary}"
+// in the language the app shows.
+func ExecutionToolTitleCommand(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleCommand(summary)
+}
+
+// ExecutionToolTitleCommand says "Ran {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleCommand(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleCommand", map[string]any{"summary": summary})
+}
+
+// ExecutionToolTitleEdit says "Edited {summary}"
+// in the language the app shows.
+func ExecutionToolTitleEdit(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleEdit(summary)
+}
+
+// ExecutionToolTitleEdit says "Edited {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleEdit(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleEdit", map[string]any{"summary": summary})
+}
+
+// ExecutionToolTitleMessage says "Sent a message: {summary}"
+// in the language the app shows.
+func ExecutionToolTitleMessage(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleMessage(summary)
+}
+
+// ExecutionToolTitleMessage says "Sent a message: {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleMessage(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleMessage", map[string]any{"summary": summary})
+}
+
+// ExecutionToolTitleRead says "Read {summary}"
+// in the language the app shows.
+func ExecutionToolTitleRead(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleRead(summary)
+}
+
+// ExecutionToolTitleRead says "Read {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleRead(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleRead", map[string]any{"summary": summary})
+}
+
+// ExecutionToolTitleSearch says "Searched {summary}"
+// in the language the app shows.
+func ExecutionToolTitleSearch(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleSearch(summary)
+}
+
+// ExecutionToolTitleSearch says "Searched {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleSearch(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleSearch", map[string]any{"summary": summary})
+}
+
+// ExecutionToolTitleWeb says "Opened {summary}"
+// in the language the app shows.
+func ExecutionToolTitleWeb(summary string) string {
+	return In(i18n.Locale()).ExecutionToolTitleWeb(summary)
+}
+
+// ExecutionToolTitleWeb says "Opened {summary}"
+// in the language of msgs.
+func (msgs Messages) ExecutionToolTitleWeb(summary string) string {
+	return Catalog.Format(msgs.locale, "executionToolTitleWeb", map[string]any{"summary": summary})
+}
+
 // ExecutionToolWeb says "Opened a web page"
 // in the language the app shows.
 func ExecutionToolWeb() string { return In(i18n.Locale()).ExecutionToolWeb() }

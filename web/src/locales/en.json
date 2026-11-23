@@ -820,6 +820,14 @@
       "message": "Sent a message",
       "other": "Called {{name}}"
     },
+    "toolTitle": {
+      "command": "Ran {{summary}}",
+      "read": "Read {{summary}}",
+      "edit": "Edited {{summary}}",
+      "search": "Searched {{summary}}",
+      "web": "Opened {{summary}}",
+      "message": "Sent a message: {{summary}}"
+    },
     "toolStopped": "Stopped",
     "failedTitle": "Run failed",
     "live": "Updating live",
