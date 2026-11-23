@@ -67,6 +67,7 @@ describe("panel search", () => {
       { mode: "worker", section: "permissions" },
       { mode: "worker", section: "env" },
       { mode: "new" },
+      { mode: "run", executionId: "e1" },
     ]
 
     for (const state of states) {
@@ -88,6 +89,31 @@ describe("panel search", () => {
   it("ignores a legacy copy source", () => {
     expect(panelFromSearch(new URLSearchParams("panel=new&copy=w1"))).toEqual({ mode: "new" })
   })
+
+  it("reads the execution panel with its run id", () => {
+    expect(panelFromSearch(new URLSearchParams("panel=run&run=e1"))).toEqual({ mode: "run", executionId: "e1" })
+    expect(panelFromSearch(new URLSearchParams("panel=run"))).toBeNull()
+    expect(panelFromSearch(new URLSearchParams("panel=run&run="))).toBeNull()
+  })
+
+  it("writes the execution panel and drops the run id for other panels", () => {
+    const run = panelToSearch({ mode: "run", executionId: "e 1" }, new URLSearchParams("q=x"))
+    expect(run.get("panel")).toBe("run")
+    expect(run.get("run")).toBe("e 1")
+    expect(run.get("q")).toBe("x")
+
+    const switched = panelToSearch({ mode: "run", executionId: "e2" }, run)
+    expect(switched.getAll("run")).toEqual(["e2"])
+
+    const worker = panelToSearch({ mode: "worker", section: "env" }, run)
+    expect(worker.has("run")).toBe(false)
+    expect(worker.get("panel")).toBe("env")
+
+    const closed = panelToSearch(null, run)
+    expect(closed.has("run")).toBe(false)
+    expect(closed.has("panel")).toBe(false)
+    expect(closed.get("q")).toBe("x")
+  })
 })
 
 describe("panelView", () => {
@@ -102,6 +128,12 @@ describe("panelView", () => {
     expect(panelView("bee", { mode: "worker", section: "constraints" })).toBeNull()
     expect(panelView(undefined, { mode: "worker", section: "constraints" })).toBeNull()
     expect(panelView("", { mode: "worker", section: "constraints" })).toBeNull()
+  })
+
+  it("shows the execution panel in Bee and worker chats", () => {
+    const run: PanelState = { mode: "run", executionId: "e1" }
+    expect(panelView("bee", run)).toEqual({ mode: "run", executionId: "e1" })
+    expect(panelView("w1", run)).toEqual({ mode: "run", executionId: "e1" })
   })
 
   it("stays closed without a panel", () => {
@@ -136,6 +168,17 @@ describe("panelReplacesHistory", () => {
     expect(panelReplacesHistory(constraints, null)).toBe(false)
     expect(panelReplacesHistory(constraints, { mode: "new" })).toBe(false)
     expect(panelReplacesHistory({ mode: "new" }, constraints)).toBe(false)
+    expect(panelReplacesHistory({ mode: "new" }, { mode: "new" })).toBe(false)
+  })
+
+  it("replaces history when switching between executions", () => {
+    const first: PanelState = { mode: "run", executionId: "e1" }
+    const second: PanelState = { mode: "run", executionId: "e2" }
+
+    expect(panelReplacesHistory(first, second)).toBe(true)
+    expect(panelReplacesHistory(null, first)).toBe(false)
+    expect(panelReplacesHistory({ mode: "worker", section: "env" }, first)).toBe(false)
+    expect(panelReplacesHistory(first, { mode: "worker", section: "env" })).toBe(false)
   })
 })
 

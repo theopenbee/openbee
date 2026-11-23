@@ -565,7 +565,8 @@
     "plugin_catalog_unavailable": "暂时无法获取插件目录",
     "plugin_no_setup": "插件 {{id}} 没有登录步骤",
     "plugin_setup_not_found": "登录会话已结束，请重新开始",
-    "plugin_setup_finished": "登录会话已经结束"
+    "plugin_setup_finished": "登录会话已经结束",
+    "execution_not_found": "该执行记录已不存在"
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -783,6 +784,51 @@
         "off": "关",
         "on": "开"
       }
+    }
+  },
+  "execution": {
+    "show": "查看过程",
+    "panelTitle": "执行过程",
+    "status": {
+      "running": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "startedAt": "{{time}} 开始",
+    "elapsed": "已用时 {{duration}}",
+    "took": "用时 {{duration}}",
+    "seconds": "{{count}} 秒",
+    "minutes": "{{count}} 分钟",
+    "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒",
+    "hours": "{{count}} 小时",
+    "hoursMinutes": "{{hours}} 小时 {{minutes}} 分",
+    "runs": "运行记录",
+    "runOption": "{{time}} · {{status}}",
+    "thinking": "思考",
+    "tool": {
+      "command": "运行命令",
+      "read": "读取文件",
+      "edit": "修改文件",
+      "search": "搜索",
+      "web": "访问网页",
+      "message": "发送消息",
+      "other": "调用 {{name}}"
+    },
+    "toolStopped": "已停止",
+    "failedTitle": "执行失败",
+    "live": "实时更新中",
+    "stepCount": "{{steps}}，{{tools}}",
+    "steps": "共 {{count}} 步",
+    "toolCalls": "其中 {{count}} 次工具调用",
+    "loading": "加载中…",
+    "latest": "最近一次：",
+    "notFound": "该执行记录已不存在",
+    "waiting": "等待第一步…",
+    "noSteps": "没有记录到执行步骤",
+    "stepsError": {
+      "transcript_unsupported": "当前引擎插件版本不支持查看过程，请在设置 → 插件中升级",
+      "engine_unavailable": "引擎插件未安装或已停用，无法查看过程",
+      "transcript_failed": "读取执行过程失败，请稍后重试"
     }
   }
 }

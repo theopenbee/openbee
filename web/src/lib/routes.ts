@@ -12,17 +12,21 @@ export type SettingsState = { returnTo: string }
 export type PanelState =
   | { mode: "worker"; section: PanelSection }
   | { mode: "new" }
+  | { mode: "run"; executionId: string }
   | null
 
 export type PanelView =
   | { mode: "worker"; workerId: string; section: PanelSection }
   | { mode: "new" }
+  | { mode: "run"; executionId: string }
   | null
 
 const PANEL_SECTIONS: readonly string[] = ["constraints", "permissions", "env"] satisfies PanelSection[]
 export const DEFAULT_PANEL_SECTION: PanelSection = "constraints"
 const PANEL_PARAM = "panel"
 const NEW_PANEL = "new"
+const RUN_PANEL = "run"
+const RUN_PARAM = "run"
 
 const SETTINGS_SECTIONS: readonly string[] = ["env", "system", "plugins", "about"] satisfies SettingsSection[]
 export const SETTINGS_PATH = "/settings"
@@ -37,25 +41,33 @@ export function isPanelSection(value: string | null): value is PanelSection {
 export function panelFromSearch(search: URLSearchParams): PanelState {
   const panel = search.get(PANEL_PARAM)
   if (panel === NEW_PANEL) return { mode: "new" }
+  const executionId = search.get(RUN_PARAM)
+  if (panel === RUN_PANEL) return executionId ? { mode: "run", executionId } : null
   return isPanelSection(panel) ? { mode: "worker", section: panel } : null
 }
 
 export function panelToSearch(panel: PanelState, current: URLSearchParams): URLSearchParams {
   const next = new URLSearchParams(current)
   next.delete(PANEL_PARAM)
+  next.delete(RUN_PARAM)
   if (panel?.mode === "worker") next.set(PANEL_PARAM, panel.section)
   if (panel?.mode === "new") next.set(PANEL_PARAM, NEW_PANEL)
+  if (panel?.mode === "run") {
+    next.set(PANEL_PARAM, RUN_PANEL)
+    next.set(RUN_PARAM, panel.executionId)
+  }
   return next
 }
 
 export function panelView(param: string | undefined, panel: PanelState): PanelView {
-  if (panel?.mode === "new") return panel
+  if (panel?.mode === "new" || panel?.mode === "run") return panel
   if (panel?.mode !== "worker" || !param || param === BEE_CONVERSATION) return null
   return { mode: "worker", workerId: param, section: panel.section }
 }
 
 export function panelReplacesHistory(current: PanelState, next: PanelState): boolean {
-  return current?.mode === "worker" && next?.mode === "worker"
+  if (current?.mode === "worker" && next?.mode === "worker") return true
+  return current?.mode === "run" && next?.mode === "run"
 }
 
 function withPanel(pathname: string, panel: PanelState): string {

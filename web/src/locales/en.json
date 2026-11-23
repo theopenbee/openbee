@@ -569,7 +569,8 @@
     "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
     "plugin_no_setup": "Plugin {{id}} has no login step",
     "plugin_setup_not_found": "The login session has ended, start again",
-    "plugin_setup_finished": "The login session has already finished"
+    "plugin_setup_finished": "The login session has already finished",
+    "execution_not_found": "This process is no longer available."
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -789,6 +790,53 @@
         "off": "Off",
         "on": "On"
       }
+    }
+  },
+  "execution": {
+    "show": "View process",
+    "panelTitle": "Process",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "startedAt": "Started {{time}}",
+    "elapsed": "{{duration}} so far",
+    "took": "Took {{duration}}",
+    "seconds": "{{count}}s",
+    "minutes": "{{count}}m",
+    "minutesSeconds": "{{minutes}}m {{seconds}}s",
+    "hours": "{{count}}h",
+    "hoursMinutes": "{{hours}}h {{minutes}}m",
+    "runs": "Run",
+    "runOption": "{{time}} · {{status}}",
+    "thinking": "Thinking",
+    "tool": {
+      "command": "Ran a command",
+      "read": "Read a file",
+      "edit": "Edited a file",
+      "search": "Searched",
+      "web": "Opened a web page",
+      "message": "Sent a message",
+      "other": "Called {{name}}"
+    },
+    "toolStopped": "Stopped",
+    "failedTitle": "Run failed",
+    "live": "Updating live",
+    "stepCount": "{{steps}}, {{tools}}",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps",
+    "toolCalls_one": "{{count}} tool call",
+    "toolCalls_other": "{{count}} tool calls",
+    "loading": "Loading…",
+    "latest": "Latest: ",
+    "notFound": "This process is no longer available.",
+    "waiting": "Waiting for the first step…",
+    "noSteps": "No steps were recorded.",
+    "stepsError": {
+      "transcript_unsupported": "This engine plugin can't show the process yet. Update it in Settings → Plugins.",
+      "engine_unavailable": "The engine plugin isn't installed or is turned off, so the process can't be shown.",
+      "transcript_failed": "Couldn't read the process. Try again later."
     }
   }
 }

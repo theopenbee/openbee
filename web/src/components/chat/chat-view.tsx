@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { InfoIcon } from "lucide-react"
@@ -39,7 +39,7 @@ import {
 } from "@/lib/chat-view"
 import { BEE_CONVERSATION, conversationPath, workerIdOf } from "@/lib/conversations"
 import { parseEngineModels } from "@/lib/engine-models"
-import { isRoutedConversation } from "@/lib/routes"
+import { isRoutedConversation, panelFromSearch, panelReplacesHistory, panelToSearch, type PanelState } from "@/lib/routes"
 import { CHAT_COLUMN } from "@/lib/styles"
 import {
   SYSTEM_CONFIG_KEY_DEFAULT_ENGINE,
@@ -95,6 +95,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const activity = isBee ? (beeBusy ? BEE_BUSY : IDLE) : summaryActivity
   const status = statusText(activity, worker, t)
   const busy = activity.state !== "idle"
+  const executionId = activity.state === "running" ? activity.execution_id : undefined
   const engines = useEnabledEngines()
   const { data: sysConfigs } = useSystemConfigs()
   const defaultModels = useMemo(
@@ -147,6 +148,9 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       if (isBee) setBeeBusy(false)
       if (isShowing(conversation)) markRead(message.ts)
     },
+    onTask: (event) => {
+      if (messages.some((message) => message.handoff?.task_id === event.task_id)) void refetch()
+    },
     onResync: () => {
       void refetch()
     },
@@ -195,6 +199,16 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   )
 
   const openConversation = useCallback((id: ConversationId) => navigate(conversationPath(id)), [navigate])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const showExecution = useCallback(
+    (executionId: string) => {
+      const next: PanelState = { mode: "run", executionId }
+      setSearchParams((current) => panelToSearch(next, current), {
+        replace: panelReplacesHistory(panelFromSearch(searchParams), next),
+      })
+    },
+    [searchParams, setSearchParams],
+  )
 
   const senderCache = useMemo(() => new Map<string, MessageSender | null>(), [conversation, workers, t])
   const senderOf = (message: ChatMessage): MessageSender | null => {
@@ -280,6 +294,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
                       sender={senderOf(message)}
                       isGroupStart={starts[index]}
                       onExpandToggle={handleExpandToggle}
+                      onShowExecution={showExecution}
                       body={
                         message.kind === "handoff" && message.handoff ? (
                           <HandoffCard
@@ -287,6 +302,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
                             instruction={message.content}
                             workers={workers}
                             onOpen={openConversation}
+                            onShowExecution={showExecution}
                           />
                         ) : undefined
                       }
@@ -301,7 +317,11 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
 
       <ConnectionBanner />
 
-      <ActivityIndicator label={busy ? status : null} avatar={avatar} />
+      <ActivityIndicator
+        label={busy ? status : null}
+        avatar={avatar}
+        onShowExecution={executionId ? () => showExecution(executionId) : undefined}
+      />
 
       <Composer
         draftKey={conversation}

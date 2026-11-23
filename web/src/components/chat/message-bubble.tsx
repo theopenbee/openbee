@@ -1,5 +1,6 @@
 import { memo, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { ListTreeIcon } from "lucide-react"
 import { Badge } from "@/components/arc/badge/badge"
 import { AttachmentPreview } from "@/components/chat/attachment-preview"
 import { ChatMarkdown } from "@/components/chat-markdown"
@@ -25,6 +26,7 @@ interface MessageBubbleProps {
   sender: MessageSender | null
   isGroupStart: boolean
   onExpandToggle: () => void
+  onShowExecution?: (executionId: string) => void
   body?: ReactNode
 }
 
@@ -55,11 +57,29 @@ function BubbleBody({ content, onExpandToggle }: { content: string; onExpandTogg
   )
 }
 
+function ShowExecutionButton({ executionId, onShow }: { executionId: string; onShow: (executionId: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={() => onShow(executionId)}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-secondary hover:bg-surface-muted hover:text-foreground",
+        COPY_REVEAL,
+      )}
+    >
+      <ListTreeIcon size={12} strokeWidth={1.75} aria-hidden="true" />
+      {t("execution.show")}
+    </button>
+  )
+}
+
 export const MessageBubble = memo(function MessageBubble({
   message,
   sender,
   isGroupStart,
   onExpandToggle,
+  onShowExecution,
   body,
 }: MessageBubbleProps) {
   const { t, i18n } = useTranslation()
@@ -103,6 +123,9 @@ export const MessageBubble = memo(function MessageBubble({
             </Badge>
           )}
           {timestamp && <time className="text-muted tabular">{timestamp}</time>}
+          {message.execution_id && onShowExecution && (
+            <ShowExecutionButton executionId={message.execution_id} onShow={onShowExecution} />
+          )}
         </div>
 
         {body ?? (

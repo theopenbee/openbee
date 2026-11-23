@@ -12,19 +12,16 @@ import { useQueryClient } from "@tanstack/react-query"
 import { ensureFreshToken, tokenParam } from "@/lib/auth"
 import {
   ingestChatEvent,
+  notifyHandlers,
   reconnectDelay,
   resyncCaches,
   retryFeedback,
   type ChatEvent,
+  type ChatEventHandler,
   type RetryState,
 } from "@/lib/chat-events"
 import { config } from "@/lib/config"
-import type { ChatMessage, ConversationId } from "@/lib/types"
-
-export interface ChatEventHandler {
-  onMessage?: (conversationId: ConversationId, message: ChatMessage) => void
-  onResync?: () => void
-}
+import type { ConversationId } from "@/lib/types"
 
 interface ActiveConversation {
   active: ConversationId | null
@@ -52,11 +49,6 @@ function parseEvent(data: string): ChatEvent | null {
   } catch {
     return null
   }
-}
-
-function notify(handlers: Iterable<ChatEventHandler>, event: ChatEvent) {
-  if (event.type !== "message") return
-  for (const handler of handlers) handler.onMessage?.(event.conversation_id, event.message)
 }
 
 export function ChatEventsProvider({ children }: { children: ReactNode }) {
@@ -109,7 +101,7 @@ export function ChatEventsProvider({ children }: { children: ReactNode }) {
         { active: activeRef.current, visible: document.visibilityState === "visible" },
         resync,
       )
-      notify(handlersRef.current, event)
+      notifyHandlers(handlersRef.current, event)
     }
 
     const markOnline = () => {
@@ -209,6 +201,7 @@ export function useChatEventSubscription(handler: ChatEventHandler) {
     () =>
       subscribe({
         onMessage: (conversationId, message) => handlerRef.current.onMessage?.(conversationId, message),
+        onTask: (event) => handlerRef.current.onTask?.(event),
         onResync: () => handlerRef.current.onResync?.(),
       }),
     [subscribe],

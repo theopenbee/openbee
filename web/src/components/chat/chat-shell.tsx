@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo } from "react"
 import { Outlet, useMatch, useNavigate, useOutletContext, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { ConversationList } from "@/components/chat/conversation-list"
+import { ExecutionPanel } from "@/components/chat/execution-panel"
 import { SplitPanel } from "@/components/split-panel"
 import { WorkerCreateForm } from "@/components/worker-panel/worker-create-form"
 import { WorkerPanel } from "@/components/worker-panel/worker-panel"
@@ -84,7 +85,12 @@ function ChatPanel({ param }: { param: string | undefined }) {
   const changePanel = (next: PanelState) =>
     setSearchParams((current) => panelToSearch(next, current), { replace: panelReplacesHistory(panel, next) })
 
-  const title = view?.mode === "new" ? t("chat.newWorker") : t("chat.panelTitle")
+  const title =
+    view?.mode === "new"
+      ? t("chat.newWorker")
+      : view?.mode === "run"
+        ? t("execution.panelTitle")
+        : t("chat.panelTitle")
 
   return (
     <SplitPanel
@@ -96,6 +102,13 @@ function ChatPanel({ param }: { param: string | undefined }) {
     >
       {view?.mode === "worker" && (
         <WorkerPanel key={view.workerId} workerId={view.workerId} panel={panel} onPanelChange={changePanel} />
+      )}
+      {view?.mode === "run" && (
+        <ExecutionPanel
+          key={view.executionId}
+          executionId={view.executionId}
+          onSelectRun={(executionId) => changePanel({ mode: "run", executionId })}
+        />
       )}
       {view?.mode === "new" && (
         <WorkerCreateForm

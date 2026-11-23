@@ -1,4 +1,4 @@
-import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate } from "./types"
+import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate, ExecutionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -102,6 +102,9 @@ export const api = {
     delete: (id: string, deleteWorkDir = false) =>
       fetchAPI(`/workers/${id}${deleteWorkDir ? "?delete_work_dir=true" : ""}`, { method: "DELETE" }),
     randomName: () => fetchAPI<{ name?: string; exhausted?: boolean }>("/workers/random-name"),
+  },
+  executions: {
+    get: (id: string) => fetchAPI<ExecutionDetail>(`/executions/${encodeURIComponent(id)}`),
   },
   engines: {
     models: async (engine: Engine, workerId?: string): Promise<EngineModel[]> => {

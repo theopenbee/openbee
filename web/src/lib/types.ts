@@ -29,6 +29,50 @@ export interface HandoffInfo {
   cron_expr?: string
   scheduled_at?: number
   conversation_id: ConversationId
+  run?: ExecutionSummary
+}
+
+export type ExecutionStatus = "running" | "completed" | "failed"
+
+export interface ExecutionSummary {
+  id: string
+  status: ExecutionStatus
+  started_at: number
+  completed_at?: number | null
+}
+
+export type ToolKind = "command" | "read" | "edit" | "search" | "web" | "message" | "other"
+
+export type ToolStatus = "running" | "done" | "error"
+
+export interface TextStep {
+  type: "text" | "thinking" | "error"
+  text: string
+}
+
+export interface ToolStep {
+  type: "tool"
+  kind: ToolKind
+  name: string
+  summary?: string
+  output?: string
+  status: ToolStatus
+  duration_ms?: number
+}
+
+export type ExecutionStep = TextStep | ToolStep
+
+export type StepsError = "" | "transcript_unsupported" | "engine_unavailable" | "transcript_failed"
+
+export interface ExecutionDetail extends ExecutionSummary {
+  task_id: string
+  worker_id: string
+  engine: string
+  instruction: string
+  error: string
+  steps: ExecutionStep[]
+  steps_error: StepsError
+  runs?: ExecutionSummary[]
 }
 
 export type ChatMessageKind = "message" | "handoff" | "reset"
@@ -41,12 +85,14 @@ export interface ChatMessage {
   content: string
   media_paths?: string[]
   ts: number
+  execution_id?: string
   pending?: boolean
 }
 
 export interface ConversationActivity {
   state: "idle" | "queued" | "running"
   queued_ahead?: number
+  execution_id?: string
 }
 
 export interface ConversationSummary {

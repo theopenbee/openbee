@@ -33,9 +33,16 @@ export interface TaskEvent {
   worker_id: string
   state: TaskState
   queued_ahead?: number
+  execution_id?: string
 }
 
 export type ChatEvent = ChatMessageEvent | WorkerStatusEvent | TaskEvent
+
+export interface ChatEventHandler {
+  onMessage?: (conversationId: ConversationId, message: ChatMessage) => void
+  onTask?: (event: TaskEvent) => void
+  onResync?: () => void
+}
 
 export interface ConversationView {
   active: ConversationId | null
@@ -134,9 +141,11 @@ function updateConversation(
 
 function activityOf(event: TaskEvent): ConversationActivity {
   if (event.state !== "queued" && event.state !== "running") return { state: "idle" }
-  return event.queued_ahead === undefined
-    ? { state: event.state }
-    : { state: event.state, queued_ahead: event.queued_ahead }
+  return {
+    state: event.state,
+    ...(event.queued_ahead === undefined ? {} : { queued_ahead: event.queued_ahead }),
+    ...(event.execution_id ? { execution_id: event.execution_id } : {}),
+  }
 }
 
 export function applyEventToConversations(
@@ -247,6 +256,13 @@ export function applyEventToCaches(queryClient: QueryClient, event: ChatEvent, v
         workerCacheUpdater(event),
       )
       return
+  }
+}
+
+export function notifyHandlers(handlers: Iterable<ChatEventHandler>, event: ChatEvent) {
+  for (const handler of handlers) {
+    if (event.type === "message") handler.onMessage?.(event.conversation_id, event.message)
+    if (event.type === "task") handler.onTask?.(event)
   }
 }
 

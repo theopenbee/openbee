@@ -9,6 +9,7 @@ import {
   detectGap,
   ingestChatEvent,
   hasUnknownWorker,
+  notifyHandlers,
   previewOf,
   reconnectDelay,
   resyncCaches,
@@ -207,6 +208,20 @@ describe("applyEventToConversations", () => {
     const completed = applyEventToConversations(running, taskEvent("completed"), idle)
     expect(completed[1].activity).toEqual({ state: "idle" })
     expect(completed[0]).toBe(list[0])
+  })
+
+  it("task running keeps the execution id", () => {
+    const list = [summary("worker:w1")]
+
+    const running = applyEventToConversations(list, { ...taskEvent("running"), execution_id: "e1" } as ChatEvent, idle)
+    expect(running[0].activity).toEqual({ state: "running", execution_id: "e1" })
+
+    const completed = applyEventToConversations(
+      running,
+      { ...taskEvent("completed"), execution_id: "e1" } as ChatEvent,
+      idle,
+    )
+    expect(completed[0].activity).toEqual({ state: "idle" })
   })
 
   it.each(["failed", "cancelled"] as const)("task %s sets activity to idle", (state) => {
@@ -665,5 +680,24 @@ describe("retryFeedback", () => {
     feedback.reset()
     vi.advanceTimersByTime(RETRY_FEEDBACK_MS)
     expect(states).toEqual(["retrying", "failed", "retrying", "idle"])
+  })
+})
+
+describe("notifyHandlers", () => {
+  it("passes messages to onMessage and task events to onTask", () => {
+    const onMessage = vi.fn()
+    const onTask = vi.fn()
+    const handlers = [{ onMessage, onTask }, {}]
+    const msg = message("hi")
+    const task = { ...taskEvent("running"), execution_id: "e1" } as ChatEvent
+
+    notifyHandlers(handlers, messageEvent("worker:w1", msg))
+    notifyHandlers(handlers, task)
+    notifyHandlers(handlers, { type: "worker_status", seq: 3, worker_id: "w1", status: "idle" })
+
+    expect(onMessage).toHaveBeenCalledTimes(1)
+    expect(onMessage).toHaveBeenCalledWith("worker:w1", msg)
+    expect(onTask).toHaveBeenCalledTimes(1)
+    expect(onTask).toHaveBeenCalledWith(task)
   })
 })
