@@ -5,6 +5,7 @@
 ### Changed
 - Account menu no longer shows the Administrator role.
 - Chat message avatars no longer show worker status.
+- Web chat header shows worker engine and description, not status.
 
 ### Fixed
 - Even inner padding for account menu control rows.
