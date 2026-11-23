@@ -289,13 +289,12 @@ func (f *fixture) pixel(x, y float32) (r, g, b uint32) {
 
 func TestToolDetailShowsTheDiff(t *testing.T) {
 	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
-		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.ts", Output: "ignored",
+		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.ts",
 			Diff: " keep\n-old\n+new\n+more\n…", Status: "done"}}
 	})))
 	f.wantHidden("old", "+2")
 	f.click(locales.ExecutionToolTitleEdit("a.ts"))
 	f.wantShown("a.ts", "+2", "-1", "keep", "old", "new", "more", "…", "+", "-")
-	f.wantHidden("ignored")
 
 	tint := func(text string) (r, g, b uint32) {
 		box, ok := f.T.Find(text)
@@ -310,6 +309,59 @@ func TestToolDetailShowsTheDiff(t *testing.T) {
 	}
 	if r, g, b := tint("new"); g <= r || r == kr && g == kg && b == kb {
 		t.Errorf("added line background rgb(%d,%d,%d), context rgb(%d,%d,%d); want a green tint", r, g, b, kr, kg, kb)
+	}
+}
+
+func (f *fixture) inkOf(text string) (r, g, b uint32) {
+	f.t.Helper()
+	box, ok := f.T.Find(text)
+	if !ok {
+		f.t.Fatalf("no %q; texts %q", text, f.T.Texts())
+	}
+	best := -1 << 31
+	for y := int(box.Y); y < int(box.Y+box.H); y++ {
+		for x := int(box.X); x < int(box.X+box.W); x++ {
+			pr, pg, pb := f.pixel(float32(x), float32(y))
+			if score := int(pr) - max(int(pg), int(pb)); score > best {
+				best, r, g, b = score, pr, pg, pb
+			}
+		}
+	}
+	return r, g, b
+}
+
+func TestToolDetailShowsTheErrorOfAFailedEdit(t *testing.T) {
+	const diff = " keep\n-old\n+new"
+	const failure = "oldString not found"
+	f := open(t, wideW, "w1", "e1", seeded(detail("failed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.ts", Output: failure, Diff: diff, Status: "error"}}
+	})))
+	f.click(locales.ExecutionToolTitleEdit("a.ts") + " · " + locales.ExecutionStatusFailed())
+	f.wantShown("keep", "old", "new", failure)
+	last, _ := f.T.Find("new")
+	text, _ := f.T.Find(failure)
+	if text.Y <= last.Y {
+		t.Errorf("error at y=%v, diff ends at y=%v; want the error under the diff", text.Y, last.Y)
+	}
+	if r, g, b := f.inkOf(failure); r < g+40 || r < b+40 {
+		t.Errorf("error text rgb(%d,%d,%d); want the danger red", r, g, b)
+	}
+}
+
+func TestToolDetailShowsTheOutputUnderTheDiff(t *testing.T) {
+	const note = "wrote 3 lines"
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.ts", Output: note, Diff: " keep\n-old\n+new", Status: "done"}}
+	})))
+	f.click(locales.ExecutionToolTitleEdit("a.ts"))
+	f.wantShown("keep", "old", "new", note)
+	last, _ := f.T.Find("new")
+	text, _ := f.T.Find(note)
+	if text.Y <= last.Y {
+		t.Errorf("output at y=%v, diff ends at y=%v; want the output under the diff", text.Y, last.Y)
+	}
+	if r, g, b := f.inkOf(note); r >= g+40 || r >= b+40 {
+		t.Errorf("output text rgb(%d,%d,%d); want a neutral color", r, g, b)
 	}
 }
 

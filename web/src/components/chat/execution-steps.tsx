@@ -260,13 +260,13 @@ export function ToolDetail({ id, step }: { id?: string; step: ToolStep }) {
       )}
       {hasBody && (
         <div className={cn(summary && "border-t border-border")}>
-          {diff ? (
-            <DiffView lines={diff} />
-          ) : (
+          {diff && <DiffView lines={diff} />}
+          {step.output && (
             <pre
               className={cn(
                 "max-h-64 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words",
                 step.status === "error" ? "text-danger" : "text-secondary",
+                diff && "border-t border-border",
               )}
             >
               {step.output}

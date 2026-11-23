@@ -158,16 +158,31 @@ describe("ToolDetail", () => {
     expect(html).toContain(">ok</pre>")
   })
 
-  it("renders a diff instead of the output", () => {
-    const html = detail(
-      tool({ kind: "edit", name: "Edit", summary: "a.ts", output: "ignored", diff: " keep\n-old\n+new\n+more\n…" }),
-    )
-    expect(html).not.toContain("ignored")
+  it("renders a diff", () => {
+    const html = detail(tool({ kind: "edit", name: "Edit", summary: "a.ts", diff: " keep\n-old\n+new\n+more\n…" }))
+    expect(html).not.toContain("<pre")
     expect(html).toContain('<span class="text-success">+2</span>')
     expect(html).toContain('<span class="text-danger">-1</span>')
     expect(html).toMatch(/bg-danger\/10[^>]*><span[^>]*text-danger[^>]*>-<\/span><span[^>]*>old<\/span>/)
     expect(html.match(/bg-success\/10/g)).toHaveLength(2)
     expect(html).toMatch(/text-secondary[^>]*><span[^>]*> <\/span><span[^>]*>keep</)
     expect(html).toMatch(/text-muted[^>]*><span[^>]*> <\/span><span[^>]*>…</)
+  })
+
+  it("shows the error of a failed edit under its diff", () => {
+    const html = detail(
+      tool({ kind: "edit", name: "Edit", summary: "a.ts", output: "oldString not found", diff: " keep\n-old\n+new", status: "error" }),
+    )
+    expect(html).toMatch(/<pre[^>]*text-danger[^>]*>oldString not found<\/pre>/)
+    expect(html).toMatch(/<pre[^>]*border-t border-border[^>]*>/)
+    expect(html.indexOf("new</span>")).toBeLessThan(html.indexOf("oldString not found"))
+  })
+
+  it("shows the output of a done edit under its diff", () => {
+    const html = detail(tool({ kind: "edit", name: "Edit", summary: "a.ts", output: "wrote 3 lines", diff: " keep\n-old\n+new" }))
+    expect(html).toMatch(/<pre[^>]*text-secondary[^>]*>wrote 3 lines<\/pre>/)
+    expect(html).not.toMatch(/<pre[^>]*text-danger/)
+    expect(html).toMatch(/<pre[^>]*border-t border-border[^>]*>/)
+    expect(html.indexOf("new</span>")).toBeLessThan(html.indexOf("wrote 3 lines"))
   })
 })

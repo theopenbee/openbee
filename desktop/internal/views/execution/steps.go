@@ -349,16 +349,24 @@ func ToolDetail(c *ui.Context, tk theme.Tokens, step api.ExecutionStep) {
 		}
 		section.Children(func() {
 			ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
-				if diff != nil {
-					diffView(c, tk, diff)
-					return
-				}
-				fg := tk.TextSecondary
-				if step.Status == model.ToolError {
-					fg = tk.Danger
-				}
-				ui.Column(c).MinWidth(0).Padding(stripPadY, stripPadX).Children(func() {
-					mono(ui.Text(c, step.Output)).TextColor(fg).Selectable()
+				ui.Column(c).MinWidth(0).Children(func() {
+					if diff != nil {
+						diffView(c, tk, diff)
+					}
+					if step.Output == "" {
+						return
+					}
+					fg := tk.TextSecondary
+					if step.Status == model.ToolError {
+						fg = tk.Danger
+					}
+					out := ui.Column(c).MinWidth(0).Padding(stripPadY, stripPadX)
+					if diff != nil {
+						out.BorderWidth(1, 0, 0, 0).BorderColor(tk.Border)
+					}
+					out.Children(func() {
+						mono(ui.Text(c, step.Output)).TextColor(fg).Selectable()
+					})
 				})
 			})
 		})
