@@ -40,6 +40,9 @@ func TestConfigHandler_LiveEngines(t *testing.T) {
 
 	src.Remove("claude")
 	assert.JSONEq(t, `{"language":"zh","enabled_engines":["pi"],"engines":[{"id":"pi","name":{"en":"Pi"}}]}`, get())
+
+	src.SetIcon("pi", `<svg viewBox="0 0 1 1"/>`)
+	assert.JSONEq(t, `{"language":"zh","enabled_engines":["pi"],"engines":[{"id":"pi","name":{"en":"Pi"},"icon":"<svg viewBox=\"0 0 1 1\"/>"}]}`, get())
 }
 
 func TestConfigHandler_DefaultsLanguage(t *testing.T) {

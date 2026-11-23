@@ -87,6 +87,7 @@ type ModelLister interface {
 type EngineInfo struct {
 	ID   string            `json:"id"`
 	Name map[string]string `json:"name"`
+	Icon string            `json:"icon,omitempty"`
 }
 
 type EngineSource interface {

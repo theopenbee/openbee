@@ -81,6 +81,7 @@ type Source struct {
 
 type entry struct {
 	name   map[string]string
+	icon   string
 	engine ai.EngineAdapter
 }
 
@@ -96,6 +97,14 @@ func (s *Source) Add(id string, name map[string]string, e ai.EngineAdapter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.engines[id] = entry{name: name, engine: e}
+}
+
+func (s *Source) SetIcon(id, icon string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e := s.engines[id]
+	e.icon = icon
+	s.engines[id] = e
 }
 
 func (s *Source) Remove(id string) {
@@ -116,7 +125,7 @@ func (s *Source) Engines() []ai.EngineInfo {
 	defer s.mu.RUnlock()
 	out := make([]ai.EngineInfo, 0, len(s.engines))
 	for id, e := range s.engines {
-		out = append(out, ai.EngineInfo{ID: id, Name: e.name})
+		out = append(out, ai.EngineInfo{ID: id, Name: e.name, Icon: e.icon})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out

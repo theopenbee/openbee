@@ -21,6 +21,7 @@ var _ ai.EngineSource = (*Manager)(nil)
 type engineInstance struct {
 	gen    int
 	name   plugin.LocalizedText
+	icon   string
 	runner EngineRunner
 	cancel context.CancelFunc
 	state  State
@@ -71,7 +72,7 @@ func (m *Manager) Engines() []ai.EngineInfo {
 	m.mu.Lock()
 	out := make([]ai.EngineInfo, 0, len(m.engines))
 	for id, rec := range m.engines {
-		out = append(out, ai.EngineInfo{ID: id, Name: maps.Clone(rec.name)})
+		out = append(out, ai.EngineInfo{ID: id, Name: maps.Clone(rec.name), Icon: rec.icon})
 	}
 	m.mu.Unlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
@@ -132,7 +133,7 @@ func (m *Manager) launchEngine(id string, man plugin.Manifest, cfg map[string]an
 	m.gen++
 	gen := m.gen
 	checkCtx, cancel := context.WithCancel(base)
-	m.engines[id] = &engineInstance{gen: gen, name: name, runner: runner, cancel: cancel, state: StateStarting}
+	m.engines[id] = &engineInstance{gen: gen, name: name, icon: man.IconSVG, runner: runner, cancel: cancel, state: StateStarting}
 	m.wg.Add(1)
 	m.mu.Unlock()
 

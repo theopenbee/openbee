@@ -87,6 +87,8 @@ type Manifest struct {
 	Setup           *Setup        `json:"setup,omitempty"`
 	Config          []ConfigField `json:"config,omitempty"`
 	Version         string        `json:"version,omitempty"`
+	Icon            string        `json:"icon,omitempty"`
+	IconSVG         string        `json:"-"`
 	Dir             string        `json:"-"`
 }
 
@@ -109,6 +111,11 @@ func LoadManifest(dir string) (Manifest, error) {
 	}
 	if err := m.Validate(); err != nil {
 		return Manifest{}, err
+	}
+	if m.Icon != "" {
+		if m.IconSVG, err = loadIcon(abs, m.Icon); err != nil {
+			return Manifest{}, err
+		}
 	}
 	return m, nil
 }
