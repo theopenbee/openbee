@@ -51,6 +51,18 @@ func DecodeMediaPaths(content string) ([]string, string) {
 	return paths, content
 }
 
+func MergeMediaParts(parts []string) string {
+	var paths, texts []string
+	for _, part := range parts {
+		p, text := DecodeMediaPaths(part)
+		paths = append(paths, p...)
+		if text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return EncodeMediaPaths(paths, strings.Join(texts, "\n\n"))
+}
+
 func RenderAttachments(content, mediaDir string) string {
 	paths, text := DecodeMediaPaths(content)
 	if len(paths) == 0 {

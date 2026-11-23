@@ -256,3 +256,30 @@ func TestAppliesOnlyToLocalBeeChat(t *testing.T) {
 		})
 	}
 }
+
+func TestHandoffShowsAttachmentsApartFromTheInstruction(t *testing.T) {
+	env := newHandoffEnv(t, nil)
+	ctx := context.Background()
+	task := beeTask("w1", "[attachment] /media/u1/a_x.png\nreview it")
+	shown := local.EncodeMediaPaths([]string{"a_x.png"}, "review it")
+
+	taskID, err := env.h.CreateWithContent(ctx, task, shown)
+	require.NoError(t, err)
+
+	got, err := env.tasks.GetByID(ctx, taskID)
+	require.NoError(t, err)
+	assert.Equal(t, "[attachment] /media/u1/a_x.png\nreview it", got.Instruction)
+
+	var content string
+	require.NoError(t, env.db.QueryRow(`SELECT content FROM bee_platform_messages WHERE id = ?`, got.MessageID).Scan(&content))
+	assert.Equal(t, shown, content)
+
+	cards := env.sender.messages()
+	require.Len(t, cards, 1)
+	assert.Equal(t, "review it", cards[0].Content)
+
+	ev := env.nextEvent(t)
+	require.NotNil(t, ev.Message)
+	assert.Equal(t, "review it", ev.Message.Content)
+	assert.Equal(t, []string{"a_x.png"}, ev.Message.MediaPaths)
+}

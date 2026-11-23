@@ -927,7 +927,7 @@ func (c *cardRecorder) messages() []platform.OutboundMessage {
 	return append([]platform.OutboundMessage(nil), c.sent...)
 }
 
-func startHandoffFeeder(t *testing.T, db *sql.DB, ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner *mockBeeRunner) (*store.WorkerStore, *cardRecorder) {
+func startHandoffFeeder(t *testing.T, db *sql.DB, ms *store.MessageStore, ts *store.TaskStore, ss *store.SessionStore, es *store.ExecutionStore, runner *mockBeeRunner, opts ...bee.Option) (*store.WorkerStore, *cardRecorder) {
 	t.Helper()
 	ws := store.NewWorkerStore(db)
 	cards := &cardRecorder{}
@@ -936,11 +936,67 @@ func startHandoffFeeder(t *testing.T, db *sql.DB, ms *store.MessageStore, ts *st
 	cfg.Engine.Timeout.Bee = 5 * time.Second
 	cfg.Feeder.MaxConcurrentBee = 5
 	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("", "", aitest.IDs()),
-		bee.WithWorkerDispatch(ws), bee.WithHandoff(handoff))
+		append([]bee.Option{bee.WithWorkerDispatch(ws), bee.WithHandoff(handoff)}, opts...)...)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go f.Run(ctx)
 	return ws, cards
+}
+
+func awaitHandoffTask(t *testing.T, db *sql.DB, primaryID string) (instruction, shown string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var status string
+		if err := db.QueryRow(`SELECT status FROM bee_platform_messages WHERE id=?`, primaryID).Scan(&status); err != nil {
+			return false
+		}
+		return status == store.MsgStatusBeeProcessed
+	}, 5*time.Second, 50*time.Millisecond)
+	var messageID string
+	require.NoError(t, db.QueryRow(`SELECT message_id, instruction FROM bee_tasks`).Scan(&messageID, &instruction))
+	require.NoError(t, db.QueryRow(`SELECT content FROM bee_platform_messages WHERE id=?`, messageID).Scan(&shown))
+	return instruction, shown
+}
+
+func TestDirectMentionWithAttachmentRendersPaths(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	runner := &mockBeeRunner{}
+	root := t.TempDir()
+	ws, cards := startHandoffFeeder(t, db, ms, ts, ss, es, runner, bee.WithLocalMediaRoot(root))
+	_, err := ws.Create(model.Worker{Name: "writer", WorkDir: t.TempDir()})
+	require.NoError(t, err)
+	insertLocalMessage(t, db, "m1", local.SessionKey("u1"), local.EncodeMediaPaths([]string{"a_x.png"}, "@writer review this screenshot"))
+
+	instruction, shown := awaitHandoffTask(t, db, "m1")
+
+	assert.Empty(t, runner.getCalls(), "bee must not run for a direct mention")
+	assert.Equal(t, "[attachment] "+filepath.Join(root, "u1", "a_x.png")+"\nreview this screenshot", instruction)
+	assert.Equal(t, local.EncodeMediaPaths([]string{"a_x.png"}, "review this screenshot"), shown)
+	sent := cards.messages()
+	require.Len(t, sent, 1)
+	assert.Equal(t, "review this screenshot", sent[0].Content)
+}
+
+func TestDirectMentionRendersAttachmentsInMergedMessages(t *testing.T) {
+	db, ms, ts, ss, es := setupFeederDB(t)
+	runner := &mockBeeRunner{}
+	root := t.TempDir()
+	ws, _ := startHandoffFeeder(t, db, ms, ts, ss, es, runner, bee.WithLocalMediaRoot(root))
+	_, err := ws.Create(model.Worker{Name: "writer", WorkDir: t.TempDir()})
+	require.NoError(t, err)
+	key := local.SessionKey("u1")
+	base := time.Now().Add(-time.Minute).UnixMilli()
+	_, err = ms.CreateBatch(context.Background(), []store.BatchMsg{
+		{ID: "m1", SessionKey: key, Platform: local.PlatformID, Content: local.EncodeMediaPaths([]string{"a_x.png"}, "the login page crashes"), MessageTime: base, Status: store.MsgStatusMerged, MergedInto: "m2"},
+		{ID: "m2", SessionKey: key, Platform: local.PlatformID, Content: "@writer what is wrong here", MessageTime: base + 1, Status: store.MsgStatusReceived},
+	})
+	require.NoError(t, err)
+
+	instruction, shown := awaitHandoffTask(t, db, "m2")
+
+	assert.Empty(t, runner.getCalls(), "bee must not run for a direct mention")
+	assert.Equal(t, "[attachment] "+filepath.Join(root, "u1", "a_x.png")+"\nthe login page crashes\n\nwhat is wrong here", instruction)
+	assert.Equal(t, local.EncodeMediaPaths([]string{"a_x.png"}, "the login page crashes\n\nwhat is wrong here"), shown)
 }
 
 func TestDirectMentionInBeeChatHandsOff(t *testing.T) {

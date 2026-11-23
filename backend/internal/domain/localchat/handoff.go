@@ -43,6 +43,10 @@ func Applies(platformID, sessionKey string) bool {
 }
 
 func (h *Handoff) Create(ctx context.Context, t model.Task) (string, error) {
+	return h.CreateWithContent(ctx, t, t.Instruction)
+}
+
+func (h *Handoff) CreateWithContent(ctx context.Context, t model.Task, content string) (string, error) {
 	userID, conversationID, ok := local.ParseSessionKey(t.SessionKey)
 	if !ok || conversationID != local.BeeConversationID {
 		return "", errors.New("handoff requires a local bee session key")
@@ -57,7 +61,7 @@ func (h *Handoff) Create(ctx context.Context, t model.Task) (string, error) {
 		ID:         handoffID,
 		SessionKey: workerKey,
 		Platform:   local.PlatformID,
-		Content:    t.Instruction,
+		Content:    content,
 		SenderType: store.SenderTypeBee,
 		ReceivedAt: now,
 	}); err != nil {
@@ -75,19 +79,21 @@ func (h *Handoff) Create(ctx context.Context, t model.Task) (string, error) {
 		return "", err
 	}
 
+	paths, text := local.DecodeMediaPaths(content)
 	h.pub.Message(workerKey, local.ChatMessage{
-		ID:      handoffID,
-		Sender:  local.Sender{Type: local.SenderBee},
-		Kind:    local.KindMessage,
-		Content: t.Instruction,
-		TS:      now,
+		ID:         handoffID,
+		Sender:     local.Sender{Type: local.SenderBee},
+		Kind:       local.KindMessage,
+		Content:    text,
+		MediaPaths: paths,
+		TS:         now,
 	})
 
-	h.sendCard(ctx, beeKey, originMessageID, taskID, t)
+	h.sendCard(ctx, beeKey, originMessageID, taskID, t, text)
 	return taskID, nil
 }
 
-func (h *Handoff) sendCard(ctx context.Context, beeKey, originMessageID, taskID string, t model.Task) {
+func (h *Handoff) sendCard(ctx context.Context, beeKey, originMessageID, taskID string, t model.Task, text string) {
 	payload, err := json.Marshal(local.HandoffInfo{
 		WorkerID:       t.WorkerID,
 		TaskID:         taskID,
@@ -102,7 +108,7 @@ func (h *Handoff) sendCard(ctx context.Context, beeKey, originMessageID, taskID 
 	}
 	if err := h.sender.Send(ctx, platform.OutboundMessage{
 		SessionKey:   beeKey,
-		Content:      t.Instruction,
+		Content:      text,
 		SourceType:   store.SourceTypeBee,
 		InboundMsgID: originMessageID,
 		Kind:         store.OutboundKindHandoff,

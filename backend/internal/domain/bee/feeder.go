@@ -415,7 +415,12 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 	}
 
 	primary := msgs[len(msgs)-1]
-	workerName, instruction, ok := parseDirectMention(primary.Content)
+	content := primary.Content
+	var paths []string
+	if primary.Platform == local.PlatformID {
+		paths, content = local.DecodeMediaPaths(content)
+	}
+	workerName, instruction, ok := parseDirectMention(content)
 	if !ok {
 		return false
 	}
@@ -430,7 +435,12 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		log.Error("direct: fetch merged content", zap.String("msgID", primary.ID), zap.Error(err))
 		return false
 	}
-	parts = append(parts, instruction)
+	parts = append(parts, local.EncodeMediaPaths(paths, instruction))
+	shown := ""
+	if primary.Platform == local.PlatformID {
+		shown = local.MergeMediaParts(parts)
+		f.renderLocalAttachments(primary.SessionKey, parts)
+	}
 
 	task := model.Task{
 		MessageID:   primary.ID,
@@ -442,7 +452,7 @@ func (f *Feeder) tryDirectDispatch(ctx context.Context, msgs []store.ClaimedMess
 		Status:      model.TaskStatusPending,
 	}
 	if f.handoff != nil && localchat.Applies(primary.Platform, primary.SessionKey) {
-		_, err = f.handoff.Create(ctx, task)
+		_, err = f.handoff.CreateWithContent(ctx, task, shown)
 	} else {
 		_, err = f.taskStore.Create(ctx, task)
 	}

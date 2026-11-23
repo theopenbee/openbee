@@ -148,3 +148,20 @@ func TestRenderAttachmentsWithoutMarkers(t *testing.T) {
 	assert.Equal(t, "plain text", local.RenderAttachments("plain text", "/m/u1"))
 	assert.Equal(t, "[file] just text", local.RenderAttachments("[file] just text", "/m/u1"))
 }
+
+func TestMergeMediaPartsMovesAttachmentsFirst(t *testing.T) {
+	got := local.MergeMediaParts([]string{
+		local.EncodeMediaPaths([]string{"a_x.png"}, "first"),
+		"second",
+		local.EncodeMediaPaths([]string{"b_y.pdf", "c_z.txt"}, ""),
+		"third",
+	})
+
+	paths, text := local.DecodeMediaPaths(got)
+	assert.Equal(t, []string{"a_x.png", "b_y.pdf", "c_z.txt"}, paths)
+	assert.Equal(t, "first\n\nsecond\n\nthird", text)
+}
+
+func TestMergeMediaPartsWithoutAttachmentsJoinsText(t *testing.T) {
+	assert.Equal(t, "first\n\nsecond", local.MergeMediaParts([]string{"first", "second"}))
+}
