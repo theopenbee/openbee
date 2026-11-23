@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Engine plugins can ship their own icon.
+
+### Changed
+- Engine icons come from plugins, not built into OpenBee.
+
 ## [1.0.10] - 2026-11-22
 
 ### Added
