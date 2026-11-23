@@ -11,6 +11,7 @@ type LocalizedText map[string]string
 type EngineInfo struct {
 	ID   string        `json:"id"`
 	Name LocalizedText `json:"name"`
+	Icon string        `json:"icon,omitempty"`
 }
 
 type Config struct {

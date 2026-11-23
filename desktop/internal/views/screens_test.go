@@ -53,6 +53,8 @@ const (
 	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
 )
 
+const pluginIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M2 2h20v20H2zM7 7v10h10V7z"/></svg>`
+
 type shots int
 
 const (
@@ -509,6 +511,11 @@ var composerScreens = []screen{
 
 func panelCrew(st *fakeapi.State) {
 	chatHistory(st)
+	for i := range st.Engines {
+		if st.Engines[i].ID == "claude" {
+			st.Engines[i].Icon = pluginIcon
+		}
+	}
 	for i := range st.Workers {
 		if st.Workers[i].ID == "ada" {
 			st.Workers[i].Constraints = adaRules

@@ -46,7 +46,8 @@ func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Wor
 				ui.Text(c, w.Name).FontSize(nameSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
 					Role(ui.RoleHeading).Level(3)
 				if engine, modelName := p.profileEngine(w); engine != "" {
-					engineLine(c, tk, engine, model.EngineLabel(l10n.EngineName(model.FindEngine(p.s.EnabledEngines(), engine)), modelName))
+					info := model.FindEngine(p.s.EnabledEngines(), engine)
+					engineLine(c, tk, info.Icon, model.EngineLabel(l10n.EngineName(info), modelName))
 				}
 			})
 		})
@@ -72,9 +73,9 @@ func (p *Panel) profileEngine(w api.Worker) (string, string) {
 	return model.ProfileEngine(w, configs.Data["default_engine"], model.EngineIDs(p.s.EnabledEngines()))
 }
 
-func engineLine(c *ui.Context, tk theme.Tokens, engine, name string) {
+func engineLine(c *ui.Context, tk theme.Tokens, icon, name string) {
 	ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(engineGap).TextColor(tk.TextSecondary).Children(func() {
-		ui.Icon(c, icons.Engine(engine)).Size(engineGlyph, engineGlyph).Shrink(0)
+		ui.Icon(c, icons.Engine(icon)).Size(engineGlyph, engineGlyph).Shrink(0)
 		ui.Text(c, name).SingleLine().MinWidth(0)
 	})
 }

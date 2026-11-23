@@ -84,23 +84,24 @@ func TestLogoUsesBrand(t *testing.T) {
 	}
 }
 
-func TestEngineMarks(t *testing.T) {
-	for _, engine := range []string{"claude", "codex", "pi", "opencode"} {
-		if Engine(engine) == nil {
-			t.Errorf("Engine(%q) = nil", engine)
-		}
+func TestEngineIcon(t *testing.T) {
+	generic := Get("cpu")
+	if Engine("") != generic {
+		t.Error("an engine without an icon does not get the generic icon")
 	}
-	generic := Engine("gemini")
-	if generic == nil {
-		t.Fatal("Engine(\"gemini\") = nil, want the generic engine icon")
+	if Engine("<svg") != generic || Engine("not svg") != generic {
+		t.Error("an icon that fails to parse does not fall back to the generic icon")
 	}
-	if Engine("another-plugin") != generic {
-		t.Error("unknown engines do not share the generic icon")
+	plugin := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>`
+	icon := Engine(plugin)
+	if icon == nil || icon == generic {
+		t.Fatal("a plugin icon is not parsed")
 	}
-	for _, engine := range []string{"claude", "codex", "pi", "opencode"} {
-		if Engine(engine) == generic {
-			t.Errorf("Engine(%q) is the generic icon", engine)
-		}
+	if Engine(plugin) != icon {
+		t.Error("Engine does not cache the parsed plugin icon")
+	}
+	if Engine(strings.Replace(plugin, "24H0z", "12H0z", 1)) == icon {
+		t.Error("different plugin icons share one image")
 	}
 }
 

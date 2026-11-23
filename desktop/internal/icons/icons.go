@@ -40,10 +40,19 @@ func Get(name string) *ui.SVG {
 	})
 }
 
-func Engine(engine string) *ui.SVG {
-	switch engine {
-	case "claude", "codex", "pi", "opencode":
-		return cached("brand/"+engine, func() *ui.SVG { return ui.MustParseSVG(brandData(engine)) })
+func Engine(svg string) *ui.SVG {
+	if svg == "" {
+		return Get("cpu")
 	}
-	return Get("cpu")
+	parsed := cached("engine/"+svg, func() *ui.SVG {
+		parsed, err := ui.ParseSVG([]byte(svg))
+		if err != nil {
+			return nil
+		}
+		return parsed
+	})
+	if parsed == nil {
+		return Get("cpu")
+	}
+	return parsed
 }
