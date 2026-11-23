@@ -274,6 +274,7 @@ Optional. Reads the log `run` wrote and returns what the task did, step by step,
     "steps": [
       { "type": "thinking", "text": "Check the failing test first." },
       { "type": "tool", "kind": "command", "name": "Bash", "summary": "go test ./...", "output": "ok  \tgithub.com/...", "status": "done", "duration_ms": 4200 },
+      { "type": "tool", "kind": "edit", "name": "Edit", "summary": "main.go", "diff": "-\treturn nil\n+\treturn err", "status": "done" },
       { "type": "text", "text": "All tests pass." }
     ]
   }
@@ -286,7 +287,7 @@ Optional. Reads the log `run` wrote and returns what the task did, step by step,
 |---|---|
 | `text` | `text`: assistant reply text. Consecutive text merges into one step, separated by a blank line. |
 | `thinking` | `text`: the reasoning. Leave out empty reasoning. |
-| `tool` | `kind`: `command`, `read`, `edit`, `search`, `web`, `message` or `other`. `name`: the tool name, without an `mcp__<server>__` prefix. `summary`: one line, at most 300 characters. `output`: at most 4000 characters; when longer, the first 1000, `\n…\n`, then the last 2997. `status`: `running`, `done` or `error`; a tool with no result yet is `running`. `duration_ms`: only when both timestamps are known. |
+| `tool` | `kind`: `command`, `read`, `edit`, `search`, `web`, `message` or `other`. `name`: the tool name, without an `mcp__<server>__` prefix. `summary`: one line, at most 300 characters. `output`: at most 4000 characters; when longer, the first 1000, `\n…\n`, then the last 2997. `diff`: optional, the change an edit tool made, one line per changed or context line, each starting with `+`, `-` or a space; clipped like `output`. `status`: `running`, `done` or `error`; a tool with no result yet is `running`. `duration_ms`: only when both timestamps are known. |
 | `error` | `text`: an error the run reported. |
 
 - **Limits.** `text` is at most 20000 characters in every step.

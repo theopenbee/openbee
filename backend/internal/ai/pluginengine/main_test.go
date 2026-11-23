@@ -120,6 +120,14 @@ func runFakeEngine(mode string) int {
 				"status":      "done",
 				"duration_ms": 1250,
 			},
+			{
+				"type":    "tool",
+				"kind":    "edit",
+				"name":    "Edit",
+				"summary": "README.md",
+				"diff":    "-npm i openbee\n+npm i -g openbee\n README",
+				"status":  "done",
+			},
 		}}})
 	case "transcript-unknown":
 		writeRecord(rec)

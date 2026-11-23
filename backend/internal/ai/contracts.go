@@ -91,6 +91,7 @@ type TranscriptStep struct {
 	Name       string `json:"name,omitempty"`
 	Summary    string `json:"summary,omitempty"`
 	Output     string `json:"output,omitempty"`
+	Diff       string `json:"diff,omitempty"`
 	Status     string `json:"status,omitempty"`
 	DurationMS int64  `json:"duration_ms,omitempty"`
 }

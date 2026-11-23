@@ -437,6 +437,14 @@ func TestTranscript(t *testing.T) {
 				Status:     "done",
 				DurationMS: 1250,
 			},
+			{
+				Type:    "tool",
+				Kind:    "edit",
+				Name:    "Edit",
+				Summary: "README.md",
+				Diff:    "-npm i openbee\n+npm i -g openbee\n README",
+				Status:  "done",
+			},
 		}, got)
 
 		recs := readRecords(t, recordDir)
