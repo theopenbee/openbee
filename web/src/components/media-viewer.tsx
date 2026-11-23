@@ -31,10 +31,6 @@ export function DownloadLink({
   )
 }
 
-function holdEscape(e: KeyboardEvent) {
-  if (document.querySelector('[data-streamdown="link-safety-modal"]')) e.preventDefault()
-}
-
 function insideKeep(target: EventTarget) {
   return target instanceof Element && target.closest("[data-viewer-keep]") !== null
 }
@@ -68,7 +64,7 @@ export function MediaViewer({
     armed.current = false
   }
   const arm = (e: PointerEvent) => {
-    armed.current = !insideKeep(e.target)
+    armed.current = e.target instanceof Node && e.currentTarget.contains(e.target) && !insideKeep(e.target)
   }
   const dismiss = (e: MouseEvent) => {
     if (armed.current && !insideKeep(e.target)) onOpenChange(false)
@@ -91,7 +87,7 @@ export function MediaViewer({
                 transition={fade}
               />
             </DialogPrimitive.Overlay>
-            <DialogPrimitive.Content asChild forceMount aria-describedby={undefined} onEscapeKeyDown={holdEscape}>
+            <DialogPrimitive.Content asChild forceMount aria-describedby={undefined}>
               <motion.div
                 className="fixed inset-0 z-50 flex flex-col"
                 onPointerDownCapture={disarm}

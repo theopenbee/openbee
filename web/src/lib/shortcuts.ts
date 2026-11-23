@@ -112,7 +112,7 @@ export function subscribeComposerFocus(listener: () => void): () => void {
 
 export const COMPOSER_ATTR = "data-composer"
 
-const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-streamdown="link-safety-modal"]'
+const OVERLAYS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false

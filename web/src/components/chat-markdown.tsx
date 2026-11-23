@@ -1,10 +1,16 @@
-import { Streamdown, type ControlsConfig } from "streamdown"
+import { Streamdown, type ControlsConfig, type LinkSafetyConfig } from "streamdown"
 import { code } from "@streamdown/code"
+import { LinkSafetyDialog } from "@/components/link-safety-dialog"
 import { CHAT_REMARK_PLUGINS } from "@/lib/markdown"
 import { cn } from "@/lib/utils"
 import styles from "./chat-markdown.module.css"
 
 const STREAMDOWN_PLUGINS = { code }
+
+const LINK_SAFETY: LinkSafetyConfig = {
+  enabled: true,
+  renderModal: (props) => <LinkSafetyDialog {...props} />,
+}
 
 export function ChatMarkdown({
   children,
@@ -24,6 +30,7 @@ export function ChatMarkdown({
         plugins={STREAMDOWN_PLUGINS}
         remarkPlugins={breaks ? CHAT_REMARK_PLUGINS : undefined}
         controls={controls}
+        linkSafety={LINK_SAFETY}
       >
         {children}
       </Streamdown>
