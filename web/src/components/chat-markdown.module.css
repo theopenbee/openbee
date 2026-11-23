@@ -154,7 +154,9 @@
 }
 
 .root :global([data-streamdown="code-block-actions"]) button,
-.root :global([data-streamdown="table-wrapper"]) button {
+.root :global([data-streamdown="table-wrapper"]) button,
+.root :global([data-streamdown="image-wrapper"]) > button,
+:global([data-streamdown="table-fullscreen"]) button {
   display: inline-grid;
   width: var(--space-8);
   height: var(--space-8);
@@ -167,9 +169,23 @@
 
 @media (hover: hover) and (pointer: fine) {
   .root :global([data-streamdown="code-block-actions"]) button:hover:not(:disabled),
-  .root :global([data-streamdown="table-wrapper"]) button:hover:not(:disabled) {
+  .root :global([data-streamdown="table-wrapper"]) button:hover:not(:disabled),
+  :global([data-streamdown="table-fullscreen"]) button:hover:not(:disabled) {
     background: var(--surface-muted);
     color: var(--foreground);
+  }
+}
+
+.root :global([data-streamdown="image-wrapper"]) > button {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--foreground);
+  box-shadow: var(--shadow-raised);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .root :global([data-streamdown="image-wrapper"]) > button:hover {
+    background: var(--surface-muted);
   }
 }
 
@@ -221,7 +237,8 @@
   background: transparent;
 }
 
-.root :global([data-streamdown="table-wrapper"]) :global(.top-full) {
+.root :global([data-streamdown="table-wrapper"]) :global(.top-full),
+:global([data-streamdown="table-fullscreen"]) :global(.top-full) {
   z-index: 20;
   min-width: 10rem;
   border: 1px solid var(--border);
@@ -231,7 +248,8 @@
   box-shadow: var(--shadow-floating);
 }
 
-.root :global([data-streamdown="table-wrapper"]) :global(.top-full) button {
+.root :global([data-streamdown="table-wrapper"]) :global(.top-full) button,
+:global([data-streamdown="table-fullscreen"]) :global(.top-full) button {
   display: flex;
   width: 100%;
   height: auto;
@@ -242,35 +260,50 @@
   font-size: var(--text-sm);
 }
 
-.root :global([data-streamdown="table"]) {
+:global([data-streamdown="table-fullscreen"]) {
+  --md-radius: var(--radius-inset);
+  background: var(--background);
+}
+
+:global([data-streamdown="table-fullscreen"]) > div > div:last-child {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0 var(--space-4) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--md-radius);
+  padding: 0;
+  background: var(--surface);
+}
+
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table"]) {
   border: 0;
   border-radius: 0;
 }
 
-.root :global([data-streamdown="table-header"]) {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table-header"]) {
   background: var(--surface-muted);
 }
 
-.root :global([data-streamdown="table-header-cell"]) {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table-header-cell"]) {
   padding: var(--space-2) var(--space-4);
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: 500;
 }
 
-.root :global([data-streamdown="table-cell"]) {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table-cell"]) {
   padding: var(--space-2) var(--space-4);
   font-variant-numeric: tabular-nums;
 }
 
-.root :global([data-streamdown="table"]) :global(tr) {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table"]) :global(tr) {
   border-color: var(--border-subtle);
 }
 
-.root :global([data-streamdown="table-body"]) {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table-body"]) {
   border-color: var(--border-subtle);
 }
 
-.root :global([data-streamdown="table"]) > * + * {
+:is(.root, :global([data-streamdown="table-fullscreen"])) :global([data-streamdown="table"]) > * + * {
   border-top: 1px solid var(--border-subtle);
 }
