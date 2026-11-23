@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -15,10 +16,11 @@ import (
 )
 
 const (
-	checkTimeout  = 30 * time.Second
-	usageTimeout  = 60 * time.Second
-	modelsTimeout = 30 * time.Second
-	stopGrace     = 3 * time.Second
+	checkTimeout      = 30 * time.Second
+	usageTimeout      = 60 * time.Second
+	modelsTimeout     = 30 * time.Second
+	transcriptTimeout = 30 * time.Second
+	stopGrace         = 3 * time.Second
 )
 
 type Spec struct {
@@ -45,8 +47,9 @@ type Adapter struct {
 }
 
 var (
-	_ ai.EngineAdapter = (*Adapter)(nil)
-	_ ai.ModelLister   = (*Adapter)(nil)
+	_ ai.EngineAdapter    = (*Adapter)(nil)
+	_ ai.ModelLister      = (*Adapter)(nil)
+	_ ai.TranscriptReader = (*Adapter)(nil)
 )
 
 func New(spec Spec) *Adapter {
@@ -168,6 +171,20 @@ func (a *Adapter) Models(ctx context.Context, extraEnv []string) ([]ai.ModelInfo
 		models = append(models, ai.ModelInfo{ID: m.ID, Name: m.Name})
 	}
 	return models, nil
+}
+
+func (a *Adapter) Transcript(ctx context.Context, logPath string) ([]ai.TranscriptStep, error) {
+	var res transcriptResult
+	if err := a.call(ctx, methodTranscript, transcriptParams{LogPath: logPath}, nil, transcriptTimeout, &res); err != nil {
+		if strings.Contains(err.Error(), "unknown method") {
+			return nil, fmt.Errorf("%w: %w", ai.ErrTranscriptUnsupported, err)
+		}
+		return nil, err
+	}
+	if res.Steps == nil {
+		return []ai.TranscriptStep{}, nil
+	}
+	return res.Steps, nil
 }
 
 func (a *Adapter) call(ctx context.Context, method string, params any, extraEnv []string, timeout time.Duration, out any) error {

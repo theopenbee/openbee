@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 
+	ai "github.com/theopenbee/openbee/internal/ai"
 	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 const ProtocolVersion = plugin.EngineProtocolVersion
 
 const (
-	methodRun    = "run"
-	methodCheck  = "check"
-	methodUsage  = "usage"
-	methodModels = "models"
+	methodRun        = "run"
+	methodCheck      = "check"
+	methodUsage      = "usage"
+	methodModels     = "models"
+	methodTranscript = "transcript"
 )
 
 type request struct {
@@ -49,6 +51,14 @@ type mcpParams struct {
 
 type usageParams struct {
 	SessionIDs []string `json:"session_ids"`
+}
+
+type transcriptParams struct {
+	LogPath string `json:"log_path"`
+}
+
+type transcriptResult struct {
+	Steps []ai.TranscriptStep `json:"steps"`
 }
 
 type runResult struct {

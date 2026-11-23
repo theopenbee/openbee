@@ -84,6 +84,23 @@ type ModelLister interface {
 	Models(ctx context.Context, extraEnv []string) ([]ModelInfo, error)
 }
 
+type TranscriptStep struct {
+	Type       string `json:"type"`
+	Text       string `json:"text,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	Output     string `json:"output,omitempty"`
+	Status     string `json:"status,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
+}
+
+type TranscriptReader interface {
+	Transcript(ctx context.Context, logPath string) ([]TranscriptStep, error)
+}
+
+var ErrTranscriptUnsupported = errors.New("engine does not support transcripts")
+
 type EngineInfo struct {
 	ID   string            `json:"id"`
 	Name map[string]string `json:"name"`

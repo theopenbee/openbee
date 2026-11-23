@@ -419,6 +419,68 @@ func TestModels(t *testing.T) {
 	})
 }
 
+func TestTranscript(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		spec, recordDir := fakeSpec(t, "transcript")
+		t.Setenv(ai.APIKeyEnv, "outer-key")
+
+		got, err := New(spec).Transcript(context.Background(), "/home/u/.openbee/logs/2026-11-23/e1.log")
+		require.NoError(t, err)
+		assert.Equal(t, []ai.TranscriptStep{
+			{Type: "text", Text: "Looking at the repo"},
+			{
+				Type:       "tool",
+				Kind:       "command",
+				Name:       "Bash",
+				Summary:    "ls -la",
+				Output:     "total 0",
+				Status:     "done",
+				DurationMS: 1250,
+			},
+		}, got)
+
+		recs := readRecords(t, recordDir)
+		require.Len(t, recs, 1)
+		req, params := decodeRequest(t, recs[0].Request)
+		assert.Equal(t, "transcript", req.Method)
+		assert.Equal(t, "fake", req.EngineID)
+		assert.Equal(t, map[string]any{"log_path": "/home/u/.openbee/logs/2026-11-23/e1.log"}, params)
+		assert.NotContains(t, recs[0].Env, ai.APIKeyEnv)
+		sameDir(t, spec.Dir, recs[0].Cwd)
+	})
+
+	t.Run("no steps field", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "echo")
+		got, err := New(spec).Transcript(context.Background(), "/tmp/e.log")
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+
+	t.Run("unknown method", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "transcript-unknown")
+		got, err := New(spec).Transcript(context.Background(), "/tmp/e.log")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ai.ErrTranscriptUnsupported)
+		assert.Contains(t, err.Error(), `unknown method "transcript"`)
+		assert.Nil(t, got)
+	})
+
+	t.Run("other error", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "check-fail")
+		got, err := New(spec).Transcript(context.Background(), "/tmp/e.log")
+		require.EqualError(t, err, "fakecli not found on PATH")
+		assert.NotErrorIs(t, err, ai.ErrTranscriptUnsupported)
+		assert.Nil(t, got)
+	})
+
+	t.Run("no response", func(t *testing.T) {
+		spec, _ := fakeSpec(t, "noresp")
+		_, err := New(spec).Transcript(context.Background(), "/tmp/e.log")
+		require.EqualError(t, err, "engine plugin exited without a response: boom")
+	})
+}
+
 func TestLineWriter_DropsOverlongLine(t *testing.T) {
 	var lines []string
 	overflows := 0

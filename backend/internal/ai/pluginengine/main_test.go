@@ -107,6 +107,23 @@ func runFakeEngine(mode string) int {
 			{"id": "opencode/big-pickle"},
 			{"id": "", "name": "Nameless"},
 		}}})
+	case "transcript":
+		writeRecord(rec)
+		respond(map[string]any{"result": map[string]any{"steps": []map[string]any{
+			{"type": "text", "text": "Looking at the repo"},
+			{
+				"type":        "tool",
+				"kind":        "command",
+				"name":        "Bash",
+				"summary":     "ls -la",
+				"output":      "total 0",
+				"status":      "done",
+				"duration_ms": 1250,
+			},
+		}}})
+	case "transcript-unknown":
+		writeRecord(rec)
+		respond(map[string]any{"error": map[string]any{"message": `unknown method "transcript"`}})
 	case "sleep-with-child":
 		child, ok := spawnChild(&rec, nil)
 		if !ok {
