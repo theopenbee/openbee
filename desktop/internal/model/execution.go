@@ -29,9 +29,25 @@ const (
 	toolDurationMin = 1000
 )
 
+type DiffKind int
+
+const (
+	DiffContext DiffKind = iota
+	DiffAdd
+	DiffRemove
+	DiffNote
+)
+
+type DiffLine struct {
+	Kind DiffKind
+	Text string
+}
+
 var (
-	toolKinds = []string{"command", "read", "edit", "search", "web", ToolMessage, ToolOther}
-	stepTypes = []string{StepText, StepThinking, StepError, StepTool}
+	toolKinds   = []string{"command", "read", "edit", "search", "web", ToolMessage, ToolOther}
+	stepTypes   = []string{StepText, StepThinking, StepError, StepTool}
+	diffMarkers = map[byte]DiffKind{' ': DiffContext, '+': DiffAdd, '-': DiffRemove}
+	boldMarkers = []string{"**", "__"}
 )
 
 type DurationParts struct {
@@ -105,4 +121,58 @@ func ShowsHandoffTask(msgs []Message, taskID string) bool {
 	return taskID != "" && slices.ContainsFunc(msgs, func(m Message) bool {
 		return m.Handoff != nil && m.Handoff.TaskID == taskID
 	})
+}
+
+func OneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func SplitThinking(text string) (title, rest string) {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	return unbold(strings.TrimSpace(lines[0])), strings.TrimSpace(strings.Join(lines[1:], "\n"))
+}
+
+func unbold(line string) string {
+	for _, m := range boldMarkers {
+		n := len(m)
+		if len(line) <= 2*n || !strings.HasPrefix(line, m) || !strings.HasSuffix(line, m) {
+			continue
+		}
+		if inner := line[n : len(line)-1]; !strings.Contains(inner, "**") && !strings.Contains(inner, "__") {
+			return line[n : len(line)-n]
+		}
+	}
+	return line
+}
+
+func DiffLines(diff string) []DiffLine {
+	raw := strings.Split(strings.TrimSuffix(diff, "\n"), "\n")
+	lines := make([]DiffLine, len(raw))
+	for i, line := range raw {
+		if kind, ok := diffMarkers[firstByte(line)]; ok {
+			lines[i] = DiffLine{Kind: kind, Text: line[1:]}
+		} else {
+			lines[i] = DiffLine{Kind: DiffNote, Text: line}
+		}
+	}
+	return lines
+}
+
+func firstByte(s string) byte {
+	if s == "" {
+		return 0
+	}
+	return s[0]
+}
+
+func DiffStats(lines []DiffLine) (added, removed int) {
+	for _, line := range lines {
+		switch line.Kind {
+		case DiffAdd:
+			added++
+		case DiffRemove:
+			removed++
+		}
+	}
+	return added, removed
 }

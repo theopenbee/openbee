@@ -1,7 +1,9 @@
 package execution
 
 import (
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -13,37 +15,36 @@ import (
 )
 
 const (
-	stepsGap       = 20
-	stepGap        = 12
-	stepBox        = 28
-	stepGlyph      = 14
-	stepLineTop    = 32
-	stepLineLeft   = (stepBox - 1) / 2.0
-	stepBodyTop    = 4
-	stepTextTop    = 2
-	stepLabelGap   = 4
-	toolGap        = 6
-	toolHeaderGap  = 8
-	trailingGap    = 4
-	textDot        = 6
-	chipPadX       = 12
-	chipPadY       = 6
-	quoteBar       = 2
-	quotePad       = 12
-	messageLines   = 2
-	thinkingLines  = 3
-	clipSlack      = 0.5
-	outputMaxH     = 224
-	outputSize     = 11
-	outputLeading  = 1.625
-	outputPadX     = 12
-	outputPadY     = 10
-	failurePadX    = 12
-	failurePadY    = 8
-	dangerFill     = 0.10
-	dangerEdge     = 0.30
-	dangerEdgeSoft = 0.25
+	listGap     = 2
+	listBleed   = 12
+	rowH        = 36
+	rowPadX     = 12
+	rowGap      = 12
+	metaGap     = 8
+	stepGlyph   = 16
+	bodyIndent  = rowPadX + stepGlyph + rowGap
+	blockPadY   = 8
+	glyphNudge  = 2
+	boxTop      = 4
+	boxBelow    = 8
+	stripPadX   = 12
+	stripPadY   = 8
+	statsGap    = 6
+	monoSize    = 12
+	monoLeading = 1.625
+	bodyMaxH    = 256
+	diffPadY    = 6
+	markerW     = 8
+	markerGap   = 8
+	thinkTop    = 4
+	tintAlpha   = 0.10
+	dangerEdge  = 0.25
+	clipSlack   = 0.5
+	turnOpen    = 180
+	noLigatures = "calt=0"
 )
+
+var rowFade = ui.Animation{Duration: 150 * time.Millisecond, Ease: ui.CubicBezier(0.4, 0, 0.2, 1)}
 
 var toolIcons = map[string]string{
 	"command":         "terminal",
@@ -55,15 +56,10 @@ var toolIcons = map[string]string{
 	model.ToolOther:   "wrench",
 }
 
-type stepTone int
-
-const (
-	toneQuiet stepTone = iota
-	toneActive
-	toneDanger
+type (
+	openKey      struct{}
+	truncatedKey struct{}
 )
-
-type openKey struct{}
 
 func toolLabel(kind, name string) string {
 	switch kind {
@@ -83,257 +79,341 @@ func toolLabel(kind, name string) string {
 	return locales.ExecutionToolOther(name)
 }
 
+func ToolTitle(step api.ExecutionStep) string {
+	kind := model.ToolKind(step.Kind)
+	summary := model.OneLine(step.Summary)
+	if kind == model.ToolOther || summary == "" {
+		return toolLabel(kind, step.Name)
+	}
+	switch kind {
+	case "command":
+		return locales.ExecutionToolTitleCommand(summary)
+	case "read":
+		return locales.ExecutionToolTitleRead(summary)
+	case "edit":
+		return locales.ExecutionToolTitleEdit(summary)
+	case "search":
+		return locales.ExecutionToolTitleSearch(summary)
+	case "web":
+		return locales.ExecutionToolTitleWeb(summary)
+	}
+	return locales.ExecutionToolTitleMessage(summary)
+}
+
 func (p *Panel) timeline(c *ui.Context, tk theme.Tokens, steps []api.ExecutionStep, running bool, failure string) {
-	col := ui.Column(c).MinWidth(0).Gap(stepsGap).Role(ui.RoleList)
+	col := ui.Column(c).MinWidth(0).MarginX(-listBleed).Gap(listGap).Role(ui.RoleList)
 	open := ui.Local(col, openKey{}, func() map[int]bool { return map[int]bool{} })
 	col.Children(func() {
 		for i, step := range steps {
-			last := i == len(steps)-1 && failure == ""
-			stepItem(c, tk, last, func() {
+			listItem(c, func(item ui.Element) {
 				switch step.Type {
 				case model.StepThinking:
-					thinkingStep(c, tk, step.Text, *open, i)
+					thinkingStep(c, tk, item, step.Text, *open, i)
 				case model.StepText:
 					p.textStep(c, tk, step.Text)
 				case model.StepError:
 					errorStep(c, tk, step.Text)
 				case model.StepTool:
-					toolStep(c, tk, step, running, *open, i)
+					toolStep(c, tk, item, step, running, *open, i)
 				}
 			})
 		}
 		if failure != "" {
-			stepItem(c, tk, true, func() { failureStep(c, tk, failure) })
+			listItem(c, func(ui.Element) { failureStep(c, tk, failure) })
 		}
 	})
 }
 
-func stepItem(c *ui.Context, tk theme.Tokens, last bool, body func()) {
-	ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(stepGap).Role(ui.RoleListItem).Children(func() {
-		if !last {
-			ui.Box(c).Absolute().Top(stepLineTop).Bottom(-stepsGap).Left(stepLineLeft).Width(1).Background(tk.Border)
-		}
-		body()
-	})
+func listItem(c *ui.Context, body func(item ui.Element)) {
+	item := ui.Column(c).MinWidth(0).Role(ui.RoleListItem)
+	item.Children(func() { body(item) })
 }
 
-func stepIcon(c *ui.Context, tk theme.Tokens, tone stepTone, glyph func()) {
-	bg, border, fg := tk.Surface, tk.Border, tk.TextSecondary
-	switch tone {
-	case toneActive:
-		border, fg = tk.BorderStrong, tk.Foreground
-	case toneDanger:
-		bg, border, fg = tk.Surface.Mix(tk.Danger, dangerFill), tk.Border.Mix(tk.Danger, dangerEdge), tk.Danger
+func glyph(c *ui.Context, name string, color ui.Color) ui.Element {
+	return ui.Icon(c, icons.Get(name)).Size(stepGlyph, stepGlyph).Shrink(0).TextColor(color)
+}
+
+type stepRow struct {
+	label      string
+	expandable bool
+	open       bool
+	toggle     func()
+	icon       func()
+	title      func()
+	meta       func()
+}
+
+func (r stepRow) show(c *ui.Context, tk theme.Tokens) {
+	content := func() {
+		r.icon()
+		r.title()
+		ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(metaGap).FontSize(metaSize).TextColor(tk.TextMuted).
+			FontFeatures("tnum").Children(func() {
+			if r.meta != nil {
+				r.meta()
+			}
+			if !r.expandable {
+				ui.Box(c).Size(stepGlyph, stepGlyph).Shrink(0)
+				return
+			}
+			turn := float32(0)
+			if r.open {
+				turn = turnOpen
+			}
+			chevron := glyph(c, "chevron-down", tk.TextMuted)
+			chevron.Rotate(chevron.AnimateTo("turn", turn, ui.Snappy))
+		})
 	}
-	ui.Box(c).Size(stepBox, stepBox).Shrink(0).Center().Radius(theme.RadiusPill).Background(bg).Border(1, border).
-		TextColor(fg).Children(glyph)
+	if !r.expandable {
+		ui.Row(c).MinWidth(0).Height(rowH).AlignItems(ui.Center).Gap(rowGap).PaddingX(rowPadX).Children(content)
+		return
+	}
+	b := ui.ButtonBase(c).Label(r.label).Expanded(r.open).MinWidth(0).Height(rowH).AlignItems(ui.Center).Justify(ui.Start).
+		Gap(rowGap).PaddingX(rowPadX).Radius(theme.RadiusControl).OnClick(r.toggle)
+	bg := tk.SurfaceMuted.Alpha(0)
+	if b.Hovered() || b.Pressed() {
+		bg = tk.SurfaceMuted
+	}
+	b.Background(b.AnimateColor("bg", bg, rowFade)).Children(content)
 }
 
-func glyph(c *ui.Context, name string) func() {
-	return func() { ui.Icon(c, icons.Get(name)).Size(stepGlyph, stepGlyph) }
-}
-
-func stepBody(c *ui.Context, gap, top float32) ui.Element {
-	return ui.Column(c).Grow(1).MinWidth(0).Gap(gap).Padding(top, 0, 0, 0)
-}
-
-func thinkingStep(c *ui.Context, tk theme.Tokens, text string, open map[int]bool, index int) {
-	expanded := open[index]
-	stepIcon(c, tk, toneQuiet, glyph(c, "brain"))
-	stepBody(c, stepLabelGap, stepBodyTop).Children(func() {
-		ui.Text(c, locales.ExecutionThinking()).FontSize(metaSize).TextColor(tk.TextMuted)
-		body := ui.Text(c, text).FontSize(textSize).TextColor(tk.TextSecondary)
-		if !expanded {
-			body.MaxLines(thinkingLines)
-		}
-		if expanded || clipsLines(c, body, text, thinkingLines) {
-			expandToggle(c, tk, expanded, func() { open[index] = !expanded })
-		}
-	})
-}
-
-func clipsLines(c *ui.Context, e ui.Element, text string, lines int) bool {
-	decided := false
-	if w := e.LayoutBounds().W; w > 0 {
-		decided = overLines(c.MeasureText, w, text, lines)
+func fitTitle(c *ui.Context, truncated *bool, text string, body func()) ui.Element {
+	box := ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center)
+	if w := box.LayoutBounds().W; w > 0 && wider(c.MeasureText, w, text) != *truncated {
+		*truncated = !*truncated
+		c.Services().Invalidate()
 	}
 	services := c.Services()
-	e.Draw(func(p *ui.Painter, r ui.Rect) {
-		if overLines(p.MeasureText, r.W, text, lines) != decided {
+	box.Draw(func(p *ui.Painter, r ui.Rect) {
+		if wider(p.MeasureText, r.W, text) != *truncated {
 			services.Invalidate()
 		}
 	})
-	return decided
+	return box.Children(body)
 }
 
-func overLines(measure func(float32, ...ui.Span) (float32, float32), width float32, text string, lines int) bool {
-	_, full := measure(width, ui.Span{Text: text, Size: textSize})
-	_, limit := measure(width, ui.Span{Text: strings.Repeat("M\n", lines-1) + "M", Size: textSize})
-	return full > limit+clipSlack
+func titleText(c *ui.Context, tk theme.Tokens, text string) ui.Element {
+	return ui.Text(c, text).FontSize(textSize).TextColor(tk.Foreground).SingleLine().Shrink(1).MinWidth(0)
 }
 
-func expandToggle(c *ui.Context, tk theme.Tokens, expanded bool, toggle func()) {
-	label := locales.ArcExpandableTextMore()
-	turn := float32(0)
-	if expanded {
-		label, turn = locales.ArcExpandableTextLess(), 180
+func wider(measure func(float32, ...ui.Span) (float32, float32), width float32, text string) bool {
+	w, _ := measure(0, ui.Span{Text: text, Size: textSize})
+	return w > width+clipSlack
+}
+
+func thinkingStep(c *ui.Context, tk theme.Tokens, item ui.Element, text string, open map[int]bool, index int) {
+	title, rest := model.SplitThinking(text)
+	truncated := ui.Local(item, truncatedKey{}, func() bool { return false })
+	expandable := rest != "" || *truncated
+	expanded := expandable && open[index]
+	thinking := locales.ExecutionThinking()
+	stepRow{
+		label:      thinking + runJoin + title,
+		expandable: expandable,
+		open:       expanded,
+		toggle:     func() { open[index] = !open[index] },
+		icon: func() {
+			glyph(c, "sparkles", tk.TextSecondary).Label(thinking).Role(ui.RoleImage)
+		},
+		title: func() { fitTitle(c, truncated, title, func() { titleText(c, tk, title) }) },
+	}.show(c, tk)
+	if !expanded {
+		return
 	}
-	b := ui.ButtonBase(c).Label(label).Expanded(expanded).AlignSelf(ui.Start).AlignItems(ui.Center).Gap(trailingGap).
-		Radius(theme.RadiusControl).FontSize(textSize).FontWeight(mediumWeight)
-	fg := tk.Foreground
-	if b.Hovered() || b.Pressed() {
-		fg = tk.TextSecondary
+	body := rest
+	if *truncated {
+		body = strings.TrimSpace(text)
 	}
-	b.TextColor(fg).OnClick(toggle).Children(func() {
-		ui.Text(c, label).SingleLine()
-		chevron := ui.Icon(c, icons.Get("chevron-down")).Size(stepGlyph, stepGlyph).TextColor(tk.TextMuted)
-		chevron.Rotate(chevron.AnimateTo("turn", turn, ui.Snappy))
-	})
+	ui.Text(c, body).FontSize(textSize).TextColor(tk.TextSecondary).Padding(thinkTop, rowPadX, blockPadY, bodyIndent).Selectable()
 }
 
 func (p *Panel) textStep(c *ui.Context, tk theme.Tokens, text string) {
-	stepIcon(c, tk, toneActive, func() {
-		ui.Box(c).Size(textDot, textDot).Radius(theme.RadiusPill).Background(tk.Foreground)
-	})
-	stepBody(c, 0, stepTextTop).FontSize(textSize).TextColor(tk.Foreground).Children(func() {
-		if p.prose != nil {
-			p.prose(c, text)
-			return
-		}
-		ui.Text(c, text).Selectable()
+	ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(rowGap).Padding(blockPadY, rowPadX).Children(func() {
+		glyph(c, "message-square-text", tk.TextSecondary).Margin(glyphNudge, 0, 0, 0)
+		ui.Column(c).Grow(1).MinWidth(0).FontSize(textSize).TextColor(tk.Foreground).Children(func() {
+			if p.prose != nil {
+				p.prose(c, text)
+				return
+			}
+			ui.Text(c, text).Selectable()
+		})
 	})
 }
 
 func errorStep(c *ui.Context, tk theme.Tokens, text string) {
-	stepIcon(c, tk, toneDanger, glyph(c, "circle-alert"))
-	stepBody(c, 0, stepBodyTop).Children(func() {
-		ui.Text(c, text).FontSize(textSize).TextColor(tk.Danger).Selectable()
+	ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(rowGap).Padding(blockPadY, rowPadX).Children(func() {
+		glyph(c, "circle-alert", tk.Danger).Margin(glyphNudge, 0, 0, 0)
+		ui.Text(c, text).Grow(1).MinWidth(0).FontSize(textSize).TextColor(tk.Danger).Selectable()
 	})
 }
 
-func toolStep(c *ui.Context, tk theme.Tokens, step api.ExecutionStep, running bool, open map[int]bool, index int) {
+func toolStep(c *ui.Context, tk theme.Tokens, item ui.Element, step api.ExecutionStep, running bool, open map[int]bool, index int) {
 	kind := model.ToolKind(step.Kind)
 	active := running && step.Status == model.ToolRunning
 	failed := step.Status == model.ToolError
-	label := toolLabel(kind, step.Name)
-	expanded := open[index] && step.Output != ""
-	tone := toneQuiet
-	switch {
-	case failed:
-		tone = toneDanger
-	case active:
-		tone = toneActive
+	title := ToolTitle(step)
+	summary := strings.TrimSpace(step.Summary)
+	truncated := ui.Local(item, truncatedKey{}, func() bool { return false })
+	hasBody := step.Output != "" || step.Diff != ""
+	expandable := hasBody || summary != "" && (kind == model.ToolMessage || kind == model.ToolOther || *truncated)
+	expanded := expandable && open[index]
+	iconColor := tk.TextSecondary
+	if failed {
+		iconColor = tk.Danger
 	}
-	stepIcon(c, tk, tone, func() {
-		if active {
-			kit.Spinner(c, tk, stepGlyph).TextColor(tk.Foreground).Label(locales.ExecutionStatusRunning())
-			return
-		}
-		glyph(c, toolIcons[kind])()
-	})
-	stepBody(c, toolGap, stepBodyTop).Children(func() {
-		header := func() {
-			if active {
-				kit.Shimmer(c, tk, label).Shrink(1)
-			} else {
-				ui.Text(c, label).FontSize(textSize).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().MinWidth(0)
+	stepRow{
+		label:      toolName(title, step.Status, active),
+		expandable: expandable,
+		open:       expanded,
+		toggle:     func() { open[index] = !open[index] },
+		icon:       func() { glyph(c, toolIcons[kind], iconColor) },
+		title: func() {
+			box := fitTitle(c, truncated, title, func() {
+				if active {
+					kit.Shimmer(c, tk, title).Shrink(1)
+				} else {
+					titleText(c, tk, title)
+				}
+			})
+			if summary != "" && *truncated {
+				kit.Tooltip(c, tk, box, title)
+			}
+		},
+		meta: func() {
+			if model.ToolDurationShown(step.DurationMS) {
+				ui.Text(c, Duration(step.DurationMS)).SingleLine()
 			}
 			toolMark(c, tk, step.Status, active)
-			ui.Box(c).Grow(1)
-			toolTrailing(c, tk, step, expanded)
-		}
-		if step.Output != "" {
-			ui.ButtonBase(c).Label(toolName(label, step.Status, active)).Expanded(expanded).MinWidth(0).AlignItems(ui.Center).Justify(ui.Start).
-				Gap(toolHeaderGap).Radius(theme.RadiusControl).OnClick(func() { open[index] = !open[index] }).Children(header)
-		} else {
-			ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(toolHeaderGap).Children(header)
-		}
-		toolSummary(c, tk, kind, step.Summary)
-		if expanded {
-			toolOutput(c, tk, step.Output, failed)
-		}
-	})
+		},
+	}.show(c, tk)
+	if expanded {
+		ToolDetail(c, tk, step)
+	}
 }
 
-func toolName(label, status string, active bool) string {
+func toolName(title, status string, active bool) string {
 	switch {
 	case status == model.ToolError:
-		return label + runJoin + locales.ExecutionStatusFailed()
+		return title + runJoin + locales.ExecutionStatusFailed()
 	case status == model.ToolDone || active:
-		return label
+		return title
 	}
-	return label + runJoin + locales.ExecutionToolStopped()
+	return title + runJoin + locales.ExecutionToolStopped()
 }
 
 func toolMark(c *ui.Context, tk theme.Tokens, status string, active bool) {
 	switch {
 	case status == model.ToolError:
-		ui.Icon(c, icons.Get("x")).Size(stepGlyph, stepGlyph).Shrink(0).TextColor(tk.Danger)
+		glyph(c, "x", tk.Danger).Label(locales.ExecutionStatusFailed()).Role(ui.RoleImage)
 	case status == model.ToolDone:
-		ui.Icon(c, icons.Get("check")).Size(stepGlyph, stepGlyph).Shrink(0).TextColor(tk.Success)
+		glyph(c, "check", tk.Success)
 	case active:
+		kit.Spinner(c, tk, stepGlyph).TextColor(tk.TextSecondary).Label(locales.ExecutionStatusRunning())
 	default:
 		stopped := locales.ExecutionToolStopped()
-		mark := ui.Icon(c, icons.Get("circle-slash")).Size(stepGlyph, stepGlyph).Shrink(0).TextColor(tk.TextMuted).
-			Label(stopped).Role(ui.RoleImage)
-		kit.Tooltip(c, tk, mark, stopped)
+		kit.Tooltip(c, tk, glyph(c, "circle-slash", tk.TextMuted).Label(stopped).Role(ui.RoleImage), stopped)
 	}
 }
 
-func toolTrailing(c *ui.Context, tk theme.Tokens, step api.ExecutionStep, expanded bool) {
-	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(trailingGap).FontSize(metaSize).TextColor(tk.TextMuted).
-		FontFeatures("tnum").Children(func() {
-		if model.ToolDurationShown(step.DurationMS) {
-			ui.Text(c, Duration(step.DurationMS)).SingleLine()
+func detailBox(c *ui.Context, border ui.Color) ui.Element {
+	return ui.Column(c).MinWidth(0).Margin(boxTop, rowPadX, boxBelow, bodyIndent).Radius(theme.RadiusInset).Border(1, border).Clip()
+}
+
+func ToolDetail(c *ui.Context, tk theme.Tokens, step api.ExecutionStep) {
+	summary := strings.TrimSpace(step.Summary)
+	var diff []model.DiffLine
+	if step.Diff != "" {
+		diff = model.DiffLines(step.Diff)
+	}
+	hasBody := step.Output != "" || diff != nil
+	detailBox(c, tk.Border).Children(func() {
+		if summary != "" {
+			ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(metaGap).Padding(stripPadY, stripPadX).Children(func() {
+				text := ui.Text(c, summary).Grow(1).MinWidth(0).TextColor(tk.Foreground).Selectable()
+				if model.ToolKind(step.Kind) == model.ToolMessage {
+					text.FontSize(textSize)
+				} else {
+					mono(text)
+				}
+				if diff != nil {
+					diffStats(c, tk, diff)
+				}
+			})
 		}
-		if step.Output != "" {
-			turn := float32(0)
-			if expanded {
-				turn = 180
-			}
-			chevron := ui.Icon(c, icons.Get("chevron-down")).Size(stepGlyph, stepGlyph)
-			chevron.Rotate(chevron.AnimateTo("turn", turn, ui.Snappy))
+		if !hasBody {
+			return
 		}
-	})
-}
-
-func toolSummary(c *ui.Context, tk theme.Tokens, kind, summary string) {
-	if summary == "" {
-		return
-	}
-	if kind == model.ToolMessage {
-		ui.Column(c).MinWidth(0).BorderWidth(0, 0, 0, quoteBar).BorderColor(tk.Border).PaddingStart(quotePad).Children(func() {
-			ui.Text(c, summary).FontSize(textSize).TextColor(tk.TextSecondary).MaxLines(messageLines)
-		})
-		return
-	}
-	chip := ui.Row(c).MinWidth(0).Radius(theme.RadiusControl).Background(tk.SurfaceMuted).Padding(chipPadY, chipPadX).Children(func() {
-		ui.Text(c, summary).Font(theme.FontMono).FontSize(metaSize).TextColor(tk.TextSecondary).SingleLine().Grow(1).MinWidth(0)
-	})
-	kit.Tooltip(c, tk, chip, summary)
-}
-
-func toolOutput(c *ui.Context, tk theme.Tokens, output string, failed bool) {
-	fg, border := tk.TextSecondary, tk.Border
-	if failed {
-		fg, border = tk.Danger, tk.Border.Mix(tk.Danger, dangerEdgeSoft)
-	}
-	ui.Column(c).MinWidth(0).MaxHeight(outputMaxH).Radius(theme.RadiusControl).Border(1, border).Clip().Children(func() {
-		ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
-			ui.Column(c).MinWidth(0).Padding(outputPadY, outputPadX).Children(func() {
-				ui.Text(c, output).Font(theme.FontMono).FontSize(outputSize).LineHeight(outputLeading).TextColor(fg).Selectable()
+		section := ui.Column(c).MinWidth(0).MaxHeight(bodyMaxH)
+		if summary != "" {
+			section.BorderWidth(1, 0, 0, 0).BorderColor(tk.Border)
+		}
+		section.Children(func() {
+			ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
+				if diff != nil {
+					diffView(c, tk, diff)
+					return
+				}
+				fg := tk.TextSecondary
+				if step.Status == model.ToolError {
+					fg = tk.Danger
+				}
+				ui.Column(c).MinWidth(0).Padding(stripPadY, stripPadX).Children(func() {
+					mono(ui.Text(c, step.Output)).TextColor(fg).Selectable()
+				})
 			})
 		})
 	})
 }
 
+func mono(e ui.Element) ui.Element {
+	return e.Font(theme.FontMono).FontSize(monoSize).LineHeight(monoLeading).FontFeatures(noLigatures)
+}
+
+func diffStats(c *ui.Context, tk theme.Tokens, lines []model.DiffLine) {
+	added, removed := model.DiffStats(lines)
+	mono(ui.Row(c).Shrink(0).Gap(statsGap)).Children(func() {
+		if added > 0 {
+			ui.Text(c, "+"+strconv.Itoa(added)).TextColor(tk.Success)
+		}
+		if removed > 0 {
+			ui.Text(c, "-"+strconv.Itoa(removed)).TextColor(tk.Danger)
+		}
+	})
+}
+
+func diffView(c *ui.Context, tk theme.Tokens, lines []model.DiffLine) {
+	mono(ui.Column(c).MinWidth(0).PaddingY(diffPadY)).Children(func() {
+		for _, line := range lines {
+			row := ui.Row(c).MinWidth(0).AlignItems(ui.Start).Gap(markerGap).PaddingX(stripPadX)
+			fg, markColor, marker := tk.TextSecondary, tk.TextSecondary, " "
+			switch line.Kind {
+			case model.DiffAdd:
+				fg, markColor, marker = tk.Foreground, tk.Success, "+"
+				row.Background(tk.Success.Alpha(tintAlpha))
+			case model.DiffRemove:
+				fg, markColor, marker = tk.Foreground, tk.Danger, "-"
+				row.Background(tk.Danger.Alpha(tintAlpha))
+			case model.DiffNote:
+				fg = tk.TextMuted
+			}
+			text := line.Text
+			if text == "" {
+				text = " "
+			}
+			row.TextColor(fg).Children(func() {
+				ui.Text(c, marker).Width(markerW).Shrink(0).TextColor(markColor).Unselectable()
+				ui.Text(c, text).Grow(1).MinWidth(0).Selectable()
+			})
+		}
+	})
+}
+
 func failureStep(c *ui.Context, tk theme.Tokens, message string) {
-	stepIcon(c, tk, toneDanger, glyph(c, "circle-alert"))
-	stepBody(c, toolGap, stepBodyTop).Children(func() {
-		ui.Text(c, locales.ExecutionFailedTitle()).FontSize(textSize).FontWeight(mediumWeight).TextColor(tk.Danger)
-		ui.Column(c).MinWidth(0).Radius(theme.RadiusControl).Border(1, tk.Border.Mix(tk.Danger, dangerEdgeSoft)).
-			Background(tk.Surface.Mix(tk.Danger, dangerFill)).Padding(failurePadY, failurePadX).Children(func() {
-			ui.Text(c, message).FontSize(metaSize).TextColor(tk.Danger).Selectable()
-		})
+	ui.Row(c).MinWidth(0).Height(rowH).AlignItems(ui.Center).Gap(rowGap).PaddingX(rowPadX).Children(func() {
+		glyph(c, "circle-alert", tk.Danger)
+		titleText(c, tk, locales.ExecutionFailedTitle()).Grow(1)
+	})
+	detailBox(c, tk.Danger.Alpha(dangerEdge)).Background(tk.Danger.Alpha(tintAlpha)).Children(func() {
+		ui.Text(c, message).FontSize(textSize).TextColor(tk.Danger).Padding(stripPadY, stripPadX).Selectable()
 	})
 }

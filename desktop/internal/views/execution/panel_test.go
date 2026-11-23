@@ -178,7 +178,7 @@ func TestRunningToolSpinsWhileTheRunRuns(t *testing.T) {
 	f := open(t, wideW, "w1", "e1", seeded(detail("running", func(e *api.ExecutionDetail) {
 		e.Steps = []api.ExecutionStep{runningTool()}
 	})))
-	f.wantShown(locales.ExecutionToolCommand(), "pnpm test")
+	f.wantShown(locales.ExecutionToolTitleCommand("pnpm test"))
 	f.wantHidden(locales.ExecutionToolStopped())
 	if n := f.count(locales.ExecutionStatusRunning()); n != 2 {
 		t.Fatalf("%q shown %d times, want the badge and the tool's spinner; texts %q", locales.ExecutionStatusRunning(), n, f.T.Texts())
@@ -204,9 +204,9 @@ func TestToolToggleNamesItsStatus(t *testing.T) {
 	f := open(t, wideW, "w1", "e1", seeded(detail("failed", func(e *api.ExecutionDetail) {
 		e.Steps = []api.ExecutionStep{withOutput("error"), withOutput("running"), withOutput("done")}
 	})))
-	label := locales.ExecutionToolCommand()
-	f.wantShown(label+" · "+locales.ExecutionStatusFailed(), label+" · "+locales.ExecutionToolStopped())
-	f.click(label + " · " + locales.ExecutionToolStopped())
+	title := locales.ExecutionToolTitleCommand("pnpm test")
+	f.wantShown(title+" · "+locales.ExecutionStatusFailed(), title+" · "+locales.ExecutionToolStopped())
+	f.click(title + " · " + locales.ExecutionToolStopped())
 	f.wantShown("log")
 }
 
@@ -218,7 +218,7 @@ func TestRunGoneWhilePollingIsNotLive(t *testing.T) {
 	f.Fake.Update(func(st *fakeapi.State) { delete(st.Executions, "e1") })
 	f.poll(2)
 	f.wantShown(locales.ExecutionNotFound())
-	f.wantHidden(locales.ExecutionLive(), locales.ExecutionStatusRunning(), locales.ExecutionToolCommand())
+	f.wantHidden(locales.ExecutionLive(), locales.ExecutionStatusRunning(), locales.ExecutionToolTitleCommand("pnpm test"))
 	f.Fix.Clock.Advance(10 * time.Second)
 	f.Motion()
 	if n := f.fetches(); n != 2 {
@@ -238,75 +238,167 @@ func TestTimelineAndToolOutput(t *testing.T) {
 			{Type: "image", Text: "ignored"},
 		}
 	})))
-	f.wantShown(locales.ExecutionThinking(), "Find the install section", locales.ExecutionToolEdit(), "README.md",
-		execution.Duration(41_000), locales.ExecutionToolMessage(), "On it", locales.ExecutionToolOther("todo_write"), "rate limited")
+	edited := locales.ExecutionToolTitleEdit("README.md")
+	sent := locales.ExecutionToolTitleMessage("On it")
+	f.wantShown(locales.ExecutionThinking(), "Find the install section", edited, execution.Duration(41_000), sent,
+		locales.ExecutionToolOther("todo_write"), "rate limited")
 	if !f.T.HasText("All") || f.T.HasText("ignored") {
 		t.Fatalf("text steps wrong; texts %q", f.T.Texts())
 	}
 	f.wantShown(locales.ExecutionStepCount(locales.ExecutionSteps(6), locales.ExecutionToolCalls(3)))
-	f.wantHidden("+npm i -g openbee")
+	f.wantHidden("+npm i -g openbee", "README.md", "On it", locales.ExecutionThinking()+" · Find the install section",
+		locales.ExecutionToolOther("todo_write")+" · "+locales.ExecutionStatusFailed())
 
-	f.click(locales.ExecutionToolEdit())
-	f.wantShown("+npm i -g openbee")
-	f.click(locales.ExecutionToolEdit())
-	f.wantHidden("+npm i -g openbee")
+	f.click(edited)
+	f.wantShown("README.md", "+npm i -g openbee")
+	f.click(edited)
+	f.wantHidden("README.md", "+npm i -g openbee")
+
+	f.click(sent)
+	f.wantShown("On it")
 }
 
-func TestLongThinkingExpands(t *testing.T) {
-	long := strings.TrimSpace(strings.Repeat("Check the install section and the release notes before shipping. ", 12))
-	short := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
-		e.Steps = []api.ExecutionStep{{Type: "thinking", Text: "Short thought"}}
+func TestToolTitles(t *testing.T) {
+	tool := func(kind, summary string) api.ExecutionStep {
+		return api.ExecutionStep{Type: "tool", Kind: kind, Name: "Tool", Summary: summary, Status: "done"}
+	}
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{
+			tool("read", "a.md"), tool("search", "rate limit"), tool("web", "https://theopenbee.com"),
+			tool("message", "  Done.\n\nSee   the PR "), tool("command", ""), tool("edit", "   "),
+			{Type: "tool", Kind: "other", Name: "todo_write", Summary: "3 todos", Status: "done"},
+			{Type: "tool", Kind: "browser", Name: "navigate", Status: "done"},
+		}
 	})))
-	short.Motion()
-	short.wantShown("Short thought")
-	short.wantHidden(locales.ArcExpandableTextMore())
+	f.wantShown(locales.ExecutionToolTitleRead("a.md"), locales.ExecutionToolTitleSearch("rate limit"),
+		locales.ExecutionToolTitleWeb("https://theopenbee.com"), locales.ExecutionToolTitleMessage("Done. See the PR"),
+		locales.ExecutionToolCommand(), locales.ExecutionToolEdit(), locales.ExecutionToolOther("todo_write"),
+		locales.ExecutionToolOther("navigate"))
+	f.wantHidden("3 todos", "a.md")
 
+	f.click(locales.ExecutionToolTitleRead("a.md"))
+	f.wantHidden("a.md")
+	f.click(locales.ExecutionToolOther("todo_write"))
+	f.wantShown("3 todos")
+}
+
+func (f *fixture) pixel(x, y float32) (r, g, b uint32) {
+	r, g, b, _ = f.T.Image().At(int(x), int(y)).RGBA()
+	return r >> 8, g >> 8, b >> 8
+}
+
+func TestToolDetailShowsTheDiff(t *testing.T) {
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.ts", Output: "ignored",
+			Diff: " keep\n-old\n+new\n+more\n…", Status: "done"}}
+	})))
+	f.wantHidden("old", "+2")
+	f.click(locales.ExecutionToolTitleEdit("a.ts"))
+	f.wantShown("a.ts", "+2", "-1", "keep", "old", "new", "more", "…", "+", "-")
+	f.wantHidden("ignored")
+
+	tint := func(text string) (r, g, b uint32) {
+		box, ok := f.T.Find(text)
+		if !ok {
+			t.Fatalf("no %q; texts %q", text, f.T.Texts())
+		}
+		return f.pixel(box.X+box.W+4, box.Y+box.H/2)
+	}
+	kr, kg, kb := tint("keep")
+	if r, g, b := tint("old"); r <= g || r == kr && g == kg && b == kb {
+		t.Errorf("removed line background rgb(%d,%d,%d), context rgb(%d,%d,%d); want a red tint", r, g, b, kr, kg, kb)
+	}
+	if r, g, b := tint("new"); g <= r || r == kr && g == kg && b == kb {
+		t.Errorf("added line background rgb(%d,%d,%d), context rgb(%d,%d,%d); want a green tint", r, g, b, kr, kg, kb)
+	}
+}
+
+func TestToolDetailOutput(t *testing.T) {
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
+		e.Steps = []api.ExecutionStep{
+			{Type: "tool", Kind: "search", Name: "Grep", Summary: "grep -rn limit src", Output: "No matches", Status: "done"},
+			{Type: "tool", Kind: "command", Name: "Bash", Output: "ok", Status: "done"},
+			{Type: "tool", Kind: "message", Name: "send_message", Summary: "On it\nsoon", Status: "done"},
+		}
+	})))
+	f.click(locales.ExecutionToolTitleSearch("grep -rn limit src"))
+	f.wantShown("grep -rn limit src", "No matches")
+	f.click(locales.ExecutionToolCommand())
+	f.wantShown("ok")
+	f.click(locales.ExecutionToolTitleMessage("On it soon"))
+	f.wantShown("On it\nsoon")
+}
+
+func TestThinkingOpensToTheRest(t *testing.T) {
+	thinking := func(text string) func(e *api.ExecutionDetail) {
+		return func(e *api.ExecutionDetail) { e.Steps = []api.ExecutionStep{{Type: "thinking", Text: text}} }
+	}
+	short := open(t, wideW, "w1", "e1", seeded(detail("completed", thinking("Short thought"))))
+	short.wantShown("Short thought", locales.ExecutionThinking())
+	short.wantHidden(locales.ExecutionThinking() + " · Short thought")
+
+	f := open(t, wideW, "w1", "e1", seeded(detail("completed", thinking("\n**Plan the change**\nCheck the routes first.\n\nThen the tests."))))
+	toggle := locales.ExecutionThinking() + " · Plan the change"
+	f.wantShown("Plan the change", toggle)
+	f.wantHidden("**Plan the change**", "Check the routes first.\n\nThen the tests.")
+	f.click(toggle)
+	f.wantShown("Check the routes first.\n\nThen the tests.")
+	if n := f.count("Plan the change"); n != 1 {
+		t.Fatalf("title shown %d times when open, want once", n)
+	}
+	f.click(toggle)
+	f.wantHidden("Check the routes first.\n\nThen the tests.")
+}
+
+func TestLongThinkingTitleOpensInFull(t *testing.T) {
+	long := strings.TrimSpace(strings.Repeat("Check the install section and the release notes before shipping. ", 12))
 	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
 		e.Steps = []api.ExecutionStep{{Type: "thinking", Text: long}}
 	})))
-	f.Motion()
-	f.wantShown(locales.ArcExpandableTextMore())
-	height := func() float32 {
-		r, ok := f.T.Find(long)
-		if !ok {
-			t.Fatalf("thinking text missing; texts %q", f.T.Texts())
-		}
-		return r.H
+	toggle := locales.ExecutionThinking() + " · " + long
+	f.wantShown(toggle)
+	if n := f.count(long); n != 1 {
+		t.Fatalf("long thought shown %d times before opening, want once", n)
 	}
-	clamped := height()
-
-	f.click(locales.ArcExpandableTextMore())
-	f.wantShown(locales.ArcExpandableTextLess())
-	f.wantHidden(locales.ArcExpandableTextMore())
-	if full := height(); full <= clamped {
-		t.Fatalf("expanded thinking is %v tall, clamped %v; want it taller", full, clamped)
-	}
-
-	f.click(locales.ArcExpandableTextLess())
-	f.wantShown(locales.ArcExpandableTextMore())
-	if again := height(); again != clamped {
-		t.Fatalf("collapsed thinking is %v tall, want %v", again, clamped)
+	f.click(toggle)
+	if n := f.count(long); n != 2 {
+		t.Fatalf("long thought shown %d times when open, want the title and the full text", n)
 	}
 }
 
 func TestToolSummaryShowsInFullOnHover(t *testing.T) {
 	summary := "pnpm vitest run src/components/chat --reporter verbose " + strings.Repeat("--project web ", 12)
 	f := open(t, wideW, "w1", "e1", seeded(detail("completed", func(e *api.ExecutionDetail) {
-		e.Steps = []api.ExecutionStep{{Type: "tool", Kind: "command", Name: "Bash", Summary: summary, Status: "done"}}
+		e.Steps = []api.ExecutionStep{
+			{Type: "tool", Kind: "command", Name: "Bash", Summary: summary, Status: "done"},
+			{Type: "tool", Kind: "read", Name: "Read", Summary: "a.md", Status: "done"},
+		}
 	})))
-	chip, ok := f.T.Find(summary)
-	if !ok {
-		t.Fatalf("summary missing; texts %q", f.T.Texts())
+	title := locales.ExecutionToolTitleCommand(strings.TrimSpace(summary))
+	hover := func(text string) {
+		box, ok := f.T.Find(text)
+		if !ok {
+			t.Fatalf("no %q; texts %q", text, f.T.Texts())
+		}
+		f.T.Move(box.X+box.W/4, box.Y+box.H/2)
+		f.T.Advance(2 * time.Second)
+		f.Motion()
 	}
-	if n := f.count(summary); n != 1 {
-		t.Fatalf("summary shown %d times before hover, want 1", n)
+	short := locales.ExecutionToolTitleRead("a.md")
+	hover(short)
+	if n := f.count(short); n != 1 {
+		t.Fatalf("short title shown %d times on hover, want no tooltip", n)
 	}
-	f.T.Move(chip.X+chip.W/2, chip.Y+chip.H/2)
-	f.T.Advance(2 * time.Second)
-	f.Motion()
-	if n := f.count(summary); n != 2 {
-		t.Fatalf("summary shown %d times on hover, want the chip and its tooltip; texts %q", n, f.T.Texts())
+	before := f.count(title)
+	if before == 0 {
+		t.Fatalf("title missing; texts %q", f.T.Texts())
 	}
+	hover(title)
+	if n := f.count(title); n != before+1 {
+		t.Fatalf("title shown %d times on hover, was %d; want its tooltip too; texts %q", n, before, f.T.Texts())
+	}
+	f.click(title)
+	f.wantShown(strings.TrimSpace(summary))
 }
 
 func TestRunSwitcher(t *testing.T) {

@@ -648,6 +648,7 @@ func TestEndpoints(t *testing.T) {
 				`"started_at":1700,"completed_at":1900,"error":"timed out","steps":[` +
 				`{"type":"thinking","text":"plan"},` +
 				`{"type":"tool","kind":"command","name":"Bash","summary":"pnpm test","output":"ok","status":"done","duration_ms":4100},` +
+				`{"type":"tool","kind":"edit","name":"Edit","summary":"a.md","diff":"-old\n+new","status":"done"},` +
 				`{"type":"text","text":"done"}],"steps_error":"",` +
 				`"runs":[{"id":"e2","status":"running","started_at":2000,"completed_at":null},{"id":"e1","status":"failed","started_at":1700,"completed_at":1900}]}`,
 			want: ExecutionDetail{
@@ -656,6 +657,7 @@ func TestEndpoints(t *testing.T) {
 				Steps: []ExecutionStep{
 					{Type: "thinking", Text: "plan"},
 					{Type: "tool", Kind: "command", Name: "Bash", Summary: "pnpm test", Output: "ok", Status: "done", DurationMS: 4100},
+					{Type: "tool", Kind: "edit", Name: "Edit", Summary: "a.md", Diff: "-old\n+new", Status: "done"},
 					{Type: "text", Text: "done"},
 				},
 				Runs: []ExecutionSummary{

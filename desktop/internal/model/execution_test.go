@@ -124,3 +124,52 @@ func TestShowsHandoffTask(t *testing.T) {
 		t.Fatal("matched a task that no handoff shows")
 	}
 }
+
+func TestOneLine(t *testing.T) {
+	if got := OneLine("  Done.\n\nSee   the PR "); got != "Done. See the PR" {
+		t.Fatalf("OneLine = %q", got)
+	}
+	if got := OneLine(" \n\t "); got != "" {
+		t.Fatalf("OneLine(blank) = %q", got)
+	}
+}
+
+func TestSplitThinking(t *testing.T) {
+	cases := []struct{ text, title, rest string }{
+		{"\n  Plan the change \nCheck routes\n\nThen tests\n", "Plan the change", "Check routes\n\nThen tests"},
+		{"**Planning**\n\nRead first", "Planning", "Read first"},
+		{"__Planning__", "Planning", ""},
+		{"**a** and **b**", "**a** and **b**", ""},
+		{"**a***", "**a***", ""},
+		{"****", "****", ""},
+		{"One line", "One line", ""},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		title, rest := SplitThinking(c.text)
+		if title != c.title || rest != c.rest {
+			t.Errorf("SplitThinking(%q) = %q, %q; want %q, %q", c.text, title, rest, c.title, c.rest)
+		}
+	}
+}
+
+func TestDiffLines(t *testing.T) {
+	got := DiffLines(" keep\n-old\n+new\n+\n…\n@@ -1 +1 @@\n")
+	want := []DiffLine{
+		{DiffContext, "keep"},
+		{DiffRemove, "old"},
+		{DiffAdd, "new"},
+		{DiffAdd, ""},
+		{DiffNote, "…"},
+		{DiffNote, "@@ -1 +1 @@"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DiffLines = %+v, want %+v", got, want)
+	}
+	if added, removed := DiffStats(DiffLines("-a\n+b\n+c\n d")); added != 2 || removed != 1 {
+		t.Fatalf("DiffStats = +%d -%d, want +2 -1", added, removed)
+	}
+	if added, removed := DiffStats(nil); added != 0 || removed != 0 {
+		t.Fatalf("DiffStats(nil) = +%d -%d", added, removed)
+	}
+}
