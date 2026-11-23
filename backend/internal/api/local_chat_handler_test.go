@@ -21,7 +21,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/theopenbee/openbee/internal/domain/delivery"
 	"github.com/theopenbee/openbee/internal/domain/session"
+	"github.com/theopenbee/openbee/internal/domain/task"
 	"github.com/theopenbee/openbee/internal/infra/auth"
 	"github.com/theopenbee/openbee/internal/infra/model"
 	"github.com/theopenbee/openbee/internal/infra/store"
@@ -1103,6 +1105,51 @@ func TestMessagesExposeWorkerExecutionID(t *testing.T) {
 	assert.Equal(t, "exec-1", res.Messages[0].ExecutionID)
 	assert.Empty(t, res.Messages[1].ExecutionID)
 	assert.Equal(t, 1, strings.Count(rec.Body.String(), `"execution_id"`))
+}
+
+func TestMessagesExposeNoticeExecutionID(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	aliceKey := local.WorkerSessionKey(testUserID, alice.ID)
+	cid := local.WorkerConversationID(alice.ID)
+	sender := store.NewLoggingPlatformSenderAdapter(local.NewLocalSender(s.publisher, s.mediaRoot), s.outboundStore, local.PlatformID)
+	notifier := task.NewPlatformFailureNotifier(s.msgStore, platform.SenderMap{local.PlatformID: sender})
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+	target := delivery.Target{SessionKey: aliceKey}
+
+	require.NoError(t, notifier.NotifyTaskFailure(context.Background(), target, model.FailureInfo{Reason: "boom", WorkerName: "alice", ExecutionID: "exec-failed"}))
+	require.NoError(t, notifier.NotifyTaskCancelled(context.Background(), target, "alice", "exec-stopped"))
+	require.NoError(t, notifier.NotifyTaskFailure(context.Background(), target, model.FailureInfo{Reason: "no run", WorkerName: "alice"}))
+
+	var live []string
+	for range 3 {
+		ev := nextHubEvent(t, events)
+		require.NotNil(t, ev.Message)
+		assert.Equal(t, store.SourceTypeSystem, ev.Message.Sender.Type)
+		live = append(live, ev.Message.ExecutionID)
+	}
+	assert.Equal(t, []string{"exec-failed", "exec-stopped", ""}, live)
+
+	var history messagesResponse
+	require.Eventually(t, func() bool {
+		history = getConversationMessages(t, s.router, testUserID, cid, "")
+		return len(history.Messages) == 3
+	}, 2*time.Second, 10*time.Millisecond)
+	var stored []string
+	for _, m := range history.Messages {
+		assert.Equal(t, store.SourceTypeSystem, m.Sender.Type)
+		stored = append(stored, m.ExecutionID)
+	}
+	assert.Equal(t, []string{"exec-failed", "exec-stopped", ""}, stored)
+	assert.Equal(t, 2, strings.Count(getMessagesBody(t, s.router, cid), `"execution_id"`))
+}
+
+func getMessagesBody(t *testing.T, r *gin.Engine, cid string) string {
+	t.Helper()
+	rec := serveAs(r, httptest.NewRequest(http.MethodGet, "/local/conversations/"+cid+"/messages", nil), testUserID)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return rec.Body.String()
 }
 
 func TestMessagesFillHandoffRunFromLatestExecution(t *testing.T) {

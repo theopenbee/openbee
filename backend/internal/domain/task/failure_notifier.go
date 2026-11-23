@@ -34,19 +34,19 @@ func (n *PlatformFailureNotifier) NotifyTaskFailure(ctx context.Context, target 
 		workerLine = m.ParseFailed
 	}
 	content := m.TaskFailed + workerLine + fmt.Sprintf(m.Failed, info.Reason)
-	return n.sendNotification(ctx, target, content)
+	return n.sendNotification(ctx, target, content, info.ExecutionID)
 }
 
-func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName string) error {
+func (n *PlatformFailureNotifier) NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName, executionID string) error {
 	m := i18n.M.Runtime.FailureNotifier
 	content := m.TaskCancelled
 	if workerName != "" {
 		content += fmt.Sprintf(m.WorkerLine, workerName)
 	}
-	return n.sendNotification(ctx, target, content)
+	return n.sendNotification(ctx, target, content, executionID)
 }
 
-func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, target delivery.Target, content string) error {
+func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, target delivery.Target, content, executionID string) error {
 	sender, outbound, err := n.resolver.Resolve(ctx, target)
 	if err != nil {
 		return fmt.Errorf("resolve notification target: %w", err)
@@ -56,6 +56,7 @@ func (n *PlatformFailureNotifier) sendNotification(ctx context.Context, target d
 	const maxContentRunes = 499
 	outbound.Content = utils.TruncateRunes(content, maxContentRunes)
 	outbound.SourceType = store.SourceTypeSystem
+	outbound.ExecutionID = executionID
 
 	if err := sender.Send(ctx, outbound); err != nil {
 		log.Error("send notification", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))

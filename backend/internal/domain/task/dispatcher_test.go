@@ -257,9 +257,10 @@ type failureCall struct {
 }
 
 type cancelCall struct {
-	messageID  string
-	sessionKey string
-	workerName string
+	messageID   string
+	sessionKey  string
+	workerName  string
+	executionID string
 }
 
 func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, target delivery.Target, info model.FailureInfo) error {
@@ -269,10 +270,10 @@ func (n *mockFailureNotifier) NotifyTaskFailure(_ context.Context, target delive
 	return nil
 }
 
-func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, target delivery.Target, workerName string) error {
+func (n *mockFailureNotifier) NotifyTaskCancelled(_ context.Context, target delivery.Target, workerName, executionID string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: target.MessageID, sessionKey: target.SessionKey, workerName: workerName})
+	n.cancelCalls = append(n.cancelCalls, cancelCall{messageID: target.MessageID, sessionKey: target.SessionKey, workerName: workerName, executionID: executionID})
 	return nil
 }
 
@@ -819,10 +820,7 @@ type tableExecManager struct {
 
 func (m *tableExecManager) ExecuteWorker(_ context.Context, _ worker.ExecuteRequest) (model.WorkerExecution, error) {
 	m.executed.Add(1)
-	if m.execErr != nil {
-		return model.WorkerExecution{}, m.execErr
-	}
-	return m.execResult, nil
+	return m.execResult, m.execErr
 }
 
 func (m *tableExecManager) CancelExecution(_ context.Context, _ string) error { return nil }
@@ -844,15 +842,16 @@ func (m *fallbackExecManager) CancelExecution(_ context.Context, _ string) error
 
 func TestTaskDispatcher_FailureCallsFailTask(t *testing.T) {
 	cases := []struct {
-		name           string
-		execErr        error
-		execStatus     model.ExecutionStatus
-		taskID         string
-		taskType       string
-		execResult     model.WorkerExecution
-		wantReason     string
-		wantMessageID  string
-		wantSessionKey string
+		name            string
+		execErr         error
+		execStatus      model.ExecutionStatus
+		taskID          string
+		taskType        string
+		execResult      model.WorkerExecution
+		wantReason      string
+		wantMessageID   string
+		wantSessionKey  string
+		wantExecutionID string
 	}{
 		{
 			name:           "ExecuteError",
@@ -862,13 +861,24 @@ func TestTaskDispatcher_FailureCallsFailTask(t *testing.T) {
 			wantSessionKey: "s1",
 		},
 		{
-			name:          "ExecStatusFailed",
-			execStatus:    model.ExecStatusFailed,
-			taskID:        "task-fail-1",
-			taskType:      "immediate",
-			execResult:    model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
-			wantReason:    "API Error: blocked",
-			wantMessageID: "msg-1",
+			name:            "LaunchErrorAfterExecutionCreated",
+			execErr:         fmt.Errorf("start runtime: boom"),
+			taskID:          "task-launch-created",
+			taskType:        "countdown",
+			execResult:      model.WorkerExecution{ID: "exec-launch"},
+			wantReason:      "start runtime: boom",
+			wantSessionKey:  "s1",
+			wantExecutionID: "exec-launch",
+		},
+		{
+			name:            "ExecStatusFailed",
+			execStatus:      model.ExecStatusFailed,
+			taskID:          "task-fail-1",
+			taskType:        "immediate",
+			execResult:      model.WorkerExecution{ID: "exec-fail", SessionID: "sess-1"},
+			wantReason:      "API Error: blocked",
+			wantMessageID:   "msg-1",
+			wantExecutionID: "exec-fail",
 		},
 	}
 
@@ -919,6 +929,7 @@ func TestTaskDispatcher_FailureCallsFailTask(t *testing.T) {
 			defer fn.mu.Unlock()
 			assert.Equal(t, tc.wantMessageID, fn.calls[0].messageID)
 			assert.Equal(t, tc.wantSessionKey, fn.calls[0].sessionKey)
+			assert.Equal(t, tc.wantExecutionID, fn.calls[0].info.ExecutionID)
 			if tc.wantReason != "" {
 				assert.Equal(t, tc.wantReason, fn.calls[0].info.Reason)
 			}
@@ -1421,13 +1432,14 @@ func TestTaskDispatcher_WorkerEngine_UsedInSessionContext(t *testing.T) {
 
 func TestTaskDispatcher_CancelNotifies(t *testing.T) {
 	cases := []struct {
-		name           string
-		setup          func() (task.ExecutionManager, task.ExecutionQuerier)
-		instruction    string
-		taskID         string
-		messageID      string
-		cancelAt       func(t *testing.T, mgr task.ExecutionManager)
-		wantWorkerName string
+		name            string
+		setup           func() (task.ExecutionManager, task.ExecutionQuerier)
+		instruction     string
+		taskID          string
+		messageID       string
+		cancelAt        func(t *testing.T, mgr task.ExecutionManager)
+		wantWorkerName  string
+		wantExecutionID string
 	}{
 		{
 			name: "WhileWaitingForResult",
@@ -1436,10 +1448,11 @@ func TestTaskDispatcher_CancelNotifies(t *testing.T) {
 				eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-poll-cancel", Status: model.ExecStatusRunning}}
 				return mgr, eq
 			},
-			instruction:    "long task",
-			taskID:         "task-poll-cancel",
-			messageID:      "msg-poll-cancel",
-			wantWorkerName: "w1",
+			instruction:     "long task",
+			taskID:          "task-poll-cancel",
+			messageID:       "msg-poll-cancel",
+			wantWorkerName:  "w1",
+			wantExecutionID: "exec-poll-cancel",
 			cancelAt: func(t *testing.T, mgr task.ExecutionManager) {
 				// Wait for ExecuteWorker so the dispatcher has moved into waitForResult's poll loop.
 				require.True(t, waitForExecCount(mgr.(*mockExecManager), 1, 2*time.Second), "ExecuteWorker was not called within timeout")
@@ -1452,9 +1465,10 @@ func TestTaskDispatcher_CancelNotifies(t *testing.T) {
 				eq := &mockExecutionQuerier{result: model.WorkerExecution{ID: "exec-tracked", Status: model.ExecStatusCompleted}}
 				return mgr, eq
 			},
-			instruction: "blocked task",
-			taskID:      "task-resolve-cancel",
-			messageID:   "msg-resolve-cancel",
+			instruction:     "blocked task",
+			taskID:          "task-resolve-cancel",
+			messageID:       "msg-resolve-cancel",
+			wantExecutionID: "exec-tracked",
 			cancelAt: func(t *testing.T, mgr task.ExecutionManager) {
 				// cancelTrackingExecManager blocks inside ExecuteWorker itself, so there is no
 				// observable signal to wait on; give resolveExecution time to start.
@@ -1487,6 +1501,7 @@ func TestTaskDispatcher_CancelNotifies(t *testing.T) {
 			defer fn.mu.Unlock()
 			got := fn.cancelCalls[0]
 			assert.Equal(t, tc.messageID, got.messageID)
+			assert.Equal(t, tc.wantExecutionID, got.executionID)
 			if tc.wantWorkerName != "" {
 				assert.Equal(t, tc.wantWorkerName, got.workerName)
 			}
@@ -2031,7 +2046,7 @@ func TestTaskDispatcher_StoppedLocalTaskReportsCancel(t *testing.T) {
 
 	fn.mu.Lock()
 	assert.Empty(t, fn.calls, "a stopped local task must not report a failure")
-	assert.Equal(t, []cancelCall{{messageID: "msg-stop", workerName: "tester"}}, fn.cancelCalls)
+	assert.Equal(t, []cancelCall{{messageID: "msg-stop", workerName: "tester", executionID: "exec-stop"}}, fn.cancelCalls)
 	fn.mu.Unlock()
 	assert.Empty(t, ts.failed())
 	assert.False(t, obs.has(taskEvent{TaskID: "task-stop", State: task.StateFailed}))
@@ -2044,7 +2059,7 @@ func TestTaskDispatcher_StoppedIMTaskStillReportsFailure(t *testing.T) {
 	obs.waitForEvent(t, taskEvent{TaskID: "task-stop", State: task.StateFailed})
 
 	fn.mu.Lock()
-	assert.Equal(t, []failureCall{{messageID: "msg-stop", info: model.FailureInfo{Reason: "signal: killed", WorkerName: "tester"}}}, fn.calls)
+	assert.Equal(t, []failureCall{{messageID: "msg-stop", info: model.FailureInfo{Reason: "signal: killed", WorkerName: "tester", ExecutionID: "exec-stop"}}}, fn.calls)
 	assert.Empty(t, fn.cancelCalls)
 	fn.mu.Unlock()
 	assert.Equal(t, []string{"task-stop"}, ts.failed())

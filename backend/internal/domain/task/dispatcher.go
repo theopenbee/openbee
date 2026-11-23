@@ -74,7 +74,7 @@ type TaskStore interface {
 // FailureNotifier sends failure and cancellation notifications to users.
 type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error
-	NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName string) error
+	NotifyTaskCancelled(ctx context.Context, target delivery.Target, workerName, executionID string) error
 }
 
 // SessionStore is the subset of store.SessionStore used by the TaskDispatcher.
@@ -417,8 +417,9 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 			failedWorker = workerName(worker.Name, task.WorkerID)
 		}
 		d.notifyFailure(taskCtx, task, model.FailureInfo{
-			Reason:     err.Error(),
-			WorkerName: failedWorker,
+			Reason:      err.Error(),
+			WorkerName:  failedWorker,
+			ExecutionID: exec.ID,
 		})
 		d.emit(task, StateFailed, 0)
 		return
@@ -428,7 +429,7 @@ func (d *TaskDispatcher) executeAsync(taskCtx context.Context, cancel context.Ca
 	// just-launched worker before entering waitForResult.
 	if taskCtx.Err() != nil {
 		d.manager.CancelExecution(context.Background(), exec.ID) //nolint:errcheck
-		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+		d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID), exec.ID)
 		d.finishStopped(task, exec.ID)
 		return
 	}
@@ -551,7 +552,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 			return
 		case model.ExecStatusFailed:
 			if d.stoppedInLocalChat(task) {
-				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+				d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID), executionID)
 				d.finishStopped(task, executionID)
 				return
 			}
@@ -565,8 +566,9 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 				}
 			}
 			d.notifyFailure(ctx, task, model.FailureInfo{
-				Reason:     exec.Result,
-				WorkerName: workerName(exec.WorkerName, task.WorkerID),
+				Reason:      exec.Result,
+				WorkerName:  workerName(exec.WorkerName, task.WorkerID),
+				ExecutionID: executionID,
 			})
 			d.emit(task, StateFailed, 0)
 			return
@@ -575,7 +577,7 @@ func (d *TaskDispatcher) waitForResult(ctx context.Context, executionID string, 
 		case <-ticker.C:
 		case <-ctx.Done():
 			d.manager.CancelExecution(context.Background(), executionID) //nolint:errcheck
-			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID))
+			d.notifyCancel(context.Background(), task, workerName(exec.WorkerName, task.WorkerID), executionID)
 			d.finishStopped(task, executionID)
 			return
 		}
@@ -641,12 +643,12 @@ func (d *TaskDispatcher) notifyFailure(ctx context.Context, task DispatchTask, i
 	}
 }
 
-func (d *TaskDispatcher) notifyCancel(ctx context.Context, task DispatchTask, workerName string) {
+func (d *TaskDispatcher) notifyCancel(ctx context.Context, task DispatchTask, workerName, executionID string) {
 	target := task.DeliveryTarget()
 	if d.failureNotifier == nil || (target.MessageID == "" && target.SessionKey == "") {
 		return
 	}
-	if err := d.failureNotifier.NotifyTaskCancelled(ctx, target, workerName); err != nil {
+	if err := d.failureNotifier.NotifyTaskCancelled(ctx, target, workerName, executionID); err != nil {
 		log.Error("notify task cancel", zap.String("messageID", target.MessageID), zap.String("sessionKey", target.SessionKey), zap.Error(err))
 	}
 }

@@ -107,7 +107,7 @@ func TestPlatformFailureNotifier_CancelSuccess(t *testing.T) {
 	_, err := ms.Create(ctx, "msg-cancel-1", "sess-cancel", "test", "cancel me", `{"raw":true}`, "", 0)
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{MessageID: "msg-cancel-1"}, "my-worker"))
+	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{MessageID: "msg-cancel-1"}, "my-worker", ""))
 
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
@@ -172,7 +172,7 @@ func TestPlatformFailureNotifier_SessionTargetSendsProactively(t *testing.T) {
 	_, err = ms.Create(ctx, "msg-new", "test:chat:user", "test", "new", `{"seq":2}`, "", 2000)
 	require.NoError(t, err)
 
-	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{SessionKey: "test:chat:user"}, "w"))
+	require.NoError(t, notifier.NotifyTaskCancelled(ctx, delivery.Target{SessionKey: "test:chat:user"}, "w", ""))
 
 	sender.mu.Lock()
 	defer sender.mu.Unlock()
@@ -183,4 +183,24 @@ func TestPlatformFailureNotifier_SessionTargetSendsProactively(t *testing.T) {
 	assert.Equal(t, "test:chat:user", msg.ReplyTo.SessionKey)
 	assert.Equal(t, `{"seq":2}`, msg.ReplyTo.Raw)
 	assert.Empty(t, msg.InboundMsgID)
+}
+
+func TestPlatformFailureNotifier_NoticesCarryExecutionID(t *testing.T) {
+	notifier, ms, sender := setupNotifier(t, "test")
+	ctx := context.Background()
+
+	_, err := ms.Create(ctx, "msg-exec", "test:chat:user", "test", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+
+	target := delivery.Target{MessageID: "msg-exec"}
+	require.NoError(t, notifier.NotifyTaskFailure(ctx, target, model.FailureInfo{Reason: "boom", WorkerName: "w", ExecutionID: "exec-failed"}))
+	require.NoError(t, notifier.NotifyTaskCancelled(ctx, target, "w", "exec-stopped"))
+	require.NoError(t, notifier.NotifyTaskFailure(ctx, target, model.FailureInfo{Reason: "no worker"}))
+
+	sender.mu.Lock()
+	defer sender.mu.Unlock()
+	require.Len(t, sender.sent, 3)
+	assert.Equal(t, "exec-failed", sender.sent[0].ExecutionID)
+	assert.Equal(t, "exec-stopped", sender.sent[1].ExecutionID)
+	assert.Empty(t, sender.sent[2].ExecutionID)
 }
