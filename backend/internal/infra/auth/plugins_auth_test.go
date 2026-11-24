@@ -45,7 +45,7 @@ func TestPluginsAuth_AdminTokenAllowed(t *testing.T) {
 func TestPluginsAuth_RejectsBeeAndWorkerTokens(t *testing.T) {
 	jwt := NewJWTService("s", time.Hour, time.Hour)
 	r := pluginsRouter(jwt)
-	bee, err := GenerateBeeToken(testRPCSecret, time.Minute)
+	bee, err := GenerateBeeToken(testRPCSecret, "", time.Minute)
 	require.NoError(t, err)
 	worker, err := GenerateWorkerToken(testRPCSecret, "w1", "", nil, time.Minute)
 	require.NoError(t, err)

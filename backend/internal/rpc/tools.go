@@ -651,11 +651,10 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 
 	sourceType := store.SourceTypeBee
 	sourceID := ""
-	executionID := ""
+	executionID, _ := ctx.Value(CtxExecutionIDKey).(string)
 	if workerID, _ := ctx.Value(CtxWorkerIDKey).(string); workerID != "" {
 		sourceType = store.SourceTypeWorker
 		sourceID = workerID
-		executionID, _ = ctx.Value(CtxExecutionIDKey).(string)
 	}
 
 	sender, base, err := s.delivery.Resolve(ctx, delivery.Target{MessageID: params.MessageID, SessionKey: params.SessionKey})

@@ -28,9 +28,10 @@ type RPCClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateBeeToken(secret string, ttl time.Duration) (string, error) {
+func GenerateBeeToken(secret, executionID string, ttl time.Duration) (string, error) {
 	return signToken(RPCClaims{
-		Type: TokenTypeBee,
+		Type:        TokenTypeBee,
+		ExecutionID: executionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 		},

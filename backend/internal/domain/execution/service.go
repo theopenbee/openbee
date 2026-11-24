@@ -80,7 +80,10 @@ func (s *Service) Detail(ctx context.Context, userID, id string) (Detail, error)
 	if err != nil {
 		return Detail{}, err
 	}
-	if exec.TaskID == "" || exec.WorkerID == nil {
+	if exec.WorkerID == nil {
+		return s.beeDetail(ctx, userID, exec)
+	}
+	if exec.TaskID == "" {
 		return Detail{}, ErrNotFound
 	}
 	task, err := s.tasks.GetByID(ctx, exec.TaskID)
@@ -94,22 +97,9 @@ func (s *Service) Detail(ctx context.Context, userID, id string) (Detail, error)
 		return Detail{}, ErrNotFound
 	}
 
-	detail := Detail{
-		ID:          exec.ID,
-		TaskID:      exec.TaskID,
-		WorkerID:    *exec.WorkerID,
-		Engine:      exec.Engine,
-		Status:      reportedStatus(exec.Status),
-		Instruction: task.Instruction,
-		CompletedAt: exec.CompletedAt,
-	}
-	if exec.StartedAt != nil {
-		detail.StartedAt = *exec.StartedAt
-	}
-	if exec.Status == model.ExecStatusFailed {
-		detail.Error = exec.Result
-	}
-	detail.Steps, detail.StepsError = s.steps(ctx, exec)
+	detail := s.detail(ctx, exec, task.Instruction)
+	detail.TaskID = exec.TaskID
+	detail.WorkerID = *exec.WorkerID
 
 	runs, err := s.executions.ListByTaskIDs(ctx, []string{exec.TaskID}, maxRuns)
 	if err != nil {
@@ -122,6 +112,31 @@ func (s *Service) Detail(ctx context.Context, userID, id string) (Detail, error)
 		}
 	}
 	return detail, nil
+}
+
+func (s *Service) beeDetail(ctx context.Context, userID string, exec model.WorkerExecution) (Detail, error) {
+	if owner, _, ok := local.ParseSessionKey(exec.SessionKey); !ok || owner != userID {
+		return Detail{}, ErrNotFound
+	}
+	return s.detail(ctx, exec, exec.Instruction), nil
+}
+
+func (s *Service) detail(ctx context.Context, exec model.WorkerExecution, instruction string) Detail {
+	detail := Detail{
+		ID:          exec.ID,
+		Engine:      exec.Engine,
+		Status:      reportedStatus(exec.Status),
+		Instruction: instruction,
+		CompletedAt: exec.CompletedAt,
+	}
+	if exec.StartedAt != nil {
+		detail.StartedAt = *exec.StartedAt
+	}
+	if exec.Status == model.ExecStatusFailed {
+		detail.Error = exec.Result
+	}
+	detail.Steps, detail.StepsError = s.steps(ctx, exec)
+	return detail
 }
 
 func reportedStatus(status model.ExecutionStatus) string {

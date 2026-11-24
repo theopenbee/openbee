@@ -16,13 +16,14 @@ const (
 
 // RunOptions controls session behaviour for an engine invocation.
 type RunOptions struct {
-	SessionID string
-	Resume    bool
-	Role      Role
-	APIKey    string
-	ExtraEnv  []string // additional KEY=VALUE env vars to inject
-	ExtraArgs []string // additional CLI args to pass to the engine
-	Model     string
+	SessionID   string
+	Resume      bool
+	Role        Role
+	APIKey      string
+	ExtraEnv    []string // additional KEY=VALUE env vars to inject
+	ExtraArgs   []string // additional CLI args to pass to the engine
+	Model       string
+	ExecutionID string
 }
 
 // OutputType classifies a lifecycle event from a running process.

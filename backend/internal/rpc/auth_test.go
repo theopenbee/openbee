@@ -49,7 +49,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "ValidBeeToken",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				tok, err := auth.GenerateBeeToken(testSecret, "", time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -69,7 +69,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "TokenViaQueryParam",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				tok, err := auth.GenerateBeeToken(testSecret, "", time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -79,7 +79,7 @@ func TestJWTAuthMiddleware(t *testing.T) {
 		{
 			name: "AllowsBeeToken",
 			token: func(t *testing.T) string {
-				tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+				tok, err := auth.GenerateBeeToken(testSecret, "", time.Hour)
 				require.NoError(t, err)
 				return tok
 			},
@@ -190,7 +190,7 @@ func TestWorkerScopesStoredInContext(t *testing.T) {
 }
 
 func TestJWTAuthMiddlewareAuthorizationHeader(t *testing.T) {
-	tok, err := auth.GenerateBeeToken(testSecret, time.Hour)
+	tok, err := auth.GenerateBeeToken(testSecret, "", time.Hour)
 	require.NoError(t, err)
 	cases := []struct {
 		name     string

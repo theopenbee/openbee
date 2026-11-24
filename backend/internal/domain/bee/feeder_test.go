@@ -1065,3 +1065,101 @@ func TestDirectMentionOnIMChannelIgnoresHandoff(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM bee_platform_messages`).Scan(&total))
 	assert.Equal(t, 1, total)
 }
+
+type runEvent struct {
+	sessionKey  string
+	executionID string
+	status      model.ExecutionStatus
+}
+
+type recordingRunObserver struct {
+	mu     sync.Mutex
+	events []runEvent
+}
+
+func (o *recordingRunObserver) BeeRunStateChanged(sessionKey, executionID string, status model.ExecutionStatus) {
+	o.mu.Lock()
+	o.events = append(o.events, runEvent{sessionKey: sessionKey, executionID: executionID, status: status})
+	o.mu.Unlock()
+}
+
+func (o *recordingRunObserver) snapshot() []runEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]runEvent{}, o.events...)
+}
+
+func runFeederWithObserver(t *testing.T, runner *mockBeeRunner, sessionKey, content string) (*sql.DB, *recordingRunObserver, *mockFailureNotifier) {
+	t.Helper()
+	db, ms, ts, ss, es := setupFeederDB(t)
+	insertMessage(t, db, "m1", sessionKey, content)
+	observer := &recordingRunObserver{}
+	notifier := &mockFailureNotifier{}
+	cfg := config.BeeConfig{}
+	cfg.Engine.Timeout.Bee = 5 * time.Second
+	cfg.Feeder.MaxConcurrentBee = 5
+	f := bee.NewFeeder(ms, ts, ss, es, runner, "/tmp", cfg, enginecfg.NewStore("claude", "", aitest.IDs("claude")),
+		bee.WithRunObserver(observer), bee.WithFailureNotifier(notifier))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go f.Run(ctx)
+	require.Eventually(t, func() bool { return len(observer.snapshot()) >= 2 }, 3*time.Second, 20*time.Millisecond)
+	return db, observer, notifier
+}
+
+func TestFeederBeeRunRecordsSessionAndInstruction(t *testing.T) {
+	runner := &mockBeeRunner{}
+	key := local.SessionKey("u1")
+	db, observer, _ := runFeederWithObserver(t, runner, key, "plan my day")
+
+	var id, sessionKey, instruction, engine string
+	require.NoError(t, db.QueryRow(`SELECT id, session_key, instruction, engine FROM bee_executions`).Scan(&id, &sessionKey, &instruction, &engine))
+	assert.Equal(t, key, sessionKey)
+	assert.Equal(t, "plan my day", instruction)
+	assert.Equal(t, "claude", engine)
+
+	calls := runner.getCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, id, calls[0].opts.ExecutionID)
+
+	assert.Equal(t, []runEvent{
+		{sessionKey: key, executionID: id, status: model.ExecStatusRunning},
+		{sessionKey: key, executionID: id, status: model.ExecStatusCompleted},
+	}, observer.snapshot())
+}
+
+func TestFeederBeeRunFailureLinksExecution(t *testing.T) {
+	runner := &mockBeeRunner{outputLines: []ai.Output{{Type: ai.OutputError, Content: "engine exploded"}}}
+	key := local.SessionKey("u1")
+	db, observer, notifier := runFeederWithObserver(t, runner, key, "hello")
+
+	var id string
+	require.NoError(t, db.QueryRow(`SELECT id FROM bee_executions`).Scan(&id))
+
+	events := observer.snapshot()
+	require.Len(t, events, 2)
+	assert.Equal(t, runEvent{sessionKey: key, executionID: id, status: model.ExecStatusFailed}, events[1])
+
+	calls := notifier.getCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, id, calls[0].info.ExecutionID)
+}
+
+func TestFeederBeeRunStartFailureLinksExecution(t *testing.T) {
+	runner := &mockBeeRunner{err: fmt.Errorf("bee crashed")}
+	db, observer, notifier := runFeederWithObserver(t, runner, "beta:c:u", "hello")
+
+	var id string
+	require.NoError(t, db.QueryRow(`SELECT id FROM bee_executions`).Scan(&id))
+
+	events := observer.snapshot()
+	require.Len(t, events, 2)
+	assert.Equal(t, model.ExecStatusRunning, events[0].status)
+	assert.Equal(t, model.ExecStatusFailed, events[1].status)
+	assert.Equal(t, "beta:c:u", events[1].sessionKey)
+
+	calls := notifier.getCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, id, calls[0].info.ExecutionID)
+}

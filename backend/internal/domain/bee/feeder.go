@@ -36,6 +36,10 @@ type FailureNotifier interface {
 	NotifyTaskFailure(ctx context.Context, target delivery.Target, info model.FailureInfo) error
 }
 
+type RunObserver interface {
+	BeeRunStateChanged(sessionKey, executionID string, status model.ExecutionStatus)
+}
+
 // Option configures a Feeder.
 type Option func(*Feeder)
 
@@ -59,6 +63,10 @@ func WithHandoff(h *localchat.Handoff) Option {
 	return func(f *Feeder) { f.handoff = h }
 }
 
+func WithRunObserver(o RunObserver) Option {
+	return func(f *Feeder) { f.runObserver = o }
+}
+
 // Feeder polls platform_messages for unprocessed messages and feeds them to bee.
 type Feeder struct {
 	msgStore        *store.MessageStore
@@ -74,6 +82,7 @@ type Feeder struct {
 	workerLookup    *store.WorkerStore
 	localMediaRoot  string
 	handoff         *localchat.Handoff
+	runObserver     RunObserver
 	runningMu       sync.Mutex
 	running         map[string]context.CancelFunc
 }
@@ -190,7 +199,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	sessionID, err := f.sessionStore.GetSessionContextForEngine(ctx, sessionKey, store.BeeAgentID, engineName)
 	if err != nil {
 		log.Error("get session context", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.failMessages(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error(), "")
 		return
 	}
 	resume := sessionID != ""
@@ -203,6 +212,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		log.Error("pre-flight upsert bee session context", zap.String("sessionKey", sessionKey), zap.Error(err))
 	}
 
+	instruction := make([]string, 0, len(msgs))
 	for i, m := range msgs {
 		parts := []string{m.Content}
 		if merged, err := f.msgStore.FetchMergedContent(ctx, m.ID); err != nil {
@@ -214,6 +224,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 			f.renderLocalAttachments(sessionKey, parts)
 		}
 		msgs[i].Content = strings.Join(parts, "\n\n---\n\n")
+		instruction = append(instruction, parts...)
 	}
 
 	prefix := ""
@@ -227,19 +238,25 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 	exec, err := f.execStore.Create(store.ExecutionCreate{
 		TriggerInput: prompt,
 		SessionID:    sessionID,
+		SessionKey:   sessionKey,
+		Instruction:  strings.Join(instruction, "\n\n"),
 		Engine:       engineName,
 	})
 	if err != nil {
 		log.Error("create bee execution", zap.String("sessionKey", sessionKey), zap.Error(err))
-		f.failMessages(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error(), "")
 		return
 	}
+
+	runStatus := model.ExecStatusFailed
+	f.notifyRun(sessionKey, exec.ID, model.ExecStatusRunning)
+	defer func() { f.notifyRun(sessionKey, exec.ID, runStatus) }()
 
 	logPath, err := f.execStore.PrepareLogPath(exec.ID, exec.StartedAt)
 	if err != nil {
 		log.Error("prepare log path", zap.String("execID", exec.ID), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
-		f.failMessages(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error(), exec.ID)
 		return
 	}
 
@@ -254,7 +271,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 		f.runningMu.Unlock()
 	}()
 
-	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume, Role: ai.RoleBee}, logPath)
+	runRes, err := f.runner.Run(beeCtx, f.workDir, prompt, ai.RunOptions{SessionID: sessionID, Resume: resume, Role: ai.RoleBee, ExecutionID: exec.ID}, logPath)
 	if err != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(err))
 		f.execStore.UpdateResult(exec.ID, err.Error(), model.ExecStatusFailed)
@@ -264,7 +281,7 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 				log.Error("rollback pre-flight session context", zap.String("sessionKey", sessionKey), zap.Error(delErr))
 			}
 		}
-		f.failMessages(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error(), exec.ID)
 		return
 	}
 
@@ -274,21 +291,19 @@ func (f *Feeder) processBeeGroup(ctx context.Context, sessionKey string, msgs []
 
 	drainErr := f.waitBeeOutput(runRes.Output)
 
-	finalStatus := model.ExecStatusCompleted
 	resultMsg := runRes.ExtractResult(logPath)
-	if drainErr != nil {
-		finalStatus = model.ExecStatusFailed
-		if resultMsg == "" {
-			resultMsg = drainErr.Error()
-		}
+	if drainErr == nil {
+		runStatus = model.ExecStatusCompleted
+	} else if resultMsg == "" {
+		resultMsg = drainErr.Error()
 	}
-	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, finalStatus); resErr != nil {
+	if resErr := f.execStore.UpdateResult(exec.ID, resultMsg, runStatus); resErr != nil {
 		log.Error("update execution result", zap.Error(resErr))
 	}
 
 	if drainErr != nil {
 		log.Error("bee run failed", zap.String("sessionKey", sessionKey), zap.Error(drainErr))
-		f.failMessages(ctx, msgs, resultMsg)
+		f.failMessages(ctx, msgs, resultMsg, exec.ID)
 		return
 	}
 
@@ -325,7 +340,13 @@ func (f *Feeder) renderLocalAttachments(sessionKey string, parts []string) {
 	}
 }
 
-func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, reason string) {
+func (f *Feeder) notifyRun(sessionKey, executionID string, status model.ExecutionStatus) {
+	if f.runObserver != nil {
+		f.runObserver.BeeRunStateChanged(sessionKey, executionID, status)
+	}
+}
+
+func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, reason, executionID string) {
 	ids := messageIDs(msgs)
 	if err := f.taskStore.DeletePendingByMessageIDs(ctx, ids); err != nil {
 		log.Error("fail messages delete tasks", zap.Error(err))
@@ -339,7 +360,7 @@ func (f *Feeder) failMessages(ctx context.Context, msgs []store.ClaimedMessage, 
 	}
 	for _, m := range msgs {
 		log.Warn("message failed", zap.String("messageID", m.ID), zap.String("reason", reason))
-		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: m.ID}, model.FailureInfo{Reason: reason, WorkerName: "bee"}); notifyErr != nil {
+		if notifyErr := f.failureNotifier.NotifyTaskFailure(ctx, delivery.Target{MessageID: m.ID}, model.FailureInfo{Reason: reason, WorkerName: "bee", ExecutionID: executionID}); notifyErr != nil {
 			log.Error("notify bee failure", zap.String("messageID", m.ID), zap.Error(notifyErr))
 		}
 	}
@@ -478,13 +499,13 @@ func (f *Feeder) dispatchWorkerChat(ctx context.Context, workerID string, msgs [
 
 	if f.workerLookup == nil {
 		log.Warn("worker chat: worker lookup unavailable", zap.String("workerID", workerID))
-		f.failMessages(ctx, msgs, "worker not found")
+		f.failMessages(ctx, msgs, "worker not found", "")
 		return
 	}
 	worker, err := f.workerLookup.GetByID(workerID)
 	if err != nil {
 		log.Warn("worker chat: worker lookup failed", zap.String("workerID", workerID), zap.Error(err))
-		f.failMessages(ctx, msgs, "worker not found")
+		f.failMessages(ctx, msgs, "worker not found", "")
 		return
 	}
 
@@ -493,7 +514,7 @@ func (f *Feeder) dispatchWorkerChat(ctx context.Context, workerID string, msgs [
 		merged, err := f.msgStore.FetchMergedContent(ctx, m.ID)
 		if err != nil {
 			log.Error("worker chat: fetch merged content", zap.String("msgID", m.ID), zap.Error(err))
-			f.failMessages(ctx, msgs, err.Error())
+			f.failMessages(ctx, msgs, err.Error(), "")
 			return
 		}
 		parts = append(parts, merged...)
@@ -512,7 +533,7 @@ func (f *Feeder) dispatchWorkerChat(ctx context.Context, workerID string, msgs [
 	})
 	if err != nil {
 		log.Error("worker chat: create task record", zap.String("workerID", workerID), zap.Error(err))
-		f.failMessages(ctx, msgs, err.Error())
+		f.failMessages(ctx, msgs, err.Error(), "")
 		return
 	}
 

@@ -21,7 +21,7 @@ func TestGenerateToken_ValidAndParseable(t *testing.T) {
 	}{
 		{
 			name:     "Bee",
-			gen:      func() (string, error) { return auth.GenerateBeeToken("test-secret", time.Hour) },
+			gen:      func() (string, error) { return auth.GenerateBeeToken("test-secret", "", time.Hour) },
 			wantType: auth.TokenTypeBee,
 		},
 		{
@@ -59,13 +59,13 @@ func TestGenerateToken_ValidAndParseable(t *testing.T) {
 }
 
 func TestValidateToken_WrongSecret(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken("secret-a", time.Hour)
+	tok, _ := auth.GenerateBeeToken("secret-a", "", time.Hour)
 	_, err := auth.ValidateToken(tok, "secret-b")
 	assert.Error(t, err)
 }
 
 func TestValidateToken_Expired(t *testing.T) {
-	tok, _ := auth.GenerateBeeToken("secret", -time.Second)
+	tok, _ := auth.GenerateBeeToken("secret", "", -time.Second)
 	_, err := auth.ValidateToken(tok, "secret")
 	assert.Error(t, err)
 }
@@ -91,11 +91,19 @@ func TestGenerateWorkerToken_CarriesExecutionID(t *testing.T) {
 	assert.Equal(t, "worker-abc", claims.WorkerID)
 	assert.Equal(t, "exec-1", claims.ExecutionID)
 
-	bee, err := auth.GenerateBeeToken("test-secret", time.Hour)
+	bee, err := auth.GenerateBeeToken("test-secret", "", time.Hour)
 	require.NoError(t, err)
 	claims, err = auth.ValidateToken(bee, "test-secret")
 	require.NoError(t, err)
 	assert.Empty(t, claims.ExecutionID)
+
+	beeRun, err := auth.GenerateBeeToken("test-secret", "bee-exec-1", time.Hour)
+	require.NoError(t, err)
+	claims, err = auth.ValidateToken(beeRun, "test-secret")
+	require.NoError(t, err)
+	assert.Equal(t, auth.TokenTypeBee, claims.Type)
+	assert.Empty(t, claims.WorkerID)
+	assert.Equal(t, "bee-exec-1", claims.ExecutionID)
 }
 
 func TestRunTokenTTL(t *testing.T) {

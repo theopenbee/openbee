@@ -665,3 +665,24 @@ func TestMigrationAddsButtonsToOutboundMessages(t *testing.T) {
 	assert.Empty(t, msgs[0].Buttons)
 	assert.Nil(t, msgs[0].ButtonChoice)
 }
+
+func TestMigrationAddsSessionKeyAndInstructionToExecutions(t *testing.T) {
+	db := openPreMigrationDB(t, 65)
+	_, err := db.Exec(`INSERT INTO bee_executions (id, session_id, trigger_input, status, started_at) VALUES ('e1','s1','prompt','completed',1)`)
+	require.NoError(t, err)
+
+	require.NoError(t, migrate(db))
+
+	es := NewExecutionStore(db, t.TempDir())
+	legacy, err := es.GetByID("e1")
+	require.NoError(t, err)
+	assert.Empty(t, legacy.SessionKey)
+	assert.Empty(t, legacy.Instruction)
+
+	created, err := es.Create(ExecutionCreate{SessionID: "s2", SessionKey: "local:u1", Instruction: "plan my day", Engine: "claude"})
+	require.NoError(t, err)
+	got, err := es.GetByID(created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "local:u1", got.SessionKey)
+	assert.Equal(t, "plan my day", got.Instruction)
+}

@@ -609,6 +609,27 @@ func TestSendMessageCarriesWorkerExecutionID(t *testing.T) {
 	assert.Empty(t, spy.sent[2].ExecutionID)
 }
 
+func TestSendMessageCarriesBeeExecutionID(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "beta", spy)
+	ctx := context.Background()
+	_, err := store.NewMessageStore(db).Create(ctx, "msg-bee", "beta:chat1:userA", "beta", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	beeCtx := context.WithValue(ctx, rpc.CtxExecutionIDKey, "bee-exec-1")
+
+	_, err = s.CallTool(beeCtx, "send_message", mustMarshal(t, map[string]any{
+		"message_id": "msg-bee", "content": "on it",
+	}))
+	require.NoError(t, err)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, store.SourceTypeBee, spy.sent[0].SourceType)
+	assert.Empty(t, spy.sent[0].SourceID)
+	assert.Equal(t, "bee-exec-1", spy.sent[0].ExecutionID)
+}
+
 func TestSendMessageIMWorkerKeepsPrefix(t *testing.T) {
 	spy := &mockSender{}
 	s, db := setupServerWithSender(t, "telegram", spy)

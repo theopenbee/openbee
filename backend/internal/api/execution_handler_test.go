@@ -118,6 +118,34 @@ func TestExecutionGetCompleted(t *testing.T) {
 	}`, exec.ID, taskID, e.worker.ID, *stored.StartedAt, *stored.CompletedAt), rec.Body.String())
 }
 
+func TestExecutionGetBeeRun(t *testing.T) {
+	e := newExecutionEnv(t)
+	exec, err := e.execs.Create(store.ExecutionCreate{
+		SessionID: "s2", SessionKey: local.SessionKey(testUserID), Instruction: "plan my day", Engine: "claude",
+	})
+	require.NoError(t, err)
+	logPath, err := e.execs.PrepareLogPath(exec.ID, exec.StartedAt)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(logPath, []byte("{}\n"), 0o644))
+
+	rec := e.get(testUserID, exec.ID)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.JSONEq(t, fmt.Sprintf(`{
+		"id": %q, "task_id": "", "worker_id": "", "engine": "claude",
+		"status": "running", "instruction": "plan my day",
+		"started_at": %d, "completed_at": null, "error": "",
+		"steps": [
+			{"type": "text", "text": "working on it"},
+			{"type": "tool", "kind": "command", "name": "Bash", "summary": "ls", "output": "a.txt", "status": "done", "duration_ms": 12}
+		],
+		"steps_error": ""
+	}`, exec.ID, *exec.StartedAt), rec.Body.String())
+
+	other := e.get("someone-else", exec.ID)
+	require.Equal(t, http.StatusNotFound, other.Code, other.Body.String())
+}
+
 func TestExecutionGetPendingWithRuns(t *testing.T) {
 	e := newExecutionEnv(t)
 	taskID := e.newTask(t, local.SessionKey(testUserID))
@@ -171,7 +199,7 @@ func TestExecutionGetNotFound(t *testing.T) {
 
 	for name, id := range map[string]string{
 		"Missing":    "no-such-execution",
-		"Bee":        beeExec.ID,
+		"LegacyBee":  beeExec.ID,
 		"OtherUsers": otherExec.ID,
 	} {
 		t.Run(name, func(t *testing.T) {

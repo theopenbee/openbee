@@ -619,6 +619,12 @@ DROP TABLE IF EXISTS bee_local_sessions;`,
 		sql: `ALTER TABLE bee_outbound_messages ADD COLUMN buttons TEXT NOT NULL DEFAULT '';
 ALTER TABLE bee_outbound_messages ADD COLUMN button_choice INTEGER;`,
 	},
+	{
+		version: 65,
+		name:    "add_session_key_and_instruction_to_executions",
+		sql: `ALTER TABLE bee_executions ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE bee_executions ADD COLUMN instruction TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 type whereBuilder struct {

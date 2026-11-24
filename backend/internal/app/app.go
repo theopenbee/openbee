@@ -180,7 +180,7 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 	sendersByPlatform.Set(local.PlatformID, localSender)
 	handoff := localchat.NewHandoff(s.msgStore, s.taskStore, localSender, localPub)
 
-	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, pluginMgr, engineCfg, envSvc, localMediaRoot, handoff)
+	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, pluginMgr, engineCfg, envSvc, localMediaRoot, handoff, localTaskObserver{pub: localPub})
 
 	mgr.SetBotNameSource(pluginMgr.BotNameList)
 	mgr.SetStatusObserver(func(id string, status model.WorkerStatus) {
@@ -330,14 +330,15 @@ func buildWorkerManager(bc config.BeeConfig, s appStores, engines ai.EngineSourc
 }
 
 func buildBee(cfg config.BeeConfig, s appStores, dispatchCh chan task.DispatchTask,
-	failureNotifier bee.FailureNotifier, engines ai.EngineSource, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string, handoff *localchat.Handoff) (*bee.Feeder, *task.Scheduler) {
+	failureNotifier bee.FailureNotifier, engines ai.EngineSource, engineCfg *enginecfg.Store, envSvc *env.Service, localMediaRoot string, handoff *localchat.Handoff, runObserver bee.RunObserver) (*bee.Feeder, *task.Scheduler) {
 	dynamic := ai.NewDynamicAdapter(engines, engineCfg)
 	beeProcess := bee.NewBeeProcess(cfg, dynamic, envSvc, s.systemConfigStore, engineCfg)
 	feeder := bee.NewFeeder(s.msgStore, s.taskStore, s.sessionStore, s.execStore, beeProcess, config.DefaultBeeWorkDir(), cfg, engineCfg,
 		bee.WithFailureNotifier(failureNotifier),
 		bee.WithWorkerDispatch(s.workerStore),
 		bee.WithLocalMediaRoot(localMediaRoot),
-		bee.WithHandoff(handoff))
+		bee.WithHandoff(handoff),
+		bee.WithRunObserver(runObserver))
 	sched := task.NewScheduler(s.taskStore, dispatchCh, bee.PollInterval)
 	return feeder, sched
 }
@@ -364,6 +365,10 @@ type localTaskObserver struct {
 
 func (o localTaskObserver) TaskStateChanged(t task.DispatchTask, state string, queuedAhead int, executionID string) {
 	o.pub.TaskState(t.SessionKey, t.TaskID, t.WorkerID, state, queuedAhead, executionID)
+}
+
+func (o localTaskObserver) BeeRunStateChanged(sessionKey, executionID string, status model.ExecutionStatus) {
+	o.pub.TaskState(sessionKey, executionID, "", string(status), 0, executionID)
 }
 
 func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s appStores, mgr *worker.Manager, beeRPCSrv *rpc.Server, localChat *api.LocalChatHandler, workerChats api.WorkerChatCleaner, claimLegacyChat func(ctx context.Context, userID string) error, language string, envSvc *env.Service, engineCfg *enginecfg.Store, plugins *pluginmgr.Manager) (*routes.Server, error) {

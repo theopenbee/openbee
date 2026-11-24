@@ -152,6 +152,41 @@ func TestDetailTaskOwnership(t *testing.T) {
 	assert.Equal(t, "e3", d.ID)
 }
 
+func TestDetailBeeRun(t *testing.T) {
+	f := newFixture(t)
+	f.execs.byID["bee1"] = model.WorkerExecution{
+		ID: "bee1", SessionKey: local.SessionKey("u1"), Instruction: "plan my day", Engine: "claude",
+		Status: model.ExecStatusFailed, Result: "boom", LogPath: f.logPath,
+		StartedAt: ptr(int64(1000)), CompletedAt: ptr(int64(2000)),
+	}
+
+	d := f.detail(t, "bee1")
+	assert.Equal(t, "bee1", d.ID)
+	assert.Empty(t, d.TaskID)
+	assert.Empty(t, d.WorkerID)
+	assert.Equal(t, "claude", d.Engine)
+	assert.Equal(t, "failed", d.Status)
+	assert.Equal(t, "plan my day", d.Instruction)
+	assert.Equal(t, "boom", d.Error)
+	assert.Equal(t, int64(1000), d.StartedAt)
+	require.NotNil(t, d.CompletedAt)
+	assert.Equal(t, []ai.TranscriptStep{{Type: "text", Text: "hello"}}, d.Steps)
+	assert.Nil(t, d.Runs)
+	assert.Empty(t, f.execs.limits)
+}
+
+func TestDetailBeeRunOwnership(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.execs.byID["bee1"] = model.WorkerExecution{ID: "bee1", SessionKey: local.SessionKey("u1"), Engine: "claude"}
+	f.execs.byID["bee2"] = model.WorkerExecution{ID: "bee2", SessionKey: "telegram:42", Engine: "claude"}
+
+	_, err := f.service.Detail(ctx, "u2", "bee1")
+	require.ErrorIs(t, err, ErrNotFound)
+	_, err = f.service.Detail(ctx, "u1", "bee2")
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestDetailFields(t *testing.T) {
 	f := newFixture(t)
 	f.addExecution(model.WorkerExecution{

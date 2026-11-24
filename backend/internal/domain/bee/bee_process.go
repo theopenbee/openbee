@@ -41,7 +41,7 @@ func NewBeeProcess(cfg config.BeeConfig, engine ai.EngineAdapter, envSvc *env.Se
 
 // Run injects a bee auth token then delegates to the engine.
 func (p *BeeProcess) Run(ctx context.Context, workDir, prompt string, opts ai.RunOptions, logPath string) (ai.RunResult, error) {
-	token, err := auth.GenerateBeeToken(p.tokenSecret, auth.RunTokenTTL(ctx))
+	token, err := auth.GenerateBeeToken(p.tokenSecret, opts.ExecutionID, auth.RunTokenTTL(ctx))
 	if err != nil {
 		return ai.RunResult{}, fmt.Errorf("generate bee token: %w", err)
 	}

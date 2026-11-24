@@ -55,7 +55,7 @@ func connectMCP(t *testing.T, url, token string) *mcp.ClientSession {
 
 func beeToken(t *testing.T) string {
 	t.Helper()
-	token, err := auth.GenerateBeeToken(mcpTestSecret, time.Hour)
+	token, err := auth.GenerateBeeToken(mcpTestSecret, "", time.Hour)
 	require.NoError(t, err)
 	return token
 }
@@ -209,4 +209,24 @@ func TestMCPSendMessage(t *testing.T) {
 	require.Len(t, spy.sent, 1)
 	assert.Equal(t, "MaoMao\ndone `x`", spy.sent[0].Content)
 	assert.Equal(t, "exec-mcp", spy.sent[0].ExecutionID)
+}
+
+func TestMCPBeeSendMessageCarriesExecutionID(t *testing.T) {
+	spy := &mockSender{}
+	s, db := setupServerWithSender(t, "telegram", spy)
+	_, err := store.NewMessageStore(db).Create(context.Background(), "msg-mcp", "telegram:chat1:userA", "telegram", "hi", `{}`, "", 0)
+	require.NoError(t, err)
+	token, err := auth.GenerateBeeToken(mcpTestSecret, "bee-exec-mcp", time.Hour)
+	require.NoError(t, err)
+	session := connectMCP(t, startMCP(t, s), token)
+
+	text, isErr := callTool(t, session, "send_message", map[string]any{"message_id": "msg-mcp", "content": "on it"})
+	require.False(t, isErr, text)
+
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	require.Len(t, spy.sent, 1)
+	assert.Equal(t, "on it", spy.sent[0].Content)
+	assert.Equal(t, store.SourceTypeBee, spy.sent[0].SourceType)
+	assert.Equal(t, "bee-exec-mcp", spy.sent[0].ExecutionID)
 }

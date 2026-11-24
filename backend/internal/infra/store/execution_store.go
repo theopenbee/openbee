@@ -29,6 +29,8 @@ type ExecutionCreate struct {
 	TaskID       string
 	TriggerInput string
 	SessionID    string
+	SessionKey   string
+	Instruction  string
 	Engine       string
 }
 
@@ -41,6 +43,8 @@ func (s *ExecutionStore) Create(c ExecutionCreate) (model.WorkerExecution, error
 		ID:           uuid.New().String(),
 		TaskID:       c.TaskID,
 		SessionID:    c.SessionID,
+		SessionKey:   c.SessionKey,
+		Instruction:  c.Instruction,
 		Engine:       c.Engine,
 		TriggerInput: c.TriggerInput,
 		Status:       model.ExecStatusPending,
@@ -51,9 +55,9 @@ func (s *ExecutionStore) Create(c ExecutionCreate) (model.WorkerExecution, error
 		exec.WorkerID = &wid
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, engine, trigger_input, status, result, ai_process_pid, started_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, '', 0, ?)`,
-		exec.ID, exec.TaskID, exec.WorkerID, exec.SessionID, exec.Engine, exec.TriggerInput, exec.Status, millis,
+		`INSERT INTO bee_executions (id, task_id, worker_id, session_id, session_key, instruction, engine, trigger_input, status, result, ai_process_pid, started_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`,
+		exec.ID, exec.TaskID, exec.WorkerID, exec.SessionID, exec.SessionKey, exec.Instruction, exec.Engine, exec.TriggerInput, exec.Status, millis,
 	)
 	if err != nil {
 		return model.WorkerExecution{}, fmt.Errorf("insert execution: %w", err)
@@ -65,15 +69,17 @@ func (s *ExecutionStore) Create(c ExecutionCreate) (model.WorkerExecution, error
 // SQLite's default SQLITE_MAX_VARIABLE_NUMBER is 999.
 const inListChunkSize = 500
 
+const execColumns = `e.id, e.task_id, e.worker_id, e.session_id, e.session_key, e.instruction, e.engine, e.trigger_input, e.status, e.result, e.log_path,
+       e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')`
+
 const execSelect = `
-SELECT e.id, e.task_id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
-       e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
+SELECT ` + execColumns + `
 FROM bee_executions e
 LEFT JOIN bee_workers w ON w.id = e.worker_id`
 
 func scanExecution(scanner interface{ Scan(...any) error }) (model.WorkerExecution, error) {
 	var e model.WorkerExecution
-	err := scanner.Scan(&e.ID, &e.TaskID, &e.WorkerID, &e.SessionID, &e.Engine, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
+	err := scanner.Scan(&e.ID, &e.TaskID, &e.WorkerID, &e.SessionID, &e.SessionKey, &e.Instruction, &e.Engine, &e.TriggerInput, &e.Status, &e.Result, &e.LogPath, &e.AIProcessPID, &e.StartedAt, &e.CompletedAt, &e.WorkerName)
 	return e, err
 }
 
@@ -185,8 +191,7 @@ func (s *ExecutionStore) listByTaskIDsChunk(ctx context.Context, taskIDs []strin
 		FROM bee_executions e
 		WHERE e.task_id IN (` + inPlaceholders(len(taskIDs)) + `)
 	)
-	SELECT e.id, e.task_id, e.worker_id, e.session_id, e.engine, e.trigger_input, e.status, e.result, e.log_path,
-	       e.ai_process_pid, e.started_at, e.completed_at, COALESCE(w.name, '')
+	SELECT ` + execColumns + `
 	FROM ranked r
 	JOIN bee_executions e ON e.rowid = r.exec_rowid
 	LEFT JOIN bee_workers w ON w.id = e.worker_id
