@@ -45,6 +45,7 @@ type PaletteItem struct {
 	Description string
 	Group       string
 	Icon        string
+	Glyph       *ui.SVG
 	Logo        bool
 	Keywords    []string
 	Keys        []string
@@ -223,12 +224,16 @@ func paletteRow(c *ui.Context, tk theme.Tokens, st *PaletteState, i int, it Pale
 	if it.Description != "" {
 		b.Description(it.Description)
 	}
+	icon := it.Glyph
+	if icon == nil && it.Icon != "" {
+		icon = icons.Get(it.Icon)
+	}
 	b.Background(b.AnimateColor("bg", bg, fast)).OnClick(func() { pick(it) }).Children(func() {
 		switch {
 		case it.Logo:
 			ui.Image(c, icons.LogoMarkSmall(tk)).Size(paletteGlyph, paletteGlyph).Shrink(0)
-		case it.Icon != "":
-			ui.Icon(c, icons.Get(it.Icon)).Size(paletteGlyph, paletteGlyph).Shrink(0).TextColor(b.AnimateColor("glyph", glyph, fast))
+		case icon != nil:
+			ui.Icon(c, icon).Size(paletteGlyph, paletteGlyph).Shrink(0).TextColor(b.AnimateColor("glyph", glyph, fast))
 		}
 		ui.Row(c).Grow(1).MinWidth(0).Gap(paletteCopyGap).AlignItems(ui.Baseline).Children(func() {
 			ui.Text(c, it.Label).FontSize(bodyFontSize).TextColor(tk.Foreground).SingleLine().Shrink(0).MaxWidthPercent(100)

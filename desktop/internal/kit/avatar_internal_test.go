@@ -34,3 +34,11 @@ func TestDarkBeeAvatarMatchesSurfaceMuted(t *testing.T) {
 		t.Errorf("dark AvatarBee = %v, want SurfaceMuted %v", tk.AvatarBee, tk.SurfaceMuted)
 	}
 }
+
+func TestPluginLogoFillsMostOfTheAvatar(t *testing.T) {
+	for _, size := range []AvatarSize{AvatarSM, AvatarMD, AvatarLG, AvatarXL} {
+		if share := size.logo() / size.diameter(); share < 0.55 || share > 0.6 {
+			t.Errorf("size %v draws the logo at %v of the diameter, want 55-60%%", size, share)
+		}
+	}
+}

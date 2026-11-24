@@ -174,7 +174,7 @@ func (d *Page) pluginLink(c *ui.Context, tk theme.Tokens, plugin api.PluginStatu
 		fg = tk.AccentStrong
 	}
 	return b.OnClick(func() { d.Open(SectionPlugins, plugin.ID) }).Children(func() {
-		kit.InitialsAvatar(c, tk, name, kit.AvatarMD)
+		kit.PluginAvatar(c, tk, name, model.PluginIcon(plugin, d.s.Plugins().Catalog.Data.Plugins), kit.AvatarMD)
 		ui.Column(c).MinWidth(0).Shrink(1).Children(func() {
 			ui.Text(c, name).FontSize(textSize).FontWeight(mediumWeight).TextColor(b.AnimateColor("fg", fg, navFade)).SingleLine().MinWidth(0)
 			ui.Text(c, plugin.ID).Font(theme.FontMono).FontSize(metaSize).TextColor(tk.TextSecondary).SingleLine().MinWidth(0)

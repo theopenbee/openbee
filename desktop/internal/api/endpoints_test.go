@@ -69,11 +69,11 @@ const workerJSON = `{"id":"w1","name":"Ada","description":"d","constraints":"c",
 
 var workerValue = Worker{ID: "w1", Name: "Ada", Description: "d", Constraints: "c", WorkDir: "/w", EngineArgs: map[string]string{}, Status: "idle", CreatedAt: 1700, UpdatedAt: 1701}
 
-const pluginStatusJSON = `{"id":"telegram","package":"@x/telegram","source":"npm","version":"1.0.0","path":"/p","name":{"en":"Telegram","zh":"电报"},"enabled":true,"bot_name":"tg","state":"running","has_setup":true}`
+const pluginStatusJSON = `{"id":"telegram","package":"@x/telegram","source":"npm","version":"1.0.0","path":"/p","name":{"en":"Telegram","zh":"电报"},"enabled":true,"bot_name":"tg","state":"running","has_setup":true,"icon":"<svg/>"}`
 
 var pluginStatusValue = PluginStatus{
 	ID: "telegram", Package: "@x/telegram", Source: "npm", Version: "1.0.0", Path: "/p",
-	Name: LocalizedText{"en": "Telegram", "zh": "电报"}, Enabled: true, BotName: "tg", State: "running", HasSetup: true,
+	Name: LocalizedText{"en": "Telegram", "zh": "电报"}, Enabled: true, BotName: "tg", State: "running", HasSetup: true, Icon: "<svg/>",
 }
 
 const operationJSON = `{"id":"op1","kind":"install","spec":"pkg@1","status":"succeeded","created_at":"2026-10-28T10:00:00Z","finished_at":"2026-10-28T10:00:05Z"}`
@@ -559,14 +559,14 @@ func TestEndpoints(t *testing.T) {
 			method: "GET", uri: "/api/plugins/catalog",
 			status: 200,
 			response: `{"schema_version":1,"categories":[{"id":"im","name":{"en":"IM"}}],"tags":[{"id":"chat","name":{"en":"Chat"}}],"plugins":[` +
-				`{"category":"im","id":"telegram","package":"@x/telegram","version":"1.2.0","official":true,"name":{"en":"Telegram"},"protocol_version":1,"license":"MIT","repository":"https://r","maintainers":["a"],"tags":["chat"],"integrity":"sha512-x","tarball":"https://t","installed":true,"installed_version":"1.0.0","update_available":true,"installable":true}]}`,
+				`{"category":"im","id":"telegram","package":"@x/telegram","version":"1.2.0","official":true,"name":{"en":"Telegram"},"icon":"<svg/>","protocol_version":1,"license":"MIT","repository":"https://r","maintainers":["a"],"tags":["chat"],"integrity":"sha512-x","tarball":"https://t","installed":true,"installed_version":"1.0.0","update_available":true,"installable":true}]}`,
 			want: PluginCatalog{
 				SchemaVersion: 1,
 				Categories:    []CatalogTag{{ID: "im", Name: LocalizedText{"en": "IM"}}},
 				Tags:          []CatalogTag{{ID: "chat", Name: LocalizedText{"en": "Chat"}}},
 				Plugins: []CatalogPlugin{{
 					Category: "im", ID: "telegram", Package: "@x/telegram", Version: "1.2.0", Official: true,
-					Name: LocalizedText{"en": "Telegram"}, ProtocolVersion: 1, License: "MIT", Repository: "https://r",
+					Name: LocalizedText{"en": "Telegram"}, Icon: "<svg/>", ProtocolVersion: 1, License: "MIT", Repository: "https://r",
 					Maintainers: []string{"a"}, Tags: []string{"chat"}, Integrity: "sha512-x", Tarball: "https://t",
 					Installed: true, InstalledVersion: "1.0.0", UpdateAvailable: true, Installable: true,
 				}},

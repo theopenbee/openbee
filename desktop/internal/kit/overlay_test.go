@@ -70,6 +70,57 @@ func TestWorkerAvatarInitialsAndColor(t *testing.T) {
 	}
 }
 
+const squareLogo = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>`
+
+func TestPluginAvatarDrawsTheLogo(t *testing.T) {
+	const pad, d, glyph = 24, 88, 50
+	tt := newTester(200, 200, func(c *ui.Context, tk theme.Tokens) {
+		kit.PluginAvatar(c, tk, "Telegram", squareLogo, kit.AvatarXL)
+	})
+	tk := theme.Light()
+	if tt.HasText("T") {
+		t.Error("plugin avatar with a logo shows initials")
+	}
+	img := tt.Image()
+	center := pad + d/2
+	if got := img.RGBAAt(center, center); !near(got, tk.Foreground) {
+		t.Errorf("logo centre is %v, want the foreground %+v", got, tk.Foreground)
+	}
+	if got := img.RGBAAt(pad+(d-glyph)/2-4, center); !near(got, tk.SurfaceMuted) {
+		t.Errorf("avatar beside the logo is %v, want SurfaceMuted %+v", got, tk.SurfaceMuted)
+	}
+	inked := 0
+	for x := pad; x < pad+d; x++ {
+		if near(img.RGBAAt(x, center), tk.Foreground) {
+			inked++
+		}
+	}
+	if inked < glyph-2 || inked > glyph+2 {
+		t.Errorf("logo is %dpx wide, want about %dpx", inked, glyph)
+	}
+	left := 0
+	for x := pad; x < center; x++ {
+		if near(img.RGBAAt(x, center), tk.Foreground) {
+			left++
+		}
+	}
+	right := inked - left
+	if left-right > 1 || right-left > 1 {
+		t.Errorf("logo is off centre: %dpx left of the middle, %dpx right", left, right)
+	}
+}
+
+func TestPluginAvatarFallsBackToInitials(t *testing.T) {
+	for _, icon := range []string{"", "<svg", "not svg"} {
+		tt := newTester(200, 120, func(c *ui.Context, tk theme.Tokens) {
+			kit.PluginAvatar(c, tk, "Telegram Bot", icon, kit.AvatarMD)
+		})
+		if !tt.HasText("TB") {
+			t.Errorf("plugin avatar with icon %q does not show the initials", icon)
+		}
+	}
+}
+
 func TestStatusDotLabels(t *testing.T) {
 	tt := newTester(400, 200, func(c *ui.Context, tk theme.Tokens) {
 		ui.Row(c).Gap(16).Children(func() {
@@ -511,6 +562,8 @@ func (g *widgetGallery) view(c *ui.Context) {
 				kit.UnknownAvatar(c, tk, kit.AvatarMD)
 				kit.InitialsAvatar(c, tk, "Telegram Bot", kit.AvatarMD)
 				kit.InitialsAvatar(c, tk, "discord", kit.AvatarLG)
+				kit.PluginAvatar(c, tk, "Pi", squareLogo, kit.AvatarMD)
+				kit.PluginAvatar(c, tk, "Pi", squareLogo, kit.AvatarLG)
 			})
 			ui.Row(c).Gap(16).Children(func() {
 				for _, status := range []string{"idle", "working", "error", "paused"} {

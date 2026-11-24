@@ -53,7 +53,12 @@ const (
 	adaRules         = "Reply in English, lead with the numbers.\nUse the warehouse snapshot from the same morning.\nFlag any region that moved more than 5% month over month."
 )
 
-const pluginIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M2 2h20v20H2zM7 7v10h10V7z"/></svg>`
+const (
+	pluginIcon   = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M2 2h20v20H2zM7 7v10h10V7z"/></svg>`
+	ringIcon     = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 1a11 11 0 1 1 0 22a11 11 0 0 1 0-22m0 6a5 5 0 1 0 0 10a5 5 0 0 0 0-10"/></svg>`
+	triangleIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l11 19H1z"/></svg>`
+	waveIcon     = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g fill="none"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M4 30l10-12l10 12l10-12l10 12"/></g></svg>`
+)
 
 type shots int
 
@@ -799,6 +804,7 @@ func pluginSeed(st *fakeapi.State) {
 	telegram := catalogEntry("telegram", "1.3.0", true, bilingual("Telegram", "Telegram"),
 		bilingual("Chat with your workers from Telegram groups and direct messages.", "在 Telegram 群组和私聊里与员工对话。"), "messaging", "global")
 	telegram.Installed, telegram.InstalledVersion, telegram.UpdateAvailable = true, "1.2.0", true
+	telegram.Icon = ringIcon
 	dingtalk := catalogEntry("dingtalk", "0.8.1", true, bilingual("DingTalk", "钉钉"),
 		bilingual("Answer DingTalk group mentions with the right worker.", "在钉钉群里由合适的员工回复 @ 消息。"), "work", "china")
 	dingtalk.Installed, dingtalk.InstalledVersion = true, "0.8.1"
@@ -808,10 +814,13 @@ func pluginSeed(st *fakeapi.State) {
 	wechat.Installable, wechat.MinOpenbeeVersion = false, "0.9.0"
 	discord := catalogEntry("discord", "1.1.0", true, bilingual("Discord", "Discord"),
 		bilingual("Bring workers into Discord servers, threads and DMs.", "把员工带进 Discord 服务器、话题和私信。"), "messaging", "global")
-	discord.Installed, discord.InstalledVersion = true, "1.1.0"
+	discord.Installed, discord.InstalledVersion, discord.Icon = true, "1.1.0", pluginIcon
 	feishu := catalogEntry("feishu", "0.9.2", true, bilingual("Feishu", "飞书"),
 		bilingual("Connect workers to Feishu chats and document notifications.", "把员工接入飞书群聊与文档通知。"), "messaging", "work", "china")
-	feishu.Installed, feishu.InstalledVersion = true, "0.9.2"
+	feishu.Installed, feishu.InstalledVersion, feishu.Icon = true, "0.9.2", waveIcon
+	linear := catalogEntry("linear", "0.4.0", true, bilingual("Linear", "Linear"),
+		bilingual("Turn Linear issues and comments into worker tasks.", "把 Linear 工单和评论变成员工任务。"), "work", "global")
+	linear.Icon = triangleIcon
 	st.Catalog = api.PluginCatalog{
 		SchemaVersion: 1,
 		Categories:    []api.CatalogTag{{ID: "channel", Name: bilingual("Channels", "渠道")}},
@@ -828,16 +837,17 @@ func pluginSeed(st *fakeapi.State) {
 			catalogEntry("wecom", "0.6.0", false, bilingual("WeCom", "企业微信"),
 				bilingual("Route WeCom messages to the right worker.", "把企业微信消息分派给合适的员工。"), "work", "china"),
 			wechat,
-			catalogEntry("linear", "0.4.0", true, bilingual("Linear", "Linear"),
-				bilingual("Turn Linear issues and comments into worker tasks.", "把 Linear 工单和评论变成员工任务。"), "work", "global"),
+			linear,
 			discord,
 			feishu,
 		},
 	}
+	running := installedPlugin("telegram", "1.2.0", "running", "openbee_bot", true, bilingual("Telegram", "Telegram"))
+	running.Icon = ringIcon
 	failed := installedPlugin("discord", "1.1.0", "failed", "OpenBee#4821", true, bilingual("Discord", "Discord"))
-	failed.Error = "gateway: 4004 authentication failed, check the bot token"
+	failed.Error, failed.Icon = "gateway: 4004 authentication failed, check the bot token", pluginIcon
 	st.Plugins = []api.PluginDetail{
-		installedPlugin("telegram", "1.2.0", "running", "openbee_bot", true, bilingual("Telegram", "Telegram")),
+		running,
 		failed,
 		installedPlugin("feishu", "0.9.2", "not_configured", "", false, bilingual("Feishu", "飞书")),
 		installedPlugin("dingtalk", "0.8.1", "disabled", "OpenBee 助手", false, bilingual("DingTalk", "钉钉")),

@@ -245,10 +245,10 @@ func (s *Server) finishInstall(spec string) {
 	pkg := name
 	display := api.LocalizedText(nil)
 	var description api.LocalizedText
-	kind := ""
+	kind, icon := "", ""
 	if entry >= 0 {
 		match := s.st.Catalog.Plugins[entry]
-		id, pkg, display, description = match.ID, match.Package, match.Name, match.Description
+		id, pkg, display, description, icon = match.ID, match.Package, match.Name, match.Description, match.Icon
 		if match.Category == typeEngine {
 			kind = typeEngine
 		}
@@ -271,6 +271,7 @@ func (s *Server) finishInstall(spec string) {
 			Path:        "/tmp/openbee/plugins/" + id,
 			Name:        display,
 			Description: description,
+			Icon:        icon,
 			State:       "not_configured",
 		}
 		if kind == typeEngine {

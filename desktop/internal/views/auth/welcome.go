@@ -161,7 +161,7 @@ func (a *Screens) choice(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugi
 		name = plugin.ID
 	}
 	choiceRow(c, tk).Key(plugin.ID).Children(func() {
-		kit.InitialsAvatar(c, tk, name, kit.AvatarMD)
+		kit.PluginAvatar(c, tk, name, plugin.Icon, kit.AvatarMD)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(choiceTextGap).Children(func() {
 			ui.Text(c, name).FontSize(bodySize).FontWeight(choiceWeight).SingleLine().MinWidth(0).Role(ui.RoleHeading).Level(2)
 			if description := l10n.Localized(plugin.Description, lang); description != "" {

@@ -117,6 +117,18 @@ func PluginName(id string, catalog *api.PluginCatalog, installed []api.PluginSta
 	return id
 }
 
+func PluginIcon(p api.PluginStatus, catalog []api.CatalogPlugin) string {
+	if p.Icon != "" {
+		return p.Icon
+	}
+	for _, entry := range catalog {
+		if entry.ID == p.ID {
+			return entry.Icon
+		}
+	}
+	return ""
+}
+
 func PluginType(t string) string {
 	if t == "" {
 		return PluginChannel

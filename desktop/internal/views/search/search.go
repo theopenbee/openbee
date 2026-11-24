@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
+	"github.com/theopenbee/openbee/desktop/internal/icons"
 	"github.com/theopenbee/openbee/desktop/internal/kit"
 	"github.com/theopenbee/openbee/desktop/internal/l10n"
 	"github.com/theopenbee/openbee/desktop/internal/model"
@@ -46,6 +47,7 @@ type Input struct {
 	Workers       map[string]api.Worker
 	Current       string
 	Plugins       []api.PluginStatus
+	Catalog       []api.CatalogPlugin
 	Lang          string
 	CanStartOver  bool
 }
@@ -119,7 +121,8 @@ func Entries(in Input) []Entry {
 	plugins := locales.QuickSearchGroupsPlugins()
 	for _, p := range in.Plugins {
 		add(Target{KindPlugin, p.ID}, kit.PaletteItem{Label: cmp.Or(l10n.Localized(p.Name, in.Lang), p.ID),
-			Description: l10n.Localized(p.Description, in.Lang), Group: plugins, Icon: "puzzle", Keywords: []string{p.ID}})
+			Description: l10n.Localized(p.Description, in.Lang), Group: plugins, Icon: "puzzle", Glyph: icons.Plugin(model.PluginIcon(p, in.Catalog)),
+			Keywords: []string{p.ID}})
 	}
 	return out
 }
@@ -180,6 +183,9 @@ func (p *Palette) View(c *ui.Context, tk theme.Tokens, current string, canStartO
 	}
 	if list.Loaded {
 		in.Plugins = list.Data
+	}
+	if catalog := p.s.Plugins().Catalog; catalog.Loaded {
+		in.Catalog = catalog.Data.Plugins
 	}
 	entries := Entries(in)
 	items := make([]kit.PaletteItem, len(entries))

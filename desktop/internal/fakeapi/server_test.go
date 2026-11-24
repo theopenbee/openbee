@@ -1625,7 +1625,7 @@ func TestPluginInstallAndUninstallOperations(t *testing.T) {
 	s.fake.Update(func(st *fakeapi.State) {
 		st.Catalog.Categories = []api.CatalogTag{{ID: "chat", Name: api.LocalizedText{"en": "Chat"}}}
 		st.Catalog.Plugins = []api.CatalogPlugin{{
-			ID: "slack", Package: "@openbee/slack", Version: "2.0.0", Name: api.LocalizedText{"en": "Slack"}, Installable: true,
+			ID: "slack", Package: "@openbee/slack", Version: "2.0.0", Name: api.LocalizedText{"en": "Slack"}, Icon: "<svg/>", Installable: true,
 		}}
 	})
 
@@ -1651,7 +1651,7 @@ func TestPluginInstallAndUninstallOperations(t *testing.T) {
 	}
 	plugins, _ := s.client.Plugins(c)
 	if len(plugins) != 1 || plugins[0].ID != "slack" || plugins[0].Version != "2.0.0" || plugins[0].Package != "@openbee/slack" ||
-		plugins[0].Name["en"] != "Slack" || plugins[0].State != "not_configured" {
+		plugins[0].Name["en"] != "Slack" || plugins[0].Icon != "<svg/>" || plugins[0].State != "not_configured" {
 		t.Fatalf("plugins after install = %+v", plugins)
 	}
 	cat, _ = s.client.PluginCatalog(c, false)

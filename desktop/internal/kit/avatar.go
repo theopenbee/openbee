@@ -52,6 +52,18 @@ func (s AvatarSize) fontSize() float32 {
 	return 12
 }
 
+func (s AvatarSize) logo() float32 {
+	switch s {
+	case AvatarSM:
+		return 16
+	case AvatarLG:
+		return 28
+	case AvatarXL:
+		return 50
+	}
+	return 20
+}
+
 func (s AvatarSize) beePadding() float32 {
 	switch s {
 	case AvatarSM:
@@ -104,14 +116,33 @@ func UnknownAvatar(c *ui.Context, tk theme.Tokens, size AvatarSize) ui.Element {
 }
 
 func InitialsAvatar(c *ui.Context, tk theme.Tokens, name string, size AvatarSize) ui.Element {
+	return mutedAvatar(avatarFace(c, tk, arcInitials(name), size), tk, size)
+}
+
+func PluginAvatar(c *ui.Context, tk theme.Tokens, name, icon string, size AvatarSize) ui.Element {
+	logo := icons.Plugin(icon)
+	if logo == nil {
+		return InitialsAvatar(c, tk, name, size)
+	}
+	glyph := size.logo()
+	return mutedAvatar(avatarRing(c, tk), tk, size).Children(func() {
+		ui.Icon(c, logo).Size(glyph, glyph).Shrink(0)
+	})
+}
+
+func mutedAvatar(face ui.Element, tk theme.Tokens, size AvatarSize) ui.Element {
 	d := size.diameter()
-	return avatarFace(c, tk, arcInitials(name), size).Size(d, d).Shrink(0).Background(tk.SurfaceMuted).TextColor(tk.Foreground)
+	return face.Size(d, d).Shrink(0).Background(tk.SurfaceMuted).TextColor(tk.Foreground)
 }
 
 func avatarFace(c *ui.Context, tk theme.Tokens, initials string, size AvatarSize) ui.Element {
-	return ui.Box(c).Center().Radius(theme.RadiusPill).Border(1, tk.Border).Children(func() {
+	return avatarRing(c, tk).Children(func() {
 		ui.Text(c, initials).FontSize(size.fontSize()).FontWeight(mediumWeight).SingleLine()
 	})
+}
+
+func avatarRing(c *ui.Context, tk theme.Tokens) ui.Element {
+	return ui.Box(c).Center().Radius(theme.RadiusPill).Border(1, tk.Border)
 }
 
 func arcInitials(name string) string {

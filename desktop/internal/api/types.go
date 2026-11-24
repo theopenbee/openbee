@@ -248,6 +248,7 @@ type PluginStatus struct {
 	Path        string        `json:"path"`
 	Name        LocalizedText `json:"name"`
 	Description LocalizedText `json:"description,omitempty"`
+	Icon        string        `json:"icon,omitempty"`
 	Enabled     bool          `json:"enabled"`
 	BotName     string        `json:"bot_name"`
 	State       string        `json:"state"`
@@ -275,6 +276,7 @@ type CatalogPlugin struct {
 	Official          bool          `json:"official"`
 	Name              LocalizedText `json:"name"`
 	Description       LocalizedText `json:"description,omitempty"`
+	Icon              string        `json:"icon,omitempty"`
 	ProtocolVersion   int           `json:"protocol_version"`
 	License           string        `json:"license"`
 	Repository        string        `json:"repository"`

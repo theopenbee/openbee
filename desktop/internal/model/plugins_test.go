@@ -607,6 +607,30 @@ func TestPluginNameCatalogEntryWithoutNameFallsBackToID(t *testing.T) {
 	}
 }
 
+func TestPluginIcon(t *testing.T) {
+	catalog := []api.CatalogPlugin{{ID: "telegram", Icon: "<svg>catalog</svg>"}, {ID: "line"}}
+	tests := []struct {
+		name   string
+		plugin api.PluginStatus
+		want   string
+	}{
+		{"own icon first", api.PluginStatus{ID: "telegram", Icon: "<svg>own</svg>"}, "<svg>own</svg>"},
+		{"catalog icon", api.PluginStatus{ID: "telegram"}, "<svg>catalog</svg>"},
+		{"catalog entry without icon", api.PluginStatus{ID: "line"}, ""},
+		{"not in the catalog", api.PluginStatus{ID: "local"}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := PluginIcon(tc.plugin, catalog); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+	if got := PluginIcon(api.PluginStatus{ID: "telegram"}, nil); got != "" {
+		t.Fatalf("without a catalog got %q, want none", got)
+	}
+}
+
 func TestPluginNeedsPolling(t *testing.T) {
 	status := func(states ...string) []api.PluginStatus {
 		out := make([]api.PluginStatus, len(states))

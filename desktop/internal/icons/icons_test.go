@@ -105,6 +105,26 @@ func TestEngineIcon(t *testing.T) {
 	}
 }
 
+func TestPluginIcon(t *testing.T) {
+	if Plugin("") != nil {
+		t.Error("a plugin without an icon gets one")
+	}
+	if Plugin("<svg") != nil || Plugin("not svg") != nil {
+		t.Error("an icon that fails to parse is not nil")
+	}
+	stroked := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g fill="none"><path stroke="currentColor" stroke-width="4" d="M4 24h40"/></g></svg>`
+	icon := Plugin(stroked)
+	if icon == nil {
+		t.Fatal("a stroked plugin icon is not parsed")
+	}
+	if Plugin(stroked) != icon {
+		t.Error("Plugin does not cache the parsed icon")
+	}
+	if Engine(stroked) != icon {
+		t.Error("Engine and Plugin parse one icon twice")
+	}
+}
+
 func TestLucideLicenseShips(t *testing.T) {
 	source, err := os.ReadFile("lucide/LICENSE")
 	if err != nil {

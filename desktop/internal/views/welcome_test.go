@@ -54,18 +54,24 @@ func channelReady(st *fakeapi.State) {
 func welcomeSeed(st *fakeapi.State) {
 	st.OnboardingSkipped = false
 	claude := engineEntry("claude", "0.3.0", "Claude Code", "Anthropic's coding agent, driven from your terminal.")
-	claude.Installed, claude.InstalledVersion = true, "0.3.0"
+	claude.Installed, claude.InstalledVersion, claude.Icon = true, "0.3.0", pluginIcon
+	codex := engineEntry("codex", "0.3.0", "Codex", "OpenAI's coding agent with sandboxed shell access.")
+	codex.Icon = ringIcon
+	pi := engineEntry("pi", "0.3.0", "Pi", "A small, fast coding agent with a minimal toolset.")
+	pi.Icon = triangleIcon
 	telegram := catalogEntry("telegram", "1.3.0", true, bilingual("Telegram", "Telegram"),
 		bilingual("Chat with Bee from Telegram groups and direct messages.", "在 Telegram 群组和私聊里与 Bee 对话。"))
-	telegram.Installed, telegram.InstalledVersion = true, "1.3.0"
+	telegram.Installed, telegram.InstalledVersion, telegram.Icon = true, "1.3.0", ringIcon
+	feishu := catalogEntry("feishu", "0.9.2", true, bilingual("Feishu", "飞书"),
+		bilingual("Message Bee from Feishu chats and groups.", "在飞书群聊与私聊里给 Bee 发消息。"))
+	feishu.Icon = waveIcon
 	st.Catalog = api.PluginCatalog{SchemaVersion: 1, Plugins: []api.CatalogPlugin{
 		claude,
-		engineEntry("codex", "0.3.0", "Codex", "OpenAI's coding agent with sandboxed shell access."),
+		codex,
 		engineEntry("opencode", "0.2.0", "OpenCode", "Open source agent that works with many model providers."),
-		engineEntry("pi", "0.3.0", "Pi", "A small, fast coding agent with a minimal toolset."),
+		pi,
 		telegram,
-		catalogEntry("feishu", "0.9.2", true, bilingual("Feishu", "飞书"),
-			bilingual("Message Bee from Feishu chats and groups.", "在飞书群聊与私聊里给 Bee 发消息。")),
+		feishu,
 		catalogEntry("dingtalk", "0.8.1", true, bilingual("DingTalk", "钉钉"),
 			bilingual("Answer DingTalk group mentions with the right worker.", "在钉钉群里由合适的员工回复 @ 消息。")),
 		catalogEntry("wecom", "0.6.0", true, bilingual("WeCom", "企业微信"),
@@ -132,6 +138,23 @@ func TestPendingOnboardingShowsWelcome(t *testing.T) {
 		h.Settle()
 		if got := h.Root.Nav().Path(); got != route.WelcomePath {
 			t.Fatalf("%s left the welcome page for %q", name, got)
+		}
+	}
+}
+
+func TestWelcomeChoicesShowLogos(t *testing.T) {
+	h := testkit.SignedIn(t, wideW, wideH, welcomeSeed)
+	onPath(t, h, route.WelcomePath)
+	avatars(t, h, map[string]bool{"CC": false, "C": false, "P": false, "O": true})
+	nextStep(t, h)
+	avatars(t, h, map[string]bool{"T": false, "F": false, "D": true, "W": true})
+}
+
+func avatars(t *testing.T, h *testkit.Harness, initials map[string]bool) {
+	t.Helper()
+	for text, want := range initials {
+		if _, ok := h.T.Find(text); ok != want {
+			t.Fatalf("initials %q shown = %v, want %v; texts %q", text, ok, want, h.T.Texts())
 		}
 	}
 }

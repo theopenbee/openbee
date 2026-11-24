@@ -173,7 +173,7 @@ func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlug
 	name := displayName(plugin.Name, plugin.ID)
 	insetCard(c, tk).Key(plugin.ID).Padding(cardPad).Children(func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(cardHeadGap).Children(func() {
-			kit.InitialsAvatar(c, tk, name, kit.AvatarMD)
+			kit.PluginAvatar(c, tk, name, plugin.Icon, kit.AvatarMD)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
 				ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).Gap(cardTitleGap).Children(func() {
 					ui.Text(c, name).FontSize(cardNameSize).FontWeight(mediumWeight).SingleLine().MinWidth(0).

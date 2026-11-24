@@ -423,3 +423,25 @@ func TestMarketCardsAreCompact(t *testing.T) {
 		t.Fatalf("narrow market is not one column: telegram %+v, discord %+v", telegram, discord)
 	}
 }
+
+const logo = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l11 19H1z"/></svg>`
+
+func withLogos(st *fakeapi.State) {
+	withPlugins(st)
+	st.Plugins[0].Icon = logo
+	st.Catalog.Plugins[3].Icon = logo
+	st.Catalog.Plugins[5].Icon = logo
+}
+
+func TestMarketCardsShowLogos(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withLogos)
+	f.wantShown("Feishu", "Linear", "T", "D")
+	f.wantHidden("F", "L")
+}
+
+func TestInstalledRowsShowLogos(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withLogos)
+	f.installedTab()
+	f.wantShown("Telegram", "Feishu", "D")
+	f.wantHidden("T", "F")
+}

@@ -40,19 +40,22 @@ func Get(name string) *ui.SVG {
 	})
 }
 
-func Engine(svg string) *ui.SVG {
+func Plugin(svg string) *ui.SVG {
 	if svg == "" {
-		return Get("cpu")
+		return nil
 	}
-	parsed := cached("engine/"+svg, func() *ui.SVG {
+	return cached("plugin/"+svg, func() *ui.SVG {
 		parsed, err := ui.ParseSVG([]byte(svg))
 		if err != nil {
 			return nil
 		}
 		return parsed
 	})
-	if parsed == nil {
-		return Get("cpu")
+}
+
+func Engine(svg string) *ui.SVG {
+	if parsed := Plugin(svg); parsed != nil {
+		return parsed
 	}
-	return parsed
+	return Get("cpu")
 }
