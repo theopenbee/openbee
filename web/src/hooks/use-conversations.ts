@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import { CONVERSATIONS_KEY } from "@/lib/chat-events"
+import { CONVERSATIONS_KEY, conversationMessagesKey, updateCachedMessage } from "@/lib/chat-events"
 import type { ConversationId, ConversationMessagesResponse } from "@/lib/types"
 
 function useInvalidateConversations() {
@@ -20,7 +20,7 @@ export function useConversations() {
 
 export function useConversationMessages(id: ConversationId) {
   return useQuery({
-    queryKey: ["conversation-messages", id],
+    queryKey: conversationMessagesKey(id),
     queryFn: () => api.chat.messages(id),
     staleTime: 0,
   })
@@ -56,6 +56,15 @@ export function useSendToConversation(conversationId: ConversationId) {
   })
 }
 
+export function useChooseButton(conversationId: ConversationId) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ messageId, index }: { messageId: string; index: number }) =>
+      api.chat.choose(conversationId, messageId, index),
+    onSuccess: (message) => updateCachedMessage(queryClient, conversationId, message),
+  })
+}
+
 export function useMarkRead(id: ConversationId) {
   const invalidate = useInvalidateConversations()
   return useMutation({
@@ -71,7 +80,7 @@ export function useClearConversation(id: ConversationId) {
     mutationFn: (force?: boolean) => api.chat.clear(id, force),
     onSuccess: () => {
       invalidate()
-      queryClient.invalidateQueries({ queryKey: ["conversation-messages", id] })
+      queryClient.invalidateQueries({ queryKey: conversationMessagesKey(id) })
     },
   })
 }

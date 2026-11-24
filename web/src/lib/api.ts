@@ -1,4 +1,4 @@
-import type { Worker, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate, ExecutionDetail } from "./types"
+import type { Worker, ChatMessage, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate, ExecutionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -141,6 +141,11 @@ export const api = {
       }),
     stop: (id: ConversationId) =>
       fetchAPI<void>(`/local/conversations/${encodeURIComponent(id)}/stop`, { method: "POST" }),
+    choose: (id: ConversationId, messageId: string, index: number) =>
+      fetchAPI<ChatMessage>(
+        `/local/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageId)}/choice`,
+        { method: "POST", body: JSON.stringify({ index }) },
+      ),
     uploadMedia: async (file: File) => {
       const form = new FormData()
       form.append("file", file)

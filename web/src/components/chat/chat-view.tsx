@@ -21,6 +21,7 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { useActiveConversation, useChatEventSubscription } from "@/hooks/use-chat-events"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import {
+  useChooseButton,
   useConversationMessages,
   useConversations,
   useLoadOlder,
@@ -33,6 +34,7 @@ import {
   composerDisabled,
   groupStarts,
   headerSubtitle,
+  isChoiceTaken,
   senderDisplay,
   showsHandoffTask,
   statusText,
@@ -109,6 +111,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
 
   const { data, isPending, isError, refetch } = useConversationMessages(conversation)
   const { mutateAsync: sendMessage } = useSendToConversation(conversation)
+  const { mutateAsync: chooseButton } = useChooseButton(conversation)
   const { mutate: markRead } = useMarkRead(conversation)
   const { setActive } = useActiveConversation()
 
@@ -148,6 +151,9 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       if (message.sender.type === "user" || message.kind === "reset") return
       if (isBee) setBeeBusy(false)
       if (isShowing(conversation)) markRead(message.ts)
+    },
+    onMessageUpdate: (id, message) => {
+      if (id === conversation) dispatch({ type: "update", message })
     },
     onTask: (event) => {
       if (showsHandoffTask(messages, event.task_id)) void refetch()
@@ -197,6 +203,25 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       }
     },
     [isBee, sendMessage, stickToBottom, t],
+  )
+
+  const handleChoose = useCallback(
+    async (messageId: string, index: number) => {
+      stickToBottom.current = true
+      if (isBee) setBeeBusy(true)
+      try {
+        dispatch({ type: "update", message: await chooseButton({ messageId, index }) })
+      } catch (error) {
+        if (isBee) setBeeBusy(false)
+        if (isChoiceTaken(error)) {
+          toast.error(t("chat.choiceTaken"))
+          await refetch()
+          return
+        }
+        toast.error(t("chat.choiceFailed"), { description: getErrorMessage(error) })
+      }
+    },
+    [chooseButton, isBee, refetch, stickToBottom, t],
   )
 
   const openConversation = useCallback((id: ConversationId) => navigate(conversationPath(id)), [navigate])
@@ -296,6 +321,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
                       isGroupStart={starts[index]}
                       onExpandToggle={handleExpandToggle}
                       onShowExecution={showExecution}
+                      onChoose={handleChoose}
                       body={
                         message.kind === "handoff" && message.handoff ? (
                           <HandoffCard

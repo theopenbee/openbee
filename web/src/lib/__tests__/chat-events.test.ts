@@ -1,8 +1,9 @@
 import { QueryClient } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { ChatMessage, ConversationSummary, Worker } from "../types"
+import type { ChatMessage, ConversationMessagesResponse, ConversationSummary, Worker } from "../types"
 import {
   CONVERSATIONS_KEY,
+  conversationMessagesKey,
   applyEventToCaches,
   applyEventToConversations,
   applyWorkerStatus,
@@ -44,6 +45,15 @@ const messageEvent = (conversationId: ConversationSummary["id"], msg: ChatMessag
   conversation_id: conversationId,
   message: msg,
 })
+
+const updateEvent = (conversationId: ConversationSummary["id"], msg: ChatMessage, seq = 1): ChatEvent => ({
+  type: "message_update",
+  seq,
+  conversation_id: conversationId,
+  message: msg,
+})
+
+const buttons = [{ label: "Confirm", style: "danger" as const }, { label: "Cancel" }]
 
 const taskEvent = (
   state: Extract<ChatEvent, { type: "task" }>["state"],
@@ -250,6 +260,21 @@ describe("applyEventToConversations", () => {
     const next = applyEventToConversations(
       list,
       messageEvent("worker:w1", message("", { sender: { type: "system" }, kind: "reset" })),
+      idle,
+    )
+
+    expect(next).toBe(list)
+  })
+
+  it("leaves the preview, order and unread alone for a message update", () => {
+    const list = [
+      summary("bee", { unread: 2, last_message: { sender: { type: "bee" }, kind: "message", preview: "later", ts: 200 } }),
+      summary("worker:w1"),
+    ]
+
+    const next = applyEventToConversations(
+      list,
+      updateEvent("bee", message("pick one", { sender: { type: "bee" }, buttons, choice: 0 })),
       idle,
     )
 
@@ -470,6 +495,58 @@ describe("applyEventToCaches", () => {
     expect(list[1].activity).toEqual({ state: "running" })
   })
 
+  describe("message_update", () => {
+    const page = (messages: ChatMessage[]): ConversationMessagesResponse => ({ messages, has_more: true })
+    const asked = message("pick one", { id: "q1", buttons })
+    const chosen = { ...asked, choice: 1 }
+
+    it("replaces the message with the same id in the loaded messages", () => {
+      const before = message("before", { id: "m0", ts: 50 })
+      queryClient.setQueryData(conversationMessagesKey("worker:w1"), page([before, asked]))
+
+      applyEventToCaches(queryClient, updateEvent("worker:w1", chosen), idle)
+
+      const cached = queryClient.getQueryData<ConversationMessagesResponse>(conversationMessagesKey("worker:w1"))!
+      expect(cached).toEqual(page([before, chosen]))
+      expect(cached.messages[0]).toBe(before)
+    })
+
+    it("leaves unread, previews and other conversations alone", () => {
+      const list = [summary("bee"), summary("worker:w1", { unread: 1 })]
+      const other = page([asked])
+      queryClient.setQueryData(CONVERSATIONS_KEY, list)
+      queryClient.setQueryData(conversationMessagesKey("worker:w1"), page([asked]))
+      queryClient.setQueryData(conversationMessagesKey("bee"), other)
+
+      applyEventToCaches(queryClient, updateEvent("worker:w1", chosen), idle)
+
+      expect(queryClient.getQueryData(CONVERSATIONS_KEY)).toBe(list)
+      expect(queryClient.getQueryState(CONVERSATIONS_KEY)?.isInvalidated).toBe(false)
+      expect(queryClient.getQueryData(conversationMessagesKey("bee"))).toBe(other)
+    })
+
+    it("keeps the cache and its invalidation when the message is not loaded", () => {
+      const loaded = page([message("other", { id: "m9" })])
+      queryClient.setQueryData(conversationMessagesKey("worker:w1"), loaded)
+      queryClient.invalidateQueries({ queryKey: conversationMessagesKey("worker:w1") })
+      vi.advanceTimersByTime(5000)
+      const updatedAt = queryClient.getQueryState(conversationMessagesKey("worker:w1"))?.dataUpdatedAt
+
+      applyEventToCaches(queryClient, updateEvent("worker:w1", chosen), idle)
+
+      const state = queryClient.getQueryState(conversationMessagesKey("worker:w1"))
+      expect(queryClient.getQueryData(conversationMessagesKey("worker:w1"))).toBe(loaded)
+      expect(state?.isInvalidated).toBe(true)
+      expect(state?.dataUpdatedAt).toBe(updatedAt)
+    })
+
+    it("creates no cache entries for a conversation that is not loaded", () => {
+      applyEventToCaches(queryClient, updateEvent("worker:w1", chosen), idle)
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+    })
+  })
+
   it("conversation events write nothing when the list is not cached", () => {
     applyEventToCaches(queryClient, messageEvent("worker:w1", message("hi")), idle)
 
@@ -560,6 +637,33 @@ describe("ingestChatEvent", () => {
 
     expect(onGap).toHaveBeenCalledTimes(1)
     expect(next).toBe(seq)
+  })
+
+  it("counts a message update as a regular event in the seq", () => {
+    const onGap = vi.fn()
+    const update = updateEvent("worker:w1", message("pick one", { buttons, choice: 0 }), 8)
+
+    let lastSeq = ingestChatEvent(queryClient, messageEvent("worker:w1", message("a"), 7), null, idle, onGap)
+    lastSeq = ingestChatEvent(queryClient, update, lastSeq, idle, onGap)
+    lastSeq = ingestChatEvent(
+      queryClient,
+      messageEvent("worker:w1", message("/clear confirm", { id: "u1", sender: { type: "user" } }), 9),
+      lastSeq,
+      idle,
+      onGap,
+    )
+
+    expect(lastSeq).toBe(9)
+    expect(onGap).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData<ConversationSummary[]>(CONVERSATIONS_KEY)![1].unread).toBe(1)
+  })
+
+  it("reports a gap that a message update skips over", () => {
+    const onGap = vi.fn()
+
+    ingestChatEvent(queryClient, updateEvent("worker:w1", message("pick one", { choice: 0 }), 12), 10, idle, onGap)
+
+    expect(onGap).toHaveBeenCalledTimes(1)
   })
 
   it("applies the event before the gap callback so the invalidation survives", () => {
@@ -699,5 +803,20 @@ describe("notifyHandlers", () => {
     expect(onMessage).toHaveBeenCalledWith("worker:w1", msg)
     expect(onTask).toHaveBeenCalledTimes(1)
     expect(onTask).toHaveBeenCalledWith(task)
+  })
+
+  it("passes message updates to onMessageUpdate only", () => {
+    const onMessage = vi.fn()
+    const onMessageUpdate = vi.fn()
+    const handlers = [{ onMessage, onMessageUpdate }, {}]
+    const msg = message("pick one", { buttons, choice: 1 })
+
+    notifyHandlers(handlers, updateEvent("bee", msg))
+    notifyHandlers(handlers, messageEvent("bee", message("hi")))
+
+    expect(onMessageUpdate).toHaveBeenCalledTimes(1)
+    expect(onMessageUpdate).toHaveBeenCalledWith("bee", msg)
+    expect(onMessage).toHaveBeenCalledTimes(1)
+    expect(onMessage).not.toHaveBeenCalledWith("bee", msg)
   })
 })

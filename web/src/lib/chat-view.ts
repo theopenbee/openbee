@@ -100,6 +100,18 @@ export function activeTasksOf(err: unknown): ActiveTask[] | null {
   return Array.isArray(tasks) ? tasks.filter(isActiveTask) : null
 }
 
+export function isChoiceTaken(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 409
+}
+
+export type ChoiceState = "open" | "loading" | "chosen" | "disabled"
+
+export function choiceStateOf(index: number, choice: number | undefined, pending: number | null): ChoiceState {
+  if (typeof choice === "number") return index === choice ? "chosen" : "disabled"
+  if (pending !== null) return index === pending ? "loading" : "disabled"
+  return "open"
+}
+
 export function instructionPreview(content: string): string {
   return content
     .split("\n")

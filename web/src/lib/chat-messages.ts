@@ -10,6 +10,7 @@ export type ChatAction =
   | { type: "older"; messages: ChatMessage[]; hasMore: boolean }
   | { type: "add"; message: ChatMessage }
   | { type: "sent"; id: string; ts: number }
+  | { type: "update"; message: ChatMessage }
   | { type: "remove"; id: string }
 
 export const EMPTY_CHAT: ChatState = { messages: [], hasMore: false }
@@ -17,6 +18,12 @@ export const EMPTY_CHAT: ChatState = { messages: [], hasMore: false }
 export function createMessageId() {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+export function replaceMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
+  const index = messages.findIndex((item) => item.id === message.id)
+  if (index === -1) return messages
+  return messages.map((item, i) => (i === index ? message : item))
 }
 
 function mergeLatest(state: ChatState, latest: ChatMessage[], hasMore: boolean): ChatState {
@@ -61,6 +68,12 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           message.id === action.id ? { ...message, ts: action.ts } : message
         ),
       }
+    case "update": {
+      const current = state.messages.find((message) => message.id === action.message.id)
+      if (!current) return state
+      const next = current.pending ? { ...action.message, pending: true } : action.message
+      return { ...state, messages: replaceMessage(state.messages, next) }
+    }
     case "remove":
       return { ...state, messages: state.messages.filter((message) => message.id !== action.id) }
   }

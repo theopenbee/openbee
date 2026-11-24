@@ -3,10 +3,12 @@ import { ApiError } from "../api"
 import type { ChatMessage, Worker } from "../types"
 import {
   activeTasksOf,
+  choiceStateOf,
   composerDisabled,
   groupStarts,
   headerSubtitle,
   instructionPreview,
+  isChoiceTaken,
   senderDisplay,
   showsHandoffTask,
   statusText,
@@ -212,6 +214,30 @@ describe("activeTasksOf", () => {
     })
 
     expect(activeTasksOf(error)).toEqual(tasks)
+  })
+})
+
+describe("isChoiceTaken", () => {
+  it("is true only for a 409 from the server", () => {
+    expect(isChoiceTaken(new ApiError(409, "button already chosen"))).toBe(true)
+    expect(isChoiceTaken(new ApiError(503, "message queue is full"))).toBe(false)
+    expect(isChoiceTaken(new ApiError(404, "message not found"))).toBe(false)
+    expect(isChoiceTaken(new Error("network"))).toBe(false)
+  })
+})
+
+describe("choiceStateOf", () => {
+  it("leaves every button open before a choice", () => {
+    expect([0, 1].map((index) => choiceStateOf(index, undefined, null))).toEqual(["open", "open"])
+  })
+
+  it("loads the clicked button and disables the others while sending", () => {
+    expect([0, 1, 2].map((index) => choiceStateOf(index, undefined, 1))).toEqual(["disabled", "loading", "disabled"])
+  })
+
+  it("marks the chosen button and disables the others after a choice", () => {
+    expect([0, 1, 2].map((index) => choiceStateOf(index, 0, null))).toEqual(["chosen", "disabled", "disabled"])
+    expect([0, 1].map((index) => choiceStateOf(index, 1, 0))).toEqual(["disabled", "chosen"])
   })
 })
 

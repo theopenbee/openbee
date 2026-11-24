@@ -201,6 +201,7 @@ export function useChatEventSubscription(handler: ChatEventHandler) {
     () =>
       subscribe({
         onMessage: (conversationId, message) => handlerRef.current.onMessage?.(conversationId, message),
+        onMessageUpdate: (conversationId, message) => handlerRef.current.onMessageUpdate?.(conversationId, message),
         onTask: (event) => handlerRef.current.onTask?.(event),
         onResync: () => handlerRef.current.onResync?.(),
       }),

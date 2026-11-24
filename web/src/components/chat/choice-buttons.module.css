@@ -1,0 +1,17 @@
+.row .chosen:disabled {
+  color: var(--foreground);
+  background: var(--surface);
+  cursor: default;
+}
+
+.row .chosen.danger:disabled {
+  color: var(--danger);
+}
+
+.label {
+  max-width: calc(100cqw - 2 * var(--space-3) - 2px);
+  padding-block: var(--space-2);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}

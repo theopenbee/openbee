@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatMessage } from "../types"
-import { chatReducer, createMessageId, EMPTY_CHAT, type ChatState } from "../chat-messages"
+import { chatReducer, createMessageId, EMPTY_CHAT, replaceMessage, type ChatState } from "../chat-messages"
 
 const msg = (id: string, ts: number, extra: Partial<ChatMessage> = {}): ChatMessage => ({
   id,
@@ -137,6 +137,45 @@ describe("chatReducer live updates", () => {
     const next = chatReducer(state([msg("a", 1), live("u", 2)]), { type: "remove", id: "u" })
 
     expect(ids(next)).toEqual(["a"])
+  })
+
+  it("replaces an updated message in place", () => {
+    const buttons = [{ label: "Yes" }, { label: "No" }]
+    const prev = state([msg("a", 1), msg("q", 2, { buttons }), msg("b", 3)], true)
+
+    const next = chatReducer(prev, { type: "update", message: msg("q", 2, { buttons, choice: 1 }) })
+
+    expect(next).toEqual(state([msg("a", 1), msg("q", 2, { buttons, choice: 1 }), msg("b", 3)], true))
+    expect(next.messages[0]).toBe(prev.messages[0])
+  })
+
+  it("keeps a live message live when it is updated", () => {
+    const next = chatReducer(state([live("q", 2)]), { type: "update", message: msg("q", 2, { choice: 0 }) })
+
+    expect(next.messages).toEqual([msg("q", 2, { choice: 0, pending: true })])
+  })
+
+  it("ignores an update for a message that is not shown", () => {
+    const prev = state([msg("a", 1)])
+
+    expect(chatReducer(prev, { type: "update", message: msg("gone", 2, { choice: 0 }) })).toBe(prev)
+  })
+})
+
+describe("replaceMessage", () => {
+  it("swaps the message with the same id and keeps the rest", () => {
+    const list = [msg("a", 1), msg("b", 2)]
+
+    const next = replaceMessage(list, msg("b", 2, { choice: 0 }))
+
+    expect(next).toEqual([msg("a", 1), msg("b", 2, { choice: 0 })])
+    expect(next[0]).toBe(list[0])
+  })
+
+  it("returns the same list when the id is unknown", () => {
+    const list = [msg("a", 1)]
+
+    expect(replaceMessage(list, msg("x", 2))).toBe(list)
   })
 })
 

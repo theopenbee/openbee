@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { ListTreeIcon } from "lucide-react"
 import { Badge } from "@/components/arc/badge/badge"
 import { AttachmentPreview } from "@/components/chat/attachment-preview"
+import { ChoiceButtons } from "@/components/chat/choice-buttons"
 import { ChatMarkdown } from "@/components/chat-markdown"
 import { CopyButton } from "@/components/copy-button"
 import { ExpandableContent } from "@/components/expandable-content"
@@ -27,6 +28,7 @@ interface MessageBubbleProps {
   isGroupStart: boolean
   onExpandToggle: () => void
   onShowExecution?: (executionId: string) => void
+  onChoose?: (messageId: string, index: number) => Promise<void>
   body?: ReactNode
 }
 
@@ -80,6 +82,7 @@ export const MessageBubble = memo(function MessageBubble({
   isGroupStart,
   onExpandToggle,
   onShowExecution,
+  onChoose,
   body,
 }: MessageBubbleProps) {
   const { t, i18n } = useTranslation()
@@ -141,6 +144,14 @@ export const MessageBubble = memo(function MessageBubble({
               </div>
             )}
           </>
+        )}
+
+        {onChoose && message.buttons && message.buttons.length > 0 && (
+          <ChoiceButtons
+            buttons={message.buttons}
+            choice={message.choice}
+            onChoose={(index) => onChoose(message.id, index)}
+          />
         )}
       </div>
     </div>

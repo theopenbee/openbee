@@ -78,6 +78,11 @@ export interface ExecutionDetail extends ExecutionSummary {
 
 export type ChatMessageKind = "message" | "handoff" | "reset"
 
+export interface ChatButton {
+  label: string
+  style?: "danger"
+}
+
 export interface ChatMessage {
   id: string
   sender: ChatSender
@@ -87,6 +92,8 @@ export interface ChatMessage {
   media_paths?: string[]
   ts: number
   execution_id?: string
+  buttons?: ChatButton[]
+  choice?: number
   pending?: boolean
 }
 

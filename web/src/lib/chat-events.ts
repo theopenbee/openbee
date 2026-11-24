@@ -1,9 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query"
+import { replaceMessage } from "@/lib/chat-messages"
 import { workerIdOf } from "@/lib/conversations"
 import type {
   ChatMessage,
   ConversationActivity,
   ConversationId,
+  ConversationMessagesResponse,
   ConversationSummary,
   Worker,
   WorkerStatus,
@@ -13,6 +15,13 @@ export type TaskState = "queued" | "running" | "completed" | "failed" | "cancell
 
 export interface ChatMessageEvent {
   type: "message"
+  seq: number
+  conversation_id: ConversationId
+  message: ChatMessage
+}
+
+export interface MessageUpdateEvent {
+  type: "message_update"
   seq: number
   conversation_id: ConversationId
   message: ChatMessage
@@ -36,10 +45,11 @@ export interface TaskEvent {
   execution_id?: string
 }
 
-export type ChatEvent = ChatMessageEvent | WorkerStatusEvent | TaskEvent
+export type ChatEvent = ChatMessageEvent | MessageUpdateEvent | WorkerStatusEvent | TaskEvent
 
 export interface ChatEventHandler {
   onMessage?: (conversationId: ConversationId, message: ChatMessage) => void
+  onMessageUpdate?: (conversationId: ConversationId, message: ChatMessage) => void
   onTask?: (event: TaskEvent) => void
   onResync?: () => void
 }
@@ -50,6 +60,8 @@ export interface ConversationView {
 }
 
 export const CONVERSATIONS_KEY = ["conversations"] as const
+
+export const conversationMessagesKey = (id: ConversationId) => ["conversation-messages", id] as const
 
 const WORKERS_KEY = ["workers"] as const
 
@@ -173,9 +185,18 @@ export function applyEventToConversations(
     }
     case "task":
       return updateConversation(list, event.conversation_id, (item) => ({ ...item, activity: activityOf(event) }))
+    case "message_update":
     case "worker_status":
       return list
   }
+}
+
+export function updateCachedMessage(queryClient: QueryClient, conversationId: ConversationId, message: ChatMessage) {
+  queryClient.setQueryData<ConversationMessagesResponse>(conversationMessagesKey(conversationId), (data) => {
+    if (!data) return undefined
+    const messages = replaceMessage(data.messages, message)
+    return messages === data.messages ? undefined : { ...data, messages }
+  })
 }
 
 export function applyWorkerStatus(workers: Worker[], event: ChatEvent): Worker[] {
@@ -250,6 +271,9 @@ export function applyEventToCaches(queryClient: QueryClient, event: ChatEvent, v
     case "task":
       updateConversationCache(queryClient, event, view)
       return
+    case "message_update":
+      updateCachedMessage(queryClient, event.conversation_id, event.message)
+      return
     case "worker_status":
       queryClient.setQueriesData<Worker | Worker[]>(
         { predicate: (query) => query.queryKey[0] === "workers" },
@@ -262,6 +286,7 @@ export function applyEventToCaches(queryClient: QueryClient, event: ChatEvent, v
 export function notifyHandlers(handlers: Iterable<ChatEventHandler>, event: ChatEvent) {
   for (const handler of handlers) {
     if (event.type === "message") handler.onMessage?.(event.conversation_id, event.message)
+    if (event.type === "message_update") handler.onMessageUpdate?.(event.conversation_id, event.message)
     if (event.type === "task") handler.onTask?.(event)
   }
 }
