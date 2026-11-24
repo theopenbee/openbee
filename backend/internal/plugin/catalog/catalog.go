@@ -32,6 +32,7 @@ type Entry struct {
 	PublishedAt       string               `json:"published_at,omitempty"`
 	Integrity         string               `json:"integrity"`
 	Tarball           string               `json:"tarball"`
+	Icon              string               `json:"icon,omitempty"`
 }
 
 type Catalog struct {

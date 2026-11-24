@@ -86,6 +86,7 @@ type Status struct {
 	State       State
 	Error       string
 	HasSetup    bool
+	Icon        string
 }
 
 type Detail struct {
@@ -605,6 +606,7 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 		}
 		st.Description = man.Description
 		st.HasSetup = man.Setup != nil
+		st.Icon = man.IconSVG
 	}
 
 	m.mu.Lock()

@@ -37,13 +37,13 @@ func loadIcon(dir, rel string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read icon: %w", err)
 	}
-	if err := validateIcon(data); err != nil {
+	if err := ValidateIcon(data); err != nil {
 		return "", fmt.Errorf("icon %q: %w", rel, err)
 	}
 	return string(data), nil
 }
 
-func validateIcon(data []byte) error {
+func ValidateIcon(data []byte) error {
 	dec := xml.NewDecoder(bytes.NewReader(data))
 	depth := 0
 	seenRoot := false

@@ -504,3 +504,24 @@ func TestManager_RestartSurvivesCancelledRequest(t *testing.T) {
 	h.waitState("telegram", StateRunning)
 	assert.Equal(t, 2, h.factory.startCount("telegram"))
 }
+
+func TestStatus_Icon(t *testing.T) {
+	h := newHarness(t)
+	h.install("telegram")
+	h.install("discord")
+	h.installEngine("pi", nil)
+	h.setIcon("telegram", testIcon)
+	h.setIcon("pi", testIcon)
+
+	icons := map[string]string{}
+	list, err := h.m.List(context.Background())
+	require.NoError(t, err)
+	for _, st := range list {
+		icons[st.ID] = st.Icon
+	}
+	assert.Equal(t, map[string]string{"telegram": testIcon, "discord": "", "pi": testIcon}, icons)
+
+	d, err := h.m.Get(context.Background(), "telegram")
+	require.NoError(t, err)
+	assert.Equal(t, testIcon, d.Icon)
+}

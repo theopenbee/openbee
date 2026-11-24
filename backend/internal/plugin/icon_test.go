@@ -107,7 +107,7 @@ func TestValidateIcon_Accepts(t *testing.T) {
 		"fragment href":   `<svg xmlns="http://www.w3.org/2000/svg"><defs><path id="a" d="M0 0h1v1z"/></defs><use href="#a"/></svg>`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.NoError(t, validateIcon([]byte(svg)))
+			assert.NoError(t, ValidateIcon([]byte(svg)))
 		})
 	}
 }

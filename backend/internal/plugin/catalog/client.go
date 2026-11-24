@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 const (
@@ -96,7 +98,17 @@ func parse(data []byte) (Catalog, error) {
 	if cat.SchemaVersion != SchemaVersion {
 		return Catalog{}, fmt.Errorf("catalog schema_version %d is not supported (supported: %d)", cat.SchemaVersion, SchemaVersion)
 	}
+	for i := range cat.Plugins {
+		cat.Plugins[i].Icon = sanitizeIcon(cat.Plugins[i].Icon)
+	}
 	return cat, nil
+}
+
+func sanitizeIcon(icon string) string {
+	if icon == "" || len(icon) > plugin.MaxIconSize || plugin.ValidateIcon([]byte(icon)) != nil {
+		return ""
+	}
+	return icon
 }
 
 func (c *Client) writeCache(raw []byte) {

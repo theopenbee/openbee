@@ -58,6 +58,7 @@ type pluginView struct {
 	State       pluginmgr.State      `json:"state"`
 	Error       string               `json:"error,omitempty"`
 	HasSetup    bool                 `json:"has_setup"`
+	Icon        string               `json:"icon,omitempty"`
 }
 
 type pluginDetailView struct {
@@ -97,7 +98,7 @@ func toPluginView(s pluginmgr.Status) pluginView {
 	return pluginView{
 		ID: s.ID, Package: s.Package, Source: s.Source, Type: s.Type, Version: s.Version, Path: s.Path,
 		Name: s.Name, Description: s.Description, Enabled: s.Enabled, BotName: s.BotName,
-		State: s.State, Error: s.Error, HasSetup: s.HasSetup,
+		State: s.State, Error: s.Error, HasSetup: s.HasSetup, Icon: s.Icon,
 	}
 }
 

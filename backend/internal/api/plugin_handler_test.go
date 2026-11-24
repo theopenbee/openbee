@@ -197,6 +197,22 @@ func TestPluginHandler_List(t *testing.T) {
 	assert.Equal(t, "bee", p["bot_name"])
 	assert.Equal(t, map[string]any{"en": "Telegram"}, p["name"])
 	assert.Equal(t, false, p["has_setup"])
+	assert.NotContains(t, p, "icon")
+}
+
+func TestPluginHandler_ListAndGetIncludeIcon(t *testing.T) {
+	icon := `<svg xmlns="http://www.w3.org/2000/svg"/>`
+	svc := &fakePluginService{
+		statuses: []pluginmgr.Status{{ID: "telegram", State: pluginmgr.StateRunning, Icon: icon}},
+		detail:   pluginmgr.Detail{Status: pluginmgr.Status{ID: "telegram", State: pluginmgr.StateRunning, Icon: icon}},
+	}
+	w, body := doJSON(t, newPluginRouter(svc), http.MethodGet, "/api/plugins", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, icon, body["plugins"].([]any)[0].(map[string]any)["icon"])
+
+	w, body = doJSON(t, newPluginRouter(svc), http.MethodGet, "/api/plugins/telegram", nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, icon, body["icon"])
 }
 
 func TestPluginHandler_ListIncludesType(t *testing.T) {
@@ -245,8 +261,10 @@ func TestPluginHandler_Catalog(t *testing.T) {
 		SchemaVersion: 1,
 		Categories:    []catalog.Vocab{{ID: "channel", Name: plugin.LocalizedText{"en": "Channels"}}},
 		Plugins: []pluginmgr.CatalogPlugin{{
-			Entry:     catalog.Entry{Category: "channel", ID: "telegram", Package: "@theopenbee/channel-telegram", Version: "0.2.0", Official: true},
+			Entry:     catalog.Entry{Category: "channel", ID: "telegram", Package: "@theopenbee/channel-telegram", Version: "0.2.0", Official: true, Icon: `<svg xmlns="http://www.w3.org/2000/svg"/>`},
 			Installed: true, InstalledVersion: "0.1.0", UpdateAvailable: true, Installable: true,
+		}, {
+			Entry: catalog.Entry{Category: "channel", ID: "discord", Version: "0.1.0"},
 		}},
 	}}
 	w, body := doJSON(t, newPluginRouter(svc), http.MethodGet, "/api/plugins/catalog?refresh=1", nil)
@@ -259,6 +277,8 @@ func TestPluginHandler_Catalog(t *testing.T) {
 	assert.Equal(t, "0.1.0", p["installed_version"])
 	assert.Equal(t, true, p["update_available"])
 	assert.Equal(t, true, p["installable"])
+	assert.Equal(t, `<svg xmlns="http://www.w3.org/2000/svg"/>`, p["icon"])
+	assert.NotContains(t, body["plugins"].([]any)[1].(map[string]any), "icon")
 	assert.EqualValues(t, 1, body["schema_version"])
 }
 

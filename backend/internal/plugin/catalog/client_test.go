@@ -13,12 +13,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/theopenbee/openbee/internal/plugin"
 )
 
 func catalogJSON(version string) []byte {
@@ -240,4 +243,32 @@ func TestClient_OverrideDoesNotWriteDiskCache(t *testing.T) {
 	_, err := NewClient(Options{Override: path, CachePath: cachePath}).Get(context.Background(), false)
 	require.NoError(t, err)
 	assert.NoFileExists(t, cachePath)
+}
+
+func TestClient_SanitizesIcons(t *testing.T) {
+	good := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>`
+	icons := map[string]string{
+		"good":      good,
+		"none":      "",
+		"script":    `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`,
+		"not-xml":   `<svg xmlns="http://www.w3.org/2000/svg"><path></svg>`,
+		"not-svg":   `<html/>`,
+		"too-large": `<svg xmlns="http://www.w3.org/2000/svg">` + strings.Repeat(" ", plugin.MaxIconSize) + `</svg>`,
+	}
+	var plugins []any
+	for id, icon := range icons {
+		plugins = append(plugins, map[string]any{"category": "channel", "id": id, "version": "0.1.0", "icon": icon})
+	}
+	data, err := json.Marshal(map[string]any{"schema_version": 1, "plugins": plugins})
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "catalog.json")
+	require.NoError(t, os.WriteFile(path, data, 0o644))
+
+	cat, err := NewClient(Options{Override: path, CachePath: filepath.Join(t.TempDir(), "c.json")}).Get(context.Background(), false)
+	require.NoError(t, err)
+	got := map[string]string{}
+	for _, p := range cat.Plugins {
+		got[p.ID] = p.Icon
+	}
+	assert.Equal(t, map[string]string{"good": good, "none": "", "script": "", "not-xml": "", "not-svg": "", "too-large": ""}, got)
 }

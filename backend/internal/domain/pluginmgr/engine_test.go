@@ -471,21 +471,27 @@ func TestLoadEngines_Synchronous(t *testing.T) {
 	h.waitState("claude", StateReady)
 }
 
-func TestLoadEngines_Icon(t *testing.T) {
-	h := newHarness(t)
-	icon := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>`
-	h.installEngine("pi", nil)
-	h.installEngine("codex", nil)
-	dir := filepath.Join(h.reg.dir, "pkgs", "pi")
+const testIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h24v24H0z"/></svg>`
+
+func (h *harness) setIcon(id, svg string) {
+	h.t.Helper()
+	dir := filepath.Join(h.reg.dir, "pkgs", id)
 	var raw map[string]any
 	data, err := os.ReadFile(filepath.Join(dir, plugin.ManifestFile))
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(data, &raw))
+	require.NoError(h.t, err)
+	require.NoError(h.t, json.Unmarshal(data, &raw))
 	raw["icon"] = "icon.svg"
 	data, err = json.Marshal(raw)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, plugin.ManifestFile), data, 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "icon.svg"), []byte(icon), 0o644))
+	require.NoError(h.t, err)
+	require.NoError(h.t, os.WriteFile(filepath.Join(dir, plugin.ManifestFile), data, 0o644))
+	require.NoError(h.t, os.WriteFile(filepath.Join(dir, "icon.svg"), []byte(svg), 0o644))
+}
+
+func TestLoadEngines_Icon(t *testing.T) {
+	h := newHarness(t)
+	h.installEngine("pi", nil)
+	h.installEngine("codex", nil)
+	h.setIcon("pi", testIcon)
 	h.save("pi", true, "", map[string]any{})
 	h.save("codex", true, "", map[string]any{})
 	h.loadEngines()
@@ -495,7 +501,7 @@ func TestLoadEngines_Icon(t *testing.T) {
 	assert.Equal(t, "codex", engines[0].ID)
 	assert.Empty(t, engines[0].Icon)
 	assert.Equal(t, "pi", engines[1].ID)
-	assert.Equal(t, icon, engines[1].Icon)
+	assert.Equal(t, testIcon, engines[1].Icon)
 }
 
 func TestLoadEngines_WaitCoversChecks(t *testing.T) {
