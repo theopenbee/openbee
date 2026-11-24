@@ -32,7 +32,7 @@ An engine plugin uses the same `openbee.plugin.json` manifest as a channel plugi
 | `name`, `description` | As for channel plugins. `name` is shown wherever engines are listed. |
 | `command` | As for channel plugins, including the [runtime](channel-plugin-protocol.md#runtime) openbee picks for `node`. Run with the plugin directory as working directory. |
 | `version` | Optional. `package.json` `version` wins when present. |
-| `icon` | Optional. Path of an SVG file inside the plugin, shown next to the engine name; without it openbee shows a generic icon. See [Icon](#icon). |
+| `icon` | Optional. Path of an SVG file inside the plugin, shown next to the engine name and in plugin lists; without it openbee shows a generic icon, or the initials of `name` in plugin lists. See [Icon](#icon). |
 | `config[]` | As for channel plugins: `type` is `string`, `secret`, `bool`, `int` or `list`; `required`, `default`, `random_default`, `label` and `help` are optional. `enabled` and `bot_name` are reserved keys. |
 | `setup` | Not allowed; a manifest that declares it is rejected. Logging in to the CLI is up to the user. |
 

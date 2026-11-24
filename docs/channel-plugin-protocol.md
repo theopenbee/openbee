@@ -14,6 +14,7 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
   "description": { "en": "Discord bot channel" },
   "command": ["node", "dist/index.js"],
   "version": "0.1.0",
+  "icon": "icon.svg",
   "config": [
     { "key": "token", "type": "secret", "required": true, "label": { "en": "Bot token", "zh": "机器人 Token" } },
     { "key": "allowed_guilds", "type": "list" },
@@ -31,9 +32,21 @@ A plugin is a directory with an `openbee.plugin.json` manifest at its root:
 | `command` | Program and arguments, run with the plugin directory as working directory. `node` runs on the JavaScript runtime openbee picks (see [Runtime](#runtime)). Otherwise an absolute path is used as-is; a path starting with `.` or containing a separator is relative to the plugin directory; anything else is looked up on `PATH`. |
 | `setup` | Optional. `{"command": [...], "label": ...}`: an interactive step `openbee plugin configure` runs before asking for `config[]`, for platforms that log in with a QR code or a browser instead of a pasted token. `command` follows the same rules as the top-level `command`; `label` names the step in prompts. See [Setup](#setup). |
 | `version` | Optional. `package.json` `version` wins when present. |
+| `icon` | Optional. Path of an SVG file inside the plugin, shown wherever plugins are listed; without it openbee shows the initials of `name`. See [Icon](#icon). |
 | `config[]` | Settings openbee stores for the plugin and validates before starting it. `type` is `string`, `secret`, `bool`, `int` or `list` (list of strings). `required`, `default`, `label` and `help` are optional. `random_default: true` (only for `string`) makes openbee fill in a random value when the field has no value yet, which suits access codes. `enabled` and `bot_name` are reserved keys and cannot be declared. |
 
 One plugin provides exactly one channel.
+
+### Icon
+
+openbee paints the icon in the colour of the text around it, so draw it in one colour with `currentColor`; only its shape and opacity are kept. A manifest whose icon breaks these rules is rejected:
+
+| Rule | |
+|---|---|
+| Location | A relative path inside the plugin directory, ending in `.svg`; not a symlink. Include the file in the npm package. |
+| Size | At most 32 KB. |
+| Root | One `<svg xmlns="http://www.w3.org/2000/svg">` element. A square `viewBox` fits best. |
+| Not allowed | `<script>`, `<foreignObject>`, `on*` attributes, `href` values other than `#id`, DOCTYPE or ENTITY declarations, processing instructions other than `<?xml ...?>`. |
 
 ## Installation
 
@@ -80,8 +93,8 @@ openbee stores each plugin's settings in its database, encrypted with `server.en
 | `PUT /api/plugins/<id>/settings` `{"bot_name": "...", "config": {...}}` | Validates against `config[]` and saves. A `secret` field sent empty keeps its stored value. A `random_default` field that has no value gets a random one. Restarts only this plugin when it is enabled. |
 | `POST /api/plugins/<id>/enable`, `/disable`, `/restart` | Starts or stops only this plugin. |
 | `DELETE /api/plugins/<id>` | Stops the plugin, removes the package, and deletes its settings and `~/.openbee/plugins/data/<id>/`. |
-| `GET /api/plugins`, `GET /api/plugins/<id>` | Lists plugins with their `type` (`channel` or `engine`), state (`not_configured`, `disabled`, `starting`, `running`, `retrying`, `failed`; engines have their own [states](engine-plugin-protocol.md#states)) and last error. Secret values are masked. |
-| `GET /api/plugins/catalog` | Reads the plugin catalog `@theopenbee/plugins` from npm (npmmirror as a fallback, cached for 10 minutes). `OPENBEE_PLUGIN_CATALOG` can point to a local `catalog.json` file or URL. |
+| `GET /api/plugins`, `GET /api/plugins/<id>` | Lists plugins with their `type` (`channel` or `engine`), state (`not_configured`, `disabled`, `starting`, `running`, `retrying`, `failed`; engines have their own [states](engine-plugin-protocol.md#states)), last error and `icon` (SVG markup, left out when the plugin has none). Secret values are masked. |
+| `GET /api/plugins/catalog` | Reads the plugin catalog `@theopenbee/plugins` from npm (npmmirror as a fallback, cached for 10 minutes). `OPENBEE_PLUGIN_CATALOG` can point to a local `catalog.json` file or URL. An entry's `icon` is SVG markup; one that breaks the [icon rules](#icon) is left out. |
 
 When openbee starts it starts every enabled plugin. Before it sends `initialize.config` it applies manifest defaults, checks required fields and types, and leaves out `bot_name`. A plugin that fails to start is marked `failed`; other channels are not affected. `bot_name` behaves as for built-in channels: an `@bot_name` mention is stripped from incoming text, and no worker may use that name.
 
