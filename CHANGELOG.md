@@ -4,6 +4,7 @@
 
 ### Added
 - Chat buttons under replies on web and desktop.
+- First-run guide to install an engine and channels.
 
 ## [1.0.11] - 2026-11-23
 
