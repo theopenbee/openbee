@@ -31,6 +31,7 @@ import {
 import { useWorkers } from "@/hooks/use-workers"
 import { chatReducer, createMessageId, EMPTY_CHAT } from "@/lib/chat-messages"
 import {
+  beeActivity,
   composerDisabled,
   groupStarts,
   headerSubtitle,
@@ -56,7 +57,6 @@ import {
 import { cn, getErrorMessage } from "@/lib/utils"
 
 const IDLE: ConversationActivity = { state: "idle" }
-const BEE_BUSY: ConversationActivity = { state: "running" }
 const EMPTY_WORKERS: Worker[] = []
 
 function isShowing(conversation: ConversationId) {
@@ -95,7 +95,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const { data: conversations } = useConversations()
   const [beeBusy, setBeeBusy] = useState(false)
   const summaryActivity = conversations?.find((item) => item.id === conversation)?.activity ?? IDLE
-  const activity = isBee ? (beeBusy ? BEE_BUSY : IDLE) : summaryActivity
+  const activity = isBee ? beeActivity(summaryActivity, beeBusy) : summaryActivity
   const status = statusText(activity, worker, t)
   const busy = activity.state !== "idle"
   const executionId = activity.state === "running" ? activity.execution_id : undefined
@@ -156,6 +156,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
       if (id === conversation) dispatch({ type: "update", message })
     },
     onTask: (event) => {
+      if (isBee && event.conversation_id === conversation) setBeeBusy(false)
       if (showsHandoffTask(messages, event.task_id)) void refetch()
     },
     onResync: () => {

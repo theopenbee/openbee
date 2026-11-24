@@ -3,6 +3,7 @@ import { ApiError } from "../api"
 import type { ChatMessage, Worker } from "../types"
 import {
   activeTasksOf,
+  beeActivity,
   choiceStateOf,
   composerDisabled,
   groupStarts,
@@ -115,6 +116,19 @@ describe("groupStarts", () => {
     ]
 
     expect(groupStarts(messages)).toEqual([true, true, true, false])
+  })
+})
+
+describe("beeActivity", () => {
+  it("shows the server activity of a Bee run", () => {
+    const running = { state: "running", execution_id: "bee-1" } as const
+    expect(beeActivity(running, false)).toEqual(running)
+    expect(beeActivity(running, true)).toEqual(running)
+  })
+
+  it("bridges the gap before the Bee run starts", () => {
+    expect(beeActivity({ state: "idle" }, true)).toEqual({ state: "running" })
+    expect(beeActivity({ state: "idle" }, false)).toEqual({ state: "idle" })
   })
 })
 

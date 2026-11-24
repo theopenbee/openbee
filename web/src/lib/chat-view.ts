@@ -59,6 +59,12 @@ export function groupStarts(messages: ChatMessage[]): boolean[] {
   })
 }
 
+const BEE_BUSY: ConversationActivity = { state: "running" }
+
+export function beeActivity(server: ConversationActivity, awaitingBee: boolean): ConversationActivity {
+  return awaitingBee && server.state === "idle" ? BEE_BUSY : server
+}
+
 export function composerDisabled(activity: ConversationActivity): boolean {
   return false
 }

@@ -7,6 +7,7 @@ import { Button } from "@/components/arc/button/button"
 import { Select } from "@/components/arc/select/select"
 import { TextShimmer } from "@/components/arc/text-shimmer/text-shimmer"
 import { EngineIcon } from "@/components/agent-icons/engine-icon"
+import { BeeAvatar } from "@/components/chat/bee-avatar"
 import { ExecutionSteps } from "@/components/chat/execution-steps"
 import { WorkerAvatar } from "@/components/worker-avatar"
 import { useEnabledEngines } from "@/hooks/use-config"
@@ -14,7 +15,7 @@ import { executionGone, useExecution } from "@/hooks/use-execution"
 import { useWorkers } from "@/hooks/use-workers"
 import { formatMessageTimestamp } from "@/lib/chat-format"
 import { findEngine } from "@/lib/engines"
-import { formatDuration, knownSteps, stepStats, switcherRuns } from "@/lib/execution"
+import { formatDuration, isBeeRun, knownSteps, stepStats, switcherRuns } from "@/lib/execution"
 import type { EngineChoice, ExecutionDetail, ExecutionStatus, ExecutionStep, ExecutionSummary, Worker } from "@/lib/types"
 
 const STATUS_TONE: Record<ExecutionStatus, BadgeTone> = {
@@ -114,16 +115,21 @@ function ExecutionSummary({ execution, worker, engine, onSelectRun }: ExecutionV
   const duration = end === null ? null : formatDuration(end - execution.started_at, t)
   const instruction = execution.instruction.replaceAll("`", "").trim()
   const runs = switcherRuns(execution)
+  const bee = isBeeRun(execution)
 
   return (
     <div className="grid gap-3 border-b border-border pb-5">
       <div className="flex min-w-0 items-center gap-2.5">
-        {worker ? (
+        {bee ? (
+          <BeeAvatar size="sm" />
+        ) : worker ? (
           <WorkerAvatar workerId={worker.id} name={worker.name} size="sm" />
         ) : (
           <Avatar name="?" size="sm" aria-hidden="true" />
         )}
-        <span className="truncate text-sm font-medium text-foreground">{worker?.name ?? t("chat.deletedWorker")}</span>
+        <span className="truncate text-sm font-medium text-foreground">
+          {bee ? t("chat.beeLabel") : (worker?.name ?? t("chat.deletedWorker"))}
+        </span>
         <Badge tone={STATUS_TONE[execution.status]} size="sm" className="ml-auto shrink-0">
           {t(`execution.status.${execution.status}`)}
         </Badge>

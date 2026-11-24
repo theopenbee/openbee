@@ -61,6 +61,14 @@ describe("ExecutionView", () => {
     expect(html).toContain("Took 3m 12s")
   })
 
+  it("shows the Bee for a Bee run", () => {
+    const html = render(execution({ task_id: "", worker_id: "", instruction: "Plan my day" }))
+    expect(html).toContain("Bee")
+    expect(html).not.toContain("Lin")
+    expect(html).not.toContain("Deleted worker")
+    expect(html).toContain("Plan my day")
+  })
+
   it("explains an engine plugin without transcript support", () => {
     const html = render(execution({ steps_error: "transcript_unsupported" }))
     expect(html).toContain("This engine plugin can&#x27;t show the process yet. Update it in Settings → Plugins.")

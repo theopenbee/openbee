@@ -100,6 +100,10 @@ export function stepStats(steps: readonly ExecutionStep[]): { steps: number; too
   return { steps: steps.length, tools: steps.filter((step) => step.type === "tool").length }
 }
 
+export function isBeeRun(execution: ExecutionDetail): boolean {
+  return execution.worker_id === ""
+}
+
 export function switcherRuns(execution: ExecutionDetail): ExecutionSummary[] {
   const runs = execution.runs ?? []
   if (runs.length === 0 || runs.some((run) => run.id === execution.id)) return runs

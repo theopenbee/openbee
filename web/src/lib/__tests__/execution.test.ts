@@ -6,6 +6,7 @@ import {
   diffStats,
   formatDuration,
   handoffRunLabel,
+  isBeeRun,
   isToolKind,
   knownSteps,
   splitThinking,
@@ -128,6 +129,11 @@ describe("switcherRuns", () => {
 
   it("is empty for a task that ran once", () => {
     expect(switcherRuns(detail())).toEqual([])
+  })
+
+  it("tells Bee runs from worker runs", () => {
+    expect(isBeeRun(detail({ task_id: "", worker_id: "" }))).toBe(true)
+    expect(isBeeRun(detail())).toBe(false)
   })
 
   it("keeps the runs when they include the open execution", () => {
