@@ -585,3 +585,17 @@ func TestRunLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestBeeRunShowsTheBee(t *testing.T) {
+	bee := detail("completed", func(e *api.ExecutionDetail) {
+		e.TaskID, e.WorkerID, e.Instruction = "", "", "Plan my day"
+	})
+	f := open(t, wideW, api.BeeConversation, "e1", seeded(bee))
+	f.wantShown("Plan my day", locales.ExecutionStatusCompleted())
+	f.wantHidden(locales.ChatDeletedWorker())
+
+	worker := open(t, wideW, api.BeeConversation, "e1", seeded(detail("completed")))
+	if got, base := f.count(locales.ChatBeeLabel()), worker.count(locales.ChatBeeLabel()); got != base+1 {
+		t.Fatalf("Bee label shown %d times, want %d", got, base+1)
+	}
+}

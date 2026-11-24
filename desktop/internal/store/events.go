@@ -317,6 +317,9 @@ func (s *Store) handleEvent(ev api.ChatEvent) {
 		s.patchDetailStatus(ev.WorkerID, ev.Status)
 	}
 	if ev.Type == "task" {
+		if ch, ok := s.chats[ev.ConversationID]; ok && ch.isBee() {
+			ch.BeeBusy = false
+		}
 		s.refreshHandoffs(ev.TaskID)
 	}
 	if ev.Message == nil {

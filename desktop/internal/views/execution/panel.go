@@ -152,10 +152,14 @@ func (p *Panel) summary(c *ui.Context, tk theme.Tokens, param string, e api.Exec
 	ui.Column(c).MinWidth(0).Gap(summaryGap).Padding(0, 0, summaryBelow, 0).BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).Children(func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(identityGap).Children(func() {
 			name := locales.ChatDeletedWorker()
-			if known {
+			switch {
+			case model.IsBeeRun(e):
+				name = locales.ChatBeeLabel()
+				kit.BeeAvatar(c, tk, kit.AvatarSM)
+			case known:
 				name = w.Name
 				kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, false)
-			} else {
+			default:
 				kit.UnknownAvatar(c, tk, kit.AvatarSM)
 			}
 			ui.Text(c, name).FontSize(textSize).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().Grow(1).MinWidth(0)

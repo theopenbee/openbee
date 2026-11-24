@@ -2,6 +2,7 @@ package chat_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -169,4 +170,58 @@ func TestHandoffRunRefreshesOnTaskEvents(t *testing.T) {
 	f.Fix.Await(t, func() bool { return reads() > before })
 	f.settleMotion()
 	f.wantShown(execution.RunLabel(*done.Handoff.Run, true))
+}
+
+func beeRunning(executionID string) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		running := api.ConversationActivity{State: "running", ExecutionID: executionID}
+		if i := slices.IndexFunc(st.Conversations, func(c api.ConversationSummary) bool { return c.ID == api.BeeConversation }); i >= 0 {
+			st.Conversations[i].Activity = running
+			return
+		}
+		st.Conversations = append(st.Conversations, api.ConversationSummary{ID: api.BeeConversation, Kind: "bee", Activity: running})
+	}
+}
+
+func TestBeeActivityBarOpensTheProcess(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, both(seedChat(team(), api.BeeConversation), beeRunning("be1")))
+	f.wantShown(locales.ChatStatusRunning(), locales.ExecutionShow())
+	f.click(locales.ExecutionShow())
+	f.wantLocation(route.ChatRun(api.BeeConversation, "be1"))
+}
+
+func TestBeeRunKeepsTheBarUntilItEnds(t *testing.T) {
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation))
+	ch := f.Store.Chat(api.BeeConversation)
+	ch.BeeBusy = true
+	f.settleMotion()
+	f.wantShown(locales.ChatStatusRunning())
+	f.wantHidden(locales.ExecutionShow())
+
+	f.Fake.Emit(api.ChatEvent{Type: "task", ConversationID: api.BeeConversation, TaskID: "be2", State: "running", ExecutionID: "be2"})
+	f.Fix.Await(t, func() bool { f.T.Frame(); return f.shows(locales.ExecutionShow()) })
+	if ch.BeeBusy {
+		t.Fatal("the Bee run event leaves the local busy guess on")
+	}
+
+	f.Fake.Reply(api.BeeConversation, api.ChatMessage{ID: "b1", Sender: api.ChatSender{Type: "bee"}, Content: "On it", ExecutionID: "be2"})
+	f.Fix.Await(t, func() bool { f.T.Frame(); return f.shows("On it") })
+	f.settleMotion()
+	f.wantShown(locales.ChatStatusRunning())
+
+	f.Fake.Emit(api.ChatEvent{Type: "task", ConversationID: api.BeeConversation, TaskID: "be2", State: "completed"})
+	f.Fix.Await(t, func() bool { return f.activityOf(api.BeeConversation) == "idle" })
+	f.settleMotion()
+	f.wantHidden(locales.ChatStatusRunning())
+}
+
+func TestBeeReplyOpensItsProcess(t *testing.T) {
+	traced := message("m1", "bee", "", "Handed it to Alice", time.Now().Add(-time.Hour))
+	traced.ExecutionID = "be3"
+	f := newFixture(t, wideW, wideH, api.BeeConversation, seedChat(team(), api.BeeConversation, traced))
+	reply, _ := f.T.Find("Handed it to Alice")
+	f.T.Move(reply.X+reply.W/2, reply.Y+reply.H/2)
+	f.settleMotion()
+	f.click(locales.ExecutionShow())
+	f.wantLocation(route.ChatRun(api.BeeConversation, "be3"))
 }

@@ -103,6 +103,10 @@ func StepStats(steps []api.ExecutionStep) (count, tools int) {
 	return len(steps), tools
 }
 
+func IsBeeRun(e api.ExecutionDetail) bool {
+	return e.WorkerID == ""
+}
+
 func SwitcherRuns(e api.ExecutionDetail) []api.ExecutionSummary {
 	if len(e.Runs) == 0 || slices.ContainsFunc(e.Runs, func(r api.ExecutionSummary) bool { return r.ID == e.ID }) {
 		return e.Runs

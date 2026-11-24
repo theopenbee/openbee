@@ -215,12 +215,14 @@ func (v *View) resolve(cid string, cs *convState) (*api.Worker, bool) {
 }
 
 func (v *View) activity(cid string) api.ConversationActivity {
-	if isBee(cid) {
-		if v.s.Chat(cid).BeeBusy {
-			return api.ConversationActivity{State: stateRunning}
-		}
-		return api.ConversationActivity{State: stateIdle}
+	act := v.serverActivity(cid)
+	if isBee(cid) && act.State == stateIdle && v.s.Chat(cid).BeeBusy {
+		return api.ConversationActivity{State: stateRunning}
 	}
+	return act
+}
+
+func (v *View) serverActivity(cid string) api.ConversationActivity {
 	if v.s.Conversations.Loaded {
 		for _, sum := range v.s.Conversations.Data {
 			if sum.ID == cid {
