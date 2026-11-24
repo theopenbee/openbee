@@ -61,6 +61,8 @@ func strPtr(s string) *string { return &s }
 
 func int64Ptr(n int64) *int64 { return &n }
 
+func intPtr(n int) *int { return &n }
+
 func mapPtr(m map[string]string) *map[string]string { return &m }
 
 const workerJSON = `{"id":"w1","name":"Ada","description":"d","constraints":"c","work_dir":"/w","engine":"","engine_args":{},"status":"idle","permission_scopes":"","created_at":1700,"updated_at":1701}`
@@ -378,6 +380,19 @@ func TestEndpoints(t *testing.T) {
 			body:   `{"id":"m1","content":" ","media_paths":["a.png"]}`,
 			status: 202, response: `{"id":"m1","ts":1700}`,
 			want: SendMessageResponse{ID: "m1", TS: 1700},
+		},
+		{
+			name:   "choose button",
+			call:   func(c *Client) (any, error) { return c.ChooseButton(ctx, "worker:w1", "m:1", 0) },
+			method: "POST", uri: "/api/local/conversations/worker%3Aw1/messages/m%3A1/choice",
+			body:   `{"index":0}`,
+			status: 200,
+			response: `{"id":"m:1","sender":{"type":"worker","id":"w1"},"kind":"message","content":"Pick one","ts":1700,` +
+				`"buttons":[{"label":"Ship"},{"label":"Drop","style":"danger"}],"choice":0}`,
+			want: ChatMessage{
+				ID: "m:1", Sender: ChatSender{Type: "worker", ID: "w1"}, Kind: "message", Content: "Pick one", TS: 1700,
+				Buttons: []ChatButton{{Label: "Ship"}, {Label: "Drop", Style: ButtonDanger}}, Choice: intPtr(0),
+			},
 		},
 		{
 			name:   "mark read with timestamp",

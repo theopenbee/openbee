@@ -31,6 +31,8 @@ type ButtonOpts struct {
 	Icon     string
 	Loading  bool
 	Disabled bool
+	Inert    bool
+	Wrap     bool
 	Label    string
 	Shortcut string
 }
@@ -41,6 +43,7 @@ const (
 	smallFontSize    = 12
 	mediumWeight     = 500
 	buttonGap        = 8
+	buttonBorder     = 1
 	buttonIconSize   = 16
 	iconButtonGlyph  = 18
 	buttonSpinPeriod = 700 * time.Millisecond
@@ -73,6 +76,10 @@ func (s Size) paddingX() float32 {
 		return 20
 	}
 	return 16
+}
+
+func (s Size) wrapPaddingY() float32 {
+	return (s.height()-bodyFontSize*theme.BodyLineHeight)/2 - buttonBorder
 }
 
 type buttonLook struct {
@@ -120,12 +127,20 @@ func Button(c *ui.Context, tk theme.Tokens, text string, o ButtonOpts) ui.Elemen
 	}
 	b := button(c, tk, o, label, pressScale, func() {
 		if o.Icon != "" {
-			ui.Icon(c, icons.Get(o.Icon)).Size(buttonIconSize, buttonIconSize)
+			ui.Icon(c, icons.Get(o.Icon)).Size(buttonIconSize, buttonIconSize).Shrink(0)
 		}
-		if text != "" {
+		if text == "" {
+			return
+		}
+		if o.Wrap {
+			ui.Text(c, text).MinWidth(0)
+		} else {
 			ui.Text(c, text).SingleLine()
 		}
 	})
+	if o.Wrap {
+		b.PaddingY(o.Size.wrapPaddingY())
+	}
 	return b.PaddingX(o.Size.paddingX())
 }
 
@@ -144,15 +159,16 @@ func IconButton(c *ui.Context, tk theme.Tokens, icon, label string, o ButtonOpts
 func button(c *ui.Context, tk theme.Tokens, o ButtonOpts, label string, squeeze float32, content func()) ui.Element {
 	b := ui.ButtonBase(c).Label(label).Disabled(o.Disabled).MinHeight(o.Size.height()).Gap(buttonGap).
 		Radius(theme.RadiusControl).FontSize(bodyFontSize).FontWeight(mediumWeight)
-	if o.Loading {
+	blocked := o.Loading || o.Inert
+	if blocked {
 		b.HandleInput(swallowActivation)
 	}
-	interactive := !o.Loading && !o.Disabled
+	interactive := !blocked && !o.Disabled
 	hovered := interactive && b.Hovered()
 	pressed := interactive && b.Pressed()
 	look := lookOf(tk, o.Variant, hovered, pressed)
 	b.Background(b.AnimateColor("bg", look.bg, fast)).
-		Border(1, b.AnimateColor("border", look.border, fast)).
+		Border(buttonBorder, b.AnimateColor("border", look.border, fast)).
 		TextColor(b.AnimateColor("fg", look.fg, fast)).
 		Opacity(b.AnimateTo("opacity", look.opacity, fast))
 	if look.shadow {
@@ -170,9 +186,15 @@ func button(c *ui.Context, tk theme.Tokens, o ButtonOpts, label string, squeeze 
 	}
 	labelOpacity = b.AnimateTo("label", labelOpacity, fast)
 	return b.Children(func() {
-		ui.Row(c).Gap(buttonGap).Center().Opacity(labelOpacity).Children(content)
+		row := ui.Row(c).Gap(buttonGap).Center().Opacity(labelOpacity)
+		if o.Wrap {
+			row.MinWidth(0)
+		}
+		row.Children(content)
 		if o.Loading {
 			spin(c, buttonIconSize, buttonSpinPeriod).Attach(ui.AnchorCenter, ui.AnchorCenter)
+		}
+		if blocked {
 			ui.ButtonBase(c).Disabled(true).Role(ui.RoleNone).Absolute().Top(0).Right(0).Bottom(0).Left(0)
 		}
 	})

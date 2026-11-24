@@ -97,6 +97,15 @@ func (c *Client) SendMessage(ctx context.Context, cid string, req SendMessageReq
 	return out, err
 }
 
+func (c *Client) ChooseButton(ctx context.Context, cid, mid string, index int) (ChatMessage, error) {
+	body := struct {
+		Index int `json:"index"`
+	}{Index: index}
+	var out ChatMessage
+	err := c.Do(ctx, http.MethodPost, conversationPath(cid)+"/messages/"+escapeSegment(mid)+"/choice", body, &out)
+	return out, err
+}
+
 func (c *Client) MarkRead(ctx context.Context, cid string, ts int64) error {
 	body := struct {
 		TS int64 `json:"ts,omitempty"`

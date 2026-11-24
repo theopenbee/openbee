@@ -868,3 +868,127 @@ func TestReadMediaWithLimit(t *testing.T) {
 		t.Fatalf("cache entries = %v, want reads to leave the cache alone", entries)
 	}
 }
+
+func choicePath(cid, mid string) string {
+	return conversationPath(cid, "messages/"+mid+"/choice")
+}
+
+func withQuestion(cid string) func(st *fakeapi.State) {
+	return func(st *fakeapi.State) {
+		team(st)
+		sender := api.ChatSender{Type: "bee"}
+		if id, ok := api.ConversationWorkerID(cid); ok {
+			sender = api.ChatSender{Type: "worker", ID: id}
+		}
+		st.Messages[cid] = []api.ChatMessage{{
+			ID: "q1", Sender: sender, Kind: "message", Content: "Ship it?", TS: 1000,
+			Buttons: []api.ChatButton{{Label: "Ship"}, {Label: "Drop", Style: api.ButtonDanger}},
+		}}
+	}
+}
+
+func choiceOf(ch *store.Chat, id string) *int {
+	for _, m := range ch.List.Msgs {
+		if m.ID == id {
+			return m.Choice
+		}
+	}
+	return nil
+}
+
+func TestChooseAppliesTheChoice(t *testing.T) {
+	st, fake, fix := loaded(t, withQuestion("bee"))
+	ch := ensured(t, st, fix, "bee")
+
+	var got []error
+	ch.Choose("q1", 1, func(err error) { got = append(got, err) })
+	ch.Choose("q1", 0, func(err error) { got = append(got, err) })
+	if index, ok := ch.Choosing("q1"); !ok || index != 1 || !ch.BeeBusy {
+		t.Fatalf("Choosing = %d, %v BeeBusy=%v right after Choose, want 1 in flight and busy", index, ok, ch.BeeBusy)
+	}
+	fix.Settle(t)
+
+	if len(got) != 1 || got[0] != nil {
+		t.Fatalf("done = %v, want one nil", got)
+	}
+	if n := countCalls(fake, "POST", choicePath("bee", "q1")); n != 1 {
+		t.Fatalf("choice calls = %d, want the second click ignored", n)
+	}
+	var req struct {
+		Index *int `json:"index"`
+	}
+	lastBody(t, fake, "POST", choicePath("bee", "q1"), &req)
+	if req.Index == nil || *req.Index != 1 {
+		t.Fatalf("choice request index = %v, want 1", req.Index)
+	}
+	if _, ok := ch.Choosing("q1"); ok {
+		t.Fatal("still choosing after the reply")
+	}
+	if c := choiceOf(ch, "q1"); c == nil || *c != 1 {
+		t.Fatalf("choice = %v, want 1", c)
+	}
+	fix.Await(t, func() bool { return len(ch.List.Msgs) == 2 })
+	posted := ch.List.Msgs[1]
+	if posted.Sender.Type != "user" || posted.Content != "Drop" || posted.ID == "q1" {
+		t.Fatalf("posted message = %+v, want the button text from the user", posted)
+	}
+	if !ch.BeeBusy {
+		t.Fatal("BeeBusy cleared before the Bee replied")
+	}
+
+	fake.Reply("bee", api.ChatMessage{ID: "b1", Content: "Dropped"})
+	fix.Await(t, func() bool { return hasMessage(ch, "b1") })
+	if ch.BeeBusy {
+		t.Fatal("BeeBusy still set after the Bee replied")
+	}
+}
+
+func TestChooseTakenRefreshes(t *testing.T) {
+	st, fake, fix := loaded(t, withQuestion("worker:w1"))
+	ch := ensured(t, st, fix, "worker:w1")
+	fake.Update(func(s *fakeapi.State) {
+		taken := 0
+		s.Messages["worker:w1"][0].Choice = &taken
+	})
+
+	err := call(t, fix, func(done func(error)) { ch.Choose("q1", 1, done) })
+	if !api.IsStatus(err, http.StatusConflict) {
+		t.Fatalf("Choose = %v, want 409", err)
+	}
+	if _, ok := ch.Choosing("q1"); ok || ch.BeeBusy {
+		t.Fatalf("Choosing=%v BeeBusy=%v after the conflict", ok, ch.BeeBusy)
+	}
+	if n := countCalls(fake, "GET", conversationPath("worker:w1", "messages")); n != 2 {
+		t.Fatalf("message calls = %d, want a refresh after the conflict", n)
+	}
+	if c := choiceOf(ch, "q1"); c == nil || *c != 0 {
+		t.Fatalf("choice after the refresh = %v, want the one taken elsewhere", c)
+	}
+	if len(ch.List.Msgs) != 1 {
+		t.Fatalf("messages = %+v, want nothing posted", ch.List.Msgs)
+	}
+}
+
+func TestChooseFailureLeavesButtonsOpen(t *testing.T) {
+	st, fake, fix := loaded(t, withQuestion("bee"))
+	ch := ensured(t, st, fix, "bee")
+	fake.FailNext("POST", choicePath("bee", "q1"), http.StatusServiceUnavailable, map[string]any{"error": "message queue is full"})
+
+	err := call(t, fix, func(done func(error)) { ch.Choose("q1", 0, done) })
+	if !api.IsStatus(err, http.StatusServiceUnavailable) {
+		t.Fatalf("Choose = %v, want 503", err)
+	}
+	if _, ok := ch.Choosing("q1"); ok || ch.BeeBusy || choiceOf(ch, "q1") != nil {
+		t.Fatalf("Choosing=%v BeeBusy=%v choice=%v after the failure, want open buttons", ok, ch.BeeBusy, choiceOf(ch, "q1"))
+	}
+	if n := countCalls(fake, "GET", conversationPath("bee", "messages")); n != 1 {
+		t.Fatalf("message calls = %d, want no refresh after a failure", n)
+	}
+
+	if err := call(t, fix, func(done func(error)) { ch.Choose("q1", 0, done) }); err != nil {
+		t.Fatalf("retry Choose = %v", err)
+	}
+	if c := choiceOf(ch, "q1"); c == nil || *c != 0 {
+		t.Fatalf("choice after the retry = %v, want 0", c)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"sync"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -83,6 +84,14 @@ func (s *Server) SkipSeq(n int) {
 
 func (s *Server) applyEvent(ev api.ChatEvent) {
 	switch ev.Type {
+	case "message_update":
+		if ev.Message == nil {
+			return
+		}
+		msgs := s.st.Messages[ev.ConversationID]
+		if i := slices.IndexFunc(msgs, func(m api.ChatMessage) bool { return m.ID == ev.Message.ID }); i >= 0 {
+			msgs[i] = *ev.Message
+		}
 	case "worker_status":
 		if i := s.workerIndex(ev.WorkerID); i >= 0 {
 			s.st.Workers[i].Status = ev.Status

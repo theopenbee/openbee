@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"math"
+	"net/http"
 	"slices"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -32,6 +33,7 @@ type Chat struct {
 	seq       uint64
 	stale     bool
 	busySince int64
+	choosing  map[string]int
 }
 
 func (s *Store) Chat(cid string) *Chat {
@@ -173,6 +175,49 @@ func (ch *Chat) Send(text string, media []string, done func(error)) {
 	}, canceledBy(done))
 }
 
+func (ch *Chat) Choosing(id string) (int, bool) {
+	index, ok := ch.choosing[id]
+	return index, ok
+}
+
+func (ch *Chat) Choose(id string, index int, done func(error)) {
+	done = orNop(done)
+	if _, busy := ch.choosing[id]; busy {
+		return
+	}
+	if ch.choosing == nil {
+		ch.choosing = map[string]int{}
+	}
+	ch.choosing[id] = index
+	bee := ch.isBee() && !ch.BeeBusy
+	if bee {
+		ch.BeeBusy = true
+		ch.busySince = math.MaxInt64
+	}
+	cid := ch.ID
+	ch.s.async(func(ctx context.Context, c *api.Client) func() {
+		updated, err := c.ChooseButton(ctx, cid, id, index)
+		return func() {
+			delete(ch.choosing, id)
+			if err != nil {
+				if bee {
+					ch.BeeBusy = false
+				}
+				if api.IsStatus(err, http.StatusConflict) {
+					ch.Refresh()
+				}
+				done(err)
+				return
+			}
+			ch.update(updated)
+			if bee {
+				ch.busySince = updated.TS + 1
+			}
+			done(nil)
+		}
+	}, canceledBy(done))
+}
+
 func (ch *Chat) MarkRead(ts int64) {
 	s := ch.s
 	if s.active != ch.ID || !s.foreground {
@@ -237,6 +282,10 @@ func (ch *Chat) receive(m api.ChatMessage) {
 	ch.MarkRead(m.TS)
 }
 
+func (ch *Chat) update(m api.ChatMessage) {
+	ch.List = ch.List.Replace(m)
+}
+
 func (ch *Chat) resync() {
 	switch {
 	case !ch.Loaded && !ch.Loading && ch.Err == nil:
@@ -265,4 +314,5 @@ func (ch *Chat) reset() {
 	ch.BeeBusy = false
 	ch.Stopping = false
 	ch.Clearing = false
+	ch.choosing = nil
 }

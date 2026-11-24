@@ -875,6 +875,67 @@ func TestReplyStoresUpdatesSummaryAndEmits(t *testing.T) {
 	}
 }
 
+func TestChooseButtonUpdatesAndPostsTheChoice(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	s.fake.Reply("bee", api.ChatMessage{ID: "q1", Content: "Ship it?", Buttons: []api.ChatButton{{Label: "Yes"}, {Label: "No", Style: api.ButtonDanger}}})
+	s.fake.Reply("bee", api.ChatMessage{ID: "plain", Content: "No buttons"})
+	stream := openChat(t, s)
+
+	for _, tc := range []struct {
+		name  string
+		cid   string
+		mid   string
+		index int
+		want  int
+	}{
+		{"index out of range", "bee", "q1", 2, 400},
+		{"negative index", "bee", "q1", -1, 400},
+		{"message without buttons", "bee", "plain", 0, 400},
+		{"unknown message", "bee", "ghost", 0, 404},
+		{"unknown conversation", "worker:ghost", "q1", 0, 404},
+	} {
+		if _, err := s.client.ChooseButton(c, tc.cid, tc.mid, tc.index); apiError(t, err).Status != tc.want {
+			t.Errorf("%s: %v, want status %d", tc.name, err, tc.want)
+		}
+	}
+	stream.quiet(t)
+
+	got, err := s.client.ChooseButton(c, "bee", "q1", 1)
+	if err != nil || got.ID != "q1" || got.Choice == nil || *got.Choice != 1 || len(got.Buttons) != 2 {
+		t.Fatalf("ChooseButton = %+v, %v", got, err)
+	}
+	update := stream.chatEvent(t)
+	if update.Type != "message_update" || update.ConversationID != "bee" || update.Message == nil || update.Message.ID != "q1" ||
+		update.Message.Choice == nil || *update.Message.Choice != 1 {
+		t.Fatalf("update event = %+v", update)
+	}
+	posted := stream.chatEvent(t)
+	if posted.Type != "message" || posted.Seq != update.Seq+1 || posted.Message == nil || posted.Message.Sender.Type != "user" ||
+		posted.Message.Content != "No" || posted.Message.ID == "" {
+		t.Fatalf("posted event = %+v", posted)
+	}
+
+	if _, err := s.client.ChooseButton(c, "bee", "q1", 0); apiError(t, err).Status != 409 {
+		t.Fatalf("second choice: %v, want 409", err)
+	}
+	stream.quiet(t)
+	page, err := s.client.Messages(c, "bee", 0, 0)
+	if err != nil || len(page.Messages) != 3 || page.Messages[0].Choice == nil || *page.Messages[0].Choice != 1 ||
+		page.Messages[2].ID != posted.Message.ID {
+		t.Fatalf("history after choosing = %+v, %v", page.Messages, err)
+	}
+
+	choice := 0
+	s.fake.Emit(api.ChatEvent{Type: "message_update", ConversationID: "bee", Message: &api.ChatMessage{ID: "plain", Content: "Edited", Choice: &choice}})
+	if ev := stream.chatEvent(t); ev.Type != "message_update" || ev.Message.Content != "Edited" {
+		t.Fatalf("emitted update = %+v", ev)
+	}
+	if stored := s.fake.Snapshot().Messages["bee"][1]; stored.Content != "Edited" {
+		t.Fatalf("stored after an emitted update = %+v", stored)
+	}
+}
+
 func TestMarkReadWithTimestampKeepsNewerUnread(t *testing.T) {
 	s := signedIn(t)
 	c := ctx(t)

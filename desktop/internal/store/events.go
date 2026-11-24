@@ -319,7 +319,16 @@ func (s *Store) handleEvent(ev api.ChatEvent) {
 	if ev.Type == "task" {
 		s.refreshHandoffs(ev.TaskID)
 	}
-	if ev.Type != "message" || ev.Message == nil {
+	if ev.Message == nil {
+		return
+	}
+	if ev.Type == "message_update" {
+		if ch, ok := s.chats[ev.ConversationID]; ok {
+			ch.update(*ev.Message)
+		}
+		return
+	}
+	if ev.Type != "message" {
 		return
 	}
 	m := *ev.Message

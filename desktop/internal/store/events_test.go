@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -511,5 +512,50 @@ func TestReconnectRestartsLiveStream(t *testing.T) {
 	fix.Await(t, func() bool { return fake.Streams() == 1 })
 	if st.Offline {
 		t.Fatal("Offline after a forced reconnect")
+	}
+}
+
+func TestEventMessageUpdateReplacesQuietly(t *testing.T) {
+	st, fake, fix := notifying(t, func(s *fakeapi.State) {
+		withQuestion("worker:w1")(s)
+		s.Conversations = []api.ConversationSummary{
+			{ID: "bee", Kind: "bee", Activity: api.ConversationActivity{State: "idle"}},
+			{ID: "worker:w1", Kind: "worker", WorkerID: "w1", Unread: 2, Activity: api.ConversationActivity{State: "idle"},
+				LastMessage: &api.LastMessage{Sender: api.ChatSender{Type: "worker", ID: "w1"}, Kind: "message", Preview: "Ship it?", TS: 1000}},
+		}
+	})
+	ch := ensured(t, st, fix, "worker:w1")
+	var heard []string
+	st.OnMessage(func(cid string, m api.ChatMessage) { heard = append(heard, cid+"/"+m.ID) })
+	before := summaryOf(t, st, "worker:w1")
+	badge := fix.Notifier.Unread
+
+	updated := fake.Snapshot().Messages["worker:w1"][0]
+	chosen := 1
+	updated.Choice = &chosen
+	fake.Emit(api.ChatEvent{Type: "message_update", ConversationID: "worker:w1", Message: &updated})
+	ghost := api.ChatMessage{ID: "ghost", Sender: api.ChatSender{Type: "worker", ID: "w9"}, Kind: "message", Content: "unseen", TS: 2000}
+	fake.Emit(api.ChatEvent{Type: "message_update", ConversationID: "worker:w1", Message: &ghost})
+	fake.Emit(api.ChatEvent{Type: "message_update", ConversationID: "worker:w2", Message: &ghost})
+	fix.Await(t, func() bool { c := choiceOf(ch, "q1"); return c != nil && *c == 1 })
+	fix.Settle(t)
+
+	if ids := chatIDs(ch); !slices.Equal(ids, []string{"q1"}) {
+		t.Fatalf("messages = %v, want only the updated one", ids)
+	}
+	if got := summaryOf(t, st, "worker:w1"); got.Unread != before.Unread || !reflect.DeepEqual(got.LastMessage, before.LastMessage) {
+		t.Fatalf("summary = %+v / %+v, want unchanged %+v", got, got.LastMessage, before)
+	}
+	if len(heard) != 0 || len(fix.Notifier.Shown) != 0 || fix.Notifier.Unread != badge {
+		t.Fatalf("listeners %v, notifications %v, badge %d, want none and %d", heard, fix.Notifier.Shown, fix.Notifier.Unread, badge)
+	}
+	if n := countCalls(fake, "GET", "/api/local/conversations"); n != 1 {
+		t.Fatalf("conversation list calls = %d, want no refetch", n)
+	}
+	if n := countCalls(fake, "GET", "/api/workers"); n != 1 {
+		t.Fatalf("worker list calls = %d, want no refetch", n)
+	}
+	if n := countCalls(fake, "GET", conversationPath("worker:w1", "messages")); n != 1 {
+		t.Fatalf("message calls = %d, want no resync", n)
 	}
 }

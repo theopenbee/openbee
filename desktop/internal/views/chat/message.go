@@ -150,6 +150,7 @@ func (v *View) senderMessage(c *ui.Context, rc rowContext, m model.Message, who 
 					})
 				}
 			}
+			v.choices(c, tk, rc.pane, m)
 		})
 	})
 }

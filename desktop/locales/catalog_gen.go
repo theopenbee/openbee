@@ -1820,6 +1820,36 @@ func (msgs Messages) ChatBeeLabel() string {
 	return Catalog.Format(msgs.locale, "chatBeeLabel", nil)
 }
 
+// ChatChoiceChosen says "Chosen"
+// in the language the app shows.
+func ChatChoiceChosen() string { return In(i18n.Locale()).ChatChoiceChosen() }
+
+// ChatChoiceChosen says "Chosen"
+// in the language of msgs.
+func (msgs Messages) ChatChoiceChosen() string {
+	return Catalog.Format(msgs.locale, "chatChoiceChosen", nil)
+}
+
+// ChatChoiceFailed says "Couldn't send your choice"
+// in the language the app shows.
+func ChatChoiceFailed() string { return In(i18n.Locale()).ChatChoiceFailed() }
+
+// ChatChoiceFailed says "Couldn't send your choice"
+// in the language of msgs.
+func (msgs Messages) ChatChoiceFailed() string {
+	return Catalog.Format(msgs.locale, "chatChoiceFailed", nil)
+}
+
+// ChatChoiceTaken says "This was already answered"
+// in the language the app shows.
+func ChatChoiceTaken() string { return In(i18n.Locale()).ChatChoiceTaken() }
+
+// ChatChoiceTaken says "This was already answered"
+// in the language of msgs.
+func (msgs Messages) ChatChoiceTaken() string {
+	return Catalog.Format(msgs.locale, "chatChoiceTaken", nil)
+}
+
 // ChatCloseImage says "Close image"
 // in the language the app shows.
 func ChatCloseImage() string { return In(i18n.Locale()).ChatCloseImage() }

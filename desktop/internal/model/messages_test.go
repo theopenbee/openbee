@@ -229,6 +229,30 @@ func TestMessagesLiveUpdates(t *testing.T) {
 		}
 	})
 
+	t.Run("replaces a shown message and keeps its place and pending mark", func(t *testing.T) {
+		choice := 1
+		updated := chatMessage("u", 2)
+		updated.Content = "picked"
+		updated.Choice = &choice
+
+		got := listOf(true, msg("a", 1), live("u", 2), msg("b", 3)).Replace(updated)
+
+		want := listOf(true, msg("a", 1), Message{ChatMessage: updated, Pending: true}, msg("b", 3))
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("ignores a replacement for a message that is not shown", func(t *testing.T) {
+		prev := listOf(false, msg("a", 1))
+
+		got := prev.Replace(chatMessage("x", 2))
+
+		if !reflect.DeepEqual(got, prev) {
+			t.Fatalf("got %+v, want %+v", got, prev)
+		}
+	})
+
 	t.Run("leave the receiver untouched", func(t *testing.T) {
 		prev := listOf(true, msg("a", 1), live("u", 2))
 		before := listOf(true, msg("a", 1), live("u", 2))
@@ -236,6 +260,7 @@ func TestMessagesLiveUpdates(t *testing.T) {
 		prev.Add(live("n", 3))
 		prev.Sent("u", 9)
 		prev.Remove("a")
+		prev.Replace(chatMessage("u", 7))
 
 		if !reflect.DeepEqual(prev, before) {
 			t.Fatalf("receiver changed to %+v", prev)

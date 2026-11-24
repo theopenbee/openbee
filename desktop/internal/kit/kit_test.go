@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +88,39 @@ func TestButtonClick(t *testing.T) {
 	tt.Advance(100 * time.Millisecond)
 	if !tt.FramePending() {
 		t.Error("loading button shows no turning spinner")
+	}
+
+	opts.Loading, opts.Inert = false, true
+	tt.Frame()
+	if err := tt.Click("Save"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEnter)
+	tt.Key(0, ui.KeySpace)
+	if clicks != 2 {
+		t.Errorf("inert button fired: clicks = %d, want 2", clicks)
+	}
+	if !tt.HasText("Save") {
+		t.Error("inert button hides its label")
+	}
+}
+
+func TestButtonWrapKeepsToItsColumn(t *testing.T) {
+	long := strings.Repeat("Roll the release back ", 6)
+	tt := newTester(400, 300, func(c *ui.Context, tk theme.Tokens) {
+		ui.Column(c).Width(240).AlignItems(ui.Start).Children(func() {
+			kit.Button(c, tk, long, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Wrap: true}).MaxWidthPercent(100)
+			kit.Button(c, tk, "Keep", kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM, Wrap: true})
+		})
+	})
+	settle(tt)
+	wrapped, _ := tt.Find(long)
+	short, _ := tt.Find("Keep")
+	if wrapped.W > 240 || wrapped.H <= theme.ControlSM {
+		t.Fatalf("wrapped button = %+v, want at most 240 wide and taller than one line", wrapped)
+	}
+	if short.H != theme.ControlSM {
+		t.Fatalf("short wrapping button height = %v, want %v", short.H, theme.ControlSM)
 	}
 }
 

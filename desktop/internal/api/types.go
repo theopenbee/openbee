@@ -129,6 +129,13 @@ type HandoffInfo struct {
 	Run            *ExecutionSummary `json:"run,omitempty"`
 }
 
+const ButtonDanger = "danger"
+
+type ChatButton struct {
+	Label string `json:"label"`
+	Style string `json:"style,omitempty"`
+}
+
 type ChatMessage struct {
 	ID          string       `json:"id"`
 	Sender      ChatSender   `json:"sender"`
@@ -138,6 +145,8 @@ type ChatMessage struct {
 	TS          int64        `json:"ts"`
 	Handoff     *HandoffInfo `json:"handoff,omitempty"`
 	ExecutionID string       `json:"execution_id,omitempty"`
+	Buttons     []ChatButton `json:"buttons,omitempty"`
+	Choice      *int         `json:"choice,omitempty"`
 }
 
 type ConversationActivity struct {

@@ -109,3 +109,13 @@ func (l List) Remove(id string) List {
 	msgs := slices.DeleteFunc(slices.Clone(l.Msgs), func(m Message) bool { return m.ID == id })
 	return List{Msgs: msgs, HasMore: l.HasMore}
 }
+
+func (l List) Replace(m api.ChatMessage) List {
+	i := slices.IndexFunc(l.Msgs, func(x Message) bool { return x.ID == m.ID })
+	if i < 0 {
+		return l
+	}
+	msgs := slices.Clone(l.Msgs)
+	msgs[i].ChatMessage = m
+	return List{Msgs: msgs, HasMore: l.HasMore}
+}

@@ -44,6 +44,7 @@ func (s *Server) chatRoutes() {
 	s.route("GET /api/local/conversations", authUser, s.listConversations)
 	s.route("GET /api/local/conversations/{cid}/messages", authUser, s.listMessages)
 	s.route("POST /api/local/conversations/{cid}/messages", authUser, s.sendMessage)
+	s.route("POST /api/local/conversations/{cid}/messages/{mid}/choice", authUser, s.chooseButton)
 	s.route("POST /api/local/conversations/{cid}/read", authUser, s.markRead)
 	s.route("POST /api/local/conversations/{cid}/clear", authUser, s.clearConversation)
 	s.route("POST /api/local/conversations/{cid}/stop", authUser, s.stopConversation)
@@ -192,6 +193,45 @@ func (s *Server) sendMessage(q *request) reply {
 	s.st.Messages[cid] = append(s.st.Messages[cid], msg)
 	s.noteMessage(cid, msg)
 	return accepted(api.SendMessageResponse{ID: id, TS: msg.TS})
+}
+
+func (s *Server) chooseButton(q *request) reply {
+	cid := q.param("cid")
+	if !s.conversationExists(cid) {
+		return conversationNotFound()
+	}
+	var req struct {
+		Index *int `json:"index"`
+	}
+	if bad, good := q.decode(&req); !good {
+		return bad
+	}
+	if req.Index == nil {
+		return errReply(http.StatusBadRequest, "index is required")
+	}
+	msgs := s.st.Messages[cid]
+	i := slices.IndexFunc(msgs, func(m api.ChatMessage) bool { return m.ID == q.param("mid") })
+	if i < 0 {
+		return errReply(http.StatusNotFound, "message not found")
+	}
+	index := *req.Index
+	if index < 0 || index >= len(msgs[i].Buttons) {
+		return errReply(http.StatusBadRequest, "invalid button index")
+	}
+	if msgs[i].Choice != nil {
+		return errReply(http.StatusConflict, "button already chosen")
+	}
+	msgs[i].Choice = &index
+	updated := msgs[i]
+	s.emitLocked(api.ChatEvent{Type: "message_update", ConversationID: cid, Message: &updated})
+	s.appendMessage(cid, api.ChatMessage{
+		ID:      s.nextID("msg"),
+		Sender:  api.ChatSender{Type: senderUser},
+		Kind:    kindMessage,
+		Content: updated.Buttons[index].Label,
+		TS:      s.now(),
+	})
+	return ok(updated)
 }
 
 func (s *Server) markRead(q *request) reply {

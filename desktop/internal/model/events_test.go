@@ -410,6 +410,32 @@ func TestApplyEventListNotLoaded(t *testing.T) {
 	}
 }
 
+func TestApplyEventMessageUpdateIsIgnored(t *testing.T) {
+	choice := 0
+	list := []api.ConversationSummary{summary("bee"), summaryWith("worker:w1", func(s *api.ConversationSummary) { s.Unread = 3 })}
+	tests := []struct {
+		name string
+		cid  string
+		m    api.ChatMessage
+	}{
+		{"known conversation", "worker:w1", eventMessage("pick", func(m *api.ChatMessage) { m.Choice = &choice })},
+		{"unknown conversation", "worker:w9", eventMessage("pick")},
+		{"unknown worker sender", "bee", eventMessage("pick", bySender(api.ChatSender{Type: "worker", ID: "w9"}), byHandoff("w9"))},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := tc.m
+			ev := api.ChatEvent{Type: "message_update", Seq: 1, ConversationID: tc.cid, Message: &m}
+
+			eff := ApplyEvent(ev, list, withWorkers(statusWorker("w1", "idle")), "", false)
+
+			if eff.SummariesChanged || eff.RefetchConversations || eff.RefetchWorkers || eff.WorkerStatus != nil || !sameSlice(eff.Summaries, list) {
+				t.Fatalf("message_update produced %+v, want no effect", eff)
+			}
+		})
+	}
+}
+
 func TestApplyEventDoesNotMutateTheInput(t *testing.T) {
 	build := func() []api.ConversationSummary {
 		return []api.ConversationSummary{summary("bee"), summaryWith("worker:w1", func(s *api.ConversationSummary) { s.Unread = 4 })}
