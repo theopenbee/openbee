@@ -6,6 +6,7 @@
 - Chat buttons under replies on web and desktop.
 - First-run guide to install an engine and channels.
 - View the Bee's execution process, web and desktop.
+- Plugin logos in plugin lists, web and desktop.
 
 ## [1.0.11] - 2026-11-23
 
