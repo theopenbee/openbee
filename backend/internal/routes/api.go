@@ -31,6 +31,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/local/conversations", s.LocalChat.ListConversations)
 	r.GET("/local/conversations/:cid/messages", s.LocalChat.GetMessages)
 	r.POST("/local/conversations/:cid/messages", s.LocalChat.SendMessage)
+	r.POST("/local/conversations/:cid/messages/:mid/choice", s.LocalChat.ChooseButton)
 	r.POST("/local/conversations/:cid/read", s.LocalChat.MarkRead)
 	r.POST("/local/conversations/:cid/clear", s.LocalChat.Clear)
 	r.POST("/local/conversations/:cid/stop", s.LocalChat.Stop)

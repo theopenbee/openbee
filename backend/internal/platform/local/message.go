@@ -1,9 +1,10 @@
 package local
 
 const (
-	EventMessage      = "message"
-	EventWorkerStatus = "worker_status"
-	EventTask         = "task"
+	EventMessage       = "message"
+	EventMessageUpdate = "message_update"
+	EventWorkerStatus  = "worker_status"
+	EventTask          = "task"
 )
 
 const SenderBee = "bee"
@@ -42,6 +43,11 @@ type HandoffInfo struct {
 	Run            *RunSummary `json:"run,omitempty"`
 }
 
+type Button struct {
+	Label string `json:"label"`
+	Style string `json:"style,omitempty"`
+}
+
 type ChatMessage struct {
 	ID          string       `json:"id"`
 	Sender      Sender       `json:"sender"`
@@ -51,6 +57,8 @@ type ChatMessage struct {
 	TS          int64        `json:"ts"`
 	ExecutionID string       `json:"execution_id,omitempty"`
 	Handoff     *HandoffInfo `json:"handoff,omitempty"`
+	Buttons     []Button     `json:"buttons,omitempty"`
+	Choice      *int         `json:"choice,omitempty"`
 }
 
 type Event struct {

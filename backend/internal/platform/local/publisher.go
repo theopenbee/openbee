@@ -34,6 +34,14 @@ func (p *EventPublisher) Message(sessionKey string, msg ChatMessage) {
 	p.hub.Publish(userID, Event{Type: EventMessage, ConversationID: conversationID, Message: &msg})
 }
 
+func (p *EventPublisher) MessageUpdate(sessionKey string, msg ChatMessage) {
+	userID, conversationID, ok := ParseSessionKey(sessionKey)
+	if !ok {
+		return
+	}
+	p.hub.Publish(userID, Event{Type: EventMessageUpdate, ConversationID: conversationID, Message: &msg})
+}
+
 func (p *EventPublisher) TaskState(sessionKey, taskID, workerID, state string, queuedAhead int, executionID string) {
 	userID, conversationID, ok := ParseSessionKey(sessionKey)
 	if !ok {

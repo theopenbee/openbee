@@ -192,3 +192,29 @@ func TestOutboundListBySessionKey_SkipsFailedSends(t *testing.T) {
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "hi", msgs[0].Content)
 }
+
+func TestLoggingPlatformSenderAdapter_RecordsButtonsOnlyForButtonSenders(t *testing.T) {
+	db, err := store.InitDB(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer db.Close()
+	outboundStore := store.NewOutboundMessageStore(db)
+	buttons := []platform.Button{{Label: "Stop", Text: "/stop a", Style: platform.ButtonStyleDanger}}
+
+	require.NoError(t, store.NewLoggingPlatformSenderAdapter(&buttonRecordingSender{}, outboundStore, "local").Send(context.Background(),
+		platform.OutboundMessage{SessionKey: "local:s1", Content: "status", Buttons: buttons}))
+	require.NoError(t, store.NewLoggingPlatformSenderAdapter(&recordingSender{}, outboundStore, "beta").Send(context.Background(),
+		platform.OutboundMessage{SessionKey: "beta:s1", Content: "status", Buttons: buttons}))
+
+	require.Eventually(t, func() bool {
+		a, errA := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+		b, errB := outboundStore.ListBySessionKey(context.Background(), "beta:s1", 0, 10)
+		return errA == nil && errB == nil && len(a) == 1 && len(b) == 1
+	}, time.Second, 10*time.Millisecond)
+	withButtons, err := outboundStore.ListBySessionKey(context.Background(), "local:s1", 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []store.OutboundButton{{Label: "Stop", Text: "/stop a", Style: platform.ButtonStyleDanger}}, withButtons[0].Buttons)
+	assert.Nil(t, withButtons[0].ButtonChoice)
+	plain, err := outboundStore.ListBySessionKey(context.Background(), "beta:s1", 0, 10)
+	require.NoError(t, err)
+	assert.Empty(t, plain[0].Buttons)
+}

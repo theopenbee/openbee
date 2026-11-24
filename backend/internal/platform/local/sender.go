@@ -23,6 +23,8 @@ func NewLocalSender(pub *EventPublisher, mediaRoot string) *LocalSender {
 	return &LocalSender{pub: pub, mediaRoot: mediaRoot}
 }
 
+func (s *LocalSender) SendsButtons() bool { return true }
+
 func (s *LocalSender) Send(_ context.Context, msg platform.OutboundMessage) error {
 	if msg.ID == "" {
 		msg.ID = uuid.New().String()
@@ -36,6 +38,11 @@ func (s *LocalSender) Send(_ context.Context, msg platform.OutboundMessage) erro
 		Content:     msg.Content,
 		TS:          cmp.Or(msg.SentAt, time.Now().UnixMilli()),
 		ExecutionID: msg.ExecutionID,
+	}
+	if msg.Content != "" {
+		for _, b := range msg.Buttons {
+			chat.Buttons = append(chat.Buttons, Button{Label: b.Label, Style: b.Style})
+		}
 	}
 	if chat.Kind == KindHandoff {
 		var info HandoffInfo

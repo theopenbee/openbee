@@ -11,6 +11,7 @@ import (
 
 	"github.com/theopenbee/openbee/internal/infra/store"
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 	"github.com/theopenbee/openbee/internal/rpc"
 )
 
@@ -50,6 +51,39 @@ func TestSendMessageOptions_WorkerButtonsRouteBackToWorker(t *testing.T) {
 		{Label: "Merge", Text: "@MaoMao Merge"},
 		{Label: "Wait", Text: "@MaoMao Wait"},
 	}, spy.sent[0].Buttons)
+}
+
+func TestSendMessageOptions_LocalWorkerChatSkipsMention(t *testing.T) {
+	cases := []struct {
+		name       string
+		sessionKey func(workerID string) string
+		wantText   string
+	}{
+		{name: "OwnChat", sessionKey: func(id string) string { return local.WorkerSessionKey("u1", id) }, wantText: "Merge"},
+		{name: "BeeChat", sessionKey: func(string) string { return local.SessionKey("u1") }, wantText: "@MaoMao Merge"},
+		{name: "OtherWorkerChat", sessionKey: func(string) string { return local.WorkerSessionKey("u1", "other") }, wantText: "@MaoMao Merge"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spy := &buttonMockSender{mockSender: &mockSender{}}
+			s, db := setupServerWithSender(t, local.PlatformID, spy)
+			w := mustCreateWorker(t, s, map[string]any{"name": "MaoMao"})
+			ctx := context.WithValue(context.Background(), rpc.CtxWorkerIDKey, w.ID)
+			_, err := store.NewMessageStore(db).Create(ctx, "msg-local", tc.sessionKey(w.ID), local.PlatformID, "hi", `{}`, "", 0)
+			require.NoError(t, err)
+
+			_, err = s.CallTool(ctx, "send_message", mustMarshal(t, map[string]any{
+				"message_id": "msg-local",
+				"content":    "Merge now?",
+				"options":    []string{"Merge"},
+			}))
+			require.NoError(t, err)
+
+			require.Len(t, spy.sent, 1)
+			assert.Equal(t, "Merge now?", spy.sent[0].Content)
+			assert.Equal(t, []platform.Button{{Label: "Merge", Text: tc.wantText}}, spy.sent[0].Buttons)
+		})
+	}
 }
 
 func TestSendMessageOptions_WorkerNameWithSpaceSendsPlainOption(t *testing.T) {

@@ -651,3 +651,17 @@ func TestMigrationAddsExecutionIDToOutboundMessages(t *testing.T) {
 	assert.Empty(t, msgs[0].ExecutionID)
 	assert.Equal(t, "exec-1", msgs[1].ExecutionID)
 }
+
+func TestMigrationAddsButtonsToOutboundMessages(t *testing.T) {
+	db := openPreMigrationDB(t, 64)
+	_, err := db.Exec(`INSERT INTO bee_outbound_messages (id, session_key, platform, sent_at, created_at) VALUES ('o1','local:u1','local',1,1)`)
+	require.NoError(t, err)
+
+	require.NoError(t, migrate(db))
+
+	msgs, err := NewOutboundMessageStore(db).ListBySessionKey(context.Background(), "local:u1", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	assert.Empty(t, msgs[0].Buttons)
+	assert.Nil(t, msgs[0].ButtonChoice)
+}

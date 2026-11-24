@@ -179,6 +179,7 @@ func localChatRouter(h *LocalChatHandler) *gin.Engine {
 	r.GET("/local/conversations", h.ListConversations)
 	r.GET("/local/conversations/:cid/messages", h.GetMessages)
 	r.POST("/local/conversations/:cid/messages", h.SendMessage)
+	r.POST("/local/conversations/:cid/messages/:mid/choice", h.ChooseButton)
 	r.POST("/local/conversations/:cid/read", h.MarkRead)
 	r.POST("/local/conversations/:cid/clear", h.Clear)
 	r.POST("/local/conversations/:cid/stop", h.Stop)
@@ -1507,4 +1508,170 @@ func TestStopFailureIs500(t *testing.T) {
 	rec := postJSON(t, s.router, testUserID, "/local/conversations/worker:"+alice.ID+"/stop", nil)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func seedButtonMessage(t *testing.T, s localChatTestServer, sessionKey, id string) {
+	t.Helper()
+	seedOutboundIn(t, s.outboundStore, sessionKey, store.OutboundMessage{
+		ID: id, Content: "Stop a worker?", SourceType: store.SourceTypeSystem, SentAt: 100,
+		Buttons: []store.OutboundButton{
+			{Label: "Stop alice", Text: "/stop alice", Style: platform.ButtonStyleDanger},
+			{Label: "Stop bob", Text: "/stop bob", Style: platform.ButtonStyleDanger},
+		},
+	})
+}
+
+func chooseButton(t *testing.T, r *gin.Engine, userID, cid, mid string, body map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	return postJSON(t, r, userID, "/local/conversations/"+cid+"/messages/"+mid+"/choice", body)
+}
+
+func TestMessagesExposeButtonsAndChoice(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedButtonMessage(t, s, testSessionKey, "o1")
+
+	before := getMessages(t, s.router, "")
+	require.Len(t, before.Messages, 1)
+	assert.Equal(t, []local.Button{
+		{Label: "Stop alice", Style: platform.ButtonStyleDanger},
+		{Label: "Stop bob", Style: platform.ButtonStyleDanger},
+	}, before.Messages[0].Buttons)
+	assert.Nil(t, before.Messages[0].Choice)
+
+	rec := chooseButton(t, s.router, testUserID, local.BeeConversationID, "o1", map[string]any{"index": 1})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	after := getMessages(t, s.router, "")
+	require.Len(t, after.Messages, 1)
+	require.NotNil(t, after.Messages[0].Choice)
+	assert.Equal(t, 1, *after.Messages[0].Choice)
+}
+
+func TestChooseButtonSendsTextAsUserMessage(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	cid := local.WorkerConversationID(alice.ID)
+	sessionKey := local.WorkerSessionKey(testUserID, alice.ID)
+	seedButtonMessage(t, s, sessionKey, "o1")
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+
+	rec := chooseButton(t, s.router, testUserID, cid, "o1", map[string]any{"index": 0})
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var res local.ChatMessage
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	assert.Equal(t, "o1", res.ID)
+	require.NotNil(t, res.Choice)
+	assert.Equal(t, 0, *res.Choice)
+
+	update := nextHubEvent(t, events)
+	assert.Equal(t, local.EventMessageUpdate, update.Type)
+	assert.Equal(t, cid, update.ConversationID)
+	require.NotNil(t, update.Message)
+	assert.Equal(t, res, *update.Message)
+
+	own := nextHubEvent(t, events)
+	assert.Equal(t, local.EventMessage, own.Type)
+	require.NotNil(t, own.Message)
+	assert.Equal(t, local.Sender{Type: store.SenderTypeUser}, own.Message.Sender)
+	assert.Equal(t, "/stop alice", own.Message.Content)
+
+	msg := nextInbound(t, s.receiver)
+	assert.Equal(t, sessionKey, msg.SessionKey)
+	assert.Equal(t, testUserID, msg.SenderID)
+	assert.Equal(t, "/stop alice", msg.Content)
+	assert.Equal(t, localMessageID(testUserID, own.Message.ID), msg.PlatformMessageID)
+}
+
+func TestChooseButtonOnlyOnce(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedButtonMessage(t, s, testSessionKey, "o1")
+
+	first := chooseButton(t, s.router, testUserID, local.BeeConversationID, "o1", map[string]any{"index": 0})
+	second := chooseButton(t, s.router, testUserID, local.BeeConversationID, "o1", map[string]any{"index": 1})
+
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	assert.Equal(t, http.StatusConflict, second.Code, second.Body.String())
+	assert.Equal(t, "/stop alice", nextInbound(t, s.receiver).Content)
+	assertNoInbound(t, s.receiver)
+}
+
+func assertNoInbound(t *testing.T, receiver *local.LocalReceiver) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	got := make(chan platform.InboundMessage, 8)
+	done := make(chan struct{})
+	go func() {
+		receiver.Start(ctx, func(msg platform.InboundMessage) { got <- msg }) //nolint:errcheck
+		close(done)
+	}()
+	<-done
+	select {
+	case msg := <-got:
+		t.Fatalf("unexpected inbound message: %+v", msg)
+	default:
+	}
+}
+
+func TestChooseButtonRejectsInvalidRequests(t *testing.T) {
+	s := newLocalChatServer(t)
+	alice := s.createWorker(t, "alice")
+	seedButtonMessage(t, s, testSessionKey, "o1")
+	seedOutboundIn(t, s.outboundStore, testSessionKey, store.OutboundMessage{ID: "plain", Content: "hi", SentAt: 200})
+	seedButtonMessage(t, s, local.SessionKey("user-2"), "theirs")
+
+	cases := []struct {
+		name string
+		user string
+		cid  string
+		mid  string
+		body map[string]any
+		want int
+	}{
+		{name: "MissingIndex", user: testUserID, cid: "bee", mid: "o1", body: map[string]any{}, want: http.StatusBadRequest},
+		{name: "NegativeIndex", user: testUserID, cid: "bee", mid: "o1", body: map[string]any{"index": -1}, want: http.StatusBadRequest},
+		{name: "IndexOutOfRange", user: testUserID, cid: "bee", mid: "o1", body: map[string]any{"index": 2}, want: http.StatusBadRequest},
+		{name: "NoButtons", user: testUserID, cid: "bee", mid: "plain", body: map[string]any{"index": 0}, want: http.StatusBadRequest},
+		{name: "UnknownMessage", user: testUserID, cid: "bee", mid: "nope", body: map[string]any{"index": 0}, want: http.StatusNotFound},
+		{name: "OtherConversation", user: testUserID, cid: local.WorkerConversationID(alice.ID), mid: "o1", body: map[string]any{"index": 0}, want: http.StatusNotFound},
+		{name: "OtherUser", user: testUserID, cid: "bee", mid: "theirs", body: map[string]any{"index": 0}, want: http.StatusNotFound},
+		{name: "UnknownConversation", user: testUserID, cid: "worker:missing", mid: "o1", body: map[string]any{"index": 0}, want: http.StatusNotFound},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := chooseButton(t, s.router, tc.user, tc.cid, tc.mid, tc.body)
+			assert.Equal(t, tc.want, rec.Code, rec.Body.String())
+		})
+	}
+	history := getMessages(t, s.router, "")
+	for _, m := range history.Messages {
+		assert.Nil(t, m.Choice, m.ID)
+	}
+}
+
+func TestChooseButtonUndoesChoiceWhenQueueIsFull(t *testing.T) {
+	s := newLocalChatServer(t)
+	seedButtonMessage(t, s, testSessionKey, "o1")
+	for i := range 4 {
+		rec := postJSON(t, s.router, testUserID, "/local/conversations/bee/messages", map[string]any{"content": "m" + strconv.Itoa(i)})
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	}
+	events, unsub := s.hub.Subscribe(testUserID)
+	defer unsub()
+
+	rec := chooseButton(t, s.router, testUserID, local.BeeConversationID, "o1", map[string]any{"index": 0})
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	chosen := nextHubEvent(t, events)
+	require.NotNil(t, chosen.Message)
+	assert.NotNil(t, chosen.Message.Choice)
+	undone := nextHubEvent(t, events)
+	assert.Equal(t, local.EventMessageUpdate, undone.Type)
+	require.NotNil(t, undone.Message)
+	assert.Nil(t, undone.Message.Choice)
+	history := getMessages(t, s.router, "")
+	require.Len(t, history.Messages, 1)
+	assert.Nil(t, history.Messages[0].Choice)
 }

@@ -673,7 +673,7 @@ func (s *Server) toolSendMessage(ctx context.Context, args json.RawMessage) (any
 	var buttons []platform.Button
 	if len(params.Options) > 0 {
 		if platform.SendsButtons(sender) {
-			buttons = s.optionButtons(sourceID, params.Options)
+			buttons = s.optionButtons(sourceID, base.ReplyTo.SessionKey, params.Options)
 		} else {
 			params.Content = appendOptionList(params.Content, params.Options)
 		}

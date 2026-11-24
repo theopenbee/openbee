@@ -613,6 +613,12 @@ DROP TABLE IF EXISTS bee_local_sessions;`,
 		name:    "add_execution_id_to_outbound_messages",
 		sql:     `ALTER TABLE bee_outbound_messages ADD COLUMN execution_id TEXT NOT NULL DEFAULT ''`,
 	},
+	{
+		version: 64,
+		name:    "add_buttons_to_outbound_messages",
+		sql: `ALTER TABLE bee_outbound_messages ADD COLUMN buttons TEXT NOT NULL DEFAULT '';
+ALTER TABLE bee_outbound_messages ADD COLUMN button_choice INTEGER;`,
+	},
 }
 
 type whereBuilder struct {

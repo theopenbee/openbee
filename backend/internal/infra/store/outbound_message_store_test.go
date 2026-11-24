@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -134,4 +135,39 @@ func TestOutboundMessageStore_KindAndPayload(t *testing.T) {
 	assert.Empty(t, msgs[0].Payload)
 	assert.Equal(t, OutboundKindHandoff, msgs[1].Kind)
 	assert.Equal(t, `{"worker_id":"w1"}`, msgs[1].Payload)
+}
+
+func TestOutboundMessageStore_ChooseButtonOnce(t *testing.T) {
+	s := setupOutboundStore(t)
+	ctx := context.Background()
+	seedOutbound(t, s, []OutboundMessage{{
+		ID: "o1", SessionKey: "local:u1", Platform: "local", Content: "pick", Status: OutboundStatusSent, SentAt: 1000,
+		Buttons: []OutboundButton{{Label: "A", Text: "a"}, {Label: "B", Text: "b"}},
+	}})
+
+	_, err := s.GetInSession(ctx, "local:u2", "o1")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	chosen, err := s.ChooseButton(ctx, "local:u2", "o1", 1)
+	require.NoError(t, err)
+	assert.False(t, chosen)
+
+	chosen, err = s.ChooseButton(ctx, "local:u1", "o1", 1)
+	require.NoError(t, err)
+	assert.True(t, chosen)
+
+	chosen, err = s.ChooseButton(ctx, "local:u1", "o1", 0)
+	require.NoError(t, err)
+	assert.False(t, chosen)
+
+	m, err := s.GetInSession(ctx, "local:u1", "o1")
+	require.NoError(t, err)
+	require.NotNil(t, m.ButtonChoice)
+	assert.Equal(t, 1, *m.ButtonChoice)
+	assert.Equal(t, []OutboundButton{{Label: "A", Text: "a"}, {Label: "B", Text: "b"}}, m.Buttons)
+
+	require.NoError(t, s.ResetButtonChoice(ctx, "local:u1", "o1"))
+	m, err = s.GetInSession(ctx, "local:u1", "o1")
+	require.NoError(t, err)
+	assert.Nil(t, m.ButtonChoice)
 }

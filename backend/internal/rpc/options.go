@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/theopenbee/openbee/internal/platform"
+	"github.com/theopenbee/openbee/internal/platform/local"
 )
 
 const (
@@ -38,8 +39,11 @@ func validateOptions(options []string, content string) error {
 	return nil
 }
 
-func (s *Server) optionButtons(workerID string, options []string) []platform.Button {
+func (s *Server) optionButtons(workerID, sessionKey string, options []string) []platform.Button {
 	prefix := ""
+	if chatWorkerID, ok := local.WorkerIDFromSessionKey(sessionKey); ok && chatWorkerID == workerID {
+		workerID = ""
+	}
 	if workerID != "" {
 		if w, err := s.workerStore.GetByID(workerID); err == nil && w.Name != "" && !strings.ContainsAny(w.Name, " \t\r\n") {
 			prefix = "@" + w.Name + " "

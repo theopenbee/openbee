@@ -308,3 +308,42 @@ func TestLocalSender_UsesSentAtAsTimestamp(t *testing.T) {
 
 	assert.Equal(t, int64(1234), receiveChat(t, ch).TS)
 }
+
+func TestLocalSender_SendsButtonsWithText(t *testing.T) {
+	hub := local.NewSSEHub()
+	sender := newTestSender(hub, t.TempDir())
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	assert.True(t, platform.SendsButtons(sender))
+	require.NoError(t, sender.Send(context.Background(), platform.OutboundMessage{
+		SessionKey: "local:u1",
+		Content:    "Clear?",
+		Buttons: []platform.Button{
+			{Label: "Confirm", Text: "/clear", Style: platform.ButtonStyleDanger},
+			{Label: "Cancel", Text: "/clear cancel"},
+		},
+	}))
+
+	msg := receiveChat(t, ch)
+	assert.Equal(t, []local.Button{{Label: "Confirm", Style: platform.ButtonStyleDanger}, {Label: "Cancel"}}, msg.Buttons)
+	assert.Nil(t, msg.Choice)
+}
+
+func TestPublisher_MessageUpdate(t *testing.T) {
+	hub := local.NewSSEHub()
+	pub := local.NewEventPublisher(hub)
+	ch, unsub := hub.Subscribe("u1")
+	defer unsub()
+
+	choice := 1
+	pub.MessageUpdate("local:u1:worker:w1", local.ChatMessage{ID: "m1", Buttons: []local.Button{{Label: "A"}, {Label: "B"}}, Choice: &choice})
+
+	ev := recvEvent(t, ch)
+	assert.Equal(t, local.EventMessageUpdate, ev.Type)
+	assert.Equal(t, "worker:w1", ev.ConversationID)
+	require.NotNil(t, ev.Message)
+	assert.Equal(t, "m1", ev.Message.ID)
+	require.NotNil(t, ev.Message.Choice)
+	assert.Equal(t, 1, *ev.Message.Choice)
+}

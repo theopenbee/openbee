@@ -390,7 +390,17 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 		}
 	}
 
-	content := local.EncodeMediaPaths(body.MediaPaths, body.Content)
+	ts, queued := h.postUserMessage(uid, conv, id, body.Content, body.MediaPaths)
+	if !queued {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "message queue is full"})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"id": id, "ts": ts})
+}
+
+func (h *LocalChatHandler) postUserMessage(uid string, conv conversation, id, text string, mediaPaths []string) (int64, bool) {
+	content := local.EncodeMediaPaths(mediaPaths, text)
 	ts := time.Now().UnixMilli()
 
 	queued := h.receiver.Enqueue(platform.InboundMessage{
@@ -403,19 +413,75 @@ func (h *LocalChatHandler) SendMessage(c *gin.Context) {
 		MessageTime:       ts,
 	})
 	if !queued {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "message queue is full"})
-		return
+		return 0, false
 	}
 	h.publisher.Message(conv.sessionKey, local.ChatMessage{
 		ID:         id,
 		Sender:     local.Sender{Type: store.SenderTypeUser},
 		Kind:       local.KindMessage,
-		Content:    body.Content,
-		MediaPaths: body.MediaPaths,
+		Content:    text,
+		MediaPaths: mediaPaths,
 		TS:         ts,
 	})
+	return ts, true
+}
 
-	c.JSON(http.StatusAccepted, gin.H{"id": id, "ts": ts})
+func (h *LocalChatHandler) ChooseButton(c *gin.Context) {
+	uid, conv, ok := h.resolveConversation(c)
+	if !ok {
+		return
+	}
+	ctx := c.Request.Context()
+
+	var body struct {
+		Index *int `json:"index" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	msg, err := h.outboundStore.GetInSession(ctx, conv.sessionKey, c.Param("mid"))
+	if errors.Is(err, sql.ErrNoRows) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	index := *body.Index
+	if index < 0 || index >= len(msg.Buttons) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid button index"})
+		return
+	}
+
+	chosen, err := h.outboundStore.ChooseButton(ctx, conv.sessionKey, msg.ID, index)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !chosen {
+		c.JSON(http.StatusConflict, gin.H{"error": "button already chosen"})
+		return
+	}
+
+	mediaDir, _ := local.MediaDir(h.mediaRoot, conv.sessionKey)
+	msg.ButtonChoice = &index
+	updated := outboundChatMessage(msg, mediaDir)
+	h.publisher.MessageUpdate(conv.sessionKey, updated)
+
+	if _, queued := h.postUserMessage(uid, conv, uuid.New().String(), msg.Buttons[index].Text, nil); !queued {
+		if err := h.outboundStore.ResetButtonChoice(context.WithoutCancel(ctx), conv.sessionKey, msg.ID); err != nil {
+			logger.Error("reset local chat button choice", zap.String("message_id", msg.ID), zap.Error(err))
+		}
+		msg.ButtonChoice = nil
+		h.publisher.MessageUpdate(conv.sessionKey, outboundChatMessage(msg, mediaDir))
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "message queue is full"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
 }
 
 func (h *LocalChatHandler) GetMessages(c *gin.Context) {
@@ -542,6 +608,12 @@ func outboundChatMessage(r store.OutboundMessage, mediaDir string) local.ChatMes
 		if err := json.Unmarshal([]byte(r.Payload), &info); err == nil {
 			msg.Handoff = &info
 		}
+	}
+	for _, b := range r.Buttons {
+		msg.Buttons = append(msg.Buttons, local.Button{Label: b.Label, Style: b.Style})
+	}
+	if len(msg.Buttons) > 0 {
+		msg.Choice = r.ButtonChoice
 	}
 	return msg
 }

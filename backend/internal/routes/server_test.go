@@ -59,6 +59,7 @@ func TestServer_LocalChatRoutes(t *testing.T) {
 		{http.MethodGet, "/api/local/conversations"},
 		{http.MethodGet, "/api/local/conversations/worker:w1/messages"},
 		{http.MethodPost, "/api/local/conversations/worker:w1/messages"},
+		{http.MethodPost, "/api/local/conversations/bee/messages/m1/choice"},
 		{http.MethodPost, "/api/local/conversations/bee/read"},
 		{http.MethodPost, "/api/local/conversations/bee/clear"},
 		{http.MethodPost, "/api/local/conversations/worker:w1/stop"},

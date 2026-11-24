@@ -74,6 +74,11 @@ func (a *LoggingPlatformSenderAdapter) Send(ctx context.Context, msg platform.Ou
 		Error:        errMsg,
 		SentAt:       sentAt,
 	}
+	if msg.Content != "" && a.SendsButtons() {
+		for _, b := range msg.Buttons {
+			record.Buttons = append(record.Buttons, OutboundButton{Label: b.Label, Text: b.Text, Style: b.Style})
+		}
+	}
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

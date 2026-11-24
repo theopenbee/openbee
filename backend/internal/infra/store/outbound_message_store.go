@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"slices"
 	"time"
 )
@@ -26,28 +27,38 @@ const (
 	SourceTypeSystem = "system"
 )
 
-const outboundMessageColumns = `id, session_key, platform, content, media_path, status, platform_msg_id,
-	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload, execution_id`
+const outboundMessageInsertColumns = `id, session_key, platform, content, media_path, status, platform_msg_id,
+	source_type, source_id, inbound_msg_id, error, retry_count, sent_at, created_at, kind, payload, execution_id, buttons`
+
+const outboundMessageColumns = outboundMessageInsertColumns + `, button_choice`
 
 // OutboundMessage is a row from the bee_outbound_messages table.
 type OutboundMessage struct {
-	ID            string `json:"id"`
-	SessionKey    string `json:"session_key"`
-	Platform      string `json:"platform"`
-	Content       string `json:"content"`
-	MediaPath     string `json:"media_path"`
-	Status        string `json:"status"`
-	PlatformMsgID string `json:"platform_msg_id"`
-	SourceType    string `json:"source_type"`
-	SourceID      string `json:"source_id"`
-	InboundMsgID  string `json:"inbound_msg_id"`
-	Error         string `json:"error"`
-	RetryCount    int    `json:"retry_count"`
-	SentAt        int64  `json:"sent_at"`
-	CreatedAt     int64  `json:"created_at"`
-	Kind          string `json:"kind"`
-	Payload       string `json:"payload"`
-	ExecutionID   string `json:"execution_id"`
+	ID            string           `json:"id"`
+	SessionKey    string           `json:"session_key"`
+	Platform      string           `json:"platform"`
+	Content       string           `json:"content"`
+	MediaPath     string           `json:"media_path"`
+	Status        string           `json:"status"`
+	PlatformMsgID string           `json:"platform_msg_id"`
+	SourceType    string           `json:"source_type"`
+	SourceID      string           `json:"source_id"`
+	InboundMsgID  string           `json:"inbound_msg_id"`
+	Error         string           `json:"error"`
+	RetryCount    int              `json:"retry_count"`
+	SentAt        int64            `json:"sent_at"`
+	CreatedAt     int64            `json:"created_at"`
+	Kind          string           `json:"kind"`
+	Payload       string           `json:"payload"`
+	ExecutionID   string           `json:"execution_id"`
+	Buttons       []OutboundButton `json:"buttons,omitempty"`
+	ButtonChoice  *int             `json:"button_choice,omitempty"`
+}
+
+type OutboundButton struct {
+	Label string `json:"label"`
+	Text  string `json:"text"`
+	Style string `json:"style,omitempty"`
 }
 
 // OutboundMessageStore manages the bee_outbound_messages table.
@@ -62,13 +73,27 @@ func NewOutboundMessageStore(db *sql.DB) *OutboundMessageStore {
 
 func scanOutboundMessage(scanner interface{ Scan(...any) error }) (OutboundMessage, error) {
 	var m OutboundMessage
+	var buttons string
+	var choice sql.NullInt64
 	err := scanner.Scan(
 		&m.ID, &m.SessionKey, &m.Platform, &m.Content, &m.MediaPath,
 		&m.Status, &m.PlatformMsgID, &m.SourceType, &m.SourceID,
 		&m.InboundMsgID, &m.Error, &m.RetryCount, &m.SentAt, &m.CreatedAt,
-		&m.Kind, &m.Payload, &m.ExecutionID,
+		&m.Kind, &m.Payload, &m.ExecutionID, &buttons, &choice,
 	)
-	return m, err
+	if err != nil {
+		return m, err
+	}
+	if buttons != "" {
+		if err := json.Unmarshal([]byte(buttons), &m.Buttons); err != nil {
+			return m, err
+		}
+	}
+	if choice.Valid {
+		i := int(choice.Int64)
+		m.ButtonChoice = &i
+	}
+	return m, nil
 }
 
 func scanOutboundMessages(rows *sql.Rows) ([]OutboundMessage, error) {
@@ -92,15 +117,49 @@ func (s *OutboundMessageStore) Create(ctx context.Context, msg OutboundMessage) 
 	if msg.Kind == "" {
 		msg.Kind = OutboundKindMessage
 	}
+	buttons := ""
+	if len(msg.Buttons) > 0 {
+		b, err := json.Marshal(msg.Buttons)
+		if err != nil {
+			return err
+		}
+		buttons = string(b)
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO bee_outbound_messages
-		 (`+outboundMessageColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 (`+outboundMessageInsertColumns+`)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.SessionKey, msg.Platform, msg.Content, msg.MediaPath,
 		msg.Status, msg.PlatformMsgID, msg.SourceType, msg.SourceID,
 		msg.InboundMsgID, msg.Error, msg.RetryCount, msg.SentAt, now,
-		msg.Kind, msg.Payload, msg.ExecutionID,
+		msg.Kind, msg.Payload, msg.ExecutionID, buttons,
 	)
+	return err
+}
+
+func (s *OutboundMessageStore) GetInSession(ctx context.Context, sessionKey, id string) (OutboundMessage, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+outboundMessageColumns+` FROM bee_outbound_messages WHERE id = ? AND session_key = ?`,
+		id, sessionKey)
+	return scanOutboundMessage(row)
+}
+
+func (s *OutboundMessageStore) ChooseButton(ctx context.Context, sessionKey, id string, index int) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE bee_outbound_messages SET button_choice = ?
+		 WHERE id = ? AND session_key = ? AND button_choice IS NULL`,
+		index, id, sessionKey)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+func (s *OutboundMessageStore) ResetButtonChoice(ctx context.Context, sessionKey, id string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE bee_outbound_messages SET button_choice = NULL WHERE id = ? AND session_key = ?`,
+		id, sessionKey)
 	return err
 }
 
