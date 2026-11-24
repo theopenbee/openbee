@@ -35,7 +35,7 @@ import {
   type PluginAction,
 } from "@/hooks/use-plugins"
 import { useOpenSettings } from "@/hooks/use-settings"
-import { filterCatalog, groupByType, isActiveState, localize, marketAction, pendingInstalls, pluginTypeLabel } from "@/lib/plugins"
+import { filterCatalog, groupByType, isActiveState, localize, marketAction, pendingInstalls, pluginIcon, pluginTypeLabel } from "@/lib/plugins"
 import type { PluginsTab } from "@/lib/routes"
 import { getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginOperation, PluginStatus } from "@/lib/types"
@@ -220,7 +220,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                   return (
                     <li key={p.id} className="flex min-w-0 flex-col rounded-inset border border-border bg-surface p-5">
                       <div className="flex items-center gap-3">
-                        <PluginAvatar name={name} />
+                        <PluginAvatar name={name} icon={p.icon} />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="min-w-0 truncate text-base font-medium text-foreground">{name}</h3>
@@ -414,7 +414,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
                       onClick={() => show({ section: "plugins", plugin: p.id })}
                       className="group flex min-w-0 items-center gap-3 text-left"
                     >
-                      <PluginAvatar name={name} />
+                      <PluginAvatar name={name} icon={pluginIcon(p, catalog.data?.plugins)} />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium text-foreground group-hover:text-accent-strong">{name}</span>
                         <span className="block truncate font-mono text-xs text-secondary">{p.id}</span>

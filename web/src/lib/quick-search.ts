@@ -1,8 +1,8 @@
 import { BEE_CONVERSATION, workerIdOf } from "@/lib/conversations"
-import { localize } from "@/lib/plugins"
+import { localize, pluginIcon } from "@/lib/plugins"
 import type { PanelSection, SettingsSection } from "@/lib/routes"
 import type { CommandId } from "@/lib/shortcuts"
-import type { ConversationId, ConversationSummary, PluginStatus, Worker } from "@/lib/types"
+import type { CatalogPlugin, ConversationId, ConversationSummary, PluginStatus, Worker } from "@/lib/types"
 
 export type QuickSearchGroup = "conversations" | "actions" | "worker" | "settings" | "plugins"
 
@@ -21,6 +21,7 @@ export interface QuickSearchEntry {
   description?: string
   keywords?: string[]
   shortcut?: CommandId
+  icon?: string
   target: QuickSearchTarget
 }
 
@@ -29,6 +30,7 @@ export interface QuickSearchInput {
   workers: Map<string, Worker>
   current: ConversationId | null
   plugins: PluginStatus[]
+  catalog?: CatalogPlugin[]
   commands: ReadonlySet<CommandId>
   lang: string
   t: (key: string, options?: Record<string, string>) => string
@@ -97,13 +99,14 @@ function settingsEntries({ t }: QuickSearchInput): QuickSearchEntry[] {
   }))
 }
 
-function pluginEntries({ plugins, lang }: QuickSearchInput): QuickSearchEntry[] {
+function pluginEntries({ plugins, catalog, lang }: QuickSearchInput): QuickSearchEntry[] {
   return plugins.map((plugin) => ({
     id: `plugin:${plugin.id}`,
     group: "plugins",
     label: localize(plugin.name, lang) || plugin.id,
     description: localize(plugin.description, lang) || undefined,
     keywords: [plugin.id],
+    icon: pluginIcon(plugin, catalog),
     target: { kind: "plugin", plugin: plugin.id },
   }))
 }

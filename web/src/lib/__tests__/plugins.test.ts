@@ -13,6 +13,7 @@ import {
   localize,
   marketAction,
   pendingInstalls,
+  pluginIcon,
   pluginTypeLabel,
 } from "../plugins"
 import type { CatalogPlugin, PluginConfigField, PluginOperation } from "../types"
@@ -265,5 +266,25 @@ describe("pluginTypeLabel", () => {
   it("falls back to the locale text, then to the raw type", () => {
     expect(pluginTypeLabel("engine", [], "en", t)).toBe("Engine plugins")
     expect(pluginTypeLabel("tool", categories, "en", t)).toBe("tool")
+  })
+})
+
+describe("pluginIcon", () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg"/>`
+  const catalog = [entry({ icon: "<svg catalog/>" }), entry({ id: "lark", icon: undefined })]
+
+  it("prefers the installed plugin icon", () => {
+    expect(pluginIcon({ id: "telegram", icon: svg }, catalog)).toBe(svg)
+  })
+
+  it("falls back to the catalog icon of the same plugin", () => {
+    expect(pluginIcon({ id: "telegram" }, catalog)).toBe("<svg catalog/>")
+    expect(pluginIcon({ id: "telegram", icon: "" }, catalog)).toBe("<svg catalog/>")
+  })
+
+  it("is undefined when neither has an icon", () => {
+    expect(pluginIcon({ id: "lark" }, catalog)).toBeUndefined()
+    expect(pluginIcon({ id: "discord" }, catalog)).toBeUndefined()
+    expect(pluginIcon({ id: "telegram" })).toBeUndefined()
   })
 })

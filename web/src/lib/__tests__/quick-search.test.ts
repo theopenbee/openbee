@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { quickSearchEntries, type QuickSearchInput } from "../quick-search"
-import type { ConversationSummary, PluginStatus, Worker } from "../types"
+import type { CatalogPlugin, ConversationSummary, PluginStatus, Worker } from "../types"
 
 const summary = (id: ConversationSummary["id"]): ConversationSummary => ({
   id,
@@ -105,6 +105,19 @@ describe("quickSearchEntries", () => {
       { kind: "settings", section: "about" },
     ])
     expect(entries.filter((entry) => entry.group === "plugins").map((entry) => entry.label)).toEqual(["飞书", "bare"])
+  })
+
+  it("carries the plugin logo when the plugin has one", () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"/>`
+    const entries = quickSearchEntries(input({ plugins: [{ ...plugin("lark", { en: "Lark" }), icon: svg }, plugin("bare", {})] }))
+    expect(entries.filter((entry) => entry.group === "plugins").map((entry) => entry.icon)).toEqual([svg, undefined])
+  })
+
+  it("falls back to the catalog logo of an installed plugin", () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg"/>`
+    const catalog = [{ id: "bare", icon: svg }] as CatalogPlugin[]
+    const entries = quickSearchEntries(input({ plugins: [plugin("lark", { en: "Lark" }), plugin("bare", {})], catalog }))
+    expect(entries.filter((entry) => entry.group === "plugins").map((entry) => entry.icon)).toEqual([undefined, svg])
   })
 
   it("gives every entry a unique id", () => {

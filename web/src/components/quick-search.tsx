@@ -17,6 +17,7 @@ import {
   VariableIcon,
   type LucideIcon,
 } from "lucide-react"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { CommandPalette, type CommandItem } from "@/components/arc/command-palette/command-palette"
 import { motionTokens } from "@/components/arc/lib/motion-tokens"
 import { matchesShortcut, shortcutTokens, usePlatform } from "@/components/arc/shortcut-recorder/shortcut-recorder"
@@ -24,7 +25,7 @@ import { LogoMarkSmall } from "@/components/brand/logo"
 import { useHasCommand } from "@/hooks/use-command"
 import { useReturnFocus } from "@/hooks/use-return-focus"
 import { useConversations } from "@/hooks/use-conversations"
-import { usePlugins } from "@/hooks/use-plugins"
+import { usePluginCatalog, usePlugins } from "@/hooks/use-plugins"
 import { useOpenSettings } from "@/hooks/use-settings"
 import { useWorkers } from "@/hooks/use-workers"
 import { BEE_CONVERSATION, conversationPath, visibleConversations, workerIdOf } from "@/lib/conversations"
@@ -57,7 +58,7 @@ function lucide(Icon: LucideIcon) {
   return <Icon size={ICON_SIZE} strokeWidth={1.75} />
 }
 
-function iconOf(target: QuickSearchTarget): ReactNode {
+function iconOf({ target, icon }: QuickSearchEntry): ReactNode {
   switch (target.kind) {
     case "conversation":
       return target.conversation === BEE_CONVERSATION ? <LogoMarkSmall /> : lucide(BotIcon)
@@ -70,7 +71,7 @@ function iconOf(target: QuickSearchTarget): ReactNode {
     case "settings":
       return lucide(SETTINGS_ICONS[target.section])
     case "plugin":
-      return lucide(PuzzleIcon)
+      return icon ? <EngineIcon icon={icon} /> : lucide(PuzzleIcon)
   }
 }
 
@@ -153,6 +154,7 @@ function QuickSearchPalette({ onDone, onClose }: { onDone: (focusMoved: boolean)
   const conversations = useConversations()
   const workers = useWorkers()
   const plugins = usePlugins()
+  const catalog = usePluginCatalog({ enabled: false })
   const canStartOver = useHasCommand("newConversation")
 
   const workerMap = useMemo(
@@ -168,11 +170,12 @@ function QuickSearchPalette({ onDone, onClose }: { onDone: (focusMoved: boolean)
         workers: workerMap,
         current,
         plugins: plugins.data ?? [],
+        catalog: catalog.data?.plugins,
         commands: new Set<CommandId>(canStartOver ? ["newConversation"] : []),
         lang: i18n.language,
         t,
       }),
-    [conversations.data, workerMap, current, plugins.data, canStartOver, i18n.language, t],
+    [conversations.data, workerMap, current, plugins.data, catalog.data, canStartOver, i18n.language, t],
   )
 
   const items = useMemo(() => {
@@ -186,7 +189,7 @@ function QuickSearchPalette({ onDone, onClose }: { onDone: (focusMoved: boolean)
         description: entry.description,
         keywords: entry.keywords,
         group: groupLabel(entry),
-        icon: iconOf(entry.target),
+        icon: iconOf(entry),
         shortcut: entry.shortcut
           ? shortcutTokens(SHORTCUTS[entry.shortcut], platform)
               .map((token) => token.label)

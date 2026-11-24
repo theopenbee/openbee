@@ -132,7 +132,7 @@ function PluginChoices({ category, onConfigure }: { category: Category; onConfig
           const op = pending[p.package]
           return (
             <li key={p.id} className={cn(styles.choice, "flex min-w-0 items-center gap-3 border border-border bg-surface px-4 py-3")}>
-              <PluginAvatar name={name} />
+              <PluginAvatar name={name} icon={p.icon} />
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm font-medium text-foreground">{name}</h3>
                 {description && <p className="mt-0.5 truncate text-xs text-secondary">{description}</p>}

@@ -27,11 +27,12 @@ export function usePlugin(id: string) {
   })
 }
 
-export function usePluginCatalog() {
+export function usePluginCatalog({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["plugin-catalog"],
     queryFn: () => api.plugins.catalog(),
     retry: false,
+    enabled,
   })
 }
 

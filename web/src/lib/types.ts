@@ -236,6 +236,7 @@ export interface PluginStatus {
   state: PluginState
   error?: string
   has_setup: boolean
+  icon?: string
 }
 
 export interface PluginDetail extends PluginStatus {
@@ -265,6 +266,7 @@ export interface CatalogPlugin {
   min_openbee_version?: string
   deprecated?: LocalizedText
   published_at?: string
+  icon?: string
   installed: boolean
   installed_version?: string
   update_available: boolean

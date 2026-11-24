@@ -1,4 +1,4 @@
-import type { CatalogPlugin, CatalogVocab, LocalizedText, PluginConfigField, PluginOperation, PluginState } from "./types"
+import type { CatalogPlugin, CatalogVocab, LocalizedText, PluginConfigField, PluginOperation, PluginState, PluginStatus } from "./types"
 
 export type FormValue = string | boolean
 export type FormValues = Record<string, FormValue>
@@ -128,6 +128,10 @@ export function marketAction(p: CatalogPlugin, pending: boolean): MarketAction {
   if (pending) return "installing"
   if (p.installed) return p.update_available && p.installable ? "update" : "configure"
   return p.installable ? "install" : "incompatible"
+}
+
+export function pluginIcon(plugin: Pick<PluginStatus, "id" | "icon">, catalog: readonly CatalogPlugin[] = []): string | undefined {
+  return plugin.icon || catalog.find((p) => p.id === plugin.id)?.icon || undefined
 }
 
 export function specPackage(spec: string): string {

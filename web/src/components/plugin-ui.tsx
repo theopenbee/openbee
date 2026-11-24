@@ -4,7 +4,9 @@ import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { LoaderCircleIcon } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
+import { EngineIcon } from "@/components/agent-icons/engine-icon"
 import { Avatar } from "@/components/arc/avatar/avatar"
+import avatarStyles from "@/components/arc/avatar/avatar.module.css"
 import { Badge, type BadgeTone } from "@/components/arc/badge/badge"
 import { Button } from "@/components/arc/button/button"
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog"
@@ -54,8 +56,13 @@ export function PluginStateBadge({ state, uninstalling = false }: { state: Plugi
   )
 }
 
-export function PluginAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
-  return <Avatar name={name} size={size} aria-hidden="true" />
+export function PluginAvatar({ name, icon, size = "md" }: { name: string; icon?: string; size?: "sm" | "md" | "lg" }) {
+  if (!icon) return <Avatar name={name} size={size} aria-hidden="true" />
+  return (
+    <span className={cn(avatarStyles.avatar, avatarStyles[size])} aria-hidden="true">
+      <EngineIcon icon={icon} className="size-[58%]" />
+    </span>
+  )
 }
 
 export function OperationProgress({ label, startedAt, now }: { label: string; startedAt?: string; now: number }) {
