@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Chat buttons under replies on web and desktop.
+
 ## [1.0.11] - 2026-11-23
 
 ### Added
