@@ -1390,6 +1390,40 @@ func TestSystemConfigs(t *testing.T) {
 	}
 }
 
+func TestOnboarding(t *testing.T) {
+	s := signedIn(t)
+	c := ctx(t)
+	if got, err := s.client.Onboarding(c); err != nil || got.Pending {
+		t.Fatalf("seeded Onboarding = %+v, %v, want not pending", got, err)
+	}
+	s.fake.Update(func(st *fakeapi.State) {
+		st.OnboardingSkipped = false
+		st.Catalog.Plugins = []api.CatalogPlugin{{Category: "engine", ID: "pi", Package: "@openbee/engine-pi", Version: "0.3.0",
+			Name: api.LocalizedText{"en": "Pi"}, Installable: true}}
+	})
+	if got, err := s.client.Onboarding(c); err != nil || !got.Pending {
+		t.Fatalf("fresh Onboarding = %+v, %v, want pending", got, err)
+	}
+	op, err := s.client.InstallPlugin(c, "@openbee/engine-pi@0.3.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.fake.FinishOperation(op.ID, true, "")
+	if got, err := s.client.Onboarding(c); err != nil || got.Pending {
+		t.Fatalf("Onboarding with an engine = %+v, %v, want not pending", got, err)
+	}
+	s.fake.Update(func(st *fakeapi.State) { st.Plugins = nil })
+	if got, _ := s.client.Onboarding(c); !got.Pending {
+		t.Fatal("Onboarding after the engine left is not pending")
+	}
+	if err := s.client.SkipOnboarding(c); err != nil {
+		t.Fatalf("SkipOnboarding: %v", err)
+	}
+	if got, _ := s.client.Onboarding(c); got.Pending || !s.fake.Snapshot().OnboardingSkipped {
+		t.Fatalf("Onboarding after skip = %+v, want not pending", got)
+	}
+}
+
 func seedPlugin(st *fakeapi.State) {
 	st.Plugins = []api.PluginDetail{{
 		PluginStatus: api.PluginStatus{

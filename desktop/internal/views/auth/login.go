@@ -43,7 +43,7 @@ func (a *Screens) Login(c *ui.Context, tk theme.Tokens, page ui.Element) {
 		return form
 	})
 	submit := func() { a.login(f) }
-	a.layout(c, tk, locales.LoginTitle(), locales.LoginDescription(), func() {
+	a.layout(c, tk, columnWidth, locales.LoginTitle(), locales.LoginDescription(), func() {
 		ui.Column(c).Gap(formGap).Children(func() {
 			if f.failure != nil {
 				kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneDanger, Title: locales.LoginErrorTitle(), Body: loginError(f.failure)})

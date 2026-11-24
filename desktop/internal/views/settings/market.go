@@ -233,7 +233,7 @@ func (d *Page) marketAction(c *ui.Context, tk theme.Tokens, plugin api.CatalogPl
 	}
 	switch model.CatalogAction(plugin, installing) {
 	case model.ActionInstalling:
-		operationProgress(c, tk, locales.PluginsActionInstallingShort(), op.CreatedAt)
+		kit.OperationProgress(c, tk, locales.PluginsActionInstallingShort(), op.CreatedAt)
 	case model.ActionUpdate:
 		kit.Button(c, tk, locales.PluginsActionUpdate(plugin.Version), secondary).OnClick(install)
 	case model.ActionConfigure:

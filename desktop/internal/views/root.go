@@ -83,8 +83,14 @@ func (r *Root) Nav() route.Nav {
 
 func (r *Root) View(c *ui.Context) {
 	tk := theme.Apply(c)
+	if r.s.Phase == store.PhaseReady {
+		r.s.Onboarding.Ensure()
+	}
 	r.follow(c)
-	ready := r.s.Phase == store.PhaseReady
+	if r.router.Path() != route.WelcomePath {
+		r.auth.HideWelcome()
+	}
+	ready := r.unlocked() && !r.holding()
 	if ready {
 		r.shortcuts(c)
 	}
@@ -93,6 +99,9 @@ func (r *Root) View(c *ui.Context) {
 			if r.s.StartingLocal {
 				r.auth.Starting(c, tk)
 			}
+			return
+		}
+		if r.holding() {
 			return
 		}
 		r.router.View(c, func(rt *ui.Route) { r.page(c, tk, rt) }).Grow(1)
@@ -123,6 +132,8 @@ func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {
 	case rt.Match(route.LoginPath):
 		r.auth.Login(c, tk, rt.Page())
 	case r.s.Phase != store.PhaseReady:
+	case rt.Match(route.WelcomePath):
+		r.auth.Welcome(c, tk, rt.Page(), func(id string) { r.settings.Open(settings.SectionPlugins, id) })
 	case rt.Match(route.ChatPath):
 		r.shell.View(c, "")
 	case rt.Match(route.ChatPath + "/{conversation}"):
@@ -135,8 +146,11 @@ func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {
 }
 
 func (r *Root) follow(c *ui.Context) {
+	if r.holding() {
+		return
+	}
 	path := r.router.Path()
-	if target, move := phaseRoute(r.s.Phase, path); move {
+	if target, move := phaseRoute(r.s.Phase, r.s.OnboardingPending(), path); move {
 		r.router.Replace(target)
 		path = target
 	}
@@ -160,7 +174,7 @@ func (r *Root) follow(c *ui.Context) {
 	}
 }
 
-func phaseRoute(phase store.Phase, path string) (string, bool) {
+func phaseRoute(phase store.Phase, welcome bool, path string) (string, bool) {
 	switch phase {
 	case store.PhaseConnect:
 		return route.ConnectPath, path != route.ConnectPath
@@ -169,6 +183,9 @@ func phaseRoute(phase store.Phase, path string) (string, bool) {
 	case store.PhaseLogin:
 		return route.LoginPath, path != route.LoginPath
 	case store.PhaseReady:
+		if welcome {
+			return route.WelcomePath, path != route.WelcomePath
+		}
 		return route.ChatPath, conversationParam(path) == "" && path != route.ChatPath && !route.IsSettings(path)
 	}
 	return "", false
@@ -182,14 +199,22 @@ func conversationParam(path string) string {
 	return param
 }
 
+func (r *Root) unlocked() bool {
+	return r.s.Phase == store.PhaseReady && !r.s.OnboardingPending()
+}
+
+func (r *Root) holding() bool {
+	return r.s.Phase == store.PhaseReady && !r.s.OnboardingKnown()
+}
+
 func (r *Root) OpenSettings(section string) {
-	if r.s.Phase == store.PhaseReady {
+	if r.unlocked() {
 		r.settings.Open(section, "")
 	}
 }
 
 func (r *Root) checkUpdates() {
-	if r.s.Phase != store.PhaseReady {
+	if !r.unlocked() {
 		return
 	}
 	r.settings.Open(settings.SectionAbout, "")
@@ -203,7 +228,7 @@ func (r *Root) leaveSettings() {
 }
 
 func (r *Root) OpenConversation(cid string) {
-	if param := route.Param(cid); param != "" && r.s.Phase == store.PhaseReady {
+	if param := route.Param(cid); param != "" && r.unlocked() {
 		r.router.Push(route.Chat(param))
 	}
 }
@@ -258,7 +283,7 @@ func (r *Root) startOver() {
 }
 
 func (r *Root) NewWorker() {
-	if r.s.Phase != store.PhaseReady {
+	if !r.unlocked() {
 		return
 	}
 	path := r.router.Path()

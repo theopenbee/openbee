@@ -45,18 +45,19 @@ const (
 )
 
 type Screens struct {
-	s        *store.Store
-	nav      route.Nav
-	langOpen bool
+	s            *store.Store
+	nav          route.Nav
+	langOpen     bool
+	welcomeShown bool
 }
 
 func New(s *store.Store, nav route.Nav) *Screens {
 	return &Screens{s: s, nav: nav}
 }
 
-func (a *Screens) layout(c *ui.Context, tk theme.Tokens, title, description string, body func()) {
+func (a *Screens) layout(c *ui.Context, tk theme.Tokens, column float32, title, description string, body func()) {
 	w, h := c.Size()
-	width := min(columnWidth, w-2*screenPadX)
+	width := min(column, w-2*screenPadX)
 	ui.Column(c).Fill().Background(tk.Background).Clip().Draw(backdrop(tk)).Children(func() {
 		ui.Scroll(c).Fill().Children(func() {
 			ui.Column(c).MinHeight(h).AlignItems(ui.Center).Justify(ui.Center).Padding(screenPadY, screenPadX).Children(func() {

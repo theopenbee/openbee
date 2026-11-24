@@ -25,8 +25,9 @@ type State struct {
 	ActiveTasks   map[string][]api.ActiveTask
 	Executions    map[string]api.ExecutionDetail
 
-	Envs          []api.EnvConfig
-	SystemConfigs map[string]string
+	Envs              []api.EnvConfig
+	SystemConfigs     map[string]string
+	OnboardingSkipped bool
 
 	Plugins    []api.PluginDetail
 	Catalog    api.PluginCatalog
@@ -51,14 +52,15 @@ func Engines(ids ...string) []api.EngineInfo {
 
 func seedState() State {
 	st := State{
-		Initialized:   true,
-		Username:      "admin",
-		Password:      "secret",
-		Language:      "en",
-		Engines:       Engines("claude", "codex", "pi"),
-		Conversations: []api.ConversationSummary{newSummary(api.BeeConversation)},
-		Catalog:       api.PluginCatalog{SchemaVersion: 1},
-		Version:       api.ServerVersion{Version: "1.0.6"},
+		Initialized:       true,
+		Username:          "admin",
+		Password:          "secret",
+		Language:          "en",
+		Engines:           Engines("claude", "codex", "pi"),
+		Conversations:     []api.ConversationSummary{newSummary(api.BeeConversation)},
+		Catalog:           api.PluginCatalog{SchemaVersion: 1},
+		Version:           api.ServerVersion{Version: "1.0.6"},
+		OnboardingSkipped: true,
 	}
 	st.normalize()
 	return st

@@ -6556,6 +6556,96 @@ func (msgs Messages) TrayUnread(count int) string {
 	return Catalog.Format(msgs.locale, "trayUnread", map[string]any{"count": count})
 }
 
+// WelcomeChannelDescription says "Optional. Once set up, you can message Bee from Feishu, Telegram and other chat apps. You can also just chat here in …"
+// in the language the app shows.
+func WelcomeChannelDescription() string { return In(i18n.Locale()).WelcomeChannelDescription() }
+
+// WelcomeChannelDescription says "Optional. Once set up, you can message Bee from Feishu, Telegram and other chat apps. You can also just chat here in …"
+// in the language of msgs.
+func (msgs Messages) WelcomeChannelDescription() string {
+	return Catalog.Format(msgs.locale, "welcomeChannelDescription", nil)
+}
+
+// WelcomeChannelTitle says "Connect a chat channel"
+// in the language the app shows.
+func WelcomeChannelTitle() string { return In(i18n.Locale()).WelcomeChannelTitle() }
+
+// WelcomeChannelTitle says "Connect a chat channel"
+// in the language of msgs.
+func (msgs Messages) WelcomeChannelTitle() string {
+	return Catalog.Format(msgs.locale, "welcomeChannelTitle", nil)
+}
+
+// WelcomeDone says "Done"
+// in the language the app shows.
+func WelcomeDone() string { return In(i18n.Locale()).WelcomeDone() }
+
+// WelcomeDone says "Done"
+// in the language of msgs.
+func (msgs Messages) WelcomeDone() string {
+	return Catalog.Format(msgs.locale, "welcomeDone", nil)
+}
+
+// WelcomeEngineDescription says "Engines run the tasks. Without one, Bee and workers can't work. The first engine you install becomes Bee's engine."
+// in the language the app shows.
+func WelcomeEngineDescription() string { return In(i18n.Locale()).WelcomeEngineDescription() }
+
+// WelcomeEngineDescription says "Engines run the tasks. Without one, Bee and workers can't work. The first engine you install becomes Bee's engine."
+// in the language of msgs.
+func (msgs Messages) WelcomeEngineDescription() string {
+	return Catalog.Format(msgs.locale, "welcomeEngineDescription", nil)
+}
+
+// WelcomeEngineSkipHint says "Skipping hides this for good. Install engines later in Settings › Plugins."
+// in the language the app shows.
+func WelcomeEngineSkipHint() string { return In(i18n.Locale()).WelcomeEngineSkipHint() }
+
+// WelcomeEngineSkipHint says "Skipping hides this for good. Install engines later in Settings › Plugins."
+// in the language of msgs.
+func (msgs Messages) WelcomeEngineSkipHint() string {
+	return Catalog.Format(msgs.locale, "welcomeEngineSkipHint", nil)
+}
+
+// WelcomeEngineTitle says "Install an engine first"
+// in the language the app shows.
+func WelcomeEngineTitle() string { return In(i18n.Locale()).WelcomeEngineTitle() }
+
+// WelcomeEngineTitle says "Install an engine first"
+// in the language of msgs.
+func (msgs Messages) WelcomeEngineTitle() string {
+	return Catalog.Format(msgs.locale, "welcomeEngineTitle", nil)
+}
+
+// WelcomeInstalled says "Installed"
+// in the language the app shows.
+func WelcomeInstalled() string { return In(i18n.Locale()).WelcomeInstalled() }
+
+// WelcomeInstalled says "Installed"
+// in the language of msgs.
+func (msgs Messages) WelcomeInstalled() string {
+	return Catalog.Format(msgs.locale, "welcomeInstalled", nil)
+}
+
+// WelcomeNext says "Next"
+// in the language the app shows.
+func WelcomeNext() string { return In(i18n.Locale()).WelcomeNext() }
+
+// WelcomeNext says "Next"
+// in the language of msgs.
+func (msgs Messages) WelcomeNext() string {
+	return Catalog.Format(msgs.locale, "welcomeNext", nil)
+}
+
+// WelcomeSkip says "Skip"
+// in the language the app shows.
+func WelcomeSkip() string { return In(i18n.Locale()).WelcomeSkip() }
+
+// WelcomeSkip says "Skip"
+// in the language of msgs.
+func (msgs Messages) WelcomeSkip() string {
+	return Catalog.Format(msgs.locale, "welcomeSkip", nil)
+}
+
 // WorkerDetailConstraintsPanelAdd says "Add work constraints"
 // in the language the app shows.
 func WorkerDetailConstraintsPanelAdd() string {

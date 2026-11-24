@@ -102,7 +102,7 @@ func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 			})
 			switch {
 			case running:
-				operationProgress(c, tk, locales.PluginsInstallDialogInstalling(), op.CreatedAt)
+				kit.OperationProgress(c, tk, locales.PluginsInstallDialogInstalling(), op.CreatedAt)
 			case succeeded:
 				hint := locales.PluginsInstallDialogDoneHint()
 				if engine {

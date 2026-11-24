@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
@@ -29,8 +28,6 @@ const (
 	pluginsBarGap = 12
 	textSize      = 14
 	metaSize      = 12
-	progressGap   = 8
-	progressGlyph = 16
 	noValue       = "–"
 	versionPrefix = "v"
 	stateNoConfig = "not_configured"
@@ -106,23 +103,6 @@ func displayName(names api.LocalizedText, id string) string {
 		return name
 	}
 	return id
-}
-
-func operationProgress(c *ui.Context, tk theme.Tokens, label string, started time.Time) ui.Element {
-	now := c.Now()
-	c.After(untilNextSecond(started, now))
-	return ui.Row(c).MinHeight(theme.ControlSM).AlignItems(ui.Center).Gap(progressGap).Role(ui.RoleStatus).Children(func() {
-		kit.Spinner(c, tk, progressGlyph).TextColor(tk.Accent)
-		kit.Shimmer(c, tk, label)
-		ui.Text(c, model.Elapsed(started, now)).FontSize(textSize).FontFeatures("tnum").TextColor(tk.TextSecondary).SingleLine()
-	})
-}
-
-func untilNextSecond(started, now time.Time) time.Duration {
-	if started.IsZero() || now.Before(started) {
-		return time.Second
-	}
-	return time.Second - now.Sub(started)%time.Second
 }
 
 func opPending(op api.PluginOperation) bool {

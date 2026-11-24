@@ -24,6 +24,10 @@ type SetupStatus struct {
 	Initialized bool `json:"initialized"`
 }
 
+type OnboardingStatus struct {
+	Pending bool `json:"pending"`
+}
+
 type SetupRequest struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`

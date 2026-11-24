@@ -99,6 +99,7 @@ func (s *Server) routes() {
 	s.executionRoutes()
 	s.envRoutes()
 	s.pluginRoutes()
+	s.onboardingRoutes()
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {

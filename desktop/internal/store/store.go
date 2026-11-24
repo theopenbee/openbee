@@ -79,6 +79,7 @@ type Store struct {
 	Conversations   *Resource[[]api.ConversationSummary]
 	SystemConfigs   *Resource[map[string]string]
 	ServerVersion   *Resource[api.ServerVersion]
+	Onboarding      *Resource[api.OnboardingStatus]
 	Online          bool
 	Offline         bool
 	Reconnecting    bool
@@ -159,6 +160,7 @@ func New(o Options) *Store {
 	})
 	s.Config.settled = s.configSettled
 	s.initData()
+	s.initOnboarding()
 	s.initExecutions()
 	s.resets = append(s.resets, s.resetLive)
 	s.chats = map[string]*Chat{}

@@ -39,7 +39,7 @@ func (a *Screens) Connect(c *ui.Context, tk theme.Tokens, page ui.Element) {
 		f.address = previous
 		a.connect(f)
 	}
-	a.layout(c, tk, locales.ConnectTitle(), locales.ConnectDescription(), func() {
+	a.layout(c, tk, columnWidth, locales.ConnectTitle(), locales.ConnectDescription(), func() {
 		ui.Column(c).Gap(formGap).Children(func() {
 			errText := connectError(f)
 			help := locales.ConnectServerHelp()

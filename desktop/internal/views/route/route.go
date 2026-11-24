@@ -25,6 +25,7 @@ const (
 	ConnectPath  = "/connect"
 	SetupPath    = "/setup"
 	LoginPath    = "/login"
+	WelcomePath  = "/welcome"
 	ChatPath     = "/chat"
 	SettingsPath = "/settings"
 	PanelQuery   = "panel"

@@ -504,6 +504,19 @@ func TestEndpoints(t *testing.T) {
 			status: 200, response: `{"ok":true}`,
 		},
 		{
+			name:   "onboarding",
+			call:   func(c *Client) (any, error) { return c.Onboarding(ctx) },
+			method: "GET", uri: "/api/onboarding",
+			status: 200, response: `{"pending":true}`,
+			want: OnboardingStatus{Pending: true},
+		},
+		{
+			name:   "skip onboarding",
+			call:   func(c *Client) (any, error) { return nil, c.SkipOnboarding(ctx) },
+			method: "POST", uri: "/api/onboarding/skip",
+			status: 204,
+		},
+		{
 			name:   "plugins",
 			call:   func(c *Client) (any, error) { return c.Plugins(ctx) },
 			method: "GET", uri: "/api/plugins",

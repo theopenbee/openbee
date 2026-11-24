@@ -33,7 +33,7 @@ type setupKey struct{}
 func (a *Screens) Setup(c *ui.Context, tk theme.Tokens, page ui.Element) {
 	f := ui.Local(page, setupKey{}, func() setupForm { return setupForm{focus: fieldUsername} })
 	submit := func() { a.setup(f) }
-	a.layout(c, tk, locales.SetupTitle(), locales.SetupDescription(), func() {
+	a.layout(c, tk, columnWidth, locales.SetupTitle(), locales.SetupDescription(), func() {
 		ui.Column(c).Gap(formGap).Children(func() {
 			if f.failure != nil {
 				a.setupAlert(c, tk, f.failure)
