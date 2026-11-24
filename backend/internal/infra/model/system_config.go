@@ -19,3 +19,5 @@ const SystemConfigKeyEngineArgsBee = "engine_args_bee"
 const SystemConfigKeyEngineModelsGlobal = "engine_models_global"
 
 const SystemConfigKeyEngineModelsBee = "engine_models_bee"
+
+const SystemConfigKeyOnboardingSkipped = "onboarding_skipped"

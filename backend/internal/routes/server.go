@@ -22,6 +22,7 @@ type ServerParams struct {
 	Envs              *api.EnvHandler
 	SystemConfigs     *api.SystemConfigHandler
 	Setup             *api.SetupHandler
+	Onboarding        *api.OnboardingHandler
 	Plugins           *api.PluginHandler
 	Version           *api.VersionHandler
 	Executions        *api.ExecutionHandler

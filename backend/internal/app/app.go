@@ -382,6 +382,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Envs:              api.NewEnvHandler(envSvc),
 		SystemConfigs:     api.NewSystemConfigHandler(s.systemConfigStore, mgr, engineCfg),
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
+		Onboarding:        api.NewOnboardingHandler(s.systemConfigStore, plugins),
 		Plugins:           api.NewPluginHandler(plugins),
 		Version:           api.NewVersionHandler(buildinfo.Version, buildinfo.Bundled),
 		Executions:        api.NewExecutionHandler(execution.New(s.execStore, s.taskStore, plugins)),

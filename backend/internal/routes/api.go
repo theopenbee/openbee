@@ -48,6 +48,9 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	// System configs
 	r.GET("/system-configs", s.SystemConfigs.Get)
 	r.PUT("/system-configs/:key", s.SystemConfigs.Set)
+
+	r.GET("/onboarding", s.Onboarding.Get)
+	r.POST("/onboarding/skip", s.Onboarding.Skip)
 }
 
 func (s *Server) registerPluginRoutes(r *gin.RouterGroup) {
