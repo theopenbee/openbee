@@ -276,6 +276,21 @@
     "errorTitle": "Could not create the account",
     "goToLogin": "Go to sign in"
   },
+  "welcome": {
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Done",
+    "installed": "Installed",
+    "engine": {
+      "title": "Install an engine first",
+      "description": "Engines run the tasks. Without one, Bee and workers can't work. The first engine you install becomes Bee's engine.",
+      "skipHint": "Skipping hides this for good. Install engines later in Settings › Plugins."
+    },
+    "channel": {
+      "title": "Connect a chat channel",
+      "description": "Optional. Once set up, you can message Bee from Feishu, Telegram and other chat apps. You can also just chat here in OpenBee."
+    }
+  },
   "scopes": {
     "readWorkers": {
       "title": "Read Workers",

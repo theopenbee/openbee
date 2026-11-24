@@ -275,6 +275,21 @@
     "errorTitle": "无法创建账号",
     "goToLogin": "前往登录"
   },
+  "welcome": {
+    "skip": "跳过",
+    "next": "下一步",
+    "done": "完成",
+    "installed": "已安装",
+    "engine": {
+      "title": "先装一个引擎",
+      "description": "引擎负责真正执行任务，没有引擎 Bee 和员工都无法工作。第一个装好的引擎会自动成为 Bee 的引擎。",
+      "skipHint": "跳过后不再提示，之后可在 设置 › 插件 中安装"
+    },
+    "channel": {
+      "title": "接入聊天渠道",
+      "description": "可选。装好并配置后，就能在飞书、Telegram 等聊天软件里给 Bee 发消息；不装也可以直接在 OpenBee 里聊天。"
+    }
+  },
   "scopes": {
     "readWorkers": {
       "title": "查询员工",

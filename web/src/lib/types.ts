@@ -190,6 +190,10 @@ export interface ServerVersion {
   bundled: boolean
 }
 
+export interface OnboardingStatus {
+  pending: boolean
+}
+
 export interface SetupStatus {
   initialized: boolean
 }

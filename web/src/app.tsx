@@ -3,12 +3,14 @@ import { HashRouter, Navigate, Routes, Route, useLocation, useParams } from "rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Layout } from "@/components/layout"
 import { AuthGuard } from "@/components/auth-guard"
+import { OnboardingGate } from "@/components/onboarding-gate"
 import { ChatShell } from "@/components/chat/chat-shell"
 import { Toaster } from "@/components/toaster"
 import { legacyRedirect, settingsPath, type SettingsSection } from "@/lib/routes"
 
 const Login = lazy(() => import("@/pages/login").then(m => ({ default: m.Login })))
 const Setup = lazy(() => import("@/pages/setup").then(m => ({ default: m.Setup })))
+const Welcome = lazy(() => import("@/pages/welcome").then(m => ({ default: m.Welcome })))
 const ChatIndex = lazy(() => import("@/pages/chat").then(m => ({ default: m.ChatIndex })))
 const Chat = lazy(() => import("@/pages/chat").then(m => ({ default: m.Chat })))
 const SettingsPage = lazy(() =>
@@ -44,7 +46,8 @@ export function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<Setup />} />
-            <Route element={<AuthGuard><Layout /></AuthGuard>}>
+            <Route path="/welcome" element={<AuthGuard><Welcome /></AuthGuard>} />
+            <Route element={<AuthGuard><OnboardingGate><Layout /></OnboardingGate></AuthGuard>}>
               <Route path="/" element={<Navigate to="/chat" replace />} />
               <Route element={<ChatShell />}>
                 <Route path="/chat" element={<ChatIndex />} />

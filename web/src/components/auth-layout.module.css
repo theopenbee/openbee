@@ -52,6 +52,14 @@
   gap: var(--space-8);
 }
 
+.columnMd {
+  width: min(100%, 560px);
+}
+
+.columnLg {
+  width: min(100%, 760px);
+}
+
 .card {
   width: 100%;
   min-width: 0;

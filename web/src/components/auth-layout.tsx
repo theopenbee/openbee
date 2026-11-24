@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react"
 import { LogoFull } from "@/components/brand/logo"
 import { LanguageMenu } from "@/components/language-menu"
+import { cn } from "@/lib/utils"
 import styles from "./auth-layout.module.css"
 
 const RINGS = Array.from({ length: 12 }, (_, index) => ({ r: 232 + index * 64, major: index % 3 === 2 }))
@@ -27,13 +28,17 @@ export function AuthBackdrop() {
   )
 }
 
+const COLUMN_WIDTH = { sm: undefined, md: styles.columnMd, lg: styles.columnLg }
+
 export function AuthLayout({
   title,
   description,
+  width = "sm",
   children,
 }: {
   title: string
   description?: string
+  width?: keyof typeof COLUMN_WIDTH
   children: ReactNode
 }) {
   const headingId = useId()
@@ -44,7 +49,7 @@ export function AuthLayout({
       <div className={styles.toolbar}>
         <LanguageMenu />
       </div>
-      <main className={styles.column}>
+      <main className={cn(styles.column, COLUMN_WIDTH[width])}>
         <LogoFull className="h-8" />
         <section className={styles.card} aria-labelledby={headingId}>
           <header className={styles.heading}>

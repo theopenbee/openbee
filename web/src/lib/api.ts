@@ -1,4 +1,4 @@
-import type { Worker, ChatMessage, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate, ExecutionDetail } from "./types"
+import type { Worker, ChatMessage, ConversationId, ConversationMessagesResponse, ConversationSummary, EnvConfig, AppConfig, Engine, EngineModel, ServerVersion, OnboardingStatus, SetupStatus, TokenResponse, PluginStatus, PluginDetail, PluginCatalog, PluginOperation, PluginSettingsUpdate, ExecutionDetail } from "./types"
 import i18n from "i18next"
 import { config } from "./config"
 import { getAccessToken, getRefreshToken, refreshAccessToken, clearTokens } from "./auth"
@@ -184,6 +184,10 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ value }),
       }),
+  },
+  onboarding: {
+    get: () => fetchAPI<OnboardingStatus>("/onboarding"),
+    skip: () => fetchAPI<void>("/onboarding/skip", { method: "POST" }),
   },
   setup: {
     // Public endpoints — no token required (fetchAPI tolerates a missing token).
