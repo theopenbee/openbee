@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ShuffleIcon } from "lucide-react"
 import { Alert } from "@/components/arc/alert/alert"
@@ -81,9 +81,27 @@ interface AvatarPickerDialogProps {
 
 function AvatarPickerDialog({ open, onOpenChange, workerId, name, value, packs, onSelect, onRandom }: AvatarPickerDialogProps) {
   const { t, i18n } = useTranslation()
-  const named = packs.length > 1
-  const tile = (avatar: string, label: string) => (
-    <AvatarTile key={avatar || "initials"} workerId={workerId} name={name} avatar={avatar} label={label} selected={value === avatar} onSelect={onSelect} />
+  const tiles = (avatars: readonly string[]) =>
+    avatars.map((avatar) => (
+      <AvatarTile
+        key={avatar}
+        workerId={workerId}
+        name={name}
+        avatar={avatar}
+        label={t("workers.form.avatarOption", { name: avatarLabel(avatar) })}
+        selected={value === avatar}
+        onSelect={onSelect}
+      />
+    ))
+  const choices = (
+    <>
+      <AvatarTile workerId={workerId} name={name} avatar="" label={t("workers.form.avatarInitials")} selected={value === ""} onSelect={onSelect} />
+      <button type="button" aria-label={t("workers.form.avatarRandom")} title={t("workers.form.avatarRandom")} onClick={onRandom} className={tileClass}>
+        <span className="grid size-12 place-items-center rounded-full border border-dashed border-border-strong text-secondary">
+          <ShuffleIcon size={18} strokeWidth={1.75} aria-hidden="true" />
+        </span>
+      </button>
+    </>
   )
 
   return (
@@ -92,24 +110,26 @@ function AvatarPickerDialog({ open, onOpenChange, workerId, name, value, packs, 
         {packs.length === 0 ? (
           <Alert tone="info" title={t("workers.form.avatarNone")} />
         ) : (
-          <div className="grid gap-4">
-            <div className="flex justify-end">
-              <Button type="button" variant="secondary" size="sm" onClick={onRandom}>
-                <ShuffleIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-                {t("workers.form.avatarRandom")}
-              </Button>
-            </div>
-            <div className="-mx-2 grid max-h-[min(56vh,26rem)] gap-4 overflow-y-auto px-2 py-1">
-              <div className={gridClass}>{tile("", t("workers.form.avatarInitials"))}</div>
-              {packs.map((pack) => (
-                <section key={pack.id} className="grid gap-2" aria-label={localize(pack.name, i18n.language) || pack.id}>
-                  {named && <h3 className="text-xs font-medium text-secondary">{localize(pack.name, i18n.language) || pack.id}</h3>}
-                  <div className={gridClass}>
-                    {pack.avatars.map((avatar) => tile(avatar, t("workers.form.avatarOption", { name: avatarLabel(avatar) })))}
-                  </div>
-                </section>
-              ))}
-            </div>
+          <div className="-mx-2 grid max-h-[min(60vh,28rem)] gap-4 overflow-y-auto px-2 py-1">
+            {packs.length === 1 ? (
+              <div className={gridClass}>
+                {choices}
+                {tiles(packs[0].avatars)}
+              </div>
+            ) : (
+              <>
+                <div className={gridClass}>{choices}</div>
+                {packs.map((pack) => {
+                  const packName = localize(pack.name, i18n.language) || pack.id
+                  return (
+                    <section key={pack.id} className="grid gap-2" aria-label={packName}>
+                      <h3 className="text-xs font-medium text-secondary">{packName}</h3>
+                      <div className={gridClass}>{tiles(pack.avatars)}</div>
+                    </section>
+                  )
+                })}
+              </>
+            )}
           </div>
         )}
       </DialogContent>
@@ -118,6 +138,9 @@ function AvatarPickerDialog({ open, onOpenChange, workerId, name, value, packs, 
 }
 
 const gridClass = "grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-2"
+
+const tileClass =
+  "grid place-items-center justify-self-center rounded-full p-0.5 outline-none ring-2 ring-transparent ring-offset-2 ring-offset-surface-raised transition-shadow hover:ring-border-strong focus-visible:ring-accent motion-reduce:transition-none"
 
 interface AvatarTileProps {
   workerId: string
@@ -129,17 +152,20 @@ interface AvatarTileProps {
 }
 
 function AvatarTile({ workerId, name, avatar, label, selected, onSelect }: AvatarTileProps) {
+  const ref = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView({ block: "center" })
+  }, [selected])
+
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       aria-pressed={selected}
       title={label}
       onClick={() => onSelect(avatar)}
-      className={cn(
-        "grid place-items-center justify-self-center rounded-full p-0.5 outline-none ring-2 ring-transparent ring-offset-2 ring-offset-surface-raised transition-shadow hover:ring-border-strong focus-visible:ring-accent motion-reduce:transition-none",
-        selected && "ring-accent hover:ring-accent",
-      )}
+      className={cn(tileClass, selected && "ring-accent hover:ring-accent")}
     >
       <WorkerAvatar workerId={workerId} name={name} avatar={avatar} size="lg" />
     </button>
