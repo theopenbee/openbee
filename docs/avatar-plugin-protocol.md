@@ -47,7 +47,7 @@ Every file in the folder is an avatar, except names starting with `.`. If one fi
 | Size | At most 256 KB per file, at most 2000 files. |
 | Files | Regular files only, no symlinks or subfolders. |
 
-Renaming or removing a file later drops it from the workers that use it; they show their initials instead.
+Renaming or removing a file later drops it from the workers that use it; they show their initials instead. The folder may be a symlink, as long as it resolves to a folder inside the plugin.
 
 ## Lifecycle
 
@@ -63,7 +63,7 @@ An avatar plugin is enabled as soon as it is installed and shows as `ready`. `di
 |---|---|
 | `GET /api/avatars` | `{"packs": [{"id": "mfers", "name": {"en": "mfers"}, "avatars": ["mfers/00001", "mfers/00042"]}]}`, enabled plugins only. |
 | `GET /api/avatars/<plugin id>/<name>` | The image. `404` with code `avatar_not_found` when it is not available. |
-| `POST /api/workers` | Optional `avatar`. Left out, the worker gets a random one. |
+| `POST /api/workers` | Optional `avatar`. Left out or empty, the worker gets a random one. |
 | `PUT /api/workers/<id>` | `"avatar": "mfers/00042"` sets it, `"avatar": ""` goes back to initials. Unknown avatars are rejected with `worker_validation`. |
 
 Worker responses carry `avatar`, empty when the worker has none or its plugin is not enabled. Images need the same sign-in as the rest of the API; `?token=<access token>` works where a header cannot be set.

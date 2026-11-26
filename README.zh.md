@@ -66,7 +66,7 @@ Bee 会创建这个员工。派任务也是一样，直接说。想在飞书、T
 - [服务端与命令行](docs/server.zh.md)：安装方式、配置与数据文件、常用命令
 - [插件](docs/plugins.zh.md)：引擎与聊天渠道，在应用里或用命令行管理
 - [theopenbee.com/zh/docs](https://theopenbee.com/zh/docs/)：员工、任务、约束与聊天软件接入的使用指南
-- 开发插件：[渠道插件协议](docs/channel-plugin-protocol.md)、[引擎插件协议](docs/engine-plugin-protocol.md)
+- 开发插件：[渠道插件协议](docs/channel-plugin-protocol.md)、[引擎插件协议](docs/engine-plugin-protocol.md)、[头像插件协议](docs/avatar-plugin-protocol.md)
 
 ## 🤝 Community
 

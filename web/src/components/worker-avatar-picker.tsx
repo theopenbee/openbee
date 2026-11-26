@@ -62,7 +62,7 @@ export function WorkerAvatarField({ workerId, name, value, onChange, disabled }:
         value={value}
         packs={packs}
         onSelect={select}
-        onRandom={() => select(pickRandomAvatar(packs, used))}
+        onRandom={() => select(pickRandomAvatar(packs, new Set([...used, value])))}
       />
     </div>
   )

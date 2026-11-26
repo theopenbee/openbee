@@ -66,7 +66,7 @@ Bee creates the worker. Hand it a task the same way. To chat from Lark, Telegram
 - [Server and CLI](docs/server.md): install methods, config and data files, everyday commands
 - [Plugins](docs/plugins.md): engines and chat channels, from the app or the command line
 - [theopenbee.com/docs](https://theopenbee.com/docs/): guides for workers, tasks, constraints and chat apps
-- Write a plugin: [channel protocol](docs/channel-plugin-protocol.md), [engine protocol](docs/engine-plugin-protocol.md)
+- Write a plugin: [channel protocol](docs/channel-plugin-protocol.md), [engine protocol](docs/engine-plugin-protocol.md), [avatar protocol](docs/avatar-plugin-protocol.md)
 
 ## 🤝 Community
 
