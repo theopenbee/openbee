@@ -46,7 +46,7 @@ func errBotNameConflict(name string) error {
 }
 
 func errBotNameNotSupported(id string) error {
-	return apperr.New(CodeBotNameNotSupported, fmt.Sprintf("plugin %q is an engine and has no bot name", id)).WithParams(map[string]any{"id": id})
+	return apperr.New(CodeBotNameNotSupported, fmt.Sprintf("plugin %q is not a channel and has no bot name", id)).WithParams(map[string]any{"id": id})
 }
 
 func errCatalogUnavailable(err error) error {

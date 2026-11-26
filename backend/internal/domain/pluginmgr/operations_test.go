@@ -71,6 +71,9 @@ func (f *fakeInstaller) Install(ctx context.Context, spec string) (plugin.Entry,
 	if engineID, ok := strings.CutPrefix(base, "engine-"); ok {
 		id = engineID
 		writeEngineManifest(f.h.t, dir, id, f.h.engines.fieldsFor(id))
+	} else if packID, ok := strings.CutPrefix(base, "avatars-"); ok {
+		id = packID
+		writeAvatarManifest(f.h.t, dir, id, "a", "b")
 	} else {
 		writeManifest(f.h.t, dir, id, tokenField)
 	}

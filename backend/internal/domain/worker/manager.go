@@ -38,6 +38,7 @@ type Manager struct {
 	envService     *env.Service
 	sysConfigStore systemConfigReader
 	botNames       func() []string
+	avatars        AvatarSource
 	statusObserver func(workerID string, status model.WorkerStatus)
 
 	activeProcesses map[string]ai.Process // execution_id -> process

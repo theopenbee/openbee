@@ -154,6 +154,7 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 		return nil, err
 	}
 	pluginMgr.LoadEngines(ctx)
+	pluginMgr.LoadAvatars(ctx)
 	engineCfg := enginecfg.NewStore(selectedEngine(s.systemConfigStore, cfg.Bee.Engine.Default), cfg.Bee.Engine.Default, pluginMgr.EnabledEngineIDs)
 
 	envSvc, err := env.NewService(s.envConfigStore, cfg.Server.EnvSecret)
@@ -183,6 +184,7 @@ func buildApp(ctx context.Context, cfg config.Config) (*App, error) {
 	feeder, sched := buildBee(cfg.Bee, s, dispatchCh, failureNotifier, pluginMgr, engineCfg, envSvc, localMediaRoot, handoff, localTaskObserver{pub: localPub})
 
 	mgr.SetBotNameSource(pluginMgr.BotNameList)
+	mgr.SetAvatarSource(pluginMgr)
 	mgr.SetStatusObserver(func(id string, status model.WorkerStatus) {
 		localPub.WorkerStatus(id, string(status))
 	})
@@ -389,6 +391,7 @@ func buildAPIServer(serverCfg config.ServerConfig, rpcCfg config.RPCConfig, s ap
 		Setup:             api.NewSetupHandler(s.userStore, jwtSvc, claimLegacyChat),
 		Onboarding:        api.NewOnboardingHandler(s.systemConfigStore, plugins),
 		Plugins:           api.NewPluginHandler(plugins),
+		Avatars:           api.NewAvatarHandler(plugins),
 		Version:           api.NewVersionHandler(buildinfo.Version, buildinfo.Bundled),
 		Executions:        api.NewExecutionHandler(execution.New(s.execStore, s.taskStore, plugins)),
 		BeeRPC:            beeRPCSrv,

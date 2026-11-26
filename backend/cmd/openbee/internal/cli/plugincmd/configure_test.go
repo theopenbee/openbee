@@ -187,7 +187,7 @@ func TestConfigure_EngineRejectsBotNameFlag(t *testing.T) {
 		api.addPlugin(piDetail(nil))
 		_, err := runCmd(t, api, &fakePrompter{}, "configure", "pi", "--set", "path=/opt/pi", "--bot-name", value)
 		require.Error(t, err)
-		assert.Equal(t, `pi is an engine and has no bot name; remove --bot-name`, err.Error())
+		assert.Equal(t, `pi is not a channel and has no bot name; remove --bot-name`, err.Error())
 		assert.Empty(t, api.actions)
 		assert.Nil(t, api.settings["pi"])
 	}

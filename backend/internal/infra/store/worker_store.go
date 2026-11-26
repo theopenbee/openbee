@@ -33,10 +33,10 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 		w.EngineModels = "{}"
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO bee_workers (id, name, description, constraints, work_dir, engine, engine_args, engine_models, status, permission_scopes, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO bee_workers (id, name, description, constraints, work_dir, engine, engine_args, engine_models, status, permission_scopes, avatar, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		w.ID, w.Name, w.Description, w.Constraints, w.WorkDir, w.Engine,
-		w.EngineArgs, w.EngineModels, w.Status, w.PermissionScopes, w.CreatedAt, w.UpdatedAt,
+		w.EngineArgs, w.EngineModels, w.Status, w.PermissionScopes, w.Avatar, w.CreatedAt, w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("insert worker: %w", err)
@@ -44,13 +44,13 @@ func (s *WorkerStore) Create(w model.Worker) (model.Worker, error) {
 	return w, nil
 }
 
-const workerColumns = `id, name, description, constraints, work_dir, engine, engine_args, engine_models, status, permission_scopes, created_at, updated_at`
+const workerColumns = `id, name, description, constraints, work_dir, engine, engine_args, engine_models, status, permission_scopes, avatar, created_at, updated_at`
 
 func scanWorker(scanner interface{ Scan(...any) error }) (model.Worker, error) {
 	var w model.Worker
 	err := scanner.Scan(
 		&w.ID, &w.Name, &w.Description, &w.Constraints,
-		&w.WorkDir, &w.Engine, &w.EngineArgs, &w.EngineModels, &w.Status, &w.PermissionScopes, &w.CreatedAt, &w.UpdatedAt,
+		&w.WorkDir, &w.Engine, &w.EngineArgs, &w.EngineModels, &w.Status, &w.PermissionScopes, &w.Avatar, &w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
 		return model.Worker{}, err
@@ -159,6 +159,23 @@ func (s *WorkerStore) ListNames() ([]string, error) {
 	return names, rows.Err()
 }
 
+func (s *WorkerStore) ListAvatars() ([]string, error) {
+	rows, err := s.db.Query(`SELECT avatar FROM bee_workers WHERE avatar != ''`)
+	if err != nil {
+		return nil, fmt.Errorf("list worker avatars: %w", err)
+	}
+	defer rows.Close()
+	var avatars []string
+	for rows.Next() {
+		var avatar string
+		if err := rows.Scan(&avatar); err != nil {
+			return nil, err
+		}
+		avatars = append(avatars, avatar)
+	}
+	return avatars, rows.Err()
+}
+
 // WorkerFilter holds optional filter criteria for listing workers.
 type WorkerFilter struct {
 	Name string // case-insensitive partial match; empty means no filter
@@ -196,10 +213,10 @@ func (s *WorkerStore) ListFiltered(ctx context.Context, filter WorkerFilter, lim
 func (s *WorkerStore) Update(w model.Worker) (model.Worker, error) {
 	w.UpdatedAt = time.Now().UnixMilli()
 	_, err := s.db.Exec(
-		`UPDATE bee_workers SET name=?, description=?, constraints=?, work_dir=?, engine=?, engine_args=?, engine_models=?, status=?, permission_scopes=?, updated_at=?
+		`UPDATE bee_workers SET name=?, description=?, constraints=?, work_dir=?, engine=?, engine_args=?, engine_models=?, status=?, permission_scopes=?, avatar=?, updated_at=?
 		 WHERE id=?`,
 		w.Name, w.Description, w.Constraints, w.WorkDir, w.Engine,
-		w.EngineArgs, w.EngineModels, w.Status, w.PermissionScopes, w.UpdatedAt, w.ID,
+		w.EngineArgs, w.EngineModels, w.Status, w.PermissionScopes, w.Avatar, w.UpdatedAt, w.ID,
 	)
 	if err != nil {
 		return model.Worker{}, fmt.Errorf("update worker: %w", err)

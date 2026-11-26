@@ -114,6 +114,7 @@ type Manager struct {
 	onBotNames func(map[string]string)
 	instances  map[string]*instance
 	engines    map[string]*engineInstance
+	avatars    map[string]*avatarPack
 	startErrs  map[string]string
 	locks      map[string]*sync.Mutex
 	botNames   map[string]string
@@ -135,6 +136,7 @@ func New(d Deps) *Manager {
 		deps:      d,
 		instances: make(map[string]*instance),
 		engines:   make(map[string]*engineInstance),
+		avatars:   make(map[string]*avatarPack),
 		startErrs: make(map[string]string),
 		locks:     make(map[string]*sync.Mutex),
 		botNames:  make(map[string]string),
@@ -164,7 +166,7 @@ func (m *Manager) Start(ctx context.Context, dispatch func(platform.InboundMessa
 			log.Error("read plugin settings", zap.String("plugin", e.ID), zap.Error(err))
 			continue
 		}
-		if !found || !row.Enabled || m.isEngine(e) {
+		if !found || !row.Enabled || m.kind(e) != plugin.TypeChannel {
 			continue
 		}
 		unlock := m.lockID(e.ID)
@@ -239,8 +241,12 @@ func (m *Manager) startLocked(ctx context.Context, id string) error {
 	m.mu.Lock()
 	rec := m.instances[id]
 	eng := m.engines[id]
+	pack := m.avatars[id]
 	engFailed := eng != nil && eng.state == StateFailed
 	m.mu.Unlock()
+	if pack != nil {
+		return nil
+	}
 	if eng != nil {
 		if !engFailed {
 			return nil
@@ -287,6 +293,9 @@ func (m *Manager) launch(ctx context.Context, id string) error {
 	cfg, err := plugin.ResolveConfig(man, s.Config)
 	if err != nil {
 		return errNotConfigured(id, err)
+	}
+	if man.Kind() == plugin.TypeAvatar {
+		return m.launchAvatars(id, man)
 	}
 	dataDir := m.deps.Registry.DataDir(id)
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
@@ -373,13 +382,18 @@ func (m *Manager) stopLocked(id string) {
 	m.mu.Lock()
 	rec := m.instances[id]
 	eng := m.engines[id]
+	pack := m.avatars[id]
 	delete(m.instances, id)
 	delete(m.engines, id)
+	delete(m.avatars, id)
 	delete(m.startErrs, id)
 	m.mu.Unlock()
 	if eng != nil {
 		eng.cancel()
 		log.Info("engine unregistered", zap.String("plugin", id))
+	}
+	if pack != nil {
+		log.Info("avatars unregistered", zap.String("plugin", id))
 	}
 	m.deps.Senders.Delete(id)
 	if rec == nil {
@@ -406,8 +420,8 @@ func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string
 	if err != nil {
 		return err
 	}
-	isEngine := man.Kind() == plugin.TypeEngine
-	if isEngine && botName != nil && strings.TrimSpace(*botName) != "" {
+	noBotName := man.Kind() != plugin.TypeChannel
+	if noBotName && botName != nil && strings.TrimSpace(*botName) != "" {
 		return errBotNameNotSupported(id)
 	}
 	cur := Settings{Config: map[string]any{}}
@@ -429,7 +443,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, id string, botName *string
 	if botName != nil {
 		next.BotName = strings.TrimSpace(*botName)
 	}
-	if isEngine {
+	if noBotName {
 		next.BotName = ""
 	}
 	if next.BotName != "" && next.BotName != cur.BotName && m.deps.WorkerNameTaken != nil {
@@ -472,8 +486,8 @@ func (m *Manager) Enable(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if !found && man.Kind() == plugin.TypeEngine {
-		if err := m.saveEngineDefaults(ctx, id, man); err != nil {
+	if !found && man.Kind() != plugin.TypeChannel {
+		if err := m.saveDefaults(ctx, id, man); err != nil {
 			return err
 		}
 		return m.startLocked(ctx, id)
@@ -612,9 +626,10 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 	m.mu.Lock()
 	rec := m.instances[e.ID]
 	eng := m.engines[e.ID]
+	pack := m.avatars[e.ID]
 	startErr := m.startErrs[e.ID]
 	upgrading := m.upgrading[e.ID]
-	active := rec != nil || eng != nil
+	active := rec != nil || eng != nil || pack != nil
 	var recState State
 	var recErr string
 	switch {
@@ -622,6 +637,8 @@ func (m *Manager) status(e plugin.Entry, row model.PluginSettings, found bool) (
 		recState, recErr = rec.state, rec.err
 	case eng != nil:
 		recState, recErr = eng.state, eng.err
+	case pack != nil:
+		recState = StateReady
 	}
 	m.mu.Unlock()
 

@@ -24,6 +24,7 @@ type CreateWorkerParams struct {
 	Engine           string
 	EngineArgs       string // JSON: map[engine]rawCLIString
 	EngineModels     map[string]string
+	Avatar           string
 }
 
 // UpdateWorkerParams holds the inputs for a partial worker update.
@@ -37,12 +38,13 @@ type UpdateWorkerParams struct {
 	// nil = no change; empty map clears all; per-engine empty string deletes that entry.
 	EngineArgs   map[string]string `json:"engine_args"`
 	EngineModels map[string]string `json:"engine_models"`
+	Avatar       *string           `json:"avatar"`
 }
 
 func (p UpdateWorkerParams) HasChanges() bool {
 	return p.Name != nil || p.Description != nil || p.Constraints != nil ||
 		p.WorkDir != nil || p.PermissionScopes != nil || p.Engine != nil || p.EngineArgs != nil ||
-		p.EngineModels != nil
+		p.EngineModels != nil || p.Avatar != nil
 }
 
 func (p UpdateWorkerParams) Validate() error {
@@ -182,6 +184,9 @@ func (p UpdateWorkerParams) ApplyTo(w *model.Worker) error {
 		}
 		w.EngineModels = merged
 	}
+	if p.Avatar != nil {
+		w.Avatar = *p.Avatar
+	}
 	return nil
 }
 
@@ -242,6 +247,17 @@ func (m *Manager) UpdateWorker(id string, p UpdateWorkerParams) (model.Worker, e
 			}
 		}
 	}
+	if p.Avatar != nil {
+		trimmed := strings.TrimSpace(*p.Avatar)
+		if trimmed == w.Avatar {
+			p.Avatar = nil
+		} else {
+			p.Avatar = &trimmed
+			if err := m.validateAvatar(trimmed); err != nil {
+				return model.Worker{}, err
+			}
+		}
+	}
 	if !p.HasChanges() {
 		return w, nil
 	}
@@ -260,6 +276,13 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	engineModels, err := m.engineModelsJSON(p.EngineModels)
 	if err != nil {
 		return model.Worker{}, err
+	}
+	p.Avatar = strings.TrimSpace(p.Avatar)
+	if err := m.validateAvatar(p.Avatar); err != nil {
+		return model.Worker{}, err
+	}
+	if p.Avatar == "" {
+		p.Avatar = m.pickAvatar()
 	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
@@ -284,6 +307,7 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		EngineArgs:       engineArgs,
 		EngineModels:     engineModels,
 		PermissionScopes: p.PermissionScopes,
+		Avatar:           p.Avatar,
 	}
 	return m.workerStore.Create(workerModel)
 }

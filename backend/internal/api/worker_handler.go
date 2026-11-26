@@ -29,6 +29,7 @@ type createWorkerRequest struct {
 	PermissionScopes string            `json:"permission_scopes"`
 	EngineArgs       map[string]string `json:"engine_args"`
 	EngineModels     map[string]string `json:"engine_models"`
+	Avatar           string            `json:"avatar"`
 }
 
 type workerResponse struct {
@@ -42,6 +43,7 @@ type workerResponse struct {
 	EngineModels     map[string]string  `json:"engine_models"`
 	Status           model.WorkerStatus `json:"status"`
 	PermissionScopes string             `json:"permission_scopes"`
+	Avatar           string             `json:"avatar"`
 	CreatedAt        int64              `json:"created_at"`
 	UpdatedAt        int64              `json:"updated_at"`
 }
@@ -77,9 +79,21 @@ func toWorkerResponse(w model.Worker) (workerResponse, error) {
 		EngineModels:     engineModels,
 		Status:           w.Status,
 		PermissionScopes: w.PermissionScopes,
+		Avatar:           w.Avatar,
 		CreatedAt:        w.CreatedAt,
 		UpdatedAt:        w.UpdatedAt,
 	}, nil
+}
+
+func (h *WorkerHandler) response(w model.Worker) (workerResponse, error) {
+	resp, err := toWorkerResponse(w)
+	if err != nil {
+		return workerResponse{}, err
+	}
+	if !h.manager.HasAvatar(resp.Avatar) {
+		resp.Avatar = ""
+	}
+	return resp, nil
 }
 
 type WorkerChatCleaner interface {
@@ -135,12 +149,13 @@ func (h *WorkerHandler) Create(c *gin.Context) {
 		PermissionScopes: req.PermissionScopes,
 		EngineArgs:       engineArgsJSON,
 		EngineModels:     req.EngineModels,
+		Avatar:           req.Avatar,
 	})
 	if err != nil {
 		respondWorkerError(c, err)
 		return
 	}
-	resp, err := toWorkerResponse(w)
+	resp, err := h.response(w)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -157,7 +172,7 @@ func (h *WorkerHandler) List(c *gin.Context) {
 
 	resp := make([]workerResponse, 0, len(workers))
 	for _, w := range workers {
-		item, convErr := toWorkerResponse(w)
+		item, convErr := h.response(w)
 		if convErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
 			return
@@ -173,7 +188,7 @@ func (h *WorkerHandler) Get(c *gin.Context) {
 		respondError(c, http.StatusNotFound, apperr.New("worker_not_found", "worker not found"))
 		return
 	}
-	resp, convErr := toWorkerResponse(w)
+	resp, convErr := h.response(w)
 	if convErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
 		return
@@ -192,7 +207,7 @@ func (h *WorkerHandler) Update(c *gin.Context) {
 		respondWorkerError(c, err)
 		return
 	}
-	resp, convErr := toWorkerResponse(w)
+	resp, convErr := h.response(w)
 	if convErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": convErr.Error()})
 		return

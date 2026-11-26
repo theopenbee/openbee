@@ -192,3 +192,26 @@ func TestWorkerStore_ListNames(t *testing.T) {
 	}
 	assert.True(t, nameSet["Alpha"] && nameSet["Beta"], "expected Alpha and Beta in %v", names)
 }
+
+func TestWorkerStore_Avatar(t *testing.T) {
+	s := setupTestDB(t)
+	a, err := s.Create(model.Worker{Name: "A", WorkDir: "/tmp/a", Avatar: "mfers/00042"})
+	require.NoError(t, err)
+	_, err = s.Create(model.Worker{Name: "B", WorkDir: "/tmp/b"})
+	require.NoError(t, err)
+
+	got, err := s.GetByID(a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "mfers/00042", got.Avatar)
+
+	got.Avatar = "mfers/00007"
+	_, err = s.Update(got)
+	require.NoError(t, err)
+	got, err = s.GetByID(a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "mfers/00007", got.Avatar)
+
+	avatars, err := s.ListAvatars()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mfers/00007"}, avatars)
+}

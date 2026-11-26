@@ -59,7 +59,7 @@ func (p Plugin) kind() string {
 	return p.Type
 }
 
-func (p Plugin) isEngine() bool { return p.kind() == plugin.TypeEngine }
+func (p Plugin) hasBotName() bool { return p.kind() == plugin.TypeChannel }
 
 type Detail struct {
 	Plugin

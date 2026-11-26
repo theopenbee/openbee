@@ -91,8 +91,15 @@ func (m *Manager) EnabledEngineIDs() []string {
 }
 
 func (m *Manager) isEngine(e plugin.Entry) bool {
+	return m.kind(e) == plugin.TypeEngine
+}
+
+func (m *Manager) kind(e plugin.Entry) string {
 	man, err := m.manifest(e)
-	return err == nil && man.Kind() == plugin.TypeEngine
+	if err != nil {
+		return plugin.TypeChannel
+	}
+	return man.Kind()
 }
 
 func (m *Manager) launchEngine(id string, man plugin.Manifest, cfg map[string]any, dataDir string) error {
@@ -169,7 +176,7 @@ func (m *Manager) onEngineCheck(id string, gen int, res pluginengine.CheckResult
 	log.Info("engine ready", zap.String("plugin", id), zap.String("version", res.Version), zap.String("path", res.Path))
 }
 
-func (m *Manager) saveEngineDefaults(ctx context.Context, id string, man plugin.Manifest) error {
+func (m *Manager) saveDefaults(ctx context.Context, id string, man plugin.Manifest) error {
 	cfg, err := MergeConfig(man, nil, nil)
 	if err != nil {
 		return errNotConfigured(id, err)
@@ -181,18 +188,18 @@ func (m *Manager) saveEngineDefaults(ctx context.Context, id string, man plugin.
 	return m.deps.Store.Upsert(ctx, row)
 }
 
-func (m *Manager) enableNewEngine(ctx context.Context, e plugin.Entry) {
+func (m *Manager) enableNew(ctx context.Context, e plugin.Entry) {
 	man, err := m.manifest(e)
-	if err != nil || man.Kind() != plugin.TypeEngine {
+	if err != nil || man.Kind() == plugin.TypeChannel {
 		return
 	}
-	if err := m.saveEngineDefaults(ctx, e.ID, man); err != nil {
+	if err := m.saveDefaults(ctx, e.ID, man); err != nil {
 		if apperr.Code(err) != CodeNotConfigured {
-			log.Error("enable engine after install", zap.String("plugin", e.ID), zap.Error(err))
+			log.Error("enable plugin after install", zap.String("plugin", e.ID), zap.Error(err))
 		}
 		return
 	}
 	if err := m.startLocked(ctx, e.ID); err != nil {
-		log.Error("start engine after install", zap.String("plugin", e.ID), zap.Error(err))
+		log.Error("start plugin after install", zap.String("plugin", e.ID), zap.Error(err))
 	}
 }

@@ -625,6 +625,11 @@ ALTER TABLE bee_outbound_messages ADD COLUMN button_choice INTEGER;`,
 		sql: `ALTER TABLE bee_executions ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
 ALTER TABLE bee_executions ADD COLUMN instruction TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		version: 66,
+		name:    "add_avatar_to_workers",
+		sql:     `ALTER TABLE bee_workers ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
+	},
 }
 
 type whereBuilder struct {

@@ -331,3 +331,54 @@ func TestEngineModelsEndpoint(t *testing.T) {
 		assert.Equal(t, map[string]any{"error": `unknown method "models"`}, body)
 	})
 }
+
+type stubAvatars struct{ refs map[string]bool }
+
+func (s stubAvatars) HasAvatar(ref string) bool { return s.refs[ref] }
+
+func (s stubAvatars) RandomAvatar(map[string]bool) string { return "mfers/b" }
+
+func TestWorkerAvatarField(t *testing.T) {
+	e := newEngineModelsEnv(t)
+	avatars := stubAvatars{refs: map[string]bool{"mfers/a": true, "mfers/b": true}}
+	mgr := worker.NewManager(t.TempDir(), config.BeeConfig{}, e.workers, nil, e.src, enginecfg.NewStore("pi", "", e.src.IDs), e.envs, nil)
+	mgr.SetAvatarSource(avatars)
+	h := NewWorkerHandler(e.workers, mgr, nil, "en")
+	router := gin.New()
+	router.POST("/workers", h.Create)
+	router.GET("/workers", h.List)
+	router.PUT("/workers/:id", h.Update)
+	e.router = router
+
+	code, body := e.do(t, http.MethodPost, "/workers", `{"name":"random"}`)
+	require.Equal(t, http.StatusCreated, code, body)
+	assert.Equal(t, "mfers/b", body["avatar"])
+
+	code, body = e.do(t, http.MethodPost, "/workers", `{"name":"chosen","avatar":"mfers/a"}`)
+	require.Equal(t, http.StatusCreated, code, body)
+	assert.Equal(t, "mfers/a", body["avatar"])
+	id := body["id"].(string)
+
+	code, body = e.do(t, http.MethodPost, "/workers", `{"name":"bad","avatar":"mfers/zz"}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Equal(t, "worker_validation", body["code"])
+
+	code, body = e.do(t, http.MethodPut, "/workers/"+id, `{"avatar":""}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, "", body["avatar"])
+
+	stored, err := e.workers.Create(model.Worker{Name: "orphan", Avatar: "gone/1"})
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workers", nil))
+	var list []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &list))
+	for _, w := range list {
+		if w["id"] == stored.ID {
+			assert.Equal(t, "", w["avatar"])
+		}
+	}
+	raw, err := e.workers.GetByID(stored.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "gone/1", raw.Avatar)
+}

@@ -24,6 +24,7 @@ type ServerParams struct {
 	Setup             *api.SetupHandler
 	Onboarding        *api.OnboardingHandler
 	Plugins           *api.PluginHandler
+	Avatars           *api.AvatarHandler
 	Version           *api.VersionHandler
 	Executions        *api.ExecutionHandler
 	BeeRPC            *rpc.Server
@@ -43,6 +44,7 @@ func NewServer(p ServerParams) (*Server, error) {
 	router := gin.Default()
 	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{
 		"/api/local/stream",
+		"^/api/avatars/.",
 	}), gzip.WithExcludedPaths([]string{config.MCPPath})))
 
 	s := &Server{

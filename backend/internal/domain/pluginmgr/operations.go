@@ -130,7 +130,8 @@ func (m *Manager) runInstall(opID, spec string) {
 		m.mu.Lock()
 		_, channelActive := m.instances[prevID]
 		_, engineActive := m.engines[prevID]
-		stoppedPrev = channelActive || engineActive
+		_, avatarsActive := m.avatars[prevID]
+		stoppedPrev = channelActive || engineActive || avatarsActive
 		m.upgrading[prevID] = true
 		m.mu.Unlock()
 		defer m.clearUpgrading(prevID)
@@ -176,7 +177,7 @@ func (m *Manager) runInstall(opID, spec string) {
 			log.Error("start plugin after install", zap.String("plugin", id), zap.Error(serr))
 		}
 	case err == nil && !found:
-		m.enableNewEngine(ctx, entry)
+		m.enableNew(ctx, entry)
 	}
 	log.Info("plugin installed", zap.String("plugin", id), zap.String("version", entry.Version))
 	m.finishOp(opID, nil)

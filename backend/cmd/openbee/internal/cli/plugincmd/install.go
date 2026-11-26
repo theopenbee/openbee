@@ -117,7 +117,7 @@ func printConfigureHints(ctx context.Context, c *Client, out io.Writer, ids []st
 	}
 	fmt.Fprintln(out, "Plugins run with your user permissions. Only install plugins you trust.")
 	for _, id := range ids {
-		if p, err := c.Get(ctx, id); err == nil && p.isEngine() && p.Enabled {
+		if p, err := c.Get(ctx, id); err == nil && !p.hasBotName() && p.Enabled {
 			fmt.Fprintf(out, "%s is enabled; check it with openbee plugin list\n", id)
 			continue
 		}

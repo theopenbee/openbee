@@ -24,6 +24,8 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.PUT("/workers/:id", s.Workers.Update)
 	r.DELETE("/workers/:id", s.Workers.Delete)
 	r.GET("/engines/:id/models", s.Workers.EngineModels)
+	r.GET("/avatars", s.Avatars.List)
+	r.GET("/avatars/:plugin/:name", s.Avatars.Image)
 
 	r.GET("/executions/:id", s.Executions.Get)
 

@@ -14,11 +14,13 @@ const (
 	ManifestFile          = "openbee.plugin.json"
 	ProtocolVersion       = 1
 	EngineProtocolVersion = 1
+	AvatarProtocolVersion = 1
 )
 
 const (
 	TypeChannel = "channel"
 	TypeEngine  = "engine"
+	TypeAvatar  = "avatar"
 )
 
 var ReservedIDs = []string{"local"}
@@ -88,6 +90,7 @@ type Manifest struct {
 	Config          []ConfigField `json:"config,omitempty"`
 	Version         string        `json:"version,omitempty"`
 	Icon            string        `json:"icon,omitempty"`
+	Avatars         string        `json:"avatars,omitempty"`
 	IconSVG         string        `json:"-"`
 	Dir             string        `json:"-"`
 }
@@ -158,14 +161,22 @@ func (m Manifest) Validate() error {
 		supported = ProtocolVersion
 	case TypeEngine:
 		supported = EngineProtocolVersion
+	case TypeAvatar:
+		supported = AvatarProtocolVersion
 	default:
-		return fmt.Errorf("unknown type %q (supported: %s, %s)", m.Type, TypeChannel, TypeEngine)
+		return fmt.Errorf("unknown type %q (supported: %s, %s, %s)", m.Type, TypeChannel, TypeEngine, TypeAvatar)
 	}
 	if m.ProtocolVersion != supported {
 		return fmt.Errorf("unsupported protocol_version %d (supported: %d)", m.ProtocolVersion, supported)
 	}
 	if err := ValidateID(m.ID); err != nil {
 		return err
+	}
+	if m.Kind() == TypeAvatar {
+		return m.validateAvatar()
+	}
+	if m.Avatars != "" {
+		return errors.New("only avatar plugins can declare avatars")
 	}
 	if len(m.Command) == 0 || m.Command[0] == "" {
 		return errors.New("manifest command must not be empty")
@@ -194,6 +205,22 @@ func (m Manifest) Validate() error {
 		if f.RandomDefault && f.Type != FieldString {
 			return fmt.Errorf("config field %q: random_default needs type %q", f.Key, FieldString)
 		}
+	}
+	return nil
+}
+
+func (m Manifest) validateAvatar() error {
+	switch {
+	case len(m.Command) > 0:
+		return errors.New("avatar plugins cannot declare command")
+	case m.Setup != nil:
+		return errors.New("avatar plugins cannot declare setup")
+	case len(m.Config) > 0:
+		return errors.New("avatar plugins cannot declare config")
+	case m.Avatars == "":
+		return errors.New("avatar plugins must declare avatars")
+	case !filepath.IsLocal(filepath.FromSlash(m.Avatars)):
+		return fmt.Errorf("avatars %q must be a relative path to a folder inside the plugin", m.Avatars)
 	}
 	return nil
 }

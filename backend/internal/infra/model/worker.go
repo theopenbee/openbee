@@ -19,6 +19,7 @@ type Worker struct {
 	EngineModels     string       `json:"engine_models" db:"engine_models"`
 	Status           WorkerStatus `json:"status" db:"status"`
 	PermissionScopes string       `json:"permission_scopes" db:"permission_scopes"`
+	Avatar           string       `json:"avatar" db:"avatar"`
 	CreatedAt        int64        `json:"created_at" db:"created_at"`
 	UpdatedAt        int64        `json:"updated_at" db:"updated_at"`
 }
