@@ -30,8 +30,11 @@ type Avatar struct {
 }
 
 func LoadAvatars(m Manifest) ([]Avatar, error) {
-	dir := filepath.Join(m.Dir, filepath.FromSlash(m.Avatars))
-	info, err := os.Lstat(dir)
+	dir, err := avatarDir(m)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("read avatars: %w", err)
 	}
@@ -82,6 +85,21 @@ func LoadAvatars(m Manifest) ([]Avatar, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+func avatarDir(m Manifest) (string, error) {
+	root, err := filepath.EvalSymlinks(m.Dir)
+	if err != nil {
+		return "", fmt.Errorf("read plugin folder: %w", err)
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Join(m.Dir, filepath.FromSlash(m.Avatars)))
+	if err != nil {
+		return "", fmt.Errorf("read avatars: %w", err)
+	}
+	if rel, err := filepath.Rel(root, dir); err != nil || !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("avatars %q must stay inside the plugin", m.Avatars)
+	}
+	return dir, nil
 }
 
 func AvatarRef(pluginID, name string) string {

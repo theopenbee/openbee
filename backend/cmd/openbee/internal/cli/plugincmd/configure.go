@@ -283,8 +283,8 @@ func waitRunning(ctx context.Context, c *Client, id string, out io.Writer, inter
 			return err
 		}
 		switch {
-		case d.State == "running":
-			fmt.Fprintf(out, "%s is running\n", id)
+		case d.State == "running", d.State == "ready":
+			fmt.Fprintf(out, "%s is %s\n", id, d.State)
 			return nil
 		case d.State == "failed", d.State == "retrying" && d.Error != "":
 			return fmt.Errorf("%s failed to start: %s", id, d.Error)
@@ -322,6 +322,10 @@ func (d *deps) newConfigureCommand(client func() (*Client, error)) *cobra.Comman
 			}
 			if !detail.hasBotName() && cmd.Flags().Changed("bot-name") {
 				return fmt.Errorf("%s is not a channel and has no bot name; remove --bot-name", id)
+			}
+			if !detail.hasBotName() && len(detail.Fields) == 0 && !detail.HasSetup {
+				fmt.Fprintf(d.Out, "%s has no settings; turn it on or off with openbee plugin enable|disable %s\n", id, id)
+				return nil
 			}
 			var namePtr *string
 			var cfg map[string]any

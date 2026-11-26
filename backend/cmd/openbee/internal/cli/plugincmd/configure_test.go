@@ -279,3 +279,26 @@ func TestCollectSettings_ShowsKeepHintAndHelp(t *testing.T) {
 	assert.Contains(t, p.asked[0], "****abcd")
 	assert.Contains(t, out.String(), "Get it from @BotFather")
 }
+
+func avatarDetail() Detail {
+	return Detail{Plugin: Plugin{ID: "mfers", Type: "avatar", State: "ready", Enabled: true, Path: "/plugins/mfers"}}
+}
+
+func TestConfigure_PluginWithoutSettings(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(avatarDetail())
+	out, err := runCmd(t, api, &fakePrompter{}, "configure", "mfers")
+	require.NoError(t, err)
+	assert.Contains(t, out, "mfers has no settings")
+	assert.Empty(t, api.actions)
+}
+
+func TestWaitRunning_ReadyCounts(t *testing.T) {
+	api := newFakeAPI()
+	api.addPlugin(avatarDetail())
+	api.states["mfers"] = []string{"starting", "ready"}
+	var out bytes.Buffer
+	err := waitRunning(context.Background(), api.client(t), "mfers", &out, time.Millisecond, time.Second)
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "mfers is ready")
+}

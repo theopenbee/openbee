@@ -84,7 +84,9 @@ func TestLoadAvatars_SortedWithContentTypes(t *testing.T) {
 	assert.Equal(t, "image/webp", got[0].ContentType)
 	assert.Equal(t, "image/png", got[1].ContentType)
 	assert.Equal(t, "image/jpeg", got[2].ContentType)
-	assert.Equal(t, filepath.Join(m.Dir, "avatars", "00001.webp"), got[0].Path)
+	real, err := filepath.EvalSymlinks(filepath.Join(m.Dir, "avatars", "00001.webp"))
+	require.NoError(t, err)
+	assert.Equal(t, real, got[0].Path)
 }
 
 func TestLoadAvatars_Rejects(t *testing.T) {
@@ -124,6 +126,35 @@ func TestLoadAvatars_RejectsSymlinkAndMissingFolder(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "avatars")))
 	_, err = LoadAvatars(m)
 	require.Error(t, err)
+}
+
+func TestLoadAvatars_RejectsFolderLinkedOutside(t *testing.T) {
+	dir := writeAvatarPlugin(t, map[string]string{"a.png": "x"})
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "b.png"), []byte("b"), 0o644))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "avatars")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "avatars")))
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+
+	_, err = LoadAvatars(m)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "inside the plugin")
+}
+
+func TestLoadAvatars_FolderLinkedInsideIsFine(t *testing.T) {
+	dir := writeAvatarPlugin(t, map[string]string{})
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "avatars")))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "images"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "images", "a.png"), []byte("a"), 0o644))
+	require.NoError(t, os.Symlink("images", filepath.Join(dir, "avatars")))
+	m, err := LoadManifest(dir)
+	require.NoError(t, err)
+
+	got, err := LoadAvatars(m)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "a", got[0].Name)
 }
 
 func TestParseAvatarRef(t *testing.T) {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -46,6 +47,10 @@ func (h *AvatarHandler) List(c *gin.Context) {
 
 func (h *AvatarHandler) Image(c *gin.Context) {
 	a, ok := h.svc.AvatarFile(plugin.AvatarRef(c.Param("plugin"), c.Param("name")))
+	if ok {
+		info, err := os.Lstat(a.Path)
+		ok = err == nil && info.Mode().IsRegular()
+	}
 	if !ok {
 		respondError(c, http.StatusNotFound, apperr.New("avatar_not_found", "avatar not found"))
 		return

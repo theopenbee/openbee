@@ -70,6 +70,15 @@ func TestAvatarHandler_Image(t *testing.T) {
 	rec = httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/avatars/mfers/00002", nil))
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	secret := filepath.Join(t.TempDir(), "secret.txt")
+	require.NoError(t, os.WriteFile(secret, []byte("secret"), 0o644))
+	require.NoError(t, os.Remove(path))
+	require.NoError(t, os.Symlink(secret, path))
+	swapped := httptest.NewRecorder()
+	r.ServeHTTP(swapped, httptest.NewRequest(http.MethodGet, "/avatars/mfers/00001", nil))
+	assert.Equal(t, http.StatusNotFound, swapped.Code)
+	assert.NotContains(t, swapped.Body.String(), "secret")
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "avatar_not_found", body["code"])

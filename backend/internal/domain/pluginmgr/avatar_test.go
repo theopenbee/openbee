@@ -169,7 +169,9 @@ func TestAvatars_FileLookup(t *testing.T) {
 
 	a, ok := h.m.AvatarFile("mfers/a")
 	require.True(t, ok)
-	assert.Equal(t, filepath.Join(dir, "avatars", "a.webp"), a.Path)
+	real, err := filepath.EvalSymlinks(filepath.Join(dir, "avatars", "a.webp"))
+	require.NoError(t, err)
+	assert.Equal(t, real, a.Path)
 	assert.Equal(t, "image/webp", a.ContentType)
 
 	for _, ref := range []string{"mfers/zz", "other/a", "mfers/../a", "", "mfers"} {

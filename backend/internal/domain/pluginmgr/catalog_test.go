@@ -161,3 +161,25 @@ func TestCatalog_SkipsUnknownCategory(t *testing.T) {
 	require.Len(t, view.Plugins, 1)
 	assert.Equal(t, "telegram", view.Plugins[0].ID)
 }
+
+func TestCatalog_IncludesAvatarCategory(t *testing.T) {
+	h := newHarness(t)
+	h.installAvatars("mfers", "a")
+	h.m.deps.Catalog = &fakeCatalog{cat: catalog.Catalog{
+		SchemaVersion: 1,
+		Categories:    []catalog.Vocab{{ID: "channel"}, {ID: "avatar"}},
+		Plugins: []catalog.Entry{
+			{Category: "avatar", ID: "mfers", Package: "@theopenbee/avatars-mfers", Version: "0.1.0", ProtocolVersion: 1},
+			{Category: "avatar", ID: "future", Package: "@theopenbee/avatars-future", Version: "1.0.0", ProtocolVersion: 2},
+		},
+	}}
+
+	view, err := h.m.Catalog(context.Background(), false)
+	require.NoError(t, err)
+	assert.Equal(t, []catalog.Vocab{{ID: "channel"}, {ID: "avatar"}}, view.Categories)
+	require.Len(t, view.Plugins, 2)
+	assert.Equal(t, "mfers", view.Plugins[0].ID)
+	assert.True(t, view.Plugins[0].Installable)
+	assert.True(t, view.Plugins[0].Installed)
+	assert.False(t, view.Plugins[1].Installable)
+}

@@ -12,6 +12,7 @@ import (
 var supportedCategories = map[string]int{
 	plugin.TypeChannel: pluginchannel.ProtocolVersion,
 	plugin.TypeEngine:  plugin.EngineProtocolVersion,
+	plugin.TypeAvatar:  plugin.AvatarProtocolVersion,
 }
 
 type CatalogSource interface {

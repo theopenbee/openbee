@@ -281,9 +281,6 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 	if err := m.validateAvatar(p.Avatar); err != nil {
 		return model.Worker{}, err
 	}
-	if p.Avatar == "" {
-		p.Avatar = m.pickAvatar()
-	}
 	id := uuid.New().String()
 	if p.WorkDir == "" {
 		p.WorkDir = filepath.Join(m.workerBaseDir, id)
@@ -308,6 +305,11 @@ func (m *Manager) CreateWorker(p CreateWorkerParams) (model.Worker, error) {
 		EngineModels:     engineModels,
 		PermissionScopes: p.PermissionScopes,
 		Avatar:           p.Avatar,
+	}
+	m.avatarMu.Lock()
+	defer m.avatarMu.Unlock()
+	if workerModel.Avatar == "" {
+		workerModel.Avatar = m.pickAvatar()
 	}
 	return m.workerStore.Create(workerModel)
 }

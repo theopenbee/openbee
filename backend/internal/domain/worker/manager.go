@@ -39,6 +39,7 @@ type Manager struct {
 	sysConfigStore systemConfigReader
 	botNames       func() []string
 	avatars        AvatarSource
+	avatarMu       sync.Mutex
 	statusObserver func(workerID string, status model.WorkerStatus)
 
 	activeProcesses map[string]ai.Process // execution_id -> process

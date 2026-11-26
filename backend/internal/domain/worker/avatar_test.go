@@ -2,6 +2,8 @@ package worker
 
 import (
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,4 +93,42 @@ func TestUpdateWorker_Avatar(t *testing.T) {
 	stored, err := m.workerStore.GetByID(w.ID)
 	require.NoError(t, err)
 	assert.Empty(t, stored.Avatar)
+}
+
+type countingAvatars struct {
+	refs []string
+}
+
+func (c *countingAvatars) HasAvatar(string) bool { return true }
+
+func (c *countingAvatars) RandomAvatar(used map[string]bool) string {
+	for _, ref := range c.refs {
+		if !used[ref] {
+			return ref
+		}
+	}
+	return c.refs[0]
+}
+
+func TestCreateWorker_ConcurrentCreatesGetDistinctAvatars(t *testing.T) {
+	m := newTestManager(t, map[string]ai.EngineAdapter{}, "")
+	refs := make([]string, 8)
+	for i := range refs {
+		refs[i] = fmt.Sprintf("mfers/%d", i)
+	}
+	m.SetAvatarSource(&countingAvatars{refs: refs})
+
+	var wg sync.WaitGroup
+	got := make([]string, len(refs))
+	for i := range refs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			w, err := m.CreateWorker(CreateWorkerParams{Name: fmt.Sprintf("w%d", i)})
+			require.NoError(t, err)
+			got[i] = w.Avatar
+		}()
+	}
+	wg.Wait()
+	assert.ElementsMatch(t, refs, got)
 }
