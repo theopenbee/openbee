@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.13] - 2026-11-26
 
 ### Added
 - Avatar plugins: random worker avatars, pickable on web and desktop.
