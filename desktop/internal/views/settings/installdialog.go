@@ -48,7 +48,7 @@ func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 	if succeeded {
 		pluginID = p.OperationPluginID(op)
 	}
-	engine := d.installedEngine(pluginID)
+	kind := d.installedType(pluginID)
 	submit := func() {
 		spec := strings.TrimSpace(st.spec)
 		if spec == "" || running || succeeded || st.sending {
@@ -79,7 +79,7 @@ func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 			kit.Button(c, tk, dismiss, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).OnClick(func() { st.open = false })
 			if pluginID != "" {
 				open := locales.PluginsInstallDialogConfigure()
-				if engine {
+				if !model.IsChannel(kind) {
 					open = locales.PluginsInstallDialogView()
 				}
 				kit.Button(c, tk, open, kit.ButtonOpts{Variant: kit.Primary, Size: kit.SizeMD}).
@@ -105,8 +105,11 @@ func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 				kit.OperationProgress(c, tk, locales.PluginsInstallDialogInstalling(), op.CreatedAt)
 			case succeeded:
 				hint := locales.PluginsInstallDialogDoneHint()
-				if engine {
+				switch kind {
+				case model.PluginEngine:
 					hint = locales.PluginsInstallDialogDoneHintEngine()
+				case model.PluginAvatar:
+					hint = locales.PluginsInstallDialogDoneHintAvatar()
 				}
 				kit.Alert(c, tk, kit.AlertOpts{Tone: kit.ToneSuccess, Title: locales.PluginsInstallDialogDone(), Body: hint})
 			}
@@ -121,14 +124,16 @@ func (d *Page) installDialog(c *ui.Context, tk theme.Tokens, st *installState) {
 	})
 }
 
-func (d *Page) installedEngine(id string) bool {
+func (d *Page) installedType(id string) string {
 	if id == "" {
-		return false
+		return model.PluginChannel
 	}
 	p := d.s.Plugins()
 	if i := slices.IndexFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == id }); i >= 0 {
-		return model.IsEngine(p.List.Data[i].Type)
+		return model.PluginType(p.List.Data[i].Type)
 	}
-	entry, listed := catalogEntry(p.Catalog.Data, id)
-	return listed && model.IsEngine(entry.Category)
+	if entry, listed := catalogEntry(p.Catalog.Data, id); listed {
+		return model.PluginType(entry.Category)
+	}
+	return model.PluginChannel
 }

@@ -3344,13 +3344,13 @@ func (msgs Messages) ErrorsPluginBotNameConflict(name string) string {
 	return Catalog.Format(msgs.locale, "errorsPluginBotNameConflict", map[string]any{"name": name})
 }
 
-// ErrorsPluginBotNameNotSupported says "Engine plugins don't have a bot name."
+// ErrorsPluginBotNameNotSupported says "Only channel plugins have a bot name."
 // in the language the app shows.
 func ErrorsPluginBotNameNotSupported() string {
 	return In(i18n.Locale()).ErrorsPluginBotNameNotSupported()
 }
 
-// ErrorsPluginBotNameNotSupported says "Engine plugins don't have a bot name."
+// ErrorsPluginBotNameNotSupported says "Only channel plugins have a bot name."
 // in the language of msgs.
 func (msgs Messages) ErrorsPluginBotNameNotSupported() string {
 	return Catalog.Format(msgs.locale, "errorsPluginBotNameNotSupported", nil)
@@ -4966,6 +4966,18 @@ func (msgs Messages) PluginsInstallDialogDoneHint() string {
 	return Catalog.Format(msgs.locale, "pluginsInstallDialogDoneHint", nil)
 }
 
+// PluginsInstallDialogDoneHintAvatar says "The avatars are enabled. New workers get one at random."
+// in the language the app shows.
+func PluginsInstallDialogDoneHintAvatar() string {
+	return In(i18n.Locale()).PluginsInstallDialogDoneHintAvatar()
+}
+
+// PluginsInstallDialogDoneHintAvatar says "The avatars are enabled. New workers get one at random."
+// in the language of msgs.
+func (msgs Messages) PluginsInstallDialogDoneHintAvatar() string {
+	return Catalog.Format(msgs.locale, "pluginsInstallDialogDoneHintAvatar", nil)
+}
+
 // PluginsInstallDialogDoneHintEngine says "The engine is enabled. Pick it when you create or edit a worker."
 // in the language the app shows.
 func PluginsInstallDialogDoneHintEngine() string {
@@ -5550,6 +5562,16 @@ func (msgs Messages) PluginsToastSavedRestarting(name string) string {
 	return Catalog.Format(msgs.locale, "pluginsToastSavedRestarting", map[string]any{"name": name})
 }
 
+// PluginsTypesAvatar says "Avatars"
+// in the language the app shows.
+func PluginsTypesAvatar() string { return In(i18n.Locale()).PluginsTypesAvatar() }
+
+// PluginsTypesAvatar says "Avatars"
+// in the language of msgs.
+func (msgs Messages) PluginsTypesAvatar() string {
+	return Catalog.Format(msgs.locale, "pluginsTypesAvatar", nil)
+}
+
 // PluginsTypesChannel says "Channels"
 // in the language the app shows.
 func PluginsTypesChannel() string { return In(i18n.Locale()).PluginsTypesChannel() }
@@ -5590,6 +5612,18 @@ func PluginsUninstallDialogDescription() string {
 // in the language of msgs.
 func (msgs Messages) PluginsUninstallDialogDescription() string {
 	return Catalog.Format(msgs.locale, "pluginsUninstallDialogDescription", nil)
+}
+
+// PluginsUninstallDialogDescriptionAvatar says "The plugin and its settings are deleted. Workers using its avatars show their initials until it is installed again."
+// in the language the app shows.
+func PluginsUninstallDialogDescriptionAvatar() string {
+	return In(i18n.Locale()).PluginsUninstallDialogDescriptionAvatar()
+}
+
+// PluginsUninstallDialogDescriptionAvatar says "The plugin and its settings are deleted. Workers using its avatars show their initials until it is installed again."
+// in the language of msgs.
+func (msgs Messages) PluginsUninstallDialogDescriptionAvatar() string {
+	return Catalog.Format(msgs.locale, "pluginsUninstallDialogDescriptionAvatar", nil)
 }
 
 // PluginsUninstallDialogDescriptionEngine says "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again."
@@ -7086,6 +7120,100 @@ func WorkersFormAdvancedSet(count int) string { return In(i18n.Locale()).Workers
 // in the language of msgs.
 func (msgs Messages) WorkersFormAdvancedSet(count int) string {
 	return Catalog.Format(msgs.locale, "workersFormAdvancedSet", map[string]any{"count": count})
+}
+
+// WorkersFormAvatar says "Avatar"
+// in the language the app shows.
+func WorkersFormAvatar() string { return In(i18n.Locale()).WorkersFormAvatar() }
+
+// WorkersFormAvatar says "Avatar"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatar() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatar", nil)
+}
+
+// WorkersFormAvatarChange says "Change avatar"
+// in the language the app shows.
+func WorkersFormAvatarChange() string { return In(i18n.Locale()).WorkersFormAvatarChange() }
+
+// WorkersFormAvatarChange says "Change avatar"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarChange() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarChange", nil)
+}
+
+// WorkersFormAvatarDialogDescription says "Pick an avatar for {name}. It is saved with the other changes."
+// in the language the app shows.
+func WorkersFormAvatarDialogDescription(name string) string {
+	return In(i18n.Locale()).WorkersFormAvatarDialogDescription(name)
+}
+
+// WorkersFormAvatarDialogDescription says "Pick an avatar for {name}. It is saved with the other changes."
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarDialogDescription(name string) string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarDialogDescription", map[string]any{"name": name})
+}
+
+// WorkersFormAvatarDialogTitle says "Choose an avatar"
+// in the language the app shows.
+func WorkersFormAvatarDialogTitle() string { return In(i18n.Locale()).WorkersFormAvatarDialogTitle() }
+
+// WorkersFormAvatarDialogTitle says "Choose an avatar"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarDialogTitle() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarDialogTitle", nil)
+}
+
+// WorkersFormAvatarInitials says "Initials"
+// in the language the app shows.
+func WorkersFormAvatarInitials() string { return In(i18n.Locale()).WorkersFormAvatarInitials() }
+
+// WorkersFormAvatarInitials says "Initials"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarInitials() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarInitials", nil)
+}
+
+// WorkersFormAvatarLoadError says "Could not load avatars"
+// in the language the app shows.
+func WorkersFormAvatarLoadError() string { return In(i18n.Locale()).WorkersFormAvatarLoadError() }
+
+// WorkersFormAvatarLoadError says "Could not load avatars"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarLoadError() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarLoadError", nil)
+}
+
+// WorkersFormAvatarNone says "Install an avatar plugin in Settings > Plugins to give workers avatars."
+// in the language the app shows.
+func WorkersFormAvatarNone() string { return In(i18n.Locale()).WorkersFormAvatarNone() }
+
+// WorkersFormAvatarNone says "Install an avatar plugin in Settings > Plugins to give workers avatars."
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarNone() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarNone", nil)
+}
+
+// WorkersFormAvatarOption says "Avatar {name}"
+// in the language the app shows.
+func WorkersFormAvatarOption(name string) string {
+	return In(i18n.Locale()).WorkersFormAvatarOption(name)
+}
+
+// WorkersFormAvatarOption says "Avatar {name}"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarOption(name string) string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarOption", map[string]any{"name": name})
+}
+
+// WorkersFormAvatarRandom says "Random"
+// in the language the app shows.
+func WorkersFormAvatarRandom() string { return In(i18n.Locale()).WorkersFormAvatarRandom() }
+
+// WorkersFormAvatarRandom says "Random"
+// in the language of msgs.
+func (msgs Messages) WorkersFormAvatarRandom() string {
+	return Catalog.Format(msgs.locale, "workersFormAvatarRandom", nil)
 }
 
 // WorkersFormConstraints says "Work constraints"

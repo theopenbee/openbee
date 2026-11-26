@@ -26,7 +26,10 @@ const (
 const (
 	PluginChannel = "channel"
 	PluginEngine  = "engine"
+	PluginAvatar  = "avatar"
 )
+
+var pluginTypeOrder = []string{PluginChannel, PluginEngine, PluginAvatar}
 
 type FieldValues map[string]string
 
@@ -140,6 +143,14 @@ func IsEngine(t string) bool {
 	return t == PluginEngine
 }
 
+func IsAvatar(t string) bool {
+	return t == PluginAvatar
+}
+
+func IsChannel(t string) bool {
+	return PluginType(t) == PluginChannel
+}
+
 func IsActiveState(state string) bool {
 	return state == "running" || state == "ready"
 }
@@ -165,13 +176,13 @@ func GroupByType[T any](items []T, typeOf func(T) string) []TypeGroup[T] {
 		buckets[t] = append(buckets[t], item)
 	}
 	var order []string
-	for _, t := range []string{PluginChannel, PluginEngine} {
+	for _, t := range pluginTypeOrder {
 		if _, ok := buckets[t]; ok {
 			order = append(order, t)
 		}
 	}
 	for _, t := range seen {
-		if t != PluginChannel && t != PluginEngine {
+		if !slices.Contains(pluginTypeOrder, t) {
 			order = append(order, t)
 		}
 	}
@@ -283,7 +294,7 @@ func BuildSettingsPayload(d api.PluginDetail, v FieldValues, bools map[string]bo
 		}
 	}
 	update := api.PluginSettingsUpdate{Config: config}
-	if name := strings.TrimSpace(botName); !IsEngine(d.Type) && name != d.BotName {
+	if name := strings.TrimSpace(botName); IsChannel(d.Type) && name != d.BotName {
 		update.BotName = &name
 	}
 	return update, len(config) > 0 || update.BotName != nil

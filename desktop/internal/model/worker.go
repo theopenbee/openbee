@@ -57,11 +57,13 @@ type EditForm struct {
 	EngineArgs          map[string]string
 	EngineModels        map[string]string
 	InitialEngineModels map[string]string
+	Avatar              string
 }
 
 func NewEditForm(w api.Worker) EditForm {
 	return EditForm{Name: w.Name, Description: w.Description, WorkDir: w.WorkDir, Engine: w.Engine,
-		EngineArgs: cloneMap(w.EngineArgs), EngineModels: cloneMap(w.EngineModels), InitialEngineModels: cloneMap(w.EngineModels)}
+		EngineArgs: cloneMap(w.EngineArgs), EngineModels: cloneMap(w.EngineModels), InitialEngineModels: cloneMap(w.EngineModels),
+		Avatar: w.Avatar}
 }
 
 func cloneMap(m map[string]string) map[string]string {
@@ -76,10 +78,12 @@ func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
 	nameChanged := f.Name != w.Name
 	workDirChanged := workDir != w.WorkDir
 	engineChanged := f.Engine != w.Engine
+	avatarChanged := f.Avatar != w.Avatar
 	models := ChangedEngineModels(f.InitialEngineModels, f.EngineModels)
 	changed := nameChanged ||
 		workDirChanged ||
 		engineChanged ||
+		avatarChanged ||
 		len(models) > 0 ||
 		f.Description != w.Description ||
 		!maps.Equal(CleanEngineArgs(f.EngineArgs), w.EngineArgs)
@@ -102,6 +106,9 @@ func EditUpdate(w api.Worker, f EditForm) (api.UpdateWorkerRequest, bool) {
 	}
 	if workDirChanged {
 		req.WorkDir = &workDir
+	}
+	if avatarChanged {
+		req.Avatar = &f.Avatar
 	}
 	return req, true
 }

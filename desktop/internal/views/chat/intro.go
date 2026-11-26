@@ -17,9 +17,9 @@ const (
 	introDescLines = 4
 )
 
-func workerIntro(c *ui.Context, tk theme.Tokens, w api.Worker) {
+func workerIntro(c *ui.Context, tk theme.Tokens, w api.Worker, img ui.ImageSource) {
 	ui.Column(c).AlignItems(ui.Center).Gap(introGap).PaddingY(introPadY).Children(func() {
-		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarXL, false)
+		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, img, kit.AvatarXL, false)
 		ui.Column(c).AlignItems(ui.Center).Gap(introTextGap).MaxWidth(introWidth).Children(func() {
 			ui.Text(c, w.Name).FontSize(introNameSize).FontWeight(mediumWeight).TextColor(tk.Foreground).TextAlign(ui.Center).
 				Role(ui.RoleHeading).Level(2)

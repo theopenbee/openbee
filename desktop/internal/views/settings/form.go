@@ -81,7 +81,7 @@ func (d *Page) settingsForm(c *ui.Context, tk theme.Tokens, st *detailState, det
 				settingsField(c, tk, fs, in, f, detail.Config, submit)
 			}
 		}
-		if !model.IsEngine(detail.Type) {
+		if model.IsChannel(detail.Type) {
 			label := locales.PluginsDetailBotName()
 			kit.Field(c, tk, label, locales.PluginsDetailBotNameHelp(), "", func() {
 				kit.TextInput(c, tk, &fs.botName, label, "").OnSubmit(submit)
@@ -133,7 +133,7 @@ func (d *Page) saveSettings(st *detailState, fs *formState, detail api.PluginDet
 		return
 	}
 	st.saving = true
-	enabled, engine := detail.Enabled, model.IsEngine(detail.Type)
+	enabled, channel := detail.Enabled, model.IsChannel(detail.Type)
 	d.s.Plugins().SaveSettings(detail.ID, update, func(err error) {
 		st.saving = false
 		if err != nil {
@@ -143,7 +143,7 @@ func (d *Page) saveSettings(st *detailState, fs *formState, detail api.PluginDet
 		st.saved, st.savedAt = true, time.Time{}
 		title := locales.PluginsToastSavedEnableHint()
 		switch {
-		case engine:
+		case !channel:
 			title = locales.PluginsToastSaved()
 		case enabled:
 			title = locales.PluginsToastSavedRestarting(name)

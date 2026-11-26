@@ -378,3 +378,38 @@ func TestEditUpdateLeavesModelsChangedElsewhereAlone(t *testing.T) {
 		t.Fatalf("got (%#v, %v), want the models left out", got, ok)
 	}
 }
+
+func TestNewEditFormKeepsTheAvatar(t *testing.T) {
+	w := existingWorker(func(w *api.Worker) { w.Avatar = "mfers/00042" })
+	if f := NewEditForm(w); f.Avatar != "mfers/00042" {
+		t.Fatalf("form avatar = %q, want the worker's", f.Avatar)
+	}
+}
+
+func TestEditUpdateOmitsAnUnchangedAvatar(t *testing.T) {
+	w := existingWorker(func(w *api.Worker) { w.Avatar = "mfers/00042" })
+	f := NewEditForm(w)
+	if _, ok := EditUpdate(w, f); ok {
+		t.Fatal("an unchanged avatar must not count as a change")
+	}
+	f.Description = "changed"
+	got, ok := EditUpdate(w, f)
+	if !ok || got.Avatar != nil {
+		t.Fatalf("got (%#v, %v), want an update without the avatar", got, ok)
+	}
+}
+
+func TestEditUpdateSetsAndClearsTheAvatar(t *testing.T) {
+	w := existingWorker(func(w *api.Worker) { w.Avatar = "mfers/00042" })
+	for _, next := range []string{"mfers/00007", ""} {
+		f := NewEditForm(w)
+		f.Avatar = next
+		got, ok := EditUpdate(w, f)
+		if !ok || got.Avatar == nil || *got.Avatar != next {
+			t.Fatalf("avatar %q: got (%#v, %v), want the avatar sent", next, got, ok)
+		}
+		if got.Name != nil || got.WorkDir != nil || got.Engine != nil {
+			t.Fatalf("avatar %q: got %#v, want only the avatar and the always-sent fields", next, got)
+		}
+	}
+}

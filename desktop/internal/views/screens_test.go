@@ -627,6 +627,34 @@ func deleteDialog(t *testing.T, h *testkit.Harness) {
 	clickAndSettle(t, h, locales.WorkersDeleteDialogDeleteWorkDir(), 0)
 }
 
+func avatarCrew(st *fakeapi.State) {
+	panelCrew(st)
+	refs := st.AddAvatarPack("mfers", bilingual("mfers", "mfers"), 48)
+	picked := map[string]string{"zhang": refs[4], "ada": refs[0], "release": refs[11], "grace": refs[7]}
+	for i := range st.Workers {
+		st.Workers[i].Avatar = picked[st.Workers[i].ID]
+	}
+}
+
+func avatarPicker(t *testing.T, h *testkit.Harness) {
+	editPanel(t, h)
+	clickAndSettle(t, h, locales.WorkersFormAvatarChange(), 0)
+}
+
+var avatarScreens = []screen{
+	{name: "avatars-chat", seed: avatarCrew, signedIn: true, prepare: openChat("ada"), shots: wideOnly,
+		want: func() string { return "Exclude the trial accounts this time." }},
+	{name: "avatars-bee", seed: avatarCrew, signedIn: true, prepare: openChat("bee"), shots: wideOnly,
+		want: func() string { return locales.ChatHandedOffTo("Ada Lovelace") }},
+	{name: "avatars-intro", seed: avatarCrew, signedIn: true, prepare: openChat("grace"), shots: wideOnly,
+		want: func() string { return locales.ChatEmptyWorker("Grace Hopper") }},
+	{name: "avatars-profile", seed: avatarCrew, signedIn: true, prepare: openPanel("ada", route.PanelConstraints), shots: wideOnly,
+		want: func() string { return locales.WorkerDetailConstraintsPanelCharCount(len(adaRules)) }},
+	{name: "avatars-edit", seed: avatarCrew, signedIn: true, prepare: editPanel, shots: wideOnly, want: locales.WorkersFormAvatarChange},
+	{name: "avatars-picker", seed: avatarCrew, signedIn: true, prepare: avatarPicker, shots: wideOnly, want: locales.WorkersFormAvatarDialogTitle},
+	{name: "avatars-list", seed: avatarCrew, signedIn: true, prepare: listOnly, shots: narrowOnly, want: func() string { return "Ada Lovelace" }},
+}
+
 var createScreens = []screen{
 	{name: "panel-new", seed: newWorkerSeed, signedIn: true, prepare: openPanel(api.BeeConversation, route.PanelNew), shots: wideOnly,
 		want: locales.WorkersFormSectionBasic},
@@ -1003,7 +1031,7 @@ func TestScreens(t *testing.T) {
 	if os.Getenv(testkit.ScreensEnv) == "" {
 		t.Skip(testkit.ScreensEnv + " is not set")
 	}
-	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens, processScreens, welcomeScreens) {
+	for _, s := range slices.Concat(authScreens, shellScreens, chatScreens, markdownScreens(t), attachmentScreens(t), composerScreens, panelScreens, avatarScreens, createScreens, envScreens, settingsScreens, pluginScreens, accountScreens, processScreens, welcomeScreens) {
 		t.Run(s.name, func(t *testing.T) {
 			open := testkit.WithOptions
 			if s.signedIn {

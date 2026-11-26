@@ -124,7 +124,7 @@ func (v *View) senderMessage(c *ui.Context, rc rowContext, m model.Message, who 
 	row := ui.Row(c).AlignItems(ui.Start).Gap(avatarGap).MinWidth(0)
 	reveal := row.Hovered() || row.FocusWithin()
 	row.Children(func() {
-		ui.Box(c).Width(avatarColumn).Shrink(0).Children(func() { senderAvatar(c, tk, who, rc.workers) })
+		ui.Box(c).Width(avatarColumn).Shrink(0).Children(func() { senderAvatar(c, tk, who, rc.workers, v.s.AvatarImage) })
 		ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Children(func() {
 			ui.Row(c).MinHeight(avatarColumn).MinWidth(0).GapX(metaGapX).GapY(metaGapY).Wrap().
 				Margin(0, 0, senderMetaBelow, 0).FontSize(metaSize).Children(func() {
@@ -174,13 +174,13 @@ func (v *View) processLink(c *ui.Context, tk theme.Tokens, cid, executionID stri
 	})
 }
 
-func senderAvatar(c *ui.Context, tk theme.Tokens, who sender, workers map[string]api.Worker) {
+func senderAvatar(c *ui.Context, tk theme.Tokens, who sender, workers map[string]api.Worker, image func(ref string) ui.ImageSource) {
 	switch who.kind {
 	case senderBee:
 		kit.BeeAvatar(c, tk, kit.AvatarSM)
 	case senderWorker:
 		if w, ok := workers[who.workerID]; ok {
-			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, false)
+			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, image(w.Avatar), kit.AvatarSM, false)
 		} else {
 			kit.UnknownAvatar(c, tk, kit.AvatarSM)
 		}

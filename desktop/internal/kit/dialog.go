@@ -36,13 +36,17 @@ const (
 	closePressedScale = 0.96
 )
 
-func Dialog(c *ui.Context, tk theme.Tokens, open *bool, o DialogOpts, body func()) ui.Element {
-	w, h := c.Size()
-	width := o.Width
+func DialogWidth(c *ui.Context, width float32) float32 {
 	if width <= 0 {
 		width = theme.DialogWidth
 	}
-	width = min(width, w-2*dialogInset)
+	w, _ := c.Size()
+	return min(width, w-2*dialogInset)
+}
+
+func Dialog(c *ui.Context, tk theme.Tokens, open *bool, o DialogOpts, body func()) ui.Element {
+	_, h := c.Size()
+	width := DialogWidth(c, o.Width)
 	top := c.TitleBar().Height
 	maxHeight := h - top - 2*dialogInset
 	return ui.DialogBase(c, open, func(backdrop, panel ui.Element) {

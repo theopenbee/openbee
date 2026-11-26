@@ -158,7 +158,7 @@ func (p *Panel) summary(c *ui.Context, tk theme.Tokens, param string, e api.Exec
 				kit.BeeAvatar(c, tk, kit.AvatarSM)
 			case known:
 				name = w.Name
-				kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, false)
+				kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, p.s.AvatarImage(w.Avatar), kit.AvatarSM, false)
 			default:
 				kit.UnknownAvatar(c, tk, kit.AvatarSM)
 			}

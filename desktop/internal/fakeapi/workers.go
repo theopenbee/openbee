@@ -37,7 +37,10 @@ func (s *Server) workerIndex(id string) int {
 	return slices.IndexFunc(s.st.Workers, func(w api.Worker) bool { return w.ID == id })
 }
 
-func outWorker(w api.Worker) api.Worker {
+func (s *Server) outWorker(w api.Worker) api.Worker {
+	if !s.hasAvatar(w.Avatar) {
+		w.Avatar = ""
+	}
 	w.EngineArgs = maps.Clone(w.EngineArgs)
 	if w.EngineArgs == nil {
 		w.EngineArgs = map[string]string{}
@@ -178,7 +181,7 @@ func (s *Server) rejectWorkerName(name, excludeID string) (reply, bool) {
 func (s *Server) listWorkers(*request) reply {
 	out := make([]api.Worker, 0, len(s.st.Workers))
 	for _, w := range s.st.Workers {
-		out = append(out, outWorker(w))
+		out = append(out, s.outWorker(w))
 	}
 	return ok(out)
 }
@@ -188,7 +191,7 @@ func (s *Server) getWorker(q *request) reply {
 	if i < 0 {
 		return workerNotFound()
 	}
-	return ok(outWorker(s.st.Workers[i]))
+	return ok(s.outWorker(s.st.Workers[i]))
 }
 
 func (s *Server) createWorker(q *request) reply {
@@ -216,6 +219,13 @@ func (s *Server) createWorker(q *request) reply {
 	if bad, rejected := s.rejectWorkerName(name, ""); rejected {
 		return bad
 	}
+	avatar := req.Avatar
+	switch {
+	case avatar == "":
+		avatar = s.randomAvatar()
+	case !s.hasAvatar(avatar):
+		return workerInvalid("avatar %q is not available", avatar)
+	}
 	id := s.nextID("worker")
 	workDir := strings.TrimSpace(req.WorkDir)
 	if workDir == "" {
@@ -233,12 +243,13 @@ func (s *Server) createWorker(q *request) reply {
 		EngineModels:     mergeEngineModels(nil, models),
 		Status:           "idle",
 		PermissionScopes: req.PermissionScopes,
+		Avatar:           avatar,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
 	s.st.Workers = append(s.st.Workers, w)
 	s.ensureSummary(api.WorkerConversation(id))
-	return created(outWorker(w))
+	return created(s.outWorker(w))
 }
 
 func (s *Server) updateWorker(q *request) reply {
@@ -249,6 +260,9 @@ func (s *Server) updateWorker(q *request) reply {
 	}
 	if req.WorkDir != nil && strings.TrimSpace(*req.WorkDir) == "" {
 		return workerInvalid("work_dir cannot be empty")
+	}
+	if req.Avatar != nil && *req.Avatar != "" && !s.hasAvatar(*req.Avatar) {
+		return workerInvalid("avatar %q is not available", *req.Avatar)
 	}
 	if req.PermissionScopes != nil {
 		if err := validatePermissionScopes(*req.PermissionScopes); err != nil {
@@ -320,11 +334,15 @@ func (s *Server) updateWorker(q *request) reply {
 		w.EngineModels = mergeEngineModels(w.EngineModels, models)
 		changed = true
 	}
+	if req.Avatar != nil {
+		w.Avatar = *req.Avatar
+		changed = true
+	}
 	if changed {
 		w.UpdatedAt = s.now()
 		s.st.Workers[i] = w
 	}
-	return ok(outWorker(w))
+	return ok(s.outWorker(w))
 }
 
 func mergeEngineArgs(current, update map[string]string) map[string]string {

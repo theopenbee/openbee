@@ -80,6 +80,7 @@ type Store struct {
 	SystemConfigs   *Resource[map[string]string]
 	ServerVersion   *Resource[api.ServerVersion]
 	Onboarding      *Resource[api.OnboardingStatus]
+	Avatars         *Resource[[]api.AvatarPack]
 	Online          bool
 	Offline         bool
 	Reconnecting    bool
@@ -117,8 +118,9 @@ type Store struct {
 	onResync    hooks[func()]
 	onReset     hooks[func()]
 
-	chats map[string]*Chat
-	media map[string]*mediaFetch
+	chats   map[string]*Chat
+	media   map[string]*mediaFetch
+	avatars *avatarImages
 }
 
 type writer struct {
@@ -166,6 +168,7 @@ func New(o Options) *Store {
 	s.chats = map[string]*Chat{}
 	s.resets = append(s.resets, s.resetChats)
 	s.initMedia()
+	s.initAvatars()
 	s.sess = s.open("", prefs.Tokens{}, 1)
 	return s
 }

@@ -136,11 +136,11 @@ func (d *Page) detailPage(c *ui.Context, tk theme.Tokens, st *detailState, detai
 	if setupLabel == "" {
 		setupLabel = locales.PluginsSetupDefaultLabel()
 	}
-	engine := model.IsEngine(detail.Type)
-	setup := detail.HasSetup && !engine
-	settingsShown := !engine || len(detail.Fields) > 0
+	channel := model.IsChannel(detail.Type)
+	setup := detail.HasSetup && channel
+	settingsShown := channel || len(detail.Fields) > 0
 	hint := locales.PluginsDetailSettingsHint(name)
-	if engine {
+	if !channel {
 		hint = locales.PluginsDetailSettingsHintEngine()
 	}
 	d.backLink(c, tk)

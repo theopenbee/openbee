@@ -17,15 +17,15 @@ type uninstallState struct {
 	err      error
 	pending  bool
 	leave    bool
-	engine   bool
+	kind     string
 }
 
 func (u *uninstallState) show(id, name, kind string) {
-	*u = uninstallState{open: true, id: id, name: name, engine: model.IsEngine(kind)}
+	*u = uninstallState{open: true, id: id, name: name, kind: model.PluginType(kind)}
 }
 
 func (u *uninstallState) showLeaving(id, name, kind string) {
-	*u = uninstallState{open: true, id: id, name: name, leave: true, engine: model.IsEngine(kind)}
+	*u = uninstallState{open: true, id: id, name: name, leave: true, kind: model.PluginType(kind)}
 }
 
 func (d *Page) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState) {
@@ -58,8 +58,11 @@ func (d *Page) uninstallDialog(c *ui.Context, tk theme.Tokens, u *uninstallState
 		}
 	}
 	description := locales.PluginsUninstallDialogDescription()
-	if u.engine {
+	switch u.kind {
+	case model.PluginEngine:
 		description = locales.PluginsUninstallDialogDescriptionEngine()
+	case model.PluginAvatar:
+		description = locales.PluginsUninstallDialogDescriptionAvatar()
 	}
 	kit.Dialog(c, tk, &u.open, kit.DialogOpts{
 		Title:       locales.PluginsUninstallDialogTitle(u.name),

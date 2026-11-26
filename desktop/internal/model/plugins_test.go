@@ -762,6 +762,23 @@ func TestPluginType(t *testing.T) {
 	if IsEngine("") || IsEngine("channel") || !IsEngine("engine") {
 		t.Fatal("IsEngine must be true for engine only")
 	}
+	if IsAvatar("") || IsAvatar("engine") || !IsAvatar("avatar") {
+		t.Fatal("IsAvatar must be true for avatar only")
+	}
+	if !IsChannel("") || !IsChannel("channel") || IsChannel("engine") || IsChannel("avatar") {
+		t.Fatal("IsChannel must be true for channels and the empty type only")
+	}
+}
+
+func TestBuildSettingsPayloadSendsNoBotNameForAvatarsOrEngines(t *testing.T) {
+	for _, kind := range []string{PluginEngine, PluginAvatar} {
+		d := detailOf(settingsFields(), savedConfig(), "")
+		d.Type = kind
+		values, bools := InitialFieldValues(d, fixedRandom)
+		if got, ok := BuildSettingsPayload(d, values, bools, "new-bot"); ok || got.BotName != nil {
+			t.Fatalf("%s: got (%#v, %v), want no bot name", kind, got, ok)
+		}
+	}
 }
 
 func TestIsActiveState(t *testing.T) {
@@ -800,6 +817,7 @@ func TestGroupByType(t *testing.T) {
 		{ID: "claude", Type: "engine"},
 		{ID: "telegram"},
 		{ID: "hook", Type: "tool"},
+		{ID: "mfers", Type: "avatar"},
 		{ID: "discord", Type: "channel"},
 		{ID: "pi", Type: "engine"},
 	}
@@ -812,7 +830,7 @@ func TestGroupByType(t *testing.T) {
 		}
 		got = append(got, g.Type+":"+strings.Join(ids, ","))
 	}
-	want := []string{"channel:telegram,discord", "engine:claude,pi", "tool:hook"}
+	want := []string{"channel:telegram,discord", "engine:claude,pi", "avatar:mfers", "tool:hook"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("groups = %v, want %v", got, want)
 	}

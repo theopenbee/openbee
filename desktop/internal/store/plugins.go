@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -45,6 +47,8 @@ type PluginsState struct {
 	stopOps   func()
 	stopList  func()
 	setup     *SetupSession
+	avatarSig string
+	packs     map[string]string
 }
 
 func (s *Store) initPlugins() {
@@ -58,7 +62,10 @@ func (s *Store) initPlugins() {
 	p.Ops = NewResource(s, func(ctx context.Context, c *api.Client) ([]api.PluginOperation, error) {
 		return c.PluginOperations(ctx)
 	})
-	p.List.settled = p.schedule
+	p.List.settled = func() {
+		p.syncAvatars()
+		p.schedule()
+	}
 	p.Ops.settled = p.opsSettled
 	p.reset()
 	s.resets = append(s.resets, p.reset)
@@ -79,7 +86,39 @@ func (p *PluginsState) reset() {
 	p.running = map[string]string{}
 	p.requested = map[string]bool{}
 	p.seen = nil
+	p.avatarSig, p.packs = "", nil
 	p.CancelSetup(p.setup)
+}
+
+func (p *PluginsState) syncAvatars() {
+	if !p.List.Loaded {
+		return
+	}
+	packs := map[string]string{}
+	var parts []string
+	for _, plugin := range p.List.Data {
+		if model.IsAvatar(plugin.Type) {
+			packs[plugin.ID] = plugin.Version
+			parts = append(parts, plugin.ID+"@"+plugin.Version+":"+strconv.FormatBool(plugin.Enabled)+":"+plugin.State)
+		}
+	}
+	slices.Sort(parts)
+	sig := strings.Join(parts, ",")
+	prev, known := p.packs, p.packs != nil
+	if known && sig == p.avatarSig {
+		return
+	}
+	p.avatarSig, p.packs = sig, packs
+	if !known {
+		return
+	}
+	var dropped []string
+	for id, version := range prev {
+		if next, ok := packs[id]; !ok || next != version {
+			dropped = append(dropped, id)
+		}
+	}
+	p.s.avatarsChanged(dropped)
 }
 
 func (p *PluginsState) Detail(id string) *Resource[api.PluginDetail] {
@@ -226,9 +265,20 @@ func (p *PluginsState) Toggle(id string, enable bool, done func(error)) {
 }
 
 func (p *PluginsState) Restart(id string, done func(error)) {
-	p.act(id, ActionRestart, locales.Messages.PluginsToastRestarted, done, func(ctx context.Context, c *api.Client) error {
+	done = orNop(done)
+	reloaded := func(err error) {
+		if err == nil && p.isAvatarPack(id) {
+			p.s.avatarsChanged([]string{id})
+		}
+		done(err)
+	}
+	p.act(id, ActionRestart, locales.Messages.PluginsToastRestarted, reloaded, func(ctx context.Context, c *api.Client) error {
 		return c.RestartPlugin(ctx, id)
 	})
+}
+
+func (p *PluginsState) isAvatarPack(id string) bool {
+	return slices.ContainsFunc(p.List.Data, func(s api.PluginStatus) bool { return s.ID == id && model.IsAvatar(s.Type) })
 }
 
 func (p *PluginsState) SaveSettings(id string, u api.PluginSettingsUpdate, done func(error)) {

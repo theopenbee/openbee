@@ -72,7 +72,7 @@ func (v *View) log(c *ui.Context, tk theme.Tokens, p pane) {
 			kit.Button(c, tk, locales.CommonRetry(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeSM}).OnClick(ch.Refresh)
 		})
 	case p.worker != nil:
-		logState(c, func() { workerIntro(c, tk, *p.worker) })
+		logState(c, func() { workerIntro(c, tk, *p.worker, v.s.AvatarImage(p.worker.Avatar)) })
 	default:
 		logState(c, func() {
 			kit.EmptyState(c, tk, "", locales.ChatNoMessagesTitle(), locales.ChatNoMessagesDescription(), nil)

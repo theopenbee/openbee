@@ -83,10 +83,20 @@ func (s AvatarSize) dot() (d, offset float32) {
 	return avatarDot, avatarDotOffset
 }
 
-func WorkerAvatar(c *ui.Context, tk theme.Tokens, id, name, status string, size AvatarSize, withStatus bool) ui.Element {
+func WorkerAvatar(c *ui.Context, tk theme.Tokens, id, name, status string, img ui.ImageSource, size AvatarSize, withStatus bool) ui.Element {
 	d := size.diameter()
-	return ui.Box(c).Size(d, d).Shrink(0).Radius(theme.RadiusPill).Background(tk.Avatars[model.AvatarIndex(id)]).Children(func() {
-		avatarFace(c, tk, model.Initials(name), size).Fill().TextColor(tk.AvatarForeground)
+	bg := tk.Avatars[model.AvatarIndex(id)]
+	if img != nil {
+		bg = tk.SurfaceMuted
+	}
+	return ui.Box(c).Size(d, d).Shrink(0).Radius(theme.RadiusPill).Background(bg).Children(func() {
+		if img != nil {
+			avatarRing(c, tk).Fill().Clip().Children(func() {
+				ui.Image(c, img).Fill().Fit(ui.Cover)
+			})
+		} else {
+			avatarFace(c, tk, model.Initials(name), size).Fill().TextColor(tk.AvatarForeground)
+		}
 		if withStatus {
 			dot, offset := size.dot()
 			StatusDot(c, tk, status, dot).Absolute().Right(offset).Bottom(offset)

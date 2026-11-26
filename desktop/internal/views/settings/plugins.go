@@ -89,6 +89,8 @@ func typeName(t string, categories []api.CatalogTag) string {
 		return locales.PluginsTypesChannel()
 	case model.PluginEngine:
 		return locales.PluginsTypesEngine()
+	case model.PluginAvatar:
+		return locales.PluginsTypesAvatar()
 	}
 	return t
 }

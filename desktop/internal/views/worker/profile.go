@@ -41,7 +41,7 @@ const (
 func (p *Panel) header(c *ui.Context, tk theme.Tokens, st *panelState, w api.Worker) {
 	ui.Column(c).MinWidth(0).Gap(headerGap).Children(func() {
 		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(headerGap).Children(func() {
-			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarLG, true)
+			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, p.s.AvatarImage(w.Avatar), kit.AvatarLG, true)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(identityGap).Children(func() {
 				ui.Text(c, w.Name).FontSize(nameSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
 					Role(ui.RoleHeading).Level(3)

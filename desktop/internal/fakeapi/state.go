@@ -32,6 +32,7 @@ type State struct {
 	Plugins    []api.PluginDetail
 	Catalog    api.PluginCatalog
 	Operations []api.PluginOperation
+	Avatars    map[string][]string
 
 	Media       map[string][]byte
 	RandomNames []string
@@ -85,6 +86,9 @@ func (st *State) normalize() {
 	if st.Models == nil {
 		st.Models = map[string][]api.EngineModel{}
 	}
+	if st.Avatars == nil {
+		st.Avatars = map[string][]string{}
+	}
 }
 
 func cloneState(st State) State {
@@ -125,6 +129,10 @@ func cloneState(st State) State {
 	out.Catalog.Tags = slices.Clone(st.Catalog.Tags)
 	out.Catalog.Plugins = slices.Clone(st.Catalog.Plugins)
 	out.Operations = slices.Clone(st.Operations)
+	out.Avatars = make(map[string][]string, len(st.Avatars))
+	for id, names := range st.Avatars {
+		out.Avatars[id] = slices.Clone(names)
+	}
 	out.Media = maps.Clone(st.Media)
 	out.RandomNames = slices.Clone(st.RandomNames)
 	return out

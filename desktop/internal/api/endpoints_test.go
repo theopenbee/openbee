@@ -269,6 +269,62 @@ func TestEndpoints(t *testing.T) {
 			want: workerValue,
 		},
 		{
+			name:   "worker with an avatar",
+			call:   func(c *Client) (any, error) { return c.Worker(ctx, "w1") },
+			method: "GET", uri: "/api/workers/w1",
+			status:   200,
+			response: `{"id":"w1","name":"Ada","engine_args":{},"status":"idle","avatar":"mfers/00042"}`,
+			want:     Worker{ID: "w1", Name: "Ada", EngineArgs: map[string]string{}, Status: "idle", Avatar: "mfers/00042"},
+		},
+		{
+			name: "update worker sets an avatar",
+			call: func(c *Client) (any, error) {
+				return c.UpdateWorker(ctx, "w1", UpdateWorkerRequest{Avatar: strPtr("mfers/00042")})
+			},
+			method: "PUT", uri: "/api/workers/w1",
+			body:   `{"avatar":"mfers/00042"}`,
+			status: 200, response: workerJSON,
+			want: workerValue,
+		},
+		{
+			name: "update worker clears the avatar",
+			call: func(c *Client) (any, error) {
+				return c.UpdateWorker(ctx, "w1", UpdateWorkerRequest{Avatar: strPtr("")})
+			},
+			method: "PUT", uri: "/api/workers/w1",
+			body:   `{"avatar":""}`,
+			status: 200, response: workerJSON,
+			want: workerValue,
+		},
+		{
+			name: "create worker with an avatar",
+			call: func(c *Client) (any, error) {
+				return c.CreateWorker(ctx, CreateWorkerRequest{Name: "Ada", Avatar: "mfers/00001"})
+			},
+			method: "POST", uri: "/api/workers",
+			body:   `{"name":"Ada","description":"","avatar":"mfers/00001"}`,
+			status: 201, response: workerJSON,
+			want: workerValue,
+		},
+		{
+			name:   "avatars",
+			call:   func(c *Client) (any, error) { return c.Avatars(ctx) },
+			method: "GET", uri: "/api/avatars",
+			status:   200,
+			response: `{"packs":[{"id":"mfers","name":{"en":"mfers","zh":"mfers 头像"},"avatars":["mfers/00001","mfers/00002"]},{"id":"empty","name":{"en":"Empty"},"avatars":null}]}`,
+			want: []AvatarPack{
+				{ID: "mfers", Name: LocalizedText{"en": "mfers", "zh": "mfers 头像"}, Avatars: []string{"mfers/00001", "mfers/00002"}},
+				{ID: "empty", Name: LocalizedText{"en": "Empty"}, Avatars: []string{}},
+			},
+		},
+		{
+			name:   "avatars none",
+			call:   func(c *Client) (any, error) { return c.Avatars(ctx) },
+			method: "GET", uri: "/api/avatars",
+			status: 200, response: `{"packs":null}`,
+			want: []AvatarPack{},
+		},
+		{
 			name:   "engine models",
 			call:   func(c *Client) (any, error) { return c.EngineModels(ctx, "opencode", "") },
 			method: "GET", uri: "/api/engines/opencode/models",
@@ -1095,5 +1151,76 @@ func TestReadMedia(t *testing.T) {
 	}
 	if _, err := c.ReadMedia(ctx, "..", 10); err == nil {
 		t.Fatal("ReadMedia(..) returned no error")
+	}
+}
+
+func TestUpdateWorkerOmitsAnUnchangedAvatar(t *testing.T) {
+	data, err := json.Marshal(UpdateWorkerRequest{Name: strPtr("Ada")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "avatar") {
+		t.Fatalf("body = %s, want no avatar key", data)
+	}
+}
+
+func TestSplitAvatar(t *testing.T) {
+	for ref, want := range map[string][2]string{
+		"mfers/00042": {"mfers", "00042"},
+		"a/b":         {"a", "b"},
+	} {
+		plugin, name, ok := SplitAvatar(ref)
+		if !ok || plugin != want[0] || name != want[1] {
+			t.Errorf("SplitAvatar(%q) = %q, %q, %v", ref, plugin, name, ok)
+		}
+	}
+	for _, ref := range []string{"", "mfers", "mfers/", "/00042", "a/b/c", "../x", "a/..", `a/b\c`} {
+		if _, _, ok := SplitAvatar(ref); ok {
+			t.Errorf("SplitAvatar(%q) accepted a bad reference", ref)
+		}
+	}
+}
+
+func TestAvatarImage(t *testing.T) {
+	var mu sync.Mutex
+	var paths, auths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.EscapedPath())
+		auths = append(auths, r.Header.Get("Authorization"))
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/api/avatars/mfers/00042":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = io.WriteString(w, "png-bytes")
+		case "/api/avatars/big/one":
+			w.Header().Set("Content-Length", "1048577")
+			w.WriteHeader(http.StatusOK)
+		default:
+			writeJSON(w, http.StatusNotFound, `{"code":"avatar_not_found","error":"avatar not found"}`)
+		}
+	}))
+	defer srv.Close()
+	c := newTestClient(t, srv, &fakeTokens{access: "tok", refresh: "r"}, nil)
+	ctx := context.Background()
+
+	data, err := c.AvatarImage(ctx, "mfers/00042")
+	if err != nil || string(data) != "png-bytes" {
+		t.Fatalf("AvatarImage = %q, %v", data, err)
+	}
+	if _, err := c.AvatarImage(ctx, "big/one"); !errors.Is(err, ErrAvatarTooLarge) {
+		t.Fatalf("oversized avatar: err = %v, want ErrAvatarTooLarge", err)
+	}
+	var apiErr *Error
+	if _, err := c.AvatarImage(ctx, "mfers/missing"); !errors.As(err, &apiErr) || apiErr.Code != "avatar_not_found" {
+		t.Fatalf("missing avatar: err = %v, want avatar_not_found", err)
+	}
+	if _, err := c.AvatarImage(ctx, "no-slash"); !errors.Is(err, ErrInvalidAvatar) {
+		t.Fatalf("bad reference: err = %v, want ErrInvalidAvatar", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(paths) != 3 || paths[0] != "/api/avatars/mfers/00042" || auths[0] != "Bearer tok" {
+		t.Fatalf("requests = %q with auth %q", paths, auths)
 	}
 }

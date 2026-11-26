@@ -194,7 +194,7 @@ func (v *View) mentionOption(c *ui.Context, tk theme.Tokens, cm *composerState, 
 		bg = tk.SurfaceMuted
 	}
 	b.Background(b.AnimateColor("bg", bg, colorFade)).OnClick(func() { v.pickByClick(cm, w.Name) }).Children(func() {
-		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarSM, true)
+		kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, v.s.AvatarImage(w.Avatar), kit.AvatarSM, true)
 		ui.Text(c, w.Name).SingleLine().MinWidth(0)
 	})
 	if active && cm.mention.reveal {

@@ -44,7 +44,7 @@ func (sh *Shell) row(c *ui.Context, tk theme.Tokens, conv api.ConversationSummar
 	b.Background(b.AnimateColor("bg", bg, rowFade)).OnClick(func() { sh.nav.Push(route.Chat(route.Param(conv.ID))) })
 	b.Children(func() {
 		if isWorker {
-			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, kit.AvatarMD, true)
+			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, sh.s.AvatarImage(w.Avatar), kit.AvatarMD, true)
 		} else {
 			kit.BeeAvatar(c, tk, kit.AvatarMD)
 		}

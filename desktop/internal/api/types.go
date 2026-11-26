@@ -51,6 +51,7 @@ type Worker struct {
 	EngineModels     map[string]string `json:"engine_models"`
 	Status           string            `json:"status"`
 	PermissionScopes string            `json:"permission_scopes"`
+	Avatar           string            `json:"avatar"`
 	CreatedAt        int64             `json:"created_at"`
 	UpdatedAt        int64             `json:"updated_at"`
 }
@@ -64,6 +65,7 @@ type CreateWorkerRequest struct {
 	PermissionScopes string            `json:"permission_scopes,omitempty"`
 	EngineArgs       map[string]string `json:"engine_args,omitempty"`
 	EngineModels     map[string]string `json:"engine_models,omitempty"`
+	Avatar           string            `json:"avatar,omitempty"`
 }
 
 type UpdateWorkerRequest struct {
@@ -75,6 +77,13 @@ type UpdateWorkerRequest struct {
 	Engine           *string            `json:"engine,omitempty"`
 	EngineArgs       *map[string]string `json:"engine_args,omitempty"`
 	EngineModels     *map[string]string `json:"engine_models,omitempty"`
+	Avatar           *string            `json:"avatar,omitempty"`
+}
+
+type AvatarPack struct {
+	ID      string        `json:"id"`
+	Name    LocalizedText `json:"name"`
+	Avatars []string      `json:"avatars"`
 }
 
 type EngineModel struct {

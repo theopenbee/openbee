@@ -249,8 +249,8 @@ func (s *Server) finishInstall(spec string) {
 	if entry >= 0 {
 		match := s.st.Catalog.Plugins[entry]
 		id, pkg, display, description, icon = match.ID, match.Package, match.Name, match.Description, match.Icon
-		if match.Category == typeEngine {
-			kind = typeEngine
+		if match.Category == typeEngine || match.Category == typeAvatar {
+			kind = match.Category
 		}
 		if version == "" {
 			version = match.Version
@@ -274,7 +274,7 @@ func (s *Server) finishInstall(spec string) {
 			Icon:        icon,
 			State:       "not_configured",
 		}
-		if kind == typeEngine {
+		if kind != "" {
 			status.Enabled, status.State = true, stateReady
 		}
 		s.st.Plugins = append(s.st.Plugins, api.PluginDetail{
@@ -413,9 +413,9 @@ func (s *Server) updatePluginSettings(q *request) reply {
 	}
 	if req.BotName != nil {
 		name := strings.TrimSpace(*req.BotName)
-		if name != "" && p.Type == typeEngine {
+		if name != "" && !channelPlugin(p) {
 			return codedReply(http.StatusBadRequest, "plugin_bot_name_not_supported",
-				fmt.Sprintf("plugin %q is an engine and has no bot name", id), map[string]any{"id": id})
+				fmt.Sprintf("plugin %q is not a channel and has no bot name", id), map[string]any{"id": id})
 		}
 		conflict := slices.ContainsFunc(s.st.Workers, func(w api.Worker) bool { return strings.EqualFold(w.Name, name) })
 		if name != "" && conflict {
@@ -429,8 +429,12 @@ func (s *Server) updatePluginSettings(q *request) reply {
 	return noContent()
 }
 
+func channelPlugin(p api.PluginDetail) bool {
+	return p.Type == "" || p.Type == "channel"
+}
+
 func healthyState(p api.PluginDetail) string {
-	if p.Type == typeEngine {
+	if !channelPlugin(p) {
 		return stateReady
 	}
 	return stateRunning

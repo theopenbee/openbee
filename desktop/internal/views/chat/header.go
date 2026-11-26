@@ -68,7 +68,7 @@ func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 		if p.worker == nil {
 			kit.BeeAvatar(c, tk, kit.AvatarMD)
 		} else {
-			kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, kit.AvatarMD, true)
+			kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, v.s.AvatarImage(p.worker.Avatar), kit.AvatarMD, true)
 		}
 		ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Children(func() {
 			if p.worker == nil {

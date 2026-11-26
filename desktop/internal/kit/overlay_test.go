@@ -1,6 +1,7 @@
 package kit_test
 
 import (
+	"image"
 	"image/color"
 	"strconv"
 	"testing"
@@ -49,8 +50,8 @@ func TestWorkerAvatarInitialsAndColor(t *testing.T) {
 	first, second := distinctColorIDs(t)
 	tt := newTester(400, 200, func(c *ui.Context, tk theme.Tokens) {
 		ui.Row(c).Gap(16).Children(func() {
-			kit.WorkerAvatar(c, tk, first, "Ada Lovelace", "idle", kit.AvatarXL, false)
-			kit.WorkerAvatar(c, tk, second, "grace_hopper", "idle", kit.AvatarXL, false)
+			kit.WorkerAvatar(c, tk, first, "Ada Lovelace", "idle", nil, kit.AvatarXL, false)
+			kit.WorkerAvatar(c, tk, second, "grace_hopper", "idle", nil, kit.AvatarXL, false)
 			kit.InitialsAvatar(c, tk, "Telegram", kit.AvatarXL)
 		})
 	})
@@ -67,6 +68,41 @@ func TestWorkerAvatarInitialsAndColor(t *testing.T) {
 	}
 	if !tt.HasText("T") {
 		t.Error("initials avatar does not show the first letter of the name")
+	}
+}
+
+func solidBitmap(w, h int, fill color.RGBA) *ui.Bitmap {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for i := 0; i < len(img.Pix); i += 4 {
+		img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = fill.R, fill.G, fill.B, fill.A
+	}
+	return ui.NewBitmap(img)
+}
+
+func TestWorkerAvatarShowsTheImageInACircle(t *testing.T) {
+	const pad, d = 24, 88
+	red := color.RGBA{R: 220, G: 30, B: 40, A: 255}
+	pic := solidBitmap(64, 64, red)
+	tt := newTester(200, 200, func(c *ui.Context, tk theme.Tokens) {
+		kit.WorkerAvatar(c, tk, "w-1", "Ada Lovelace", "working", pic, kit.AvatarXL, true)
+	})
+	tk := theme.Light()
+	if tt.HasText("AL") {
+		t.Error("an avatar with an image still shows the initials")
+	}
+	if _, ok := tt.Find(locales.StatusesWorking()); !ok {
+		t.Error("an avatar with an image lost its status dot")
+	}
+	img := tt.Image()
+	center := pad + d/2
+	if got := img.RGBAAt(center, center); !near(got, ui.RGB(220, 30, 40)) {
+		t.Errorf("avatar centre is %v, want the image's red", got)
+	}
+	if got := img.RGBAAt(pad+2, pad+2); near(got, ui.RGB(220, 30, 40)) {
+		t.Errorf("avatar corner is %v, want the image clipped to the circle", got)
+	}
+	if got := img.RGBAAt(pad+2, pad+2); !near(got, tk.Background) && !near(got, tk.Surface) {
+		t.Errorf("avatar corner is %v, want the page behind the circle", got)
 	}
 }
 
@@ -124,9 +160,9 @@ func TestPluginAvatarFallsBackToInitials(t *testing.T) {
 func TestStatusDotLabels(t *testing.T) {
 	tt := newTester(400, 200, func(c *ui.Context, tk theme.Tokens) {
 		ui.Row(c).Gap(16).Children(func() {
-			kit.WorkerAvatar(c, tk, "a", "Ada", "working", kit.AvatarMD, true)
-			kit.WorkerAvatar(c, tk, "b", "Bob", "paused", kit.AvatarMD, true)
-			kit.WorkerAvatar(c, tk, "c", "Cy", "error", kit.AvatarMD, false)
+			kit.WorkerAvatar(c, tk, "a", "Ada", "working", nil, kit.AvatarMD, true)
+			kit.WorkerAvatar(c, tk, "b", "Bob", "paused", nil, kit.AvatarMD, true)
+			kit.WorkerAvatar(c, tk, "c", "Cy", "error", nil, kit.AvatarMD, false)
 		})
 	})
 	if _, ok := tt.Find(locales.StatusesWorking()); !ok {
@@ -549,11 +585,11 @@ func (g *widgetGallery) view(c *ui.Context) {
 	ui.Row(c).Fill().Padding(32).Gap(48).AlignItems(ui.Start).Children(func() {
 		ui.Column(c).Width(560).Gap(24).Children(func() {
 			ui.Row(c).Gap(20).Children(func() {
-				kit.WorkerAvatar(c, tk, "w-1", "Ada Lovelace", "idle", kit.AvatarSM, true)
-				kit.WorkerAvatar(c, tk, "w-2", "grace_hopper", "working", kit.AvatarMD, true)
-				kit.WorkerAvatar(c, tk, "w-3", "Linus", "error", kit.AvatarLG, true)
-				kit.WorkerAvatar(c, tk, "w-4", "张三", "paused", kit.AvatarXL, true)
-				kit.WorkerAvatar(c, tk, "w-5", "Margaret Hamilton", "idle", kit.AvatarXL, false)
+				kit.WorkerAvatar(c, tk, "w-1", "Ada Lovelace", "idle", nil, kit.AvatarSM, true)
+				kit.WorkerAvatar(c, tk, "w-2", "grace_hopper", "working", nil, kit.AvatarMD, true)
+				kit.WorkerAvatar(c, tk, "w-3", "Linus", "error", nil, kit.AvatarLG, true)
+				kit.WorkerAvatar(c, tk, "w-4", "张三", "paused", nil, kit.AvatarXL, true)
+				kit.WorkerAvatar(c, tk, "w-5", "Margaret Hamilton", "idle", nil, kit.AvatarXL, false)
 			})
 			ui.Row(c).Gap(20).Children(func() {
 				for _, size := range []kit.AvatarSize{kit.AvatarSM, kit.AvatarMD, kit.AvatarLG, kit.AvatarXL} {
@@ -646,7 +682,7 @@ func (g *overlayGallery) view(c *ui.Context) {
 	})
 	kit.Drawer(c, tk, &g.drawer, "Ada Lovelace", theme.DrawerMaxWidth, func() {
 		ui.Column(c).Gap(16).AlignItems(ui.Start).Children(func() {
-			kit.WorkerAvatar(c, tk, "w-1", "Ada Lovelace", "working", kit.AvatarXL, true)
+			kit.WorkerAvatar(c, tk, "w-1", "Ada Lovelace", "working", nil, kit.AvatarXL, true)
 			ui.Text(c, "Writes the release notes and keeps the changelog short.").TextColor(tk.TextSecondary)
 			kit.Tabs(c, tk, &g.tab, "Drawer tabs", []string{"Profile", "Edit", "Env"})
 		})

@@ -26,6 +26,7 @@ type editState struct {
 	saving bool
 	err    error
 	name   nameState
+	picker pickerState
 }
 
 type editKey struct{}
@@ -53,6 +54,7 @@ func (p *Panel) editForm(c *ui.Context, tk theme.Tokens, st *panelState, w api.W
 	box.Children(func() {
 		ui.Column(c).MinWidth(0).Gap(fieldsGap).Disabled(es.saving).Children(func() {
 			heading(c, locales.WorkerDetailEditInfoTitle(), 4)
+			p.avatarField(c, tk, box, es, w)
 			p.nameField(c, tk, &es.form.Name, &es.name, func(err error) { es.err = err }, submit)
 			kit.Field(c, tk, locales.WorkersFormDescription(), locales.WorkersFormDescriptionHelper(), "", func() {
 				kit.TextArea(c, tk, &es.form.Description, locales.WorkersFormDescription(), locales.WorkersFormDescriptionPlaceholder(),
