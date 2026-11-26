@@ -131,6 +131,12 @@ export function usePluginOperationToasts() {
   })
 }
 
+function uninstallDescription(type: PluginType | undefined, t: (key: string) => string): string {
+  if (type === "engine") return t("plugins.uninstallDialog.descriptionEngine")
+  if (type === "avatar") return t("plugins.uninstallDialog.descriptionAvatar")
+  return t("plugins.uninstallDialog.description")
+}
+
 export function UninstallPluginDialog({
   name,
   type,
@@ -151,7 +157,7 @@ export function UninstallPluginDialog({
   const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={t("plugins.uninstallDialog.title", { name })} description={type === "engine" ? t("plugins.uninstallDialog.descriptionEngine") : t("plugins.uninstallDialog.description")}>
+      <DialogContent title={t("plugins.uninstallDialog.title", { name })} description={uninstallDescription(type, t)}>
         {error && (
           <div className="mb-6">
             <Alert tone="danger" title={t("plugins.uninstallDialog.error")}>

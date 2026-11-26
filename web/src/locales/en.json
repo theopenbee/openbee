@@ -73,7 +73,16 @@
       "constraintsHelper": "Injected at the start of every session.",
       "engineArgsHelper": "Extra command-line flags passed to {{engine}} on start.",
       "createError": "Couldn't create the worker",
-      "saveError": "Couldn't save changes"
+      "saveError": "Couldn't save changes",
+      "avatar": "Avatar",
+      "avatarChange": "Change avatar",
+      "avatarNone": "Install an avatar plugin in Settings > Plugins to give workers avatars.",
+      "avatarDialogTitle": "Choose an avatar",
+      "avatarDialogDescription": "Pick an avatar for {{name}}. It is saved with the other changes.",
+      "avatarInitials": "Initials",
+      "avatarRandom": "Random",
+      "avatarOption": "Avatar {{name}}",
+      "avatarLoadError": "Could not load avatars"
     },
     "deleteDialog": {
       "title": "Delete {{name}}?",
@@ -403,7 +412,8 @@
     "title": "Plugins",
     "types": {
       "channel": "Channels",
-      "engine": "Engines"
+      "engine": "Engines",
+      "avatar": "Avatars"
     },
     "refreshCatalog": "Refresh catalog",
     "catalogError": "Could not load the plugin catalog",
@@ -480,14 +490,16 @@
       "failed": "Could not install the plugin",
       "configure": "Configure plugin",
       "view": "View plugin",
-      "close": "Close"
+      "close": "Close",
+      "doneHintAvatar": "The avatars are enabled. New workers get one at random."
     },
     "uninstallDialog": {
       "title": "Uninstall {{name}}?",
       "description": "The plugin, its settings and its data are deleted. The channel stops right away; other channels keep running.",
       "descriptionEngine": "The plugin, its settings and its data are deleted. Workers that use this engine fail to run until it is installed again.",
       "confirm": "Uninstall",
-      "error": "Could not uninstall the plugin"
+      "error": "Could not uninstall the plugin",
+      "descriptionAvatar": "The plugin and its settings are deleted. Workers using its avatars show their initials until it is installed again."
     },
     "toast": {
       "enabled": "{{name}} enabled",
@@ -582,7 +594,7 @@
     "plugin_env_secret_missing": "Set server.env_secret in config.yaml before saving plugin settings",
     "plugin_not_configured": "Plugin {{id}} is not configured: {{reason}}",
     "plugin_bot_name_conflict": "Bot name {{name}} is already used by a worker",
-    "plugin_bot_name_not_supported": "Engine plugins don't have a bot name.",
+    "plugin_bot_name_not_supported": "Only channel plugins have a bot name.",
     "plugin_operation_not_found": "Plugin operation not found",
     "plugin_catalog_unavailable": "The plugin catalog is unavailable right now",
     "plugin_no_setup": "Plugin {{id}} has no login step",

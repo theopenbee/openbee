@@ -7,6 +7,7 @@ import { Textarea } from "@/components/arc/textarea/textarea"
 import { EngineArgsSection } from "@/components/engine-args-section"
 import { EngineSelect } from "@/components/engine-select-items"
 import { ModelField } from "@/components/model-field"
+import { WorkerAvatarField } from "@/components/worker-avatar-picker"
 import { WorkerNameField } from "@/components/worker-name-field"
 import { useEnabledEngines, useSystemConfigs } from "@/hooks/use-config"
 import { useUpdateWorker } from "@/hooks/use-workers"
@@ -38,6 +39,7 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
   const [engineArgs, setEngineArgs] = useState<Record<string, string>>(worker.engine_args ?? {})
   const [initialEngineModels] = useState<Record<string, string>>(() => worker.engine_models ?? {})
   const [engineModels, setEngineModels] = useState<Record<string, string>>(initialEngineModels)
+  const [avatar, setAvatar] = useState(worker.avatar ?? "")
   const [submitError, setSubmitError] = useState("")
 
   const trimmedWorkDir = workDir.trim()
@@ -52,7 +54,7 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
     try {
       const data = buildWorkerUpdate(
         worker,
-        { name, description, workDir, engine, engineArgs, engineModels },
+        { name, description, workDir, engine, engineArgs, engineModels, avatar },
         initialEngineModels,
       )
       if (data) await updateWorker.mutateAsync({ id: worker.id, data })
@@ -70,6 +72,7 @@ export function WorkerInfoForm({ worker, onDone }: WorkerInfoFormProps) {
         <h4 id={headingId} className="text-base font-medium text-foreground">
           {t("workerDetail.editInfoTitle")}
         </h4>
+        <WorkerAvatarField workerId={worker.id} name={name.trim() || worker.name} value={avatar} onChange={setAvatar} disabled={isPending} />
         <WorkerNameField
           id="ewis-name"
           open

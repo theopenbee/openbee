@@ -73,7 +73,16 @@
       "constraintsHelper": "每次会话开始时注入。",
       "engineArgsHelper": "启动 {{engine}} 时附加的命令行参数。",
       "createError": "无法创建员工",
-      "saveError": "无法保存修改"
+      "saveError": "无法保存修改",
+      "avatar": "头像",
+      "avatarChange": "更换头像",
+      "avatarNone": "在“设置 > 插件”中安装头像插件后，员工即可使用头像。",
+      "avatarDialogTitle": "选择头像",
+      "avatarDialogDescription": "为 {{name}} 选一个头像，和其他修改一起保存。",
+      "avatarInitials": "文字头像",
+      "avatarRandom": "随机",
+      "avatarOption": "头像 {{name}}",
+      "avatarLoadError": "无法加载头像"
     },
     "deleteDialog": {
       "title": "删除 {{name}}？",
@@ -400,7 +409,8 @@
     "title": "插件",
     "types": {
       "channel": "渠道",
-      "engine": "引擎"
+      "engine": "引擎",
+      "avatar": "头像"
     },
     "refreshCatalog": "刷新目录",
     "catalogError": "无法加载插件目录",
@@ -476,14 +486,16 @@
       "failed": "插件安装失败",
       "configure": "配置插件",
       "view": "查看插件",
-      "close": "关闭"
+      "close": "关闭",
+      "doneHintAvatar": "头像已启用，新建员工时会随机分配一个。"
     },
     "uninstallDialog": {
       "title": "卸载 {{name}}？",
       "description": "会删除该插件及其配置和数据，这个渠道会立即停止，其他渠道不受影响。",
       "descriptionEngine": "会删除该插件及其配置和数据。使用这个引擎的员工在重新安装之前无法运行。",
       "confirm": "卸载",
-      "error": "插件卸载失败"
+      "error": "插件卸载失败",
+      "descriptionAvatar": "会删除该插件及其配置。使用这些头像的员工会改为显示名字首字，直到重新安装。"
     },
     "toast": {
       "enabled": "已启用 {{name}}",
@@ -578,7 +590,7 @@
     "plugin_env_secret_missing": "保存插件配置前，请先在 config.yaml 中设置 server.env_secret",
     "plugin_not_configured": "插件 {{id}} 尚未配置：{{reason}}",
     "plugin_bot_name_conflict": "机器人名称 {{name}} 已被某个员工使用",
-    "plugin_bot_name_not_supported": "引擎插件没有机器人名称。",
+    "plugin_bot_name_not_supported": "只有渠道插件有机器人名称。",
     "plugin_operation_not_found": "找不到该插件操作",
     "plugin_catalog_unavailable": "暂时无法获取插件目录",
     "plugin_no_setup": "插件 {{id}} 没有登录步骤",

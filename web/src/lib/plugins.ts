@@ -166,7 +166,7 @@ export interface PluginGroup<T> {
   items: T[]
 }
 
-const TYPE_ORDER = ["channel", "engine"]
+const TYPE_ORDER = ["channel", "engine", "avatar"]
 
 export function groupByType<T>(items: readonly T[], typeOf: (item: T) => string | undefined): PluginGroup<T>[] {
   const groups = new Map<string, T[]>()

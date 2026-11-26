@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { invalidateAvatars } from "@/hooks/use-avatars"
 import { api } from "@/lib/api"
 import { getRefreshToken, refreshAccessToken, tokenParam } from "@/lib/auth"
 import { isTransitional } from "@/lib/plugins"
@@ -70,6 +71,7 @@ export function usePluginOperations(onFinished?: (op: PluginOperation) => void) 
     queryClient.invalidateQueries({ queryKey: ["plugins"] })
     queryClient.invalidateQueries({ queryKey: ["plugin-catalog"] })
     queryClient.invalidateQueries({ queryKey: ["config"] })
+    invalidateAvatars(queryClient)
     finished.forEach((op) => onFinishedRef.current?.(op))
   }, [query.data, queryClient])
 
@@ -107,6 +109,7 @@ export function usePluginAction() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["plugins"] })
       queryClient.invalidateQueries({ queryKey: ["config"] })
+      invalidateAvatars(queryClient)
     },
   })
 }

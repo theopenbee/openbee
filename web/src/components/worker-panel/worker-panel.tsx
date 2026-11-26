@@ -130,7 +130,7 @@ function WorkerHeader({ worker, editing, onEdit, onDelete }: WorkerHeaderProps) 
   return (
     <div className="grid gap-4">
       <div className="flex min-w-0 items-center gap-4">
-        <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="lg" />
+        <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} status={worker.status} size="lg" />
         <div className="grid min-w-0 flex-1 gap-1.5">
           <h3 className="truncate text-lg font-medium text-foreground">{worker.name}</h3>
           {shown && (

@@ -68,7 +68,7 @@ function senderAvatar(display: SenderDisplay, workers: Map<string, Worker>): Rea
   if (display.kind === "worker") {
     const worker = display.workerId ? workers.get(display.workerId) : undefined
     return worker ? (
-      <WorkerAvatar workerId={worker.id} name={worker.name} size="sm" />
+      <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} size="sm" />
     ) : (
       <Avatar name="?" size="sm" aria-hidden="true" />
     )
@@ -257,7 +257,7 @@ export function ChatView({ conversation }: { conversation: ConversationId }) {
   const avatar = isBee ? (
     <BeeAvatar size="sm" />
   ) : (
-    worker && <WorkerAvatar workerId={worker.id} name={worker.name} size="sm" />
+    worker && <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} size="sm" />
   )
 
   return (
@@ -366,7 +366,7 @@ function WorkerIntro({ worker }: { worker: Worker }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
-      <WorkerAvatar workerId={worker.id} name={worker.name} size="xl" />
+      <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} size="xl" />
       <div className="grid max-w-md gap-2">
         <h2 className="text-xl font-medium text-foreground">{worker.name}</h2>
         {worker.description && <p className="line-clamp-4 text-sm text-secondary">{worker.description}</p>}

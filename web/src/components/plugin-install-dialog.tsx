@@ -32,7 +32,9 @@ export function PluginInstallDialog({
   const succeeded = op?.status === "succeeded"
   const failed = op?.status === "failed"
   const now = useNow(open && running)
-  const isEngine = installed.data?.find((p) => p.id === op?.plugin_id)?.type === "engine"
+  const installedType = installed.data?.find((p) => p.id === op?.plugin_id)?.type
+  const isEngine = installedType === "engine"
+  const isAvatar = installedType === "avatar"
 
   const close = (next: boolean) => {
     onOpenChange(next)
@@ -76,7 +78,11 @@ export function PluginInstallDialog({
           )}
           {succeeded && (
             <Alert tone="success" title={t("plugins.installDialog.done")}>
-              {isEngine ? t("plugins.installDialog.doneHintEngine") : t("plugins.installDialog.doneHint")}
+              {isEngine
+                ? t("plugins.installDialog.doneHintEngine")
+                : isAvatar
+                  ? t("plugins.installDialog.doneHintAvatar")
+                  : t("plugins.installDialog.doneHint")}
             </Alert>
           )}
           {(failed || error) && (
@@ -96,7 +102,7 @@ export function PluginInstallDialog({
                   show({ section: "plugins", plugin: op.plugin_id })
                 }}
               >
-                {isEngine ? t("plugins.installDialog.view") : t("plugins.installDialog.configure")}
+                {isEngine || isAvatar ? t("plugins.installDialog.view") : t("plugins.installDialog.configure")}
               </Button>
             ) : (
               <Button type="submit" loading={install.isPending} disabled={!spec.trim() || succeeded || running}>

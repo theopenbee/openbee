@@ -69,7 +69,7 @@ export function ChatHeader({ conversation, worker, name, subtitle, busy, onClear
       {isBee ? (
         <BeeAvatar />
       ) : worker ? (
-        <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} />
+        <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} status={worker.status} />
       ) : (
         <Avatar name="?" aria-hidden="true" />
       )}

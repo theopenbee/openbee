@@ -3,7 +3,7 @@ import { WorkerAvatar } from "@/components/worker-avatar"
 import { cn, isImeComposing } from "@/lib/utils"
 import type { Worker } from "@/lib/types"
 
-type MentionWorker = Pick<Worker, "id" | "name" | "status">
+type MentionWorker = Pick<Worker, "id" | "name" | "status" | "avatar">
 
 interface MentionTextareaProps {
   value: string
@@ -194,7 +194,7 @@ function MentionPanel({
               onSelect(worker)
             }}
           >
-            <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} size="sm" />
+            <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} status={worker.status} size="sm" />
             <span className="truncate">{worker.name}</span>
           </li>
         ))}

@@ -10,6 +10,7 @@ export interface Worker {
   engine_args?: Record<string, string>
   engine_models?: Record<string, string>
   permission_scopes?: string
+  avatar?: string
   status: WorkerStatus
   created_at: number
   updated_at: number
@@ -206,7 +207,13 @@ export interface TokenResponse {
 
 export type LocalizedText = Record<string, string>
 
-export type PluginType = "channel" | "engine"
+export type PluginType = "channel" | "engine" | "avatar"
+
+export interface AvatarPack {
+  id: string
+  name: LocalizedText
+  avatars: string[]
+}
 
 export type PluginState = "not_configured" | "disabled" | "starting" | "running" | "ready" | "retrying" | "failed"
 

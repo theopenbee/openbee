@@ -224,6 +224,11 @@ describe("groupByType", () => {
     expect(got[1].items.map((p) => p.id)).toEqual(["pi", "claude"])
   })
 
+  it("puts avatar packs after engines", () => {
+    const got = groupByType([item("mfers", "avatar"), item("pi", "engine"), item("telegram", "channel")], (p) => p.type)
+    expect(got.map((g) => g.type)).toEqual(["channel", "engine", "avatar"])
+  })
+
   it("treats a missing type as channel", () => {
     const got = groupByType([item("a"), item("b", "engine"), item("c", "")], (p) => p.type)
     expect(got.map((g) => g.type)).toEqual(["channel", "engine"])

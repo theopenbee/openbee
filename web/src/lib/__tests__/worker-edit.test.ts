@@ -24,6 +24,7 @@ const values = (w: Worker, over: Partial<WorkerEditValues> = {}): WorkerEditValu
   engine: w.engine ?? "",
   engineArgs: w.engine_args ?? {},
   engineModels: w.engine_models ?? {},
+  avatar: w.avatar ?? "",
   ...over,
 })
 
@@ -31,6 +32,20 @@ describe("buildWorkerUpdate", () => {
   it("returns null when nothing changed", () => {
     const w = worker({})
     expect(buildWorkerUpdate(w, values(w))).toBeNull()
+  })
+
+  it("sends only a changed avatar", () => {
+    const w = worker({ avatar: "mfers/00001" })
+    expect(buildWorkerUpdate(w, values(w))).toBeNull()
+    expect(buildWorkerUpdate(w, values(w, { avatar: "mfers/00002" }))).toMatchObject({ avatar: "mfers/00002" })
+    expect(buildWorkerUpdate(w, values(w, { avatar: "" }))).toMatchObject({ avatar: "" })
+    expect(buildWorkerUpdate(w, values(w, { description: "x" }))).not.toHaveProperty("avatar")
+  })
+
+  it("treats a missing avatar as none", () => {
+    const w = worker({ avatar: undefined })
+    expect(buildWorkerUpdate(w, values(w, { avatar: "" }))).toBeNull()
+    expect(buildWorkerUpdate(w, values(w, { avatar: "mfers/00003" }))).toMatchObject({ avatar: "mfers/00003" })
   })
 
   it("keeps an unset-engine worker on the system default when another field changes", () => {

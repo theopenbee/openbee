@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import { Avatar } from "@/components/arc/avatar/avatar"
 import { avatarColorClass } from "@/lib/avatar-color"
+import { avatarUrl } from "@/lib/avatars"
 import { statusLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +25,7 @@ export type AvatarSize = "sm" | "default" | "lg" | "xl"
 interface WorkerAvatarProps {
   workerId: string
   name: string
+  avatar?: string
   status?: string
   size?: AvatarSize
   className?: string
@@ -38,13 +40,14 @@ const dotPlacement: Record<AvatarSize, string> = {
   xl: "right-1 bottom-1 size-3.5",
 }
 
-export function WorkerAvatar({ workerId, name, status, size = "default", className }: WorkerAvatarProps) {
+export function WorkerAvatar({ workerId, name, avatar, status, size = "default", className }: WorkerAvatarProps) {
   const { t } = useTranslation()
 
   return (
     <span className={cn("relative inline-flex shrink-0 rounded-full", avatarColorClass(workerId), className)}>
       <Avatar
         name={Array.from(initials(name)).join(" ")}
+        src={avatar ? avatarUrl(avatar) : undefined}
         size={sizes[size]}
         className="bg-transparent! text-avatar-foreground!"
         aria-hidden="true"

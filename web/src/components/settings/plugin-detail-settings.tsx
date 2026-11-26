@@ -100,7 +100,7 @@ export function PluginDetailSettings({ id }: { id: string }) {
   const pendingKind = action.isPending ? action.variables?.action : undefined
   const showError = d.error && (d.state === "failed" || d.state === "retrying")
   const isEngine = d.type === "engine"
-  const showSettings = !isEngine || d.fields.length > 0
+  const showSettings = d.type === "channel" || d.fields.length > 0
   const hasMain = d.has_setup || showSettings
 
   const run = (kind: PluginAction) =>
@@ -287,7 +287,7 @@ function SettingsForm({
   const save = useUpdatePluginSettings(detail.id)
   const [values, setValues] = useState<FormValues>(() => initialFormValues(detail.fields, detail.config))
   const [botName, setBotName] = useState(detail.bot_name)
-  const isEngine = detail.type === "engine"
+  const hasBotName = detail.type === "channel"
   const [invalid, setInvalid] = useState<string[]>([])
 
   const labelOf = (f: PluginConfigField) => localize(f.label, lang) || f.key
@@ -303,7 +303,7 @@ function SettingsForm({
     }
     const config = buildSettingsPayload(detail.fields, detail.config, values)
     const body: PluginSettingsUpdate = { config }
-    if (!isEngine && botName.trim() !== detail.bot_name) body.bot_name = botName.trim()
+    if (hasBotName && botName.trim() !== detail.bot_name) body.bot_name = botName.trim()
     if (Object.keys(config).length === 0 && body.bot_name === undefined) {
       toast.info(t("plugins.detail.noChanges"))
       return
@@ -312,7 +312,7 @@ function SettingsForm({
       onSuccess: () => {
         onSaved()
         toast.success(
-          isEngine
+          !hasBotName
             ? t("plugins.toast.saved")
             : detail.enabled
               ? t("plugins.toast.savedRestarting", { name })
@@ -403,7 +403,7 @@ function SettingsForm({
           {field(f)}
         </div>
       ))}
-      {!isEngine && (
+      {hasBotName && (
         <Input
           id="plugin-bot-name"
           label={t("plugins.detail.botName")}

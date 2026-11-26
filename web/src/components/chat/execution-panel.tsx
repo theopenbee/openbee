@@ -123,7 +123,7 @@ function ExecutionSummary({ execution, worker, engine, onSelectRun }: ExecutionV
         {bee ? (
           <BeeAvatar size="sm" />
         ) : worker ? (
-          <WorkerAvatar workerId={worker.id} name={worker.name} size="sm" />
+          <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} size="sm" />
         ) : (
           <Avatar name="?" size="sm" aria-hidden="true" />
         )}

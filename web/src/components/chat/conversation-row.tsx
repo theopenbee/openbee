@@ -34,7 +34,7 @@ export function ConversationRow({ conversation, workers, active, now }: Conversa
         active && "bg-accent-subtle hover:bg-accent-subtle",
       )}
     >
-      {worker ? <WorkerAvatar workerId={worker.id} name={worker.name} status={worker.status} /> : <BeeAvatar />}
+      {worker ? <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} status={worker.status} /> : <BeeAvatar />}
       <span className="grid min-w-0 flex-1 gap-0.5">
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate text-sm font-medium text-foreground">{name}</span>

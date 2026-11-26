@@ -36,7 +36,7 @@ export function HandoffCard({ info, instruction, workers, onOpen, onShowExecutio
         )}
       >
         {worker ? (
-          <WorkerAvatar workerId={worker.id} name={worker.name} />
+          <WorkerAvatar workerId={worker.id} name={worker.name} avatar={worker.avatar} />
         ) : (
           <Avatar name="?" aria-hidden="true" />
         )}

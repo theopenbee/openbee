@@ -9,6 +9,7 @@ export interface WorkerEditValues {
   engine: Engine
   engineArgs: Record<string, string>
   engineModels: Record<string, string>
+  avatar: string
 }
 
 export function buildWorkerUpdate(
@@ -23,8 +24,9 @@ export function buildWorkerUpdate(
   const engineChanged = values.engine !== (worker.engine ?? "")
   const engineArgsChanged = !engineArgsEqual(stripEmptyEngineArgs(values.engineArgs), worker.engine_args ?? {})
   const engineModels = changedEngineModels(initialEngineModels, values.engineModels)
+  const avatarChanged = values.avatar !== (worker.avatar ?? "")
 
-  if (!nameChanged && !descriptionChanged && !workDirChanged && !engineChanged && !engineArgsChanged && !engineModels) {
+  if (!nameChanged && !descriptionChanged && !workDirChanged && !engineChanged && !engineArgsChanged && !engineModels && !avatarChanged) {
     return null
   }
 
@@ -33,6 +35,7 @@ export function buildWorkerUpdate(
   if (workDirChanged) data.work_dir = workDir
   if (engineChanged) data.engine = values.engine
   if (engineModels) data.engine_models = engineModels
+  if (avatarChanged) data.avatar = values.avatar
   return data
 }
 
