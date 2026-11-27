@@ -3,7 +3,6 @@ package e2e
 import (
 	"fmt"
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 	"time"
@@ -194,7 +193,7 @@ func TestLiveTextPreview(t *testing.T) {
 	cid := api.WorkerConversation(w.ID)
 	f.await("the new worker in the list", quickWait, func() bool { return f.shows(name) })
 	f.click(name)
-	notesChip := locales.ChatPreviewFile(path.Base(notes))
+	notesChip := locales.ChatPreviewFile("notes.md")
 	f.await("the attachments in the worker chat", quickWait, func() bool { return f.shows(notesChip) })
 
 	f.click(notesChip)
@@ -206,7 +205,7 @@ func TestLiveTextPreview(t *testing.T) {
 	f.Motion()
 	f.wantHidden(locales.ChatClosePreview())
 
-	f.click(locales.ChatPreviewFile(path.Base(gbk)))
+	f.click(locales.ChatPreviewFile("gbk.txt"))
 	f.await("the decoded GBK text", quickWait, func() bool { return f.shows("你好") })
 	f.click(locales.ChatClosePreview())
 	f.await("the worker chat back to idle", replyWait, func() bool {
