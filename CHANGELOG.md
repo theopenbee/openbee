@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Copy previewed images on desktop.
+- Open a conversation in its own desktop window.
+
 ### Changed
 - Simpler plugin lists: fewer columns, no marketplace tags.
+- Unknown slash commands reply with an error instead of chatting.
 
 ## [1.0.13] - 2026-11-26
 
