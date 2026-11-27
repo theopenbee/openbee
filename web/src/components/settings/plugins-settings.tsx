@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { BotIcon, CheckIcon, DownloadIcon, EllipsisIcon, PackagePlusIcon, PuzzleIcon, RefreshCwIcon, RotateCwIcon, SearchXIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, DownloadIcon, EllipsisIcon, PackagePlusIcon, PuzzleIcon, RefreshCwIcon, RotateCwIcon, SearchXIcon, Trash2Icon } from "lucide-react"
 import { FadeIn } from "@/components/fade-in"
 import { Panel } from "@/components/panel"
 import { EmptyState } from "@/components/empty-state"
@@ -21,7 +21,6 @@ import { Badge } from "@/components/arc/badge/badge"
 import { Button } from "@/components/arc/button/button"
 import { DropdownMenu } from "@/components/arc/dropdown-menu/dropdown-menu"
 import { SearchField } from "@/components/arc/search-field/search-field"
-import SegmentedControl from "@/components/arc/segmented-control/segmented-control"
 import { Switch } from "@/components/arc/switch/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/arc/tabs/tabs"
 import { Tooltip } from "@/components/arc/tooltip/tooltip"
@@ -40,8 +39,7 @@ import type { PluginsTab } from "@/lib/routes"
 import { getErrorMessage } from "@/lib/utils"
 import type { CatalogPlugin, PluginOperation, PluginStatus } from "@/lib/types"
 
-const ALL_TAGS = "__all__"
-const INSTALLED_GRID = "@3xl:grid-cols-[minmax(0,1fr)_5.5rem_minmax(0,12rem)_minmax(0,10rem)_auto]"
+const INSTALLED_GRID = "@3xl:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_auto]"
 
 export function PluginsSettings({ tab, onTabChange }: { tab: PluginsTab; onTabChange: (tab: PluginsTab) => void }) {
   const { t } = useTranslation()
@@ -91,7 +89,6 @@ function Market({ operations }: { operations: PluginOperation[] }) {
   const refresh = useRefreshPluginCatalog()
   const install = useInstallPlugin()
   const [query, setQuery] = useState("")
-  const [tag, setTag] = useState<string | null>(null)
   const [requested, setRequested] = useState<Set<string>>(() => new Set())
   const pending = useMemo(() => pendingInstalls(operations), [operations])
   const now = useNow(Object.keys(pending).length > 0 || requested.size > 0)
@@ -108,22 +105,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
           disabled={!catalog.data}
         />
       </div>
-      {catalog.data && (
-        <div className="min-w-0 max-w-full">
-          <SegmentedControl
-            label={t("plugins.tagFilter")}
-            value={tag ?? ALL_TAGS}
-            onValueChange={(value) => setTag(value === ALL_TAGS ? null : value)}
-            options={[
-              { value: ALL_TAGS, label: t("plugins.allTags") },
-              ...catalog.data.tags
-                .filter((v) => catalog.data.plugins.some((p) => p.tags.includes(v.id)))
-                .map((v) => ({ value: v.id, label: localize(v.name, lang) || v.id })),
-            ]}
-          />
-        </div>
-      )}
-      <div className="ml-auto flex h-11 items-center">
+      <div className="flex h-11 items-center">
         <Button
           variant="ghost"
           size="sm"
@@ -164,8 +146,7 @@ function Market({ operations }: { operations: PluginOperation[] }) {
   }
 
   const data = catalog.data
-  const list = filterCatalog(data.plugins, query, tag)
-  const tagName = (id: string) => localize(data.tags.find((v) => v.id === id)?.name, lang) || id
+  const list = filterCatalog(data.plugins, query)
   const typeName = (type: string) => pluginTypeLabel(type, data.categories, lang, t)
 
   const startInstall = (p: CatalogPlugin) => {
@@ -191,14 +172,8 @@ function Market({ operations }: { operations: PluginOperation[] }) {
             title={t("plugins.noResults")}
             description={t("plugins.noResultsHint")}
             action={
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setQuery("")
-                  setTag(null)
-                }}
-              >
-                {t("plugins.clearFilters")}
+              <Button variant="secondary" onClick={() => setQuery("")}>
+                {t("plugins.clearSearch")}
               </Button>
             }
           />
@@ -249,18 +224,15 @@ function Market({ operations }: { operations: PluginOperation[] }) {
                         </div>
                       </div>
                       {description && <p className="mt-3 line-clamp-2 text-sm text-secondary">{description}</p>}
-                      {(p.tags.length > 0 || p.installed) && (
-                        <div className="mt-auto flex min-w-0 items-center gap-3 pt-3 text-xs">
-                          <p className="min-w-0 flex-1 truncate text-muted">{p.tags.map(tagName).join(" · ")}</p>
-                          {p.installed && (
-                            <span className="inline-flex shrink-0 items-center gap-1.5 text-secondary">
-                              <CheckIcon size={14} strokeWidth={1.75} className="shrink-0 text-success" aria-hidden="true" />
-                              {p.update_available
-                                ? t("plugins.updateAvailable", { version: p.installed_version })
-                                : t("plugins.installedVersion", { version: p.installed_version })}
-                            </span>
-                          )}
-                        </div>
+                      {p.installed && (
+                        <p className="mt-auto flex min-w-0 items-center gap-1.5 pt-3 text-xs text-secondary">
+                          <CheckIcon size={14} strokeWidth={1.75} className="shrink-0 text-success" aria-hidden="true" />
+                          <span className="truncate">
+                            {p.update_available
+                              ? t("plugins.updateAvailable", { version: p.installed_version })
+                              : t("plugins.installedVersion", { version: p.installed_version })}
+                          </span>
+                        </p>
                       )}
                     </li>
                   )
@@ -330,7 +302,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
   const removing = useMemo(() => pendingUninstalls(operations), [operations])
   const lang = i18n.language
 
-  if (plugins.isLoading) return <SkeletonTable rows={4} columns={5} className="rounded-inset" />
+  if (plugins.isLoading) return <SkeletonTable rows={4} columns={3} className="rounded-inset" />
   if (plugins.error) {
     return (
       <Alert tone="danger" title={t("plugins.installedError")}>
@@ -388,9 +360,7 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
       >
         <div className={`hidden gap-4 px-6 pb-2 text-xs text-secondary @3xl:grid ${INSTALLED_GRID}`} aria-hidden="true">
           <span>{t("plugins.columns.plugin")}</span>
-          <span>{t("plugins.columns.version")}</span>
           <span>{t("plugins.columns.status")}</span>
-          <span>{t("plugins.columns.botName")}</span>
           <span className="w-44" />
         </div>
         {groupByType(list, (p) => p.type).map((group) => (
@@ -420,20 +390,13 @@ function Installed({ operations, onBrowse }: { operations: PluginOperation[]; on
                         <span className="block truncate font-mono text-xs text-secondary">{p.id}</span>
                       </span>
                     </button>
-                    <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 @3xl:contents">
-                      <span className="font-mono text-sm text-secondary tabular">{p.version ? `v${p.version}` : "–"}</span>
-                      <div className={showError ? "order-first w-full min-w-0 @3xl:order-none @3xl:w-auto" : "order-first min-w-0 @3xl:order-none"}>
-                        <PluginStateBadge state={p.state} uninstalling={busy} />
-                        {showError && (
-                          <p className="mt-1 truncate text-xs text-danger" title={p.error}>
-                            {p.error}
-                          </p>
-                        )}
-                      </div>
-                      <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-                        <BotIcon size={14} strokeWidth={1.75} className="shrink-0 text-muted @3xl:hidden" aria-hidden="true" />
-                        <span className="truncate">{p.bot_name || <span className="text-muted">–</span>}</span>
-                      </span>
+                    <div className="col-span-2 min-w-0 @3xl:col-span-1">
+                      <PluginStateBadge state={p.state} uninstalling={busy} />
+                      {showError && (
+                        <p className="mt-1 truncate text-xs text-danger" title={p.error}>
+                          {p.error}
+                        </p>
+                      )}
                     </div>
                     <div className="row-start-1 col-start-2 flex items-center justify-end gap-2 @3xl:col-start-auto @3xl:row-start-auto @3xl:w-44">
                       <Switch

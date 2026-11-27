@@ -114,10 +114,9 @@ export function buildSettingsPayload(
   return out
 }
 
-export function filterCatalog(plugins: CatalogPlugin[], query: string, tag: string | null): CatalogPlugin[] {
+export function filterCatalog(plugins: CatalogPlugin[], query: string): CatalogPlugin[] {
   const q = query.trim().toLowerCase()
   return plugins.filter((p) => {
-    if (tag && !p.tags.includes(tag)) return false
     if (!q) return true
     const haystack = [p.id, ...Object.values(p.name ?? {}), ...Object.values(p.description ?? {})]
     return haystack.some((s) => s.toLowerCase().includes(q))

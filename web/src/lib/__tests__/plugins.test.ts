@@ -129,14 +129,10 @@ describe("filterCatalog", () => {
   ]
 
   it("matches id, any localized name and description", () => {
-    expect(filterCatalog(list, "", null).map((p) => p.id)).toEqual(["telegram", "weixin"])
-    expect(filterCatalog(list, "微信", null).map((p) => p.id)).toEqual(["weixin"])
-    expect(filterCatalog(list, "bot api", null).map((p) => p.id)).toEqual(["telegram"])
-    expect(filterCatalog(list, "WEIX", null).map((p) => p.id)).toEqual(["weixin"])
-  })
-
-  it("filters by tag", () => {
-    expect(filterCatalog(list, "", "china").map((p) => p.id)).toEqual(["weixin"])
+    expect(filterCatalog(list, "").map((p) => p.id)).toEqual(["telegram", "weixin"])
+    expect(filterCatalog(list, "微信").map((p) => p.id)).toEqual(["weixin"])
+    expect(filterCatalog(list, "bot api").map((p) => p.id)).toEqual(["telegram"])
+    expect(filterCatalog(list, "WEIX").map((p) => p.id)).toEqual(["weixin"])
   })
 })
 

@@ -421,13 +421,11 @@
     },
     "search": "搜索插件",
     "searchPlaceholder": "名称或描述",
-    "tagFilter": "按标签筛选",
-    "allTags": "全部",
     "official": "官方",
     "deprecated": "已弃用",
     "noResults": "没有匹配的插件",
-    "noResultsHint": "换个名称试试，或显示全部标签。",
-    "clearFilters": "清除筛选",
+    "noResultsHint": "换个名称或描述试试。",
+    "clearSearch": "清除搜索",
     "action": {
       "install": "安装",
       "installingShort": "安装中",
@@ -460,9 +458,7 @@
     },
     "columns": {
       "plugin": "插件",
-      "version": "版本",
-      "status": "状态",
-      "botName": "机器人名称"
+      "status": "状态"
     },
     "installedTitle": "已安装的插件",
     "installedSummary_other": "{{count}} 个插件，{{active}} 个可用",

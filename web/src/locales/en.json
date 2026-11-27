@@ -424,13 +424,11 @@
     },
     "search": "Search plugins",
     "searchPlaceholder": "Name or description",
-    "tagFilter": "Filter by tag",
-    "allTags": "All",
     "official": "Official",
     "deprecated": "Deprecated",
     "noResults": "No plugins match your search",
-    "noResultsHint": "Try another name, or show every tag.",
-    "clearFilters": "Clear filters",
+    "noResultsHint": "Try another name or description.",
+    "clearSearch": "Clear search",
     "action": {
       "install": "Install",
       "installingShort": "Installing",
@@ -463,9 +461,7 @@
     },
     "columns": {
       "plugin": "Plugin",
-      "version": "Version",
-      "status": "Status",
-      "botName": "Bot name"
+      "status": "Status"
     },
     "installedTitle": "Installed plugins",
     "installedSummary_one": "{{count}} plugin, {{active}} active",
