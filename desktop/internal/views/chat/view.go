@@ -44,6 +44,7 @@ type View struct {
 	link        linkState
 	table       tableModal
 	light       lightboxState
+	copying     imageCopy
 	preview     previewState
 	previews    map[string]*previewLoad
 	photos      *photoLoads
@@ -114,6 +115,7 @@ func (v *View) resetMedia() {
 	v.mediaGen++
 	v.images = newImageCache(v.mediaImages(v.mediaGen), fetchExternalImage)
 	v.photos, v.opening, v.previews = newPhotoLoads(), map[string]bool{}, map[string]*previewLoad{}
+	v.copying = imageCopy{}
 	v.useMarkdown(newImageLoads(nil))
 }
 

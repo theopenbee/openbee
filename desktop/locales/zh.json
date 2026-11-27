@@ -228,6 +228,8 @@
   "chatComposerHintTouchPlain": "Ctrl/⌘+Enter 发送",
   "chatConnectionLost": "与 OpenBee 服务的连接已断开",
   "chatConnectionLostDescription": "正在自动重连，恢复前不会收到新消息。",
+  "chatCopyImage": "复制图片",
+  "chatCopyImageFailed": "无法复制图片",
   "chatCopyMessage": "复制消息",
   "chatDeletedWorker": "已删除的员工",
   "chatDownload": "下载",

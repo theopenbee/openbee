@@ -158,31 +158,45 @@ func (v *View) lightbox(c *ui.Context, tk theme.Tokens) {
 		if c.Shortcut(0, ui.Key0) {
 			l.zoomCenter(l.stage.fit())
 		}
+		var input func(ui.InputEvent) bool
+		copyable := !hasSVGExtension(name)
+		if copyable {
+			svc := c.Services()
+			input = v.copyInput(svc, name)
+			if c.Shortcut(ui.Cmd, ui.KeyC) {
+				v.copyImage(svc, name)
+			}
+		}
 		labels := w >= theme.BreakTwoPane
-		v.viewerBar(c, tk, shown, w, locales.ChatCloseImage(), func() { l.open = false }, func() {
-			v.zoomControls(c, tk, w)
+		v.viewerBar(c, tk, shown, w, locales.ChatCloseImage(), func() { l.open = false }, input, func() {
+			v.zoomControls(c, tk, w, input)
+			if copyable {
+				v.viewerButton(c, tk, labels, v.copyAction(c, name, input))
+			}
 			v.viewerButton(c, tk, labels, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",
 				busy:  v.downloading(name),
 				click: func() { v.downloadMedia(name) },
+				input: input,
 			})
 			v.viewerButton(c, tk, labels, viewerAction{
 				text:  locales.ChatOpenOriginal(),
 				icon:  "external-link",
 				click: func() { v.openMedia(name) },
+				input: input,
 			})
 		})
 		v.lightboxStage(c, tk, name, w, h)
 	})
 }
 
-func (v *View) zoomControls(c *ui.Context, tk theme.Tokens, w float32) {
+func (v *View) zoomControls(c *ui.Context, tk theme.Tokens, w float32, input func(ui.InputEvent) bool) {
 	l := &v.light
 	ready := l.stage.ready()
 	scale := l.scale()
 	lo, hi := l.stage.bounds()
-	md := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}
+	md := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Input: input}
 	if w >= theme.BreakComposer {
 		ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(lightboxZoomGap).Children(func() {
 			out := md
@@ -218,9 +232,10 @@ func (v *View) viewerFrame(tk theme.Tokens, backdrop, panel ui.Element, w, h flo
 }
 
 type viewerAction struct {
-	text, icon string
-	busy       bool
-	click      func()
+	text, label, icon string
+	busy              bool
+	click             func()
+	input             func(ui.InputEvent) bool
 }
 
 func (v *View) viewerButton(c *ui.Context, tk theme.Tokens, labelled bool, action viewerAction) {
@@ -228,20 +243,24 @@ func (v *View) viewerButton(c *ui.Context, tk theme.Tokens, labelled bool, actio
 	if !labelled {
 		text = ""
 	}
-	opts := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: action.icon, Label: action.text, Loading: action.busy}
+	label := action.label
+	if label == "" {
+		label = action.text
+	}
+	opts := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: action.icon, Label: label, Loading: action.busy, Input: action.input}
 	if kit.Button(c, tk, text, opts).Clicked() {
 		action.click()
 	}
 }
 
-func (v *View) viewerBar(c *ui.Context, tk theme.Tokens, title string, w float32, closeLabel string, close func(), actions func()) {
+func (v *View) viewerBar(c *ui.Context, tk theme.Tokens, title string, w float32, closeLabel string, close func(), input func(ui.InputEvent) bool, actions func()) {
 	inset := c.TitleBar()
 	bar := ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(lightboxBarGap).PaddingY(lightboxBarPad).
 		PaddingStart(max(lightboxBarPad, inset.Left)).PaddingEnd(max(lightboxBarPad, inset.Right))
 	keepOpen(bar).Children(func() {
 		ui.Text(c, title).FontWeight(mediumWeight).TextColor(tk.Foreground).SingleLine().Grow(1).MinWidth(0)
 		actions()
-		if kit.IconButton(c, tk, "x", closeLabel, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).Clicked() {
+		if kit.IconButton(c, tk, "x", closeLabel, kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Input: input}).Clicked() {
 			close()
 		}
 	})

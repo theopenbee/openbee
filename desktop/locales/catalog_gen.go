@@ -1940,6 +1940,26 @@ func (msgs Messages) ChatConnectionLostDescription() string {
 	return Catalog.Format(msgs.locale, "chatConnectionLostDescription", nil)
 }
 
+// ChatCopyImage says "Copy image"
+// in the language the app shows.
+func ChatCopyImage() string { return In(i18n.Locale()).ChatCopyImage() }
+
+// ChatCopyImage says "Copy image"
+// in the language of msgs.
+func (msgs Messages) ChatCopyImage() string {
+	return Catalog.Format(msgs.locale, "chatCopyImage", nil)
+}
+
+// ChatCopyImageFailed says "Couldn't copy the image"
+// in the language the app shows.
+func ChatCopyImageFailed() string { return In(i18n.Locale()).ChatCopyImageFailed() }
+
+// ChatCopyImageFailed says "Couldn't copy the image"
+// in the language of msgs.
+func (msgs Messages) ChatCopyImageFailed() string {
+	return Catalog.Format(msgs.locale, "chatCopyImageFailed", nil)
+}
+
 // ChatCopyMessage says "Copy message"
 // in the language the app shows.
 func ChatCopyMessage() string { return In(i18n.Locale()).ChatCopyMessage() }

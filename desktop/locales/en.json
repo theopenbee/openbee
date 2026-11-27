@@ -228,6 +228,8 @@
   "chatComposerHintTouchPlain": "Ctrl/⌘+Enter to send",
   "chatConnectionLost": "Lost connection to the OpenBee server",
   "chatConnectionLostDescription": "Reconnecting automatically. New messages won't arrive until then.",
+  "chatCopyImage": "Copy image",
+  "chatCopyImageFailed": "Couldn't copy the image",
   "chatCopyMessage": "Copy message",
   "chatDeletedWorker": "Deleted worker",
   "chatDownload": "Download",

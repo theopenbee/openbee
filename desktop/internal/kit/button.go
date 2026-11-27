@@ -35,6 +35,7 @@ type ButtonOpts struct {
 	Wrap     bool
 	Label    string
 	Shortcut string
+	Input    func(ui.InputEvent) bool
 }
 
 const (
@@ -160,8 +161,13 @@ func button(c *ui.Context, tk theme.Tokens, o ButtonOpts, label string, squeeze 
 	b := ui.ButtonBase(c).Label(label).Disabled(o.Disabled).MinHeight(o.Size.height()).Gap(buttonGap).
 		Radius(theme.RadiusControl).FontSize(bodyFontSize).FontWeight(mediumWeight)
 	blocked := o.Loading || o.Inert
-	if blocked {
-		b.HandleInput(swallowActivation)
+	if blocked || o.Input != nil {
+		b.HandleInput(func(ev ui.InputEvent) bool {
+			if o.Input != nil && o.Input(ev) {
+				return true
+			}
+			return blocked && swallowActivation(ev)
+		})
 	}
 	interactive := !blocked && !o.Disabled
 	hovered := interactive && b.Hovered()

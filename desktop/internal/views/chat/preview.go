@@ -182,7 +182,7 @@ func (v *View) textPreview(c *ui.Context, tk theme.Tokens) {
 		if panel.Clicked() {
 			p.open = false
 		}
-		v.viewerBar(c, tk, shown, w, locales.ChatClosePreview(), func() { p.open = false }, func() {
+		v.viewerBar(c, tk, shown, w, locales.ChatClosePreview(), func() { p.open = false }, nil, func() {
 			v.viewerButton(c, tk, w >= theme.BreakComposer, viewerAction{
 				text:  locales.ChatDownload(),
 				icon:  "download",

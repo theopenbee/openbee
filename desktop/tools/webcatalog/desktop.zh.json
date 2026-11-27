@@ -27,6 +27,8 @@
   "fileOpenFailed": "无法打开文件",
   "fileSaveFailed": "无法保存文件",
   "chatOpenOriginal": "打开原图",
+  "chatCopyImage": "复制图片",
+  "chatCopyImageFailed": "无法复制图片",
   "codeDownload": "下载",
   "tableCopy": "复制表格",
   "tableCopyMarkdown": "Markdown",

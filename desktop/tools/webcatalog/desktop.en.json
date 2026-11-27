@@ -27,6 +27,8 @@
   "fileOpenFailed": "Couldn't open the file",
   "fileSaveFailed": "Couldn't save the file",
   "chatOpenOriginal": "Open original",
+  "chatCopyImage": "Copy image",
+  "chatCopyImageFailed": "Couldn't copy the image",
   "codeDownload": "Download",
   "tableCopy": "Copy table",
   "tableCopyMarkdown": "Markdown",
