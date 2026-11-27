@@ -121,3 +121,20 @@ func rgbaAt(img image.Image, x, y int) struct{ R, B uint32 } {
 	r, _, b, _ := img.At(x, y).RGBA()
 	return struct{ R, B uint32 }{r >> 8, b >> 8}
 }
+
+func TestLightboxCopyKeepsItsWidthWhenCopied(t *testing.T) {
+	f := photoChat(t)
+	f.openPhoto()
+	before, ok := f.T.Find(locales.ChatZoomIn())
+	if !ok {
+		t.Fatalf("no Zoom in button; texts %q", f.T.Texts())
+	}
+	f.click(locales.ChatCopyImage())
+	f.Fix.Await(t, func() bool { return f.clipboardPNG() != nil })
+	f.Settle()
+	f.T.Frame()
+	f.wantShown(locales.ArcCopyButtonCopied())
+	if after, _ := f.T.Find(locales.ChatZoomIn()); after.X != before.X {
+		t.Fatalf("Zoom in moved from x=%v to x=%v when Copy turned into Copied", before.X, after.X)
+	}
+}

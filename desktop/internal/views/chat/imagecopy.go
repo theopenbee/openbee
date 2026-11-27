@@ -44,12 +44,13 @@ func (v *View) copyAction(c *ui.Context, name string, input func(ui.InputEvent) 
 		text, icon = locales.ArcCopyButtonCopied(), "check"
 	}
 	return viewerAction{
-		text:  text,
-		label: locales.ChatCopyImage(),
-		icon:  icon,
-		busy:  v.copying.busy == name,
-		click: func() { v.copyImage(c.Services(), name) },
-		input: input,
+		text:    text,
+		reserve: locales.ArcCopyButtonCopied(),
+		label:   locales.ChatCopyImage(),
+		icon:    icon,
+		busy:    v.copying.busy == name,
+		click:   func() { v.copyImage(c.Services(), name) },
+		input:   input,
 	}
 }
 

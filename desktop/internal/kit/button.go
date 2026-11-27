@@ -35,6 +35,7 @@ type ButtonOpts struct {
 	Wrap     bool
 	Label    string
 	Shortcut string
+	Reserve  string
 	Input    func(ui.InputEvent) bool
 }
 
@@ -133,9 +134,12 @@ func Button(c *ui.Context, tk theme.Tokens, text string, o ButtonOpts) ui.Elemen
 		if text == "" {
 			return
 		}
-		if o.Wrap {
+		switch {
+		case o.Wrap:
 			ui.Text(c, text).MinWidth(0)
-		} else {
+		case o.Reserve != "":
+			ui.Text(c, text).SingleLine().MinWidth(max(textWidth(c, text), textWidth(c, o.Reserve)))
+		default:
 			ui.Text(c, text).SingleLine()
 		}
 	})

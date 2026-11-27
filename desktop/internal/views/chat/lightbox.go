@@ -233,6 +233,7 @@ func (v *View) viewerFrame(tk theme.Tokens, backdrop, panel ui.Element, w, h flo
 
 type viewerAction struct {
 	text, label, icon string
+	reserve           string
 	busy              bool
 	click             func()
 	input             func(ui.InputEvent) bool
@@ -247,7 +248,7 @@ func (v *View) viewerButton(c *ui.Context, tk theme.Tokens, labelled bool, actio
 	if label == "" {
 		label = action.text
 	}
-	opts := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: action.icon, Label: label, Loading: action.busy, Input: action.input}
+	opts := kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD, Icon: action.icon, Label: label, Loading: action.busy, Input: action.input, Reserve: action.reserve}
 	if kit.Button(c, tk, text, opts).Clicked() {
 		action.click()
 	}
