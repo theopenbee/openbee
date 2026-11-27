@@ -25,6 +25,7 @@ const (
 	narrowW        = 700
 	detailGap      = 16
 	compactGap     = 16
+	toolbarGap     = 16
 )
 
 func text(en, zh string) api.LocalizedText {
@@ -148,21 +149,21 @@ func (f *fixture) reads(path string) int {
 	return n
 }
 
-func TestMarketplaceFilterByTag(t *testing.T) {
+func TestMarketplaceShowsNoTags(t *testing.T) {
 	f := open(t, wideW, settings.SectionPlugins, withPlugins)
-	f.wantShown(locales.PluginsTabsMarket(), locales.PluginsAllTags(), "Messaging", "China", "Telegram", "Discord", "Feishu", "DingTalk", "WeChat", "Linear")
-	f.wantHidden("Email")
+	f.wantShown(locales.PluginsTabsMarket(), "Telegram", "Discord", "Feishu", "DingTalk", "WeChat", "Linear")
+	f.wantHidden("All", "Messaging", "China", "Email", "Messaging · China")
+}
 
-	f.click("China")
-	f.wantShown("Feishu", "DingTalk", "WeChat")
-	f.wantHidden("Telegram", "Discord", "Linear")
-
-	f.click("Messaging")
-	f.wantShown("Telegram", "Discord", "Feishu")
-	f.wantHidden("DingTalk", "WeChat", "Linear")
-
-	f.click(locales.PluginsAllTags())
-	f.wantShown("Telegram", "WeChat", "Linear")
+func TestRefreshCatalogSitsBesideSearch(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, withPlugins)
+	search, refresh := f.rect(locales.PluginsSearch()), f.rect(locales.PluginsRefreshCatalog())
+	if gap := refresh.X - (search.X + search.W); gap < 0 || gap > toolbarGap {
+		t.Fatalf("refresh %+v sits %vpx after the search field %+v, want at most %v", refresh, gap, search, toolbarGap)
+	}
+	if refresh.Y < search.Y || refresh.Y+refresh.H > search.Y+search.H {
+		t.Fatalf("refresh %+v is not on the search row %+v", refresh, search)
+	}
 }
 
 func TestMarketplaceSearch(t *testing.T) {
@@ -177,12 +178,11 @@ func TestMarketplaceSearch(t *testing.T) {
 
 	f.typeInto(locales.PluginsSearch(), "nothing like this")
 	f.wantShown(locales.PluginsNoResults(), locales.PluginsNoResultsHint())
-	f.click("China")
-	f.click(locales.PluginsClearFilters())
+	f.click(locales.PluginsClearSearch())
 	f.wantHidden(locales.PluginsNoResults())
 	f.wantShown("Telegram", "WeChat", "Linear")
 	if got := f.fieldText(locales.PluginsSearch()); got != "" {
-		t.Fatalf("search = %q after Clear filters", got)
+		t.Fatalf("search = %q after Clear search", got)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestUpdateButtonWhenUpdateAvailable(t *testing.T) {
 func TestIncompatibleText(t *testing.T) {
 	f := open(t, wideW, settings.SectionPlugins, withPlugins)
 	f.wantShown(locales.PluginsActionIncompatible(), locales.PluginsActionInstall())
-	f.click("China")
+	f.typeInto(locales.PluginsSearch(), "WeChat")
 	f.wantShown(locales.PluginsActionIncompatible())
 	f.wantHidden(locales.PluginsActionInstall())
 }
@@ -231,7 +231,7 @@ func TestInstalledToggleDisabledWhenNotConfigured(t *testing.T) {
 	f := open(t, wideW, settings.SectionPlugins, withPlugins)
 	f.installedTab()
 	f.wantShown(locales.PluginsInstalledSummary(4, "1"), locales.PluginsStateRunning(), locales.PluginsStateFailed(),
-		locales.PluginsStateNotConfigured(), locales.PluginsStateDisabled(), discordFailure, "v1.2.0", locales.PluginsColumnsBotName())
+		locales.PluginsStateNotConfigured(), locales.PluginsStateDisabled(), discordFailure)
 
 	f.click(locales.PluginsActionToggle("Feishu"))
 	if n := f.posted(pluginsAPI + "/feishu/enable"); n != 0 {
@@ -242,6 +242,21 @@ func TestInstalledToggleDisabledWhenNotConfigured(t *testing.T) {
 		t.Fatalf("enable posts for DingTalk = %d, want 1", n)
 	}
 	f.wantShown(locales.PluginsToastEnabled("DingTalk"))
+}
+
+func TestInstalledListHidesVersionAndBotName(t *testing.T) {
+	f := open(t, wideW, settings.SectionPlugins, func(st *fakeapi.State) {
+		withPlugins(st)
+		st.Plugins[0].BotName = "openbee_helper_bot"
+	})
+	f.installedTab()
+	f.wantShown(locales.PluginsColumnsPlugin(), locales.PluginsColumnsStatus(), "Telegram", locales.PluginsStateRunning())
+	f.wantHidden("Version", "Bot name", "v1.2.0", "openbee_helper_bot")
+
+	f.T.SetSize(narrowW, wideH)
+	f.settle()
+	f.wantShown("Telegram", locales.PluginsStateRunning())
+	f.wantHidden("v1.2.0", "openbee_helper_bot")
 }
 
 func TestUninstallDialog(t *testing.T) {

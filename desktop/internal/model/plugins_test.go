@@ -459,46 +459,24 @@ func TestFilterCatalog(t *testing.T) {
 	c := catalogOf(catalogEntry(), weixinEntry())
 	tests := []struct {
 		name  string
-		tag   string
 		query string
 		want  []string
 	}{
-		{"no filter", "", "", []string{"telegram", "weixin"}},
-		{"matches a localized name", "", "微信", []string{"weixin"}},
-		{"matches a description", "", "bot api", []string{"telegram"}},
-		{"matches a description in any language", "", "扫码", []string{"weixin"}},
-		{"matches the id case-insensitively", "", "WEIX", []string{"weixin"}},
-		{"trims the query", "", "  wechat  ", []string{"weixin"}},
-		{"blank query matches everything", "", "   ", []string{"telegram", "weixin"}},
-		{"filters by tag", "china", "", []string{"weixin"}},
-		{"tag and query together", "global", "wechat", nil},
-		{"tag nobody has", "unused", "", nil},
-		{"no match", "", "zzz", nil},
+		{"no filter", "", []string{"telegram", "weixin"}},
+		{"matches a localized name", "微信", []string{"weixin"}},
+		{"matches a description", "bot api", []string{"telegram"}},
+		{"matches a description in any language", "扫码", []string{"weixin"}},
+		{"matches the id case-insensitively", "WEIX", []string{"weixin"}},
+		{"trims the query", "  wechat  ", []string{"weixin"}},
+		{"blank query matches everything", "   ", []string{"telegram", "weixin"}},
+		{"no match", "zzz", nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := catalogIDs(FilterCatalog(c, tc.tag, tc.query)); !slices.Equal(got, tc.want) && !(len(got) == 0 && len(tc.want) == 0) {
+			if got := catalogIDs(FilterCatalog(c, tc.query)); !slices.Equal(got, tc.want) && !(len(got) == 0 && len(tc.want) == 0) {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestUsedTags(t *testing.T) {
-	c := catalogOf(catalogEntry(), weixinEntry())
-	got := UsedTags(c)
-	ids := make([]string, len(got))
-	for i, tag := range got {
-		ids[i] = tag.ID
-	}
-	if want := []string{"global", "china"}; !slices.Equal(ids, want) {
-		t.Fatalf("got %v, want %v", ids, want)
-	}
-	if got[0].Name["zh"] != "全球" {
-		t.Fatalf("tag names must be carried over: %v", got[0])
-	}
-	if got := UsedTags(catalogOf()); len(got) != 0 {
-		t.Fatalf("a catalog without plugins uses no tags, got %v", got)
 	}
 }
 

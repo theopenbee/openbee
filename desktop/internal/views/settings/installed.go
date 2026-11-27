@@ -23,17 +23,11 @@ const (
 	tableGap        = 16
 	tableRowPadY    = 16
 	tableRowGap     = 12
-	versionColumn   = 88
 	statusColumn    = 192
-	botColumn       = 160
 	actionsColumn   = 176
 	actionsGap      = 8
 	nameGap         = 12
-	detailsGapX     = 12
-	detailsGapY     = 6
 	errorGap        = 4
-	botGlyph        = 14
-	botGap          = 6
 	rowMenuWidth    = 192
 	rowMenuGlyph    = 16
 	menuItemHeight  = 36
@@ -44,7 +38,7 @@ const (
 	menuDangerTint  = 0.08
 	menuDisabled    = 0.5
 	skeletonRows    = 4
-	skeletonColumns = 5
+	skeletonColumns = 3
 	skeletonColumnW = 80
 	skeletonColumnH = 12
 	skeletonFace    = 32
@@ -125,9 +119,7 @@ func tableColumns(c *ui.Context, tk theme.Tokens) {
 			}
 		}
 		column(locales.PluginsColumnsPlugin(), 0)
-		column(locales.PluginsColumnsVersion(), versionColumn)
 		column(locales.PluginsColumnsStatus(), statusColumn)
-		column(locales.PluginsColumnsBotName(), botColumn)
 		ui.Box(c).Width(actionsColumn).Shrink(0)
 	})
 }
@@ -146,9 +138,7 @@ func (d *Page) installedRow(c *ui.Context, tk theme.Tokens, st *installedState, 
 	row.Children(func() {
 		if wide {
 			d.pluginLink(c, tk, plugin, name).Grow(1).Basis(0)
-			versionCell(c, tk, plugin).Width(versionColumn).Shrink(0)
 			stateCell(c, tk, plugin, busy).Width(statusColumn).Shrink(0)
-			botCell(c, tk, plugin, false).Width(botColumn).Shrink(0)
 			d.rowActions(c, tk, st, plugin, name, busy).Width(actionsColumn).Shrink(0)
 			return
 		}
@@ -156,14 +146,7 @@ func (d *Page) installedRow(c *ui.Context, tk theme.Tokens, st *installedState, 
 			d.pluginLink(c, tk, plugin, name).Grow(1)
 			d.rowActions(c, tk, st, plugin, name, busy).Shrink(0)
 		})
-		ui.Row(c).MinWidth(0).Wrap().AlignItems(ui.Center).GapX(detailsGapX).GapY(detailsGapY).Children(func() {
-			state := stateCell(c, tk, plugin, busy)
-			if showsError(plugin) {
-				state.WidthPercent(100)
-			}
-			versionCell(c, tk, plugin)
-			botCell(c, tk, plugin, true)
-		})
+		stateCell(c, tk, plugin, busy)
 	})
 }
 
@@ -182,14 +165,6 @@ func (d *Page) pluginLink(c *ui.Context, tk theme.Tokens, plugin api.PluginStatu
 	})
 }
 
-func versionCell(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus) ui.Element {
-	text := noValue
-	if plugin.Version != "" {
-		text = versionPrefix + plugin.Version
-	}
-	return ui.Text(c, text).Font(theme.FontMono).FontSize(textSize).FontFeatures("tnum").TextColor(tk.TextSecondary).SingleLine().MinWidth(0)
-}
-
 func showsError(plugin api.PluginStatus) bool {
 	return plugin.Error != "" && (plugin.State == "failed" || plugin.State == "retrying")
 }
@@ -201,19 +176,6 @@ func stateCell(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, uninstal
 			text := ui.Text(c, plugin.Error).FontSize(metaSize).TextColor(tk.Danger).SingleLine().MinWidth(0).MaxWidthPercent(100)
 			kit.Tooltip(c, tk, text, plugin.Error)
 		}
-	})
-}
-
-func botCell(c *ui.Context, tk theme.Tokens, plugin api.PluginStatus, icon bool) ui.Element {
-	return ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(botGap).Children(func() {
-		if icon {
-			ui.Icon(c, icons.Get("bot")).Size(botGlyph, botGlyph).Shrink(0).TextColor(tk.TextMuted)
-		}
-		if plugin.BotName == "" {
-			ui.Text(c, noValue).FontSize(textSize).TextColor(tk.TextMuted)
-			return
-		}
-		ui.Text(c, plugin.BotName).FontSize(textSize).TextColor(tk.Foreground).SingleLine().MinWidth(0)
 	})
 }
 

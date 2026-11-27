@@ -40,13 +40,10 @@ type TypeGroup[T any] struct {
 
 var intPattern = regexp.MustCompile(`^-?[0-9]+$`)
 
-func FilterCatalog(c api.PluginCatalog, tag, query string) []api.CatalogPlugin {
+func FilterCatalog(c api.PluginCatalog, query string) []api.CatalogPlugin {
 	q := strings.ToLower(strings.TrimSpace(query))
 	var out []api.CatalogPlugin
 	for _, p := range c.Plugins {
-		if tag != "" && !slices.Contains(p.Tags, tag) {
-			continue
-		}
 		if q == "" || matchesQuery(p, q) {
 			out = append(out, p)
 		}
@@ -66,19 +63,6 @@ func matchesQuery(p api.CatalogPlugin, q string) bool {
 		}
 	}
 	return false
-}
-
-func UsedTags(c api.PluginCatalog) []api.CatalogTag {
-	var out []api.CatalogTag
-	for _, tag := range c.Tags {
-		used := slices.ContainsFunc(c.Plugins, func(p api.CatalogPlugin) bool {
-			return slices.Contains(p.Tags, tag.ID)
-		})
-		if used {
-			out = append(out, tag)
-		}
-	}
-	return out
 }
 
 func CatalogAction(p api.CatalogPlugin, installing bool) CardAction {

@@ -268,7 +268,7 @@ func TestDetailNotFound(t *testing.T) {
 	f.wantHidden(locales.PluginsDetailInfo(), locales.PluginsDetailLoadError())
 
 	f.click(locales.PluginsEmptyInstalledAction())
-	f.wantShown(locales.PluginsAllTags(), locales.PluginsRefreshCatalog())
+	f.wantShown(locales.PluginsSearch(), locales.PluginsRefreshCatalog())
 	f.wantHidden(locales.PluginsDetailNotFound())
 }
 

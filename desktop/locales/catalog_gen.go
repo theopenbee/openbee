@@ -4470,16 +4470,6 @@ func (msgs Messages) PluginsActionUpdate(version string) string {
 	return Catalog.Format(msgs.locale, "pluginsActionUpdate", map[string]any{"version": version})
 }
 
-// PluginsAllTags says "All"
-// in the language the app shows.
-func PluginsAllTags() string { return In(i18n.Locale()).PluginsAllTags() }
-
-// PluginsAllTags says "All"
-// in the language of msgs.
-func (msgs Messages) PluginsAllTags() string {
-	return Catalog.Format(msgs.locale, "pluginsAllTags", nil)
-}
-
 // PluginsCatalogError says "Could not load the plugin catalog"
 // in the language the app shows.
 func PluginsCatalogError() string { return In(i18n.Locale()).PluginsCatalogError() }
@@ -4490,24 +4480,14 @@ func (msgs Messages) PluginsCatalogError() string {
 	return Catalog.Format(msgs.locale, "pluginsCatalogError", nil)
 }
 
-// PluginsClearFilters says "Clear filters"
+// PluginsClearSearch says "Clear search"
 // in the language the app shows.
-func PluginsClearFilters() string { return In(i18n.Locale()).PluginsClearFilters() }
+func PluginsClearSearch() string { return In(i18n.Locale()).PluginsClearSearch() }
 
-// PluginsClearFilters says "Clear filters"
+// PluginsClearSearch says "Clear search"
 // in the language of msgs.
-func (msgs Messages) PluginsClearFilters() string {
-	return Catalog.Format(msgs.locale, "pluginsClearFilters", nil)
-}
-
-// PluginsColumnsBotName says "Bot name"
-// in the language the app shows.
-func PluginsColumnsBotName() string { return In(i18n.Locale()).PluginsColumnsBotName() }
-
-// PluginsColumnsBotName says "Bot name"
-// in the language of msgs.
-func (msgs Messages) PluginsColumnsBotName() string {
-	return Catalog.Format(msgs.locale, "pluginsColumnsBotName", nil)
+func (msgs Messages) PluginsClearSearch() string {
+	return Catalog.Format(msgs.locale, "pluginsClearSearch", nil)
 }
 
 // PluginsColumnsPlugin says "Plugin"
@@ -4528,16 +4508,6 @@ func PluginsColumnsStatus() string { return In(i18n.Locale()).PluginsColumnsStat
 // in the language of msgs.
 func (msgs Messages) PluginsColumnsStatus() string {
 	return Catalog.Format(msgs.locale, "pluginsColumnsStatus", nil)
-}
-
-// PluginsColumnsVersion says "Version"
-// in the language the app shows.
-func PluginsColumnsVersion() string { return In(i18n.Locale()).PluginsColumnsVersion() }
-
-// PluginsColumnsVersion says "Version"
-// in the language of msgs.
-func (msgs Messages) PluginsColumnsVersion() string {
-	return Catalog.Format(msgs.locale, "pluginsColumnsVersion", nil)
 }
 
 // PluginsDeprecated says "Deprecated"
@@ -5160,11 +5130,11 @@ func (msgs Messages) PluginsNoResults() string {
 	return Catalog.Format(msgs.locale, "pluginsNoResults", nil)
 }
 
-// PluginsNoResultsHint says "Try another name, or show every tag."
+// PluginsNoResultsHint says "Try another name or description."
 // in the language the app shows.
 func PluginsNoResultsHint() string { return In(i18n.Locale()).PluginsNoResultsHint() }
 
-// PluginsNoResultsHint says "Try another name, or show every tag."
+// PluginsNoResultsHint says "Try another name or description."
 // in the language of msgs.
 func (msgs Messages) PluginsNoResultsHint() string {
 	return Catalog.Format(msgs.locale, "pluginsNoResultsHint", nil)
@@ -5478,16 +5448,6 @@ func PluginsTabsMarket() string { return In(i18n.Locale()).PluginsTabsMarket() }
 // in the language of msgs.
 func (msgs Messages) PluginsTabsMarket() string {
 	return Catalog.Format(msgs.locale, "pluginsTabsMarket", nil)
-}
-
-// PluginsTagFilter says "Filter by tag"
-// in the language the app shows.
-func PluginsTagFilter() string { return In(i18n.Locale()).PluginsTagFilter() }
-
-// PluginsTagFilter says "Filter by tag"
-// in the language of msgs.
-func (msgs Messages) PluginsTagFilter() string {
-	return Catalog.Format(msgs.locale, "pluginsTagFilter", nil)
 }
 
 // PluginsTitle says "Plugins"

@@ -1,8 +1,6 @@
 package settings
 
 import (
-	"strings"
-
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/theopenbee/openbee/desktop/internal/api"
@@ -39,14 +37,12 @@ const (
 	skeletonLastW   = 72
 	groupsGap       = 32
 	groupHeadGap    = 12
-	tagJoin         = " · "
 	versionJoin     = " · v"
 	specJoin        = "@"
 )
 
 type marketState struct {
 	query      string
-	tag        string
 	refreshing bool
 }
 
@@ -81,10 +77,7 @@ func (d *Page) marketToolbar(c *ui.Context, tk theme.Tokens, st *marketState, r 
 		} else {
 			field.WidthPercent(100)
 		}
-		if r.Loaded {
-			d.tagFilter(c, tk, st, r.Data)
-		}
-		ui.Row(c).MarginStart(ui.Auto).Height(theme.ControlMD).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(theme.ControlMD).AlignItems(ui.Center).Children(func() {
 			kit.Button(c, tk, locales.PluginsRefreshCatalog(), kit.ButtonOpts{Variant: kit.Ghost, Size: kit.SizeSM, Icon: "refresh-cw", Loading: st.refreshing}).
 				OnClick(func() { d.refreshCatalog(st) })
 		})
@@ -102,29 +95,6 @@ func (d *Page) refreshCatalog(st *marketState) {
 	})
 }
 
-func (d *Page) tagFilter(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
-	tags := model.UsedTags(catalog)
-	items := []kit.SegmentItem{{Text: locales.PluginsAllTags()}}
-	selected := 0
-	for i, tag := range tags {
-		items = append(items, kit.SegmentItem{Text: displayName(tag.Name, tag.ID)})
-		if tag.ID == st.tag {
-			selected = i + 1
-		}
-	}
-	if selected == 0 {
-		st.tag = ""
-	}
-	ui.Row(c).MinWidth(0).MaxWidthPercent(100).Children(func() {
-		kit.Segmented(c, tk, &selected, locales.PluginsTagFilter(), items).MaxWidthPercent(100).OnChange(func() {
-			st.tag = ""
-			if selected > 0 {
-				st.tag = tags[selected-1].ID
-			}
-		})
-	})
-}
-
 func (d *Page) gridColumns() int {
 	switch w := d.contentWidth(); {
 	case w >= container4XL:
@@ -136,22 +106,18 @@ func (d *Page) gridColumns() int {
 }
 
 func (d *Page) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, catalog api.PluginCatalog) {
-	list := model.FilterCatalog(catalog, st.tag, st.query)
+	list := model.FilterCatalog(catalog, st.query)
 	if len(list) == 0 {
 		insetCard(c, tk).Children(func() {
 			kit.EmptyState(c, tk, "search-x", locales.PluginsNoResults(), locales.PluginsNoResultsHint(), func() {
-				kit.Button(c, tk, locales.PluginsClearFilters(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).
-					OnClick(func() { st.query, st.tag = "", "" })
+				kit.Button(c, tk, locales.PluginsClearSearch(), kit.ButtonOpts{Variant: kit.Secondary, Size: kit.SizeMD}).
+					OnClick(func() { st.query = "" })
 			})
 		})
 		return
 	}
 	p := d.s.Plugins()
 	pending := model.PendingInstalls(p.Ops.Data)
-	tagNames := map[string]string{}
-	for _, tag := range catalog.Tags {
-		tagNames[tag.ID] = displayName(tag.Name, tag.ID)
-	}
 	ui.Column(c).MinWidth(0).Gap(groupsGap).Children(func() {
 		for _, group := range model.GroupByType(list, func(p api.CatalogPlugin) string { return p.Category }) {
 			ui.Column(c).Key(group.Type).MinWidth(0).Gap(groupHeadGap).Children(func() {
@@ -160,7 +126,7 @@ func (d *Page) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, catal
 				ui.Grid(c).Columns(d.gridColumns()).GapX(gridGap).GapY(gridGap).MinWidth(0).Children(func() {
 					for _, plugin := range group.Items {
 						op, installing := pending[plugin.Package]
-						d.marketCard(c, tk, plugin, op, installing || p.Requested(plugin.Package), tagNames)
+						d.marketCard(c, tk, plugin, op, installing || p.Requested(plugin.Package))
 					}
 				})
 			})
@@ -168,7 +134,7 @@ func (d *Page) marketGrid(c *ui.Context, tk theme.Tokens, st *marketState, catal
 	})
 }
 
-func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool, tagNames map[string]string) {
+func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin, op api.PluginOperation, installing bool) {
 	lang := i18n.Locale()
 	name := displayName(plugin.Name, plugin.ID)
 	insetCard(c, tk).Key(plugin.ID).Padding(cardPad).Children(func() {
@@ -195,32 +161,20 @@ func (d *Page) marketCard(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlug
 		if desc := l10n.Localized(plugin.Description, lang); desc != "" {
 			ui.Text(c, desc).TextColor(tk.TextSecondary).MaxLines(cardDescLines).Margin(cardDescGap, 0, 0, 0)
 		}
-		if len(plugin.Tags) == 0 && !plugin.Installed {
+		if !plugin.Installed {
 			return
 		}
 		ui.Box(c).Grow(1)
-		ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(cardHeadGap).Margin(cardFooterGap, 0, 0, 0).Children(func() {
-			names := make([]string, len(plugin.Tags))
-			for i, id := range plugin.Tags {
-				names[i] = id
-				if tagName, ok := tagNames[id]; ok {
-					names[i] = tagName
-				}
-			}
-			ui.Text(c, strings.Join(names, tagJoin)).FontSize(metaSize).TextColor(tk.TextMuted).SingleLine().Grow(1).MinWidth(0)
-			if plugin.Installed {
-				installedNote(c, tk, plugin)
-			}
-		})
+		installedNote(c, tk, plugin).Margin(cardFooterGap, 0, 0, 0)
 	})
 }
 
-func installedNote(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin) {
+func installedNote(c *ui.Context, tk theme.Tokens, plugin api.CatalogPlugin) ui.Element {
 	text := locales.PluginsInstalledVersion(plugin.InstalledVersion)
 	if plugin.UpdateAvailable {
 		text = locales.PluginsUpdateAvailable(plugin.InstalledVersion)
 	}
-	ui.Row(c).Shrink(0).AlignItems(ui.Center).Gap(installedGap).Children(func() {
+	return ui.Row(c).MinWidth(0).AlignItems(ui.Center).Gap(installedGap).Children(func() {
 		ui.Icon(c, icons.Get("check")).Size(installedGlyph, installedGlyph).Shrink(0).TextColor(tk.Success)
 		ui.Text(c, text).FontSize(metaSize).TextColor(tk.TextSecondary).SingleLine().MinWidth(0)
 	})
