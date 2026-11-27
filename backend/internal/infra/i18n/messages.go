@@ -16,6 +16,7 @@ type RuntimeMessages struct {
 	StatusCommand   StatusCommandMessages   `yaml:"status_command"`
 	ListCommand     ListCommandMessages     `yaml:"list_command"`
 	CancelCommand   CancelCommandMessages   `yaml:"cancel_command"`
+	UnknownCommand  UnknownCommandMessages  `yaml:"unknown_command"`
 }
 
 // EngineCommandMessages holds text sent to IM users by the /engine command handler.
@@ -112,6 +113,12 @@ type CancelCommandMessages struct {
 	ScheduledCreated string `yaml:"scheduled_created"` // contains %s, %s, %s, %s (worker, instruction, cron, next run)
 	CreatedFooter    string `yaml:"created_footer"`    // contains %s (task id)
 	CancelButton     string `yaml:"cancel_button"`
+}
+
+type UnknownCommandMessages struct {
+	Unknown    string `yaml:"unknown"`
+	Suggestion string `yaml:"suggestion"`
+	Available  string `yaml:"available"`
 }
 
 // FailureNotifierMessages holds text sent to IM users when a task fails.

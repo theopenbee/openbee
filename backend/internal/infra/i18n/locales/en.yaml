@@ -87,3 +87,7 @@ runtime:
     scheduled_created: "⏰ Scheduled task created\nWorker: %s\nTask: %s\nSchedule: %s\nNext run: %s"
     created_footer: "Send /cancel %s to cancel it."
     cancel_button: "Cancel task"
+  unknown_command:
+    unknown: "Unknown command %s."
+    suggestion: " Did you mean %s?"
+    available: "Available commands: %s"

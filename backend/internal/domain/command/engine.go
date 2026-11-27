@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"go.uber.org/zap"
 
@@ -109,7 +110,8 @@ type EngineCommandHandler struct {
 }
 
 func isExactOrPrefixed(content, cmd string) bool {
-	return content == cmd || strings.HasPrefix(content, cmd+" ")
+	rest, ok := strings.CutPrefix(content, cmd)
+	return ok && (rest == "" || unicode.IsSpace(rune(rest[0])))
 }
 
 func NewEngineCommandHandler(

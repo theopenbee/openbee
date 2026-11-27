@@ -87,3 +87,7 @@ runtime:
     scheduled_created: "⏰ 已创建定时任务\n员工：%s\n内容：%s\n周期：%s\n下次执行：%s"
     created_footer: "发送 /cancel %s 可取消。"
     cancel_button: "取消任务"
+  unknown_command:
+    unknown: "未知指令 %s。"
+    suggestion: "是不是想输入 %s？"
+    available: "可用指令：%s"
