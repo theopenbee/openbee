@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.14] - 2026-11-26
 
 ### Added
 - Copy previewed images on desktop.
