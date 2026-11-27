@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Simpler plugin lists: fewer columns, no marketplace tags.
+
 ## [1.0.13] - 2026-11-26
 
 ### Added
