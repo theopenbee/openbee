@@ -48,6 +48,7 @@ type Shell struct {
 	panel        PanelPane
 	account      AccountTrigger
 	openSettings func(section string)
+	detach       func(cid string)
 	list         list
 	drawerOpen   bool
 	drawerShown  bool
@@ -58,6 +59,10 @@ func New(s *store.Store, nav route.Nav, chat ChatPane, panel PanelPane, account 
 	sh.list.init()
 	s.OnSessionReset(sh.list.reset)
 	return sh
+}
+
+func (sh *Shell) OnDetach(fn func(cid string)) {
+	sh.detach = fn
 }
 
 func (sh *Shell) View(c *ui.Context, conversationParam string) {

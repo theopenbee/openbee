@@ -106,6 +106,8 @@ type Store struct {
 	watchedRun  string
 	stopRunPoll func()
 	active      string
+	detached    map[string]bool
+	focused     string
 	foreground  bool
 	lastSeq     *uint64
 	wake        chan struct{}

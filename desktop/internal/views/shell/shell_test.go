@@ -487,3 +487,26 @@ func TestSessionResetClearsSearchAndScroll(t *testing.T) {
 		t.Fatalf("search after signing in again = %q, want empty", got)
 	}
 }
+
+func TestDoubleClickRowDetachesTheChat(t *testing.T) {
+	f := newFixture(t, wideW, wideH, route.Chat("bee"), seed(team()))
+	var detached []string
+	f.shell.OnDetach(func(cid string) { detached = append(detached, cid) })
+
+	f.click("Alice")
+	if len(detached) != 0 {
+		t.Fatalf("a single click detached %v", detached)
+	}
+	f.Settle()
+	r, ok := f.T.Find("Alice")
+	if !ok {
+		t.Fatalf("no Alice row; texts %q", f.T.Texts())
+	}
+	f.T.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	f.T.ClickAt(r.X+r.W/2, r.Y+r.H/2)
+	f.Settle()
+	if !slices.Equal(detached, []string{"worker:w1"}) {
+		t.Fatalf("detached = %v, want worker:w1 once", detached)
+	}
+	f.wantPath("/chat/w1")
+}

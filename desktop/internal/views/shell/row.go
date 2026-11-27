@@ -42,6 +42,9 @@ func (sh *Shell) row(c *ui.Context, tk theme.Tokens, conv api.ConversationSummar
 		bg = tk.SurfaceMuted
 	}
 	b.Background(b.AnimateColor("bg", bg, rowFade)).OnClick(func() { sh.nav.Push(route.Chat(route.Param(conv.ID))) })
+	if b.DoubleClicked() && sh.detach != nil {
+		sh.detach(conv.ID)
+	}
 	b.Children(func() {
 		if isWorker {
 			kit.WorkerAvatar(c, tk, w.ID, w.Name, w.Status, sh.s.AvatarImage(w.Avatar), kit.AvatarMD, true)

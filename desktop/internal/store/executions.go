@@ -115,7 +115,7 @@ func (s *Store) refreshHandoffs(taskID string) {
 		if !ch.Loaded || !model.ShowsHandoffTask(ch.List.Msgs, taskID) {
 			continue
 		}
-		if cid == s.active {
+		if s.shown(cid) {
 			ch.Refresh()
 		} else {
 			ch.stale = true

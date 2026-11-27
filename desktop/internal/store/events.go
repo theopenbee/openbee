@@ -74,9 +74,7 @@ func (s *Store) SetForeground(visible bool) {
 		return
 	}
 	s.closeActive()
-	if ch, ok := s.chats[s.active]; ok && ch.Loaded {
-		ch.MarkRead(0)
-	}
+	s.markReading()
 	s.refetchStale()
 	s.resumeExecution()
 	s.ReconnectNow()
@@ -306,7 +304,7 @@ func (s *Store) resync() {
 
 func (s *Store) handleEvent(ev api.ChatEvent) {
 	gap := model.SeqGap(s.lastSeq, ev.Seq)
-	eff := model.ApplyEvent(ev, s.summaries(), s.WorkerMap(), s.active, s.foreground)
+	eff := model.ApplyEvent(ev, s.summaries(), s.WorkerMap(), s.reading(), s.foreground)
 	s.applyEffect(eff)
 	if gap {
 		s.resync()
@@ -348,7 +346,7 @@ func (s *Store) noteSent(cid string, m api.ChatMessage) {
 	if i >= 0 && summaries[i].LastMessage != nil && summaries[i].LastMessage.TS > m.TS {
 		return
 	}
-	s.applyEffect(model.ApplyEvent(api.ChatEvent{Type: "message", ConversationID: cid, Message: &m}, summaries, s.WorkerMap(), s.active, s.foreground))
+	s.applyEffect(model.ApplyEvent(api.ChatEvent{Type: "message", ConversationID: cid, Message: &m}, summaries, s.WorkerMap(), s.reading(), s.foreground))
 }
 
 func (s *Store) applyEffect(eff model.EventEffect) {
@@ -372,7 +370,7 @@ func (s *Store) resetLive() {
 	s.Offline = false
 	s.lastSeq = nil
 	s.wake, s.restart = nil, nil
-	s.active = ""
+	s.active, s.detached, s.focused = "", nil, ""
 	s.endGrace()
 	s.clearReconnect()
 	s.setUnread(0)

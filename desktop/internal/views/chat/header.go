@@ -33,14 +33,16 @@ func (v *View) headerBar(c *ui.Context, tk theme.Tokens, content func()) {
 	w, _ := c.Size()
 	narrow := w < theme.BreakTwoPane
 	pad := float32(headerPadWide)
-	start := pad
 	if narrow {
 		pad = headerPadNarrow
+	}
+	start := pad
+	if narrow || v.detached {
 		start = max(pad, c.TitleBar().Left)
 	}
 	ui.Row(c).Height(theme.HeaderHeight).Shrink(0).Gap(headerGap).PaddingStart(start).PaddingEnd(pad).
 		BorderWidth(0, 0, 1, 0).BorderColor(tk.Border).DragWindow().Children(func() {
-		if narrow {
+		if narrow && !v.detached {
 			v.backButton(c, tk)
 		}
 		if content != nil {
@@ -71,10 +73,12 @@ func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 			kit.WorkerAvatar(c, tk, p.worker.ID, p.worker.Name, p.worker.Status, v.s.AvatarImage(p.worker.Avatar), kit.AvatarMD, true)
 		}
 		ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Children(func() {
-			if p.worker == nil {
-				ui.Text(c, locales.ChatBeeLabel()).FontSize(titleSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
-					Role(ui.RoleHeading).Level(1)
-			} else {
+			switch {
+			case p.worker == nil:
+				heading(c, locales.ChatBeeLabel())
+			case v.detached:
+				heading(c, p.worker.Name)
+			default:
 				v.panelToggle(c, tk, p, panelOpen)
 			}
 			if sub := v.subtitle(p, kind, ahead); sub != "" {
@@ -90,6 +94,11 @@ func (v *View) header(c *ui.Context, tk theme.Tokens, p pane, panelOpen bool) {
 				OnClick(p.cs.reset.show)
 		})
 	})
+}
+
+func heading(c *ui.Context, text string) {
+	ui.Text(c, text).FontSize(titleSize).FontWeight(mediumWeight).SingleLine().MaxWidthPercent(100).
+		Role(ui.RoleHeading).Level(1)
 }
 
 func (v *View) panelToggle(c *ui.Context, tk theme.Tokens, p pane, open bool) {

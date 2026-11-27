@@ -220,7 +220,7 @@ func (ch *Chat) Choose(id string, index int, done func(error)) {
 
 func (ch *Chat) MarkRead(ts int64) {
 	s := ch.s
-	if s.active != ch.ID || !s.foreground {
+	if s.reading() != ch.ID || !s.foreground {
 		return
 	}
 	cid := ch.ID
@@ -289,7 +289,7 @@ func (ch *Chat) update(m api.ChatMessage) {
 func (ch *Chat) resync() {
 	switch {
 	case !ch.Loaded && !ch.Loading && ch.Err == nil:
-	case ch.ID == ch.s.active:
+	case ch.s.shown(ch.ID):
 		ch.Refresh()
 		ch.MarkRead(0)
 	default:

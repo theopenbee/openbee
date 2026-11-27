@@ -32,6 +32,10 @@ const (
 	windowHeight = 800
 	minWidth     = 720
 	minHeight    = 480
+	chatState    = "chat:"
+	chatWidth    = 600
+	chatHeight   = 760
+	chatMinWidth = 420
 	flushTimeout = 2 * time.Second
 	overlayDelay = time.Second
 	serverStop   = 20 * time.Second
@@ -51,6 +55,7 @@ type App struct {
 	st       *store.Store
 	root     *views.Root
 	win      atomic.Pointer[mygo.Window]
+	chats    map[string]*mygo.Window
 	postMu   sync.Mutex
 	queued   []func()
 	pending  string
@@ -60,8 +65,8 @@ type App struct {
 }
 
 func New() *App {
-	a := &App{debug: slices.ContainsFunc(os.Args[1:], isDebugFlag)}
-	a.notifier = NewNotifier(a.window, a.open, a.showUnread)
+	a := &App{debug: slices.ContainsFunc(os.Args[1:], isDebugFlag), chats: map[string]*mygo.Window{}}
+	a.notifier = NewNotifier(a.window, a.focused, a.open, a.showUnread)
 	return a
 }
 
@@ -149,6 +154,8 @@ func (a *App) start() {
 	}
 	a.st = store.New(opts)
 	a.root = views.NewRoot(a.st)
+	a.root.OnDetach(func(cid string) { a.post(func() { a.detach(cid) }) })
+	a.st.OnSessionReset(a.closeChats)
 	a.setMenu()
 	a.startTray()
 	a.openWindow()
@@ -196,7 +203,12 @@ func (a *App) post(fn func()) {
 		return
 	}
 	a.postMu.Unlock()
-	w.Update(fn)
+	w.Update(func() {
+		fn()
+		for _, cw := range a.chats {
+			cw.Invalidate()
+		}
+	})
 }
 
 func (a *App) attach(w *mygo.Window) {
@@ -238,6 +250,87 @@ func (a *App) openWindow() *mygo.Window {
 	a.attach(w)
 	a.syncForeground()
 	return w
+}
+
+func (a *App) detach(cid string) {
+	if w := a.chats[cid]; w != nil && !w.IsDestroyed() {
+		raise(w)
+		return
+	}
+	var w *mygo.Window
+	view := a.root.NewDetached(cid, views.DetachedOptions{
+		ShowMain: a.show,
+		Close: func() {
+			if w != nil {
+				go w.Close()
+			}
+		},
+		SetTitle: func(title string) {
+			if w != nil {
+				w.SetTitle(title)
+			}
+		},
+	})
+	title := view.Title()
+	if title == "" {
+		title = appTitle
+	}
+	w = mygo.NewWindow(mygo.WindowOptions{
+		Title:           title,
+		Width:           chatWidth,
+		Height:          chatHeight,
+		MinWidth:        chatMinWidth,
+		MinHeight:       minHeight,
+		StateKey:        chatState + cid,
+		TitleBarStyle:   titleBarStyle(runtime.GOOS),
+		BackgroundColor: background(a.theme),
+		Content:         ui.View(view.View),
+	})
+	a.chats[cid] = w
+	a.st.SetDetached(cid, true)
+	w.OnFocus(a.syncForeground)
+	w.OnBlur(a.syncForeground)
+	w.OnClosed(func() {
+		if a.chats[cid] == w {
+			delete(a.chats, cid)
+			a.st.SetDetached(cid, false)
+		}
+		a.syncForeground()
+	})
+	a.syncForeground()
+}
+
+func (a *App) closeChats() {
+	for _, w := range a.chats {
+		go w.Close()
+	}
+}
+
+func (a *App) focused() bool {
+	if w := a.win.Load(); w != nil && !w.IsDestroyed() && w.IsFocused() {
+		return true
+	}
+	return a.focusedChat() != ""
+}
+
+func (a *App) focusedChat() string {
+	for cid, w := range a.chats {
+		if !w.IsDestroyed() && w.IsFocused() {
+			return cid
+		}
+	}
+	return ""
+}
+
+func raise(w *mygo.Window) {
+	if w.IsMinimized() {
+		w.Restore()
+	}
+	if !w.IsVisible() {
+		w.Show()
+	}
+	w.Focus()
+	mygo.App.Focus()
 }
 
 func (a *App) startTray() {
@@ -304,17 +397,14 @@ func (a *App) show() {
 	if w.IsDestroyed() {
 		w = a.openWindow()
 	}
-	if w.IsMinimized() {
-		w.Restore()
-	}
-	if !w.IsVisible() {
-		w.Show()
-	}
-	w.Focus()
-	mygo.App.Focus()
+	raise(w)
 }
 
 func (a *App) open(cid string) {
+	if w := a.chats[cid]; cid != "" && w != nil && !w.IsDestroyed() {
+		raise(w)
+		return
+	}
 	a.show()
 	if cid == "" {
 		return
@@ -350,8 +440,17 @@ func (a *App) syncForeground() {
 	if a.st == nil {
 		return
 	}
-	if fg := a.notifier.Foreground(); fg != a.st.Foreground() {
-		a.st.SetForeground(fg)
+	fg := a.notifier.Foreground()
+	if !fg && a.st.Foreground() {
+		a.st.SetForeground(false)
+	}
+	chat := ""
+	if fg {
+		chat = a.focusedChat()
+	}
+	a.st.FocusDetached(chat)
+	if fg && !a.st.Foreground() {
+		a.st.SetForeground(true)
 	}
 }
 
@@ -364,7 +463,14 @@ func (a *App) reconnect() {
 func (a *App) setTheme(pref string) {
 	a.theme = themeSource(pref)
 	mygo.Theme.SetSource(a.theme)
-	if w := a.win.Load(); w != nil {
+	windows := []*mygo.Window{a.win.Load()}
+	for _, w := range a.chats {
+		windows = append(windows, w)
+	}
+	for _, w := range windows {
+		if w == nil || w.IsDestroyed() {
+			continue
+		}
 		if err := w.SetBackgroundColor(background(a.theme)); err != nil {
 			log.Printf("desktop: window background: %v", err)
 		}

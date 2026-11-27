@@ -57,6 +57,8 @@ type View struct {
 	save        func(name string, data []byte) (string, error)
 	pick        func() ([]string, error)
 	step        func(dir int)
+	detached    bool
+	gone        func()
 }
 
 type convState struct {
@@ -83,6 +85,12 @@ func New(s *store.Store, nav route.Nav, togglePanel func(cid string)) *View {
 		v.recycleMarkdown(true)
 		v.photos.retryFailed()
 	})
+	return v
+}
+
+func NewDetached(s *store.Store, nav route.Nav, gone func()) *View {
+	v := New(s, nav, nil)
+	v.detached, v.gone = true, gone
 	return v
 }
 
@@ -211,7 +219,11 @@ func (v *View) resolve(cid string, cs *convState) (*api.Worker, bool) {
 		workers.Invalidate()
 	case !workers.Loading && workers.Err == nil:
 		cs.refetched = false
-		v.nav.Replace(route.Chat(api.BeeConversation))
+		if v.detached {
+			v.gone()
+		} else {
+			v.nav.Replace(route.Chat(api.BeeConversation))
+		}
 	}
 	return nil, false
 }

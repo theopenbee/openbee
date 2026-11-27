@@ -25,13 +25,63 @@ func (s *Store) Active() string {
 	return s.active
 }
 
+func (s *Store) SetDetached(conversationID string, open bool) {
+	if open {
+		if s.detached == nil {
+			s.detached = map[string]bool{}
+		}
+		s.detached[conversationID] = true
+		return
+	}
+	delete(s.detached, conversationID)
+	if s.focused == conversationID {
+		s.focused = ""
+	}
+}
+
+func (s *Store) FocusDetached(conversationID string) {
+	if !s.detached[conversationID] {
+		conversationID = ""
+	}
+	if s.focused == conversationID {
+		return
+	}
+	s.focused = conversationID
+	if !s.foreground || s.Phase != PhaseReady {
+		return
+	}
+	s.closeActive()
+	s.markReading()
+}
+
+func (s *Store) FocusedDetached() string {
+	return s.focused
+}
+
+func (s *Store) reading() string {
+	if s.focused != "" {
+		return s.focused
+	}
+	return s.active
+}
+
+func (s *Store) shown(conversationID string) bool {
+	return conversationID == s.active || s.detached[conversationID]
+}
+
+func (s *Store) markReading() {
+	if ch, ok := s.chats[s.reading()]; ok && ch.Loaded {
+		ch.MarkRead(0)
+	}
+}
+
 func (s *Store) UnreadTotal() int {
 	return model.UnreadTotal(s.summaries())
 }
 
 func (s *Store) closeActive() {
-	if s.active != "" {
-		s.o.Notifier.CloseConversation(s.active)
+	if cid := s.reading(); cid != "" {
+		s.o.Notifier.CloseConversation(cid)
 	}
 }
 

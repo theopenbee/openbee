@@ -27,7 +27,7 @@ func (v *View) activityBar(c *ui.Context, tk theme.Tokens, p pane) {
 		return
 	}
 	run := ""
-	if act.State == stateRunning {
+	if act.State == stateRunning && !v.detached {
 		run = act.ExecutionID
 	}
 	ui.Column(c).Key(activityKey{}).Shrink(0).Background(tk.Background).Children(func() {

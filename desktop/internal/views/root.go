@@ -22,6 +22,7 @@ import (
 
 type Root struct {
 	s        *store.Store
+	detach   func(cid string)
 	router   *ui.Router
 	auth     *auth.Screens
 	shell    *shell.Shell
@@ -52,7 +53,16 @@ func NewRoot(s *store.Store) *Root {
 		OpenSettings:     func(section, plugin string) { r.settings.Open(section, plugin) },
 	})
 	r.help.OnSwap = r.search.Toggle
+	r.shell.OnDetach(func(cid string) {
+		if r.detach != nil {
+			r.detach(cid)
+		}
+	})
 	return r
+}
+
+func (r *Root) OnDetach(fn func(cid string)) {
+	r.detach = fn
 }
 
 type panels struct {
@@ -119,8 +129,10 @@ func (r *Root) View(c *ui.Context) {
 		r.search.Close()
 		r.help.Open = false
 	}
-	r.s.PruneToasts()
-	kit.ShowToasts(c, tk, &r.s.Toasts)
+	if r.s.FocusedDetached() == "" {
+		r.s.PruneToasts()
+		kit.ShowToasts(c, tk, &r.s.Toasts)
+	}
 }
 
 func (r *Root) page(c *ui.Context, tk theme.Tokens, rt *ui.Route) {

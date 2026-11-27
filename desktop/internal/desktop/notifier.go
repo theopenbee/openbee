@@ -14,6 +14,7 @@ const appTitle = "OpenBee"
 
 type Notifier struct {
 	win       func() *mygo.Window
+	focused   func() bool
 	open      func(cid string)
 	badge     func(unread int)
 	checked   bool
@@ -22,8 +23,8 @@ type Notifier struct {
 	shown     map[string][]string
 }
 
-func NewNotifier(win func() *mygo.Window, open func(cid string), badge func(unread int)) *Notifier {
-	return &Notifier{win: win, open: open, badge: badge, shown: map[string][]string{}}
+func NewNotifier(win func() *mygo.Window, focused func() bool, open func(cid string), badge func(unread int)) *Notifier {
+	return &Notifier{win: win, focused: focused, open: open, badge: badge, shown: map[string][]string{}}
 }
 
 func TitleWithUnread(n int) string {
@@ -76,8 +77,7 @@ func (n *Notifier) SetUnread(total int) {
 }
 
 func (n *Notifier) Foreground() bool {
-	w := n.win()
-	return w != nil && mygo.App.IsActive() && w.IsFocused()
+	return mygo.App.IsActive() && n.focused()
 }
 
 func (n *Notifier) Click(id string) {
